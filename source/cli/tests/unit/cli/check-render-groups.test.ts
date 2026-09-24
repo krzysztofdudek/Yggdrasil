@@ -724,3 +724,14 @@ describe('renderGroup — nodeless members', () => {
     expect(out).toContain('- src/leaf/only-file.ts');
   });
 });
+
+// Issue 208 (m12): remedy 4 used to read as if raising the cap re-billed a tier.
+describe('prompt-too-large remedy tells the truth about cost (issue 208, m12)', () => {
+  it('raising the cap re-verifies nothing; moving tiers re-reviews the aspect', () => {
+    const msg = promptTooLargeMessage({ aspectId: 'a', unitKey: 'node:core', tierName: 'standard', chars: 62618, limit: 50000 });
+    expect(msg.next).toContain("4. Raise max_prompt_chars on the 'standard' tier (now 50000)");
+    expect(msg.next).toContain('raising it re-verifies nothing');
+    expect(msg.next).toContain('re-reviews every pair of the aspect, because the tier name is part of each pair\'s hash');
+    expect(msg.next).not.toContain('cascade re-verification across every aspect');
+  });
+});

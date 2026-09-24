@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { LlmProvider, AspectResponse } from './types.js';
+import type { LlmProvider, AspectResponse, ReviewerUsage } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { probeBinary } from '../utils/binary-check.js';
 import { redactedTail, redactSecrets } from '../utils/redact.js';
@@ -311,6 +311,18 @@ export abstract class CliAgentProvider implements LlmProvider {
    */
   protected get installHint(): string { return `install '${this.binary}' and put it on PATH`; }
 
+  /**
+   * Split what the CLI printed into the model's reply and, when the CLI reports
+   * it, what the call consumed. The default is the whole of stdout as the reply
+   * with no usage; a provider that runs its CLI in a structured output mode
+   * overrides this to unwrap the envelope (claude-code). A reply the override
+   * cannot unwrap must come back as raw stdout, never as an error — the verdict
+   * parser then decides, exactly as it did before the override existed.
+   */
+  protected extractReply(stdout: string): { reply: string; usage?: ReviewerUsage; error?: string } {
+    return { reply: stdout };
+  }
+
   /** Why the last isAvailable() said no, as the binary probe worded it. */
   protected lastProbeFailure = '';
 
@@ -448,10 +460,21 @@ export abstract class CliAgentProvider implements LlmProvider {
         if (code !== 0) {
           // The whole stderr goes to the debug log; the reason carries its tail.
           debugWrite(`[${this.binary}] exit_code=${code} signal=${signal ?? 'none'}; stderr: ${redactSecrets(stderr)}`);
-          settle(failed(this.describeFailure(code === null ? `was killed by ${signal ?? 'a signal'}` : `exited with code ${code}`, stderr, stdout)));
+          // A structured-output CLI puts its own error message inside the
+          // envelope; quote that rather than the envelope's JSON tail.
+          const said = this.extractReply(stdout).error ?? stdout;
+          settle(failed(this.describeFailure(code === null ? `was killed by ${signal ?? 'a signal'}` : `exited with code ${code}`, stderr, said)));
           return;
         }
-        settle(parseAspectResponse(stdout) ?? failed(this.describeFailure('exited 0 without a verdict', stderr, '')));
+        const { reply, usage, error } = this.extractReply(stdout);
+        if (error !== undefined) {
+          settle(failed(`'${this.binary}' reported an error: ${redactSecrets(error).slice(0, 400)}`));
+          return;
+        }
+        const parsed = parseAspectResponse(reply);
+        settle(parsed === undefined
+          ? failed(this.describeFailure('exited 0 without a verdict', stderr, ''))
+          : usage !== undefined ? { ...parsed, usage } : parsed);
       });
 
       // A reviewer that exits without reading its prompt (an expired login, a

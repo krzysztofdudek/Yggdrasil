@@ -29,4 +29,17 @@ export interface AspectResponse {
   reason: string;
   /** Discriminator: codeViolation = real code issue; provider = infra/API error; checkRuntime = deterministic check threw */
   errorSource: 'codeViolation' | 'provider' | 'checkRuntime';
+  /** What the call consumed, when the provider reports it. Telemetry for the
+   *  end-of-fill summary only — never a verdict input, never persisted. */
+  usage?: ReviewerUsage;
+}
+
+/** Tokens and cost of one reviewer call, as far as the provider reports them. */
+export interface ReviewerUsage {
+  /** Prompt tokens, cached reads and cache writes included. */
+  inputTokens?: number;
+  outputTokens?: number;
+  /** The provider's own cost figure in US dollars (list price where the
+   *  provider says so — a subscription is not billed per call). */
+  costUsd?: number;
 }

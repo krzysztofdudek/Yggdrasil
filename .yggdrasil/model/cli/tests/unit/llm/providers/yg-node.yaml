@@ -22,3 +22,4 @@ mapping:
   - source/cli/tests/unit/llm/copilot-cli.test.ts
   - source/cli/tests/unit/llm/google.test.ts
   - source/cli/tests/unit/llm/openai.test.ts
+  - source/cli/tests/unit/llm/reviewer-hardening.test.ts

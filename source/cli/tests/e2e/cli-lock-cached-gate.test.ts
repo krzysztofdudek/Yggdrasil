@@ -82,7 +82,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       expect(check.all).toContain('A refused verdict for unchanged inputs is final and cached');
       expect(check.all).toContain('Reviewer reason: missing doc comment');
       // The three exits are present in the rendered Fix line.
-      expect(check.all).toContain('Three exits:');
+      expect(check.all).toContain('Four exits:');
       expect(check.all).toContain('yg impact --aspect has-doc-comment');
       expect(check.all).toContain('yg-suppress');
 
@@ -115,9 +115,11 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       const check = run(['check'], dir); // plain read renders the cached refusal (exit 1)
       expect(check.status).toBe(1);
       // The footer must carry the actual exits — not dead-end on the heading.
-      expect(check.all).toMatch(/Next: Three exits:\n\s+1\. Fix the code/);
+      expect(check.all).toMatch(/Next: Four exits:\n\s+1\. Fix the code/);
       expect(check.all).toMatch(/\n\s+2\. Sharpen the aspect/);
       expect(check.all).toMatch(/\n\s+3\. Propose a `yg-suppress`/);
+      // Issue 210 (m16): the fourth exit — advisory while deciding — is offered too.
+      expect(check.all).toMatch(/\n\s+4\. Not sure yet which it is: propose `status: advisory`/);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -139,7 +141,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       expect(check.status).toBe(0);
       expect(check.all).toContain('advisory');
       // Even on a warnings-only PASS, the footer must carry the exits.
-      expect(check.all).toMatch(/Next: Three exits:\n\s+1\. Fix the code/);
+      expect(check.all).toMatch(/Next: Four exits:\n\s+1\. Fix the code/);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

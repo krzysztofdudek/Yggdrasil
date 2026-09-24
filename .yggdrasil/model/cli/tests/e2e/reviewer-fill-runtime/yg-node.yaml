@@ -1,0 +1,12 @@
+name: E2E Tests — Reviewer Fill Runtime
+type: test-suite
+description: "Subprocess E2E for what a real claude-code fill says and records,
+  against a fake claude binary on PATH: the closing line with calls, elapsed
+  time and the reported tokens and cost; the approval reason kept on the local
+  events line and out of the lock; a prompt that frames subject text as data
+  and numbers every subject line; and a SIGTERM mid-fill that prints how many
+  verdicts were saved, keeps the finished one and leaves no reviewer running."
+aspects: []
+relations: [ { target: cli/tests/e2e/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-reviewer-fill-runtime.test.ts

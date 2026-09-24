@@ -157,6 +157,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // sentences, and writes to no stream of its own.
   const emit: FillEventSink = opts.onEvent ?? textFillSink(opts.write ?? ((): void => {}));
   const emitIssue = opts.emitIssue ?? ((): void => {});
+  const startedAt = opts.now();
   const projectRoot = path.dirname(graph.rootPath);
   const onlyDeterministic = opts.onlyDeterministic ?? false;
   const dryRun = opts.dryRun ?? false;
@@ -341,7 +342,34 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
-  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha, exclusion });
+  // The pair count an interrupt reports against, known once the header is
+  // written (0 before that: an interrupt then has nothing of this run to report).
+  let interruptTotal = 0;
+  const writer = createVerdictWriter({
+    graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha, exclusion,
+    onInterrupted: (saved, flushed) => {
+      if (interruptTotal === 0) return;
+      const total = interruptTotal;
+      const pairs = `${total} pair${total === 1 ? '' : 's'}`;
+      emit({
+        type: 'interrupted',
+        saved,
+        total,
+        flushed,
+        message: flushed
+          ? {
+            what: `Interrupted — ${saved} of ${pairs} ${saved === 1 ? 'has' : 'have'} a verdict saved from this run.`,
+            why: 'A signal stopped the run. Every verdict finished before it is in the lock; the reviewer calls still running were stopped, and the pairs without a verdict stay unverified.',
+            next: `Re-run: ${retry} — it resumes, reviewing only the pairs without a verdict.`,
+          }
+          : {
+            what: `Interrupted — the final lock write FAILED; up to ${saved} of ${pairs} may have lost the verdict this run gave them.`,
+            why: 'A signal stopped the run, and writing the verdicts still held in memory to the lock failed. The reviewer calls still running were stopped.',
+            next: `Re-run: ${retry} — every pair without a verdict in the lock is reviewed again.`,
+          },
+      });
+    },
+  });
 
   // Record the assembled prompt's size on any still-valid verdict that predates
   // the field. Placed BEFORE the log gate below on purpose: this writes no
@@ -390,6 +418,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // It is NOT responsible for setting up real timers — that is done below so
   // that tests can drive the tracker directly via onTick() with a fake clock.
   const totalPairs = detPairs.length + llmPairs.length;
+  interruptTotal = totalPairs;
   const tracker = new ProgressTracker(totalPairs, {
     isTTY,
     now,
@@ -524,6 +553,8 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     // Refusals the lock already held for unchanged inputs: they stand after
     // this run, so its closing line must not claim every pair is valid.
     cachedRefusals: verification.pairs.filter((vp) => vp.state.kind === 'refused').length,
+    elapsedMs: Math.max(0, opts.now() - startedAt),
+    usage: llm.usage,
   }, emit, emitIssue);
 
   // Drain all queued progress writes first, then stop the timer and clear the TTY line.

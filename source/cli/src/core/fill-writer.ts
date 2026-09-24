@@ -60,6 +60,8 @@ export interface VerdictWriter {
     tierName?: string,
     votes?: { satisfied: number; total: number },
     judge?: { provider: string; model: string },
+    /** An approval's reason, for the local events line only (never the lock). */
+    approvalReason?: string,
   ) => Promise<void>;
   /** Append one (aspect, unit) disposition line to the telemetry sidecar —
    *  used directly for the no-write dispositions; `setEntry` calls it itself
@@ -122,8 +124,15 @@ export function createVerdictWriter(params: {
   sha?: string;
   /** The run's approval lock, which closes this writer before letting go. */
   exclusion?: FillExclusion;
+  /**
+   * Called synchronously when SIGINT/SIGTERM interrupts the run, AFTER the
+   * in-memory verdicts have been put on disk, with how many verdicts this run
+   * wrote (all of them now saved) and whether that final write succeeded — so
+   * the run can say "K of N saved" before the signal takes the process down.
+   */
+  onInterrupted?: (saved: number, flushed: boolean) => void;
 }): VerdictWriter {
-  const { graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha, exclusion } = params;
+  const { graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha, exclusion, onInterrupted } = params;
 
   // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
   // reads it back). One line per (aspect, unit) disposition — a real verdict
@@ -268,6 +277,7 @@ export function createVerdictWriter(params: {
     tierName?: string,
     votes?: { satisfied: number; total: number },
     judge?: { provider: string; model: string },
+    approvalReason?: string,
   ): Promise<void> => {
     // WHEN this verdict was filled, and at which commit — so a consumer above
     // the agent can attribute reviewer cost to the branch that caused it.
@@ -289,7 +299,9 @@ export function createVerdictWriter(params: {
     // The telemetry line waits for the flush that carries this verdict.
     pending.push(() => emitEvent(pair.aspectId, pair.unitKey, pair.kind, entry.verdict, {
       hash: entry.hash,
-      reason: entry.reason,
+      // A refusal's reason is the lock's own; an approval's reason exists only
+      // here, on the local line (the committed stream strips every reason).
+      reason: entry.reason ?? approvalReason,
       tier: tierName,
       votes,
       judge,
@@ -315,9 +327,17 @@ export function createVerdictWriter(params: {
   // SIGINT/SIGTERM: put the in-memory state on disk synchronously before the
   // signal takes the process down, so an interrupt loses nothing already decided.
   const flushOnInterrupt = (): void => {
-    if (!anyDirty() && pending.length === 0) return;
-    writeLockSync(graph.rootPath, lock, { scope: writeScope, deterministicAspectIds });
-    for (const emit of pending.splice(0)) emit();
+    let flushed = true;
+    if (anyDirty() || pending.length > 0) {
+      try {
+        writeLockSync(graph.rootPath, lock, { scope: writeScope, deterministicAspectIds });
+        for (const emit of pending.splice(0)) emit();
+      } catch (e) {
+        flushed = false;
+        debugWrite(`[fill] final lock write on interrupt failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    onInterrupted?.(lockWrites, flushed);
   };
   const disposeInterrupt = onInterruptFlushLock(flushOnInterrupt);
   let closed = false;

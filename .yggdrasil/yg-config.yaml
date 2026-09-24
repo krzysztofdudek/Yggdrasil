@@ -32,6 +32,10 @@ reviewer:
       # zero-classifying-types notice again pushed check.ts's what-why-next prompt
       # past the cap. This file is a recurring hot spot for this ceiling; 72K keeps
       # comfortable headroom under sonnet's 200K context for the next edit too.
-      max_prompt_chars: 72000
+      # Raised again to 96000: the reviewer prompt now numbers every subject line
+      # (prompt rev 4), about six more characters per line, which took the
+      # 1,300-line aspect-test command file to ~81K and advise-nominations to ~74K.
+      # Still well under half of sonnet's 200K context; excluded from the hash.
+      max_prompt_chars: 96000
       config:
         model: sonnet

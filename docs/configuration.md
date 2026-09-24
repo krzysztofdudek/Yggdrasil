@@ -28,7 +28,7 @@ refreshes the agent-rules files.
 
 - **coverage** — Controls which files must be mapped to a node (see [Coverage config](#coverage-config) below).
 - **quality** — Quality thresholds (see [Quality config](#quality-config) below).
-- **parallel** — How many **LLM (reviewer) verifications** run concurrently (positive integer, default `1`). Governs only the reviewer fill phase, where the cost is network latency. Deterministic checks ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed). Each deterministic check runs under a wall-clock budget, 120 seconds by default (`YG_DET_TASK_TIMEOUT_MS` in the environment changes it, in milliseconds; `0` switches it off): a check still running past it is stopped and reported as `aspect-check-runtime-error` naming the rule and the unit, and the rest of the run carries on.
+- **parallel** — How many **LLM (reviewer) verifications** run concurrently (positive integer, default `1`). `yg init` writes `4` when it sets up a CLI reviewer (claude-code, codex, gemini-cli, copilot-cli) and the file has no `parallel` yet: each call is its own local process under your subscription, and four keep a first fill of a few hundred pairs to minutes while staying inside its rate limit. For an API reviewer, set it to what the key's rate limit allows. A tier with `consensus: N` runs its N passes at once, so up to `parallel × N` calls are in flight. Governs only the reviewer fill phase, where the cost is network latency. Deterministic checks ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed). Each deterministic check runs under a wall-clock budget, 120 seconds by default (`YG_DET_TASK_TIMEOUT_MS` in the environment changes it, in milliseconds; `0` switches it off): a check still running past it is stopped and reported as `aspect-check-runtime-error` naming the rule and the unit, and the rest of the run carries on.
 - **debug** — Set `true` to append all CLI output to `.yggdrasil/.debug.log`.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
@@ -364,8 +364,7 @@ When a pair trips the gate, the remedies in safety order are:
 2. **Switch the aspect to `per: file`** — only if the rule is file-local; a per-file
    reviewer cannot judge a cross-file rule.
 3. **Split the node** into children.
-4. **Raise the limit** or move the aspect to a higher-limit tier — but tier choice is
-   part of a pair's identity, so a tier edit re-verifies every pair resolving to it.
+4. **Raise the limit** on the tier. `max_prompt_chars` is not a verdict input, so raising it re-verifies nothing: the blocked pair is reviewed on the next `yg check --approve` and every recorded verdict stays. Keep it inside the model's context window. Moving the aspect to a different, higher-limit tier is the costly variant: the tier *name* is part of each pair's hash, so the move re-reviews every pair of that aspect.
 
 `max_prompt_chars` is a gate, not a verdict input: lowering it can make an
 already-verified pair trip the gate without invalidating its recorded verdict.

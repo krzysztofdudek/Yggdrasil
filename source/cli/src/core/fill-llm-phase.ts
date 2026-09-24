@@ -5,8 +5,9 @@
  * Pairs are grouped by RESOLVED TIER, and each tier is dispatched behind one
  * provider instance: availability is probed once per tier rather than once per
  * pair, and a tier whose provider is unreachable disposes of its whole group at
- * once. Within a tier, a bounded pool runs pairs concurrently while consensus
- * votes for a single pair run sequentially in-slot.
+ * once. Within a tier, a bounded pool runs pairs concurrently, and a pair's
+ * consensus votes run concurrently inside its slot (see verifyWithConsensus),
+ * so at most `parallel x consensus` reviewer calls are in flight.
  *
  * Tier config already reflects the yg-secrets overlay (deep-merged at config
  * parse time), so no per-provider secret merge happens here.
@@ -22,11 +23,13 @@ import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { LlmFillOutcome } from './fill-shared.js';
 import type { ProgressTracker } from './fill-progress.js';
-import type { FillEventSink } from '../model/fill-event.js';
+import type { FillEventSink, FillUsageTotals } from '../model/fill-event.js';
 import type { VerdictWriter } from './fill-writer.js';
 import type { InfraDiagnosticItem } from './fill-report.js';
 import { detGateKey, isNodeBlocked } from './fill-contract.js';
 import { fillLlmPair } from './fill-llm.js';
+import { consensusTally } from '../llm/aspect-verifier.js';
+import type { ReviewerUsage } from '../llm/types.js';
 import { runPairPool } from './fill-pool.js';
 import {
   buildParseCacheBuckets,
@@ -74,6 +77,20 @@ export interface LlmPhaseResult {
    *  reported on stderr once per tier; kept per pair so the post-fill report
    *  can name the cause on each of them (annotateFillCauses). */
   unreachableItems: InfraDiagnosticItem[];
+  /** Tokens and cost the reviewer calls reported, for the closing line.
+   *  Undefined when no call of this run reported any. */
+  usage?: FillUsageTotals;
+}
+
+/** Add one call's reported usage into a running total (creating it on first use). */
+function addUsage(total: FillUsageTotals | undefined, u: ReviewerUsage | undefined): FillUsageTotals | undefined {
+  if (u === undefined) return total;
+  const t = total ?? { reportedCalls: 0, inputTokens: 0, outputTokens: 0 };
+  t.reportedCalls += 1;
+  t.inputTokens += u.inputTokens ?? 0;
+  t.outputTokens += u.outputTokens ?? 0;
+  if (u.costUsd !== undefined) t.costUsd = (t.costUsd ?? 0) + u.costUsd;
+  return t;
 }
 
 export interface LlmPhaseParams {
@@ -181,7 +198,7 @@ export async function runLlmPhase({
       continue;
     }
 
-    // Worker pool bounded by parallel; consensus runs sequentially in-slot.
+    // Worker pool bounded by parallel; a pair's consensus votes run concurrently in its slot.
     // One shared parse cache per (aspectId, node/unit) bucket within this tier's
     // group — a `per: file` companion rule with N subjects on one node shares
     // ONE cache across all N instead of building/discarding one per pair. Bucket
@@ -205,12 +222,11 @@ export async function runLlmPhase({
           // setEntry's mutation is synchronous and persistLock serializes the disk
           // writes, so concurrent pool workers cannot corrupt the lock.
           if (outcome.kind === 'verdict') {
-            const votes = {
-              satisfied: outcome.votes.filter((v) => v.satisfied).length,
-              total: outcome.votes.length,
-            };
-            await writer.setEntry(item.pair, outcome.entry, item.tierName, votes, judgeIdentity(item.tier));
-            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, emit);
+            // The split counts verdict votes only — a provider-error vote was
+            // never a judgment (see verifyWithConsensus).
+            const votes = consensusTally(outcome.votes);
+            await writer.setEntry(item.pair, outcome.entry, item.tierName, votes, judgeIdentity(item.tier), outcome.approvalReason);
+            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, emit, votes);
           } else if (outcome.kind === 'infra' || outcome.kind === 'companion-runtime-error') {
             tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', emit);
           }
@@ -233,6 +249,9 @@ export async function runLlmPhase({
       const item = group[i];
       const outcome = outcomes[i];
       result.reviewerCallsMade += outcome.callsMade;
+      if (outcome.kind === 'verdict') {
+        for (const vote of outcome.votes) result.usage = addUsage(result.usage, vote.usage);
+      }
       if (outcome.kind === 'companion-runtime-error') {
         // Companion hook/resolution failure — counted separately, collected for
         // grouped emission after the tier loop. No infra counter increment —

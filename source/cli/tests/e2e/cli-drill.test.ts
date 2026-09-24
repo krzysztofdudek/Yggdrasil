@@ -158,12 +158,14 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
         expect(e.kind).toBe('llm');
         expect(String(e.unitKey).startsWith('drill:has-doc-comment/')).toBe(true);
         expect(e.tier).toBe('standard');
-        // PROMPT_FORMAT_REV is at 3: bumped 1 -> 2 for the nodeless prompt
-        // variant, then 2 -> 3 when the <node> element lost its description
-        // attribute (llm/prompt.ts). The marker exists so a recorded event
-        // still says which prompt shape produced it; it is not a hash
-        // ingredient, so moving it invalidates no verdict.
-        expect(e.promptRev).toBe(3);
+        // PROMPT_FORMAT_REV is at 4: bumped 1 -> 2 for the nodeless prompt
+        // variant, 2 -> 3 when the <node> element lost its description
+        // attribute, and 3 -> 4 when the task began framing subject text as
+        // data and every subject line got its number (llm/prompt.ts). The
+        // marker exists so a recorded event still says which prompt shape
+        // produced it; it is not a hash ingredient, so moving it invalidates
+        // no verdict.
+        expect(e.promptRev).toBe(4);
         expect((e.judge as { provider?: string }).provider).toBe('ollama');
       }
       const dispositions = drillEvents.map((e) => e.disposition).sort();

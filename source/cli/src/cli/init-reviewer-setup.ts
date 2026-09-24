@@ -297,6 +297,28 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
 const BOOTSTRAP_TIER_NAME = 'standard';
 
 /**
+ * The `parallel` value `yg init` writes for a CLI reviewer (claude-code,
+ * codex, gemini-cli, copilot-cli) when the config does not set one yet.
+ * The engine default is 1, and at one call at a time a first fill of a few
+ * hundred pairs at 10-40 s each takes hours; nothing told the adopter that
+ * the fix is one key. Four is the middle ground for a CLI reviewer: each call
+ * is its own local process under the developer's own subscription, so the
+ * limits that bite are that subscription's rate limit and the machine's
+ * memory, not an API key's throughput tier — and four processes stay well
+ * inside both while cutting the first fill's wall time about fourfold. API
+ * providers are left at the default: their safe concurrency is set by the
+ * key's rate-limit tier, which init cannot see.
+ */
+export const INIT_CLI_PARALLEL = 4;
+
+const INIT_PARALLEL_COMMENT =
+  ` How many reviewer calls run at once (engine default 1). yg init wrote ${INIT_CLI_PARALLEL} for a\n` +
+  ` CLI reviewer: each call is its own local process under your subscription, and ${INIT_CLI_PARALLEL}\n` +
+  ` cuts a first fill's wall time about ${INIT_CLI_PARALLEL}x while staying inside its rate limit.\n` +
+  ` A tier with consensus N makes up to parallel x N calls at once. Lower it if\n` +
+  ` the reviewer reports rate limiting; raise it if your plan allows more.`;
+
+/**
  * Write the bootstrap reviewer tier into yg-config.yaml, editing the file as a
  * YAML document so everything else in it survives: the explanatory comments init
  * wrote (the absent-coverage note among them), a quoted `version`, the flow style
@@ -365,6 +387,16 @@ export async function writeReviewerConfig(
     } else {
       map.items.push(pair);
     }
+  }
+
+  // A CLI reviewer gets a sensible `parallel` (see INIT_CLI_PARALLEL) — only
+  // when the config has none: a value someone chose is never overwritten.
+  if (CLI_PROVIDERS.includes(config.provider) && !doc.has('parallel')) {
+    const parallelPair = doc.createPair('parallel', INIT_CLI_PARALLEL);
+    (parallelPair.key as { commentBefore?: string }).commentBefore = INIT_PARALLEL_COMMENT;
+    (parallelPair.key as { spaceBefore?: boolean }).spaceBefore = true;
+    const reviewerIdx = map.items.findIndex((p) => isScalar(p.key) && p.key.value === 'reviewer');
+    map.items.splice(reviewerIdx >= 0 ? reviewerIdx + 1 : map.items.length, 0, parallelPair);
   }
 
   await writeFile(configPath, doc.toString(), 'utf-8');

@@ -103,7 +103,11 @@ export async function fillLlmPair(
             `  1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
             `  2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
             `  3. Split the node so its mapped files divide across smaller nodes.\n` +
-            `  4. Raise max_prompt_chars or move the aspect to a higher-limit tier — note: tier edits cascade re-verification across every aspect resolving to that tier.\n` +
+            // Same words as formatters/lock-issue-messages.ts raiseCapRemedy (this
+            // node may not import the formatters): raising the cap re-verifies
+            // nothing; moving tiers re-reviews the aspect's pairs.
+            `  4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
+            `Or move the aspect to a tier with a higher limit — that re-reviews every pair of the aspect, because the tier name is part of each pair's hash.\n` +
             `Then re-run: yg check --approve`,
         },
         callsMade: 0,
@@ -157,5 +161,15 @@ export async function fillLlmPair(
   // a []-resolving companion writes NO touched but still folded companionHash.
   if (observations.length > 0) entry.touched = observations;
   if (verdict === 'refused') entry.reason = response.reason;
-  return { kind: 'verdict', entry, callsMade: consensus, votes };
+  // An approval's reason stays out of the lock (the committed record keeps
+  // reasons for refusals only) but is handed on for the local events line, so
+  // an approval — including one a subject file talked the reviewer into — can
+  // be read back and audited later.
+  return {
+    kind: 'verdict',
+    entry,
+    callsMade: consensus,
+    votes,
+    ...(verdict === 'approved' && response.reason !== '' ? { approvalReason: response.reason } : {}),
+  };
 }

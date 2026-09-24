@@ -4,7 +4,7 @@ description: "The reviewer-facing half of the fill stage — the only place a
   verdict is actually asked of a model. Groups a run's fillable LLM pairs by
   resolved tier so availability is probed once per tier instead of once per
   pair, stands up one provider per tier, and runs the group through a bounded
-  pool while a single pair's consensus votes stay sequential in-slot. Per pair
+  pool while a single pair's consensus votes run concurrently in its slot. Per pair
   it assembles the review package through the single module that owns it, so the
   verdict is stored under the hash of exactly the prompt the reviewer was sent —
   measures the assembled prompt against the tier's

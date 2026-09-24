@@ -78,7 +78,7 @@ vi.mock('../../../src/cli/exit-after-flush.js', () => ({
   exitAfterFlush: vi.fn((code: number) => process.exit(code)),
 }));
 
-import { registerAspectTestCommand } from '../../../src/cli/aspect-test.js';
+import { registerAspectTestCommand, citedLocations, citationOverlap } from '../../../src/cli/aspect-test.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
 import { runAstAspect } from '../../../src/ast/runner.js';
 import { runStructureAspect } from '../../../src/structure/runner.js';
@@ -1062,5 +1062,34 @@ describe('aspect-test: lock file not written after LLM run', () => {
 
     void exitCode2;
     void stdout2;
+  });
+});
+
+// Issue 208 (m15): a stable refusal can still name a different list of
+// violations on every run; --repeat compares the locations the refusals cite.
+describe('aspect-test --repeat: do the refusals agree on what is wrong? (issue 208, m15)', () => {
+  it('extracts path:line and path:start-end citations, ignoring prose line mentions', () => {
+    expect(citedLocations('source/utils/normalize.ts:26 and body.ts:161-170; see line 4')).toEqual([
+      { file: 'source/utils/normalize.ts', start: 26, end: 26 },
+      { file: 'body.ts', start: 161, end: 170 },
+    ]);
+  });
+
+  it('overlapping ranges in different runs are one location', () => {
+    // The live haiku runs cited the same injected comment as 1-5 and as 2-4.
+    expect(citationOverlap(['normalize.ts:1-5 steer; normalize.ts:23 codes', 'normalize.ts:2-4 steer'])).toEqual({ common: 1, union: 2 });
+  });
+
+  it('reports the locations every refusal named, out of all named', () => {
+    expect(citationOverlap([
+      'normalize.ts:26 limit 2; normalize.ts:31 0.3',
+      'normalize.ts:26 limit 2; body.ts:161 204',
+      'normalize.ts:26 limit 2',
+    ])).toEqual({ common: 1, union: 3 });
+  });
+
+  it('has nothing to compare below two citing refusals', () => {
+    expect(citationOverlap(['normalize.ts:26'])).toBeUndefined();
+    expect(citationOverlap(['no locations here', 'none here either'])).toBeUndefined();
   });
 });

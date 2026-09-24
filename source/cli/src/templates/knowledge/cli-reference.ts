@@ -471,7 +471,11 @@ only that the reviewer agreed with itself, not that the code is right. The total
 reviewer-call budget (\`repeat N × units\`) prints before the first call.
 Provider-error runs are excluded from the k/N denominator and reported
 separately; any single refused run marks the unit refused (exit 1), and a unit
-whose runs ALL erred is incomplete (fail closed). \`--repeat\` is rejected with
+whose runs ALL erred is incomplete (fail closed). When two or more runs refuse,
+a \`cited violations: K of M cited locations named by every refusal\` line
+follows: a stable verdict can still name a different list of violations on each
+run, and when fewer than half of the cited locations recur the output says to
+sharpen the rule before fixing code to a list that moves. \`--repeat\` is rejected with
 \`--dry-run\` (no call to repeat), with \`--files\`, and for deterministic aspects
 (a local check is already exactly reproducible — use \`--check-determinism\`
 there); it accepts \`--node\` and \`--file\` alike. Use it while authoring an LLM
