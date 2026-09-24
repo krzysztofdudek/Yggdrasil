@@ -66,6 +66,27 @@ describe('ast/parser', () => {
     await expect(withParsedFile('foo.swift', 'let x = 1', () => {})).rejects.toThrow(/no parser for extension/);
   });
 
+  it('a parse that traps the grammar scanner fails only that file, never the next one', async () => {
+    // tree-sitter-ruby 0.23.1's external scanner traps on a heredoc delimiter of 256+
+    // characters, and the trap used to leave the cached Parser unusable, so every later
+    // Ruby file failed too. Whether the pathological file itself parses depends on the
+    // shipped grammar build; the file after it must parse either way.
+    const delimiter = 'A'.repeat(256);
+    const pathological = `x = <<~${delimiter}\nhello\n${delimiter}\n`;
+    await withParsedFile('bad.rb', pathological, () => {}).catch(() => undefined);
+    await withParsedFile('next.rb', 'y = Flag', (tree) => {
+      expect(tree.rootNode.type).toBe('program');
+      expect(tree.rootNode.text).toBe('y = Flag');
+    });
+    // Concurrent callers may already hold the parser the pathological file poisons.
+    const outcomes = await Promise.all(
+      [pathological, 'a = One', 'b = Two'].map((code, i) =>
+        withParsedFile(`f${i}.rb`, code, (tree) => tree.rootNode.type).catch(() => 'failed'),
+      ),
+    );
+    expect(outcomes.slice(1)).toEqual(['program', 'program']);
+  });
+
   describe('grammarWasmHash', () => {
     it('returns a stable sha256 hex digest, memoized on a second call for the same extension', () => {
       const first = grammarWasmHash('.py');

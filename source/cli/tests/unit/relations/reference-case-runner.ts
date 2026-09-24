@@ -23,7 +23,7 @@ import {
 } from '../../../src/relations/extractors/csharp.js';
 import { SymbolTable } from '../../../src/relations/symbol-table.js';
 import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
-import { makeResolver, resolveCandidateGroup } from '../../../src/relations/resolver.js';
+import { makeResolver, resolveDetectedEdges } from '../../../src/relations/resolver.js';
 import { makeResolvePathToFile } from '../../../src/relations/resolve-path.js';
 import type { ParsedFile } from '../../../src/relations/extractors/types.js';
 
@@ -293,13 +293,11 @@ export async function runCase(id: string): Promise<void> {
                   projectGlobalUsingAliases: csharpGlobalUsingAliasesList,
                 })
               : extractor.uses(parsed);
-          for (const dep of detected) {
-            // The SAME candidate walk the live pass runs (resolveCandidateGroup) — never a copy, so
-            // a catalogue case can never pass on resolution logic that diverges from `yg check`.
-            const ownerNode = resolveCandidateGroup(dep.candidates, resolver, f.path, f.language);
-            if (ownerNode !== undefined && ownerNode !== fromNode) {
-              edges.push({ fromFile: f.path, line: dep.line, node: ownerNode });
-            }
+          // The SAME candidate walk and per-(line, node) dedupe the live pass runs
+          // (resolveDetectedEdges) — never a copy, so a catalogue case can never pass on
+          // resolution logic that diverges from `yg check`.
+          for (const { line, ownerNode } of resolveDetectedEdges(detected, resolver, f.path, f.language)) {
+            if (ownerNode !== fromNode) edges.push({ fromFile: f.path, line, node: ownerNode });
           }
         }
 
@@ -307,6 +305,11 @@ export async function runCase(id: string): Promise<void> {
         const edgeKey = (e: ExpectEdge): string => `${e.fromFile}:${e.line}->${e.node}`;
         const actual = new Set(edges.map(edgeKey));
         const expected = new Set(doc.expectEdges.map(edgeKey));
+
+        // one dependency, one report: the same file:line -> node must never be emitted twice
+        // (two candidates of one statement resolving to the same target are one edge)
+        const duplicates = edges.map(edgeKey).filter((k, i, all) => all.indexOf(k) !== i);
+        expect(duplicates, `case ${id}: edge reported more than once: ${duplicates.join(', ')}`).toHaveLength(0);
 
         // every expected edge present
         for (const e of doc.expectEdges) {

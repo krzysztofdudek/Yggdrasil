@@ -87,26 +87,26 @@ describe('resolver — Ruby root-anchoring (multi-segment resolves only when its
   };
 
   it('classify: a compact constant whose ROOT is NOT in-repo is `absent` (reopened-external)', () => {
-    const st = rubyTable(['Rack::Handler', 'lib/x.rb']); // only the compact key; `Rack` unanchored
+    const st = rubyTable(['Rackup::Handler', 'lib/x.rb']); // only the compact key; `Rackup` unanchored
     const r = makeResolver({ ownerIndex: rbOwner as any, symbolTable: st, resolvePathToFile: () => undefined });
-    expect(r.classify({ kind: 'symbol', symbolKey: 'Rack::Handler' }, 'lib/a.rb', 'ruby')).toEqual({ kind: 'absent' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'Rackup::Handler' }, 'lib/a.rb', 'ruby')).toEqual({ kind: 'absent' });
   });
   it('resolve: a root-unanchored compact constant does not resolve', () => {
-    const st = rubyTable(['Rack::Handler', 'lib/x.rb']);
+    const st = rubyTable(['Rackup::Handler', 'lib/x.rb']);
     const r = makeResolver({ ownerIndex: rbOwner as any, symbolTable: st, resolvePathToFile: () => undefined });
-    expect(r.resolve({ kind: 'symbol', symbolKey: 'Rack::Handler' }, 'lib/a.rb', 'ruby')).toBeUndefined();
+    expect(r.resolve({ kind: 'symbol', symbolKey: 'Rackup::Handler' }, 'lib/a.rb', 'ruby')).toBeUndefined();
   });
-  it('classify: when the ROOT is anchored in-repo (a bare `module Rack`), the constant resolves', () => {
-    const st = rubyTable(['Rack', 'lib/x.rb'], ['Rack::Handler', 'lib/x.rb']);
+  it('classify: when the ROOT is anchored in-repo (a bare `module Rackup`), the constant resolves', () => {
+    const st = rubyTable(['Rackup', 'lib/x.rb'], ['Rackup::Handler', 'lib/x.rb']);
     const r = makeResolver({ ownerIndex: rbOwner as any, symbolTable: st, resolvePathToFile: () => undefined });
-    expect(r.classify({ kind: 'symbol', symbolKey: 'Rack::Handler' }, 'lib/a.rb', 'ruby')).toEqual({
+    expect(r.classify({ kind: 'symbol', symbolKey: 'Rackup::Handler' }, 'lib/a.rb', 'ruby')).toEqual({
       kind: 'resolved', ownerNode: 'x', resolvedFile: 'lib/x.rb',
     });
   });
   it('resolve: a root-anchored constant resolves to its owner', () => {
-    const st = rubyTable(['Rack', 'lib/x.rb'], ['Rack::Handler', 'lib/x.rb']);
+    const st = rubyTable(['Rackup', 'lib/x.rb'], ['Rackup::Handler', 'lib/x.rb']);
     const r = makeResolver({ ownerIndex: rbOwner as any, symbolTable: st, resolvePathToFile: () => undefined });
-    expect(r.resolve({ kind: 'symbol', symbolKey: 'Rack::Handler' }, 'lib/a.rb', 'ruby')).toEqual({
+    expect(r.resolve({ kind: 'symbol', symbolKey: 'Rackup::Handler' }, 'lib/a.rb', 'ruby')).toEqual({
       ownerNode: 'x', resolvedFile: 'lib/x.rb',
     });
   });
@@ -140,5 +140,51 @@ describe('SymbolTable.defCount / has', () => {
     expect(st.has('csharp', 'A')).toBe(true);
     // resolveUnique is unchanged: exactly-one-or-undefined.
     expect(st.resolveUnique('csharp', 'A')).toBeUndefined();
+  });
+});
+
+describe('resolver — Ruby lexical gates and external roots', () => {
+  const rbOwner = { ownerOf: (f: string) => (f.startsWith('lib/') ? f.split('/')[1] : undefined) };
+  const table = (...decls: [string, string][]): SymbolTable => {
+    const st = new SymbolTable();
+    for (const [k, f] of decls) st.declare('ruby', k, f);
+    return st;
+  };
+  const resolverFor = (st: SymbolTable) =>
+    makeResolver({ ownerIndex: rbOwner as any, symbolTable: st, resolvePathToFile: () => undefined });
+
+  it('a core class reopened in-repo is external: absent, even as the only declaration', () => {
+    const r = resolverFor(table(['String', 'lib/coreext/string.rb']));
+    expect(r.classify({ kind: 'symbol', symbolKey: 'String' }, 'lib/a/x.rb', 'ruby')).toEqual({ kind: 'absent' });
+    expect(r.resolve({ kind: 'symbol', symbolKey: 'String' }, 'lib/a/x.rb', 'ruby')).toBeUndefined();
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'String' }, 'lib/a/x.rb', 'ruby')).toBeUndefined();
+  });
+
+  it('a framework namespace reopened by a nested module is external', () => {
+    const r = resolverFor(table(['ActiveRecord', 'lib/init/ar.rb'], ['ActiveRecord::Base', 'lib/init/ar.rb']));
+    expect(r.classify({ kind: 'symbol', symbolKey: 'ActiveRecord::Base' }, 'lib/a/x.rb', 'ruby')).toEqual({ kind: 'absent' });
+  });
+
+  it('rubyAnchor: the first segment exists but the member does not → ambiguous (stop, never fall through)', () => {
+    const r = resolverFor(table(['Shop', 'lib/shop/s.rb'], ['Shop::Billing', 'lib/shop/s.rb']));
+    const hint = { kind: 'symbol' as const, symbolKey: 'Shop::Billing::Invoice', rubyAnchor: 'Shop::Billing' };
+    expect(r.classify(hint, 'lib/a/x.rb', 'ruby')).toEqual({ kind: 'ambiguous' });
+    expect(r.resolve(hint, 'lib/a/x.rb', 'ruby')).toBeUndefined();
+  });
+
+  it('rubyAnchor: the first segment does not exist either → absent (continue outward)', () => {
+    const r = resolverFor(table(['Shop', 'lib/shop/s.rb']));
+    const hint = { kind: 'symbol' as const, symbolKey: 'Shop::Billing::Invoice', rubyAnchor: 'Shop::Billing' };
+    expect(r.classify(hint, 'lib/a/x.rb', 'ruby')).toEqual({ kind: 'absent' });
+  });
+
+  it('rubyInheritGuard: a same-named nested constant anywhere silences the top-level fallback', () => {
+    const r = resolverFor(table(['Order', 'lib/models/order.rb'], ['Admin', 'lib/admin/o.rb'], ['Admin::Order', 'lib/admin/o.rb']));
+    const guarded = { kind: 'symbol' as const, symbolKey: 'Order', rubyInheritGuard: 'Order' };
+    expect(r.classify(guarded, 'lib/a/x.rb', 'ruby')).toEqual({ kind: 'ambiguous' });
+    const r2 = resolverFor(table(['Order', 'lib/models/order.rb']));
+    expect(r2.classify(guarded, 'lib/a/x.rb', 'ruby')).toEqual({
+      kind: 'resolved', ownerNode: 'models', resolvedFile: 'lib/models/order.rb',
+    });
   });
 });

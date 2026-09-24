@@ -156,7 +156,9 @@ export const LANGUAGES: Record<string, LanguageDef> = {
   },
   ruby: {
     id: 'ruby',
-    extensions: ['.rb'],
+    // `.rake` task files, `.gemspec` specs and Rack's `config.ru` are plain Ruby; the
+    // extension-less Ruby files (Rakefile, Gemfile, …) are mapped by basename below.
+    extensions: ['.rb', '.rake', '.gemspec', '.ru'],
     wasmFile: 'tree-sitter-ruby.wasm',
     wasmPackage: 'tree-sitter-ruby',
     grammarRepo: 'https://github.com/tree-sitter/tree-sitter-ruby',
@@ -219,6 +221,22 @@ export const LANGUAGES: Record<string, LanguageDef> = {
 export const EXTENSION_TO_LANGUAGE: Record<string, string> = Object.fromEntries(
   Object.values(LANGUAGES).flatMap(def => def.extensions.map(ext => [ext, def.id])),
 );
+
+/** Extension-less files that are Ruby source by convention, mapped to the Ruby grammar. */
+const RUBY_BASENAMES: ReadonlySet<string> = new Set(['Rakefile', 'Gemfile', 'Guardfile', 'Capfile', 'Brewfile']);
+
+/**
+ * The extension that selects a file's grammar: its own extension, or `.rb` for the
+ * extension-less Ruby files (Rakefile, Gemfile, Guardfile, Capfile, Brewfile) that carry no
+ * extension to look up. Callers that pick a grammar or a relation extractor for a whole path
+ * use this instead of `path.extname`.
+ */
+export function grammarExtensionForPath(filePath: string): string {
+  const base = filePath.replace(/\\/g, '/').split('/').pop() ?? '';
+  if (RUBY_BASENAMES.has(base)) return '.rb';
+  const dot = base.lastIndexOf('.');
+  return dot <= 0 ? '' : base.slice(dot);
+}
 
 export function getLanguageForExtension(ext: string, overrides?: Record<string, string>): string | null {
   // Normalize casing here — the registry keys are all lowercase and the sibling

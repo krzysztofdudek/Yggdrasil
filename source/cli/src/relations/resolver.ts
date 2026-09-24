@@ -1,6 +1,7 @@
 import type { SymbolTable } from './symbol-table.js';
 import type { OwnerIndex } from './owner-index.js';
-import type { TargetHint } from './extractors/types.js';
+import type { DetectedDep, TargetHint } from './extractors/types.js';
+import { isRubyExternalConstant } from './extractors/ruby-resolve.js';
 
 export interface ResolvedTarget { ownerNode: string; resolvedFile: string }
 export interface ResolverDeps {
@@ -72,6 +73,33 @@ export function resolveCandidateGroup(
 }
 
 /**
+ * Resolve every detected reference of ONE file through {@link resolveCandidateGroup} and
+ * return the bound edges, each `(line, ownerNode)` at most once. Several references on one
+ * line often bind to the same node (a Python `from m import a, b` offers the module and each
+ * name as candidates that all land in one file; a C# line names one type twice); they are one
+ * dependency, so they are reported once. Shared by the live pass and the reference-case runner
+ * so the two report the same rows.
+ */
+export function resolveDetectedEdges(
+  detected: readonly DetectedDep[],
+  resolver: TargetResolver,
+  fromFile: string,
+  language: string,
+): Array<{ line: number; ownerNode: string }> {
+  const out: Array<{ line: number; ownerNode: string }> = [];
+  const seen = new Set<string>();
+  for (const dep of detected) {
+    const ownerNode = resolveCandidateGroup(dep.candidates, resolver, fromFile, language);
+    if (ownerNode === undefined) continue;
+    const key = `${dep.line}\0${ownerNode}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ line: dep.line, ownerNode });
+  }
+  return out;
+}
+
+/**
  * The candidate symbol keys for ONE dotted symbol reference: the verbatim dot-only key,
  * PLUS the guarded nested-type `+`-boundary splits. For a dotted candidate `s1...sn`, for
  * each split index `k` in `[1, n-1]` the key `s1..sk + '+' + s_{k+1}..sn` is added ONLY
@@ -131,6 +159,36 @@ function rubyRootUnanchored(symbolKey: string, symbolTable: SymbolTable): boolea
   return !symbolTable.has('ruby', symbolKey.slice(0, idx));
 }
 
+/**
+ * Ruby's symbol-axis gates, applied before and after the distinct-file count. Returns the
+ * forced outcome, or undefined to let the ordinary count decide.
+ *  - A reference rooted at a core class or a ubiquitous framework namespace (see
+ *    `isRubyExternalConstant`) is external → absent, whatever the repo reopens (a reopening
+ *    is not a definition). An unanchored root is absent too (rubyRootUnanchored).
+ *  - `rubyAnchor`: the candidate has no definition but its first-segment name does → Ruby
+ *    stops there → ambiguous (silence the group, never fall through).
+ *  - `rubyInheritGuard`: the top-level fallback binds, but a constant of the same first
+ *    segment is nested in some in-repo namespace and could be inherited → ambiguous.
+ */
+function rubyGate(
+  hint: Extract<TargetHint, { kind: 'symbol' }>,
+  files: ReadonlySet<string> | undefined,
+  symbolTable: SymbolTable,
+): 'absent' | 'ambiguous' | undefined {
+  if (files === undefined) {
+    if (isRubyExternalConstant(hint.symbolKey)) return 'absent';
+    if (rubyRootUnanchored(hint.symbolKey, symbolTable)) return 'absent';
+    return undefined;
+  }
+  if (files.size === 0) {
+    return hint.rubyAnchor !== undefined && symbolTable.has('ruby', hint.rubyAnchor) ? 'ambiguous' : undefined;
+  }
+  if (files.size === 1 && hint.rubyInheritGuard !== undefined && symbolTable.hasNestedTail('ruby', hint.rubyInheritGuard)) {
+    return 'ambiguous';
+  }
+  return undefined;
+}
+
 export function makeResolver(deps: ResolverDeps): TargetResolver {
   /** The DISTINCT defining files a dotted symbol candidate maps to, across the verbatim key
    *  AND the guarded nested-type `+`-splits. The set-level rule: 0 distinct files → absent,
@@ -178,8 +236,9 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
   const resolve: TargetResolver['resolve'] = (hint, fromFile, language) => {
     let file: string | undefined;
     if (hint.kind === 'symbol') {
-      if (language === 'ruby' && rubyRootUnanchored(hint.symbolKey, deps.symbolTable)) return undefined;
+      if (language === 'ruby' && rubyGate(hint, undefined, deps.symbolTable) !== undefined) return undefined;
       const files = hintFiles(hint, language);
+      if (language === 'ruby' && rubyGate(hint, files, deps.symbolTable) !== undefined) return undefined;
       if (files.size !== 1) return undefined;    // 0 → unresolved; ≥2 → ambiguous → silence
       file = [...files][0];
     } else {
@@ -196,14 +255,21 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
       // Ruby: a multi-segment constant whose ROOT namespace is not itself declared in-repo
       // is reopening an EXTERNAL library (e.g. a test stub `module Rackup::Handler`) → absent,
       // never bind a reference to the reopened-external constant (zero-FP). See rubyRootUnanchored.
-      if (language === 'ruby' && rubyRootUnanchored(hint.symbolKey, deps.symbolTable)) {
-        return { kind: 'absent' };
+      // Ruby also treats core classes and framework namespaces as external (a reopening is not
+      // a definition) and applies the lexical gates below — see rubyGate.
+      if (language === 'ruby') {
+        const forced = rubyGate(hint, undefined, deps.symbolTable);
+        if (forced !== undefined) return { kind: forced };
       }
       // Symbol axis: collect the distinct files this hint maps to — the union across its `set`
       // members (CS0104 / co-definition), each honoring `nestedOnly` (R4), or the lone
       // `symbolKey`'s verbatim + guarded `+`-splits. ≥2 distinct files is a real ambiguity
       // (silence the group); 0 is absent (continue); exactly one is the candidate binding.
       const files = hintFiles(hint, language);
+      if (language === 'ruby') {
+        const forced = rubyGate(hint, files, deps.symbolTable);
+        if (forced !== undefined) return { kind: forced };
+      }
       if (files.size === 0) return { kind: 'absent' };
       if (files.size >= 2) return { kind: 'ambiguous' };
       const file = [...files][0];
@@ -221,8 +287,9 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
 
   const resolveFile: TargetResolver['resolveFile'] = (hint, fromFile, language) => {
     if (hint.kind === 'symbol') {
-      if (language === 'ruby' && rubyRootUnanchored(hint.symbolKey, deps.symbolTable)) return undefined;
+      if (language === 'ruby' && rubyGate(hint, undefined, deps.symbolTable) !== undefined) return undefined;
       const files = hintFiles(hint, language);
+      if (language === 'ruby' && rubyGate(hint, files, deps.symbolTable) !== undefined) return undefined;
       return files.size === 1 ? [...files][0] : undefined; // 0 → unresolved; ≥2 → ambiguous
     }
     return deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);

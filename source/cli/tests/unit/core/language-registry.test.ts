@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getGrammarForExtension, getLanguageDisplayName } from '../../../src/utils/language-registry.js';
+import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getGrammarForExtension, getLanguageDisplayName, grammarExtensionForPath } from '../../../src/utils/language-registry.js';
 
 describe('language registry', () => {
   it('lists Tier 0 (ts/tsx/js) + Tier 1 + JSON', () => {
@@ -112,5 +112,22 @@ describe('getGrammarForExtension', () => {
       expect(getLanguageDisplayName('haskell')).toBe('Haskell');
       expect(getLanguageDisplayName('')).toBe('');
     });
+  });
+});
+
+describe('Ruby files beyond .rb', () => {
+  it('maps .rake, .gemspec and .ru to ruby', () => {
+    for (const ext of ['.rake', '.gemspec', '.ru']) expect(getLanguageForExtension(ext)).toBe('ruby');
+  });
+
+  it('gives the extension-less Ruby files the Ruby grammar extension, and leaves other paths alone', () => {
+    for (const p of ['Rakefile', 'Gemfile', 'app/Guardfile', 'deploy/Capfile', 'Brewfile']) {
+      expect(grammarExtensionForPath(p)).toBe('.rb');
+    }
+    expect(grammarExtensionForPath('lib/tasks/x.rake')).toBe('.rake');
+    expect(grammarExtensionForPath('src/a.PY')).toBe('.PY');
+    expect(grammarExtensionForPath('Makefile')).toBe('');
+    expect(grammarExtensionForPath('.gitignore')).toBe('');
+    expect(grammarExtensionForPath('docs/Rakefile.md')).toBe('.md');
   });
 });

@@ -25,6 +25,16 @@ export type TargetHint =
        *  The candidate's own `symbolKey` still drives the display shape; `set` drives only
        *  classification. Absent = resolve `symbolKey` alone as a singleton. */
       set?: SymbolSetMember[];
+      /** Ruby only: a lexical nesting candidate `N::A::B` carries its first-segment name
+       *  `N::A`. When `N::A` has an in-repo definition but the candidate itself has none, Ruby
+       *  has already committed to `N::A` and will not look further out, so the reference is
+       *  silenced (ambiguous) instead of falling through to a farther candidate. */
+      rubyAnchor?: string;
+      /** Ruby only: set on the top-level fallback of a reference written inside a namespace;
+       *  the value is the reference's first segment `A`. When any in-repo namespace nests a
+       *  constant named `A` (`X::A`), that constant may reach the reference through the
+       *  enclosing class's ancestors, so the fallback is silenced (ambiguous). */
+      rubyInheritGuard?: string;
     };
 
 /**

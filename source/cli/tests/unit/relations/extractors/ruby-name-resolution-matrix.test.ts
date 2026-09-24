@@ -77,3 +77,27 @@ describe('MATRIX — dynamic / external / coverage silences (const_get/autoload,
   it('ruby-unmapped-target-silence', () => runCase('ruby-unmapped-target-silence'));
   it('ruby-intra-node-silence', () => runCase('ruby-intra-node-silence'));
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lexical resolution (Module.nesting): an unrooted `A::B` or a bare constant inside a
+// namespace is resolved through the nesting candidates, nearest first; a nearer name
+// that exists without the member silences the reference.
+describe('MATRIX — lexical resolution through Module.nesting', () => {
+  it('ruby-qualified-ref-lexical-shadow-edge', () => runCase('ruby-qualified-ref-lexical-shadow-edge'));
+  it('ruby-qualified-ref-lexical-ambiguous-silence', () => runCase('ruby-qualified-ref-lexical-ambiguous-silence'));
+  it('ruby-bare-constant-in-method-edge', () => runCase('ruby-bare-constant-in-method-edge'));
+  it('ruby-zeitwerk-implicit-namespace-edge', () => runCase('ruby-zeitwerk-implicit-namespace-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A reopening is not a definition: core classes and the ubiquitous frameworks'
+// namespaces are external even when the repo reopens them.
+describe('MATRIX — reopenings of core classes and framework namespaces stay external', () => {
+  it('ruby-reopened-external-nested-silence', () => runCase('ruby-reopened-external-nested-silence'));
+  it('ruby-core-class-reopening-silence', () => runCase('ruby-core-class-reopening-silence'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — Ruby files without the .rb extension', () => {
+  it('ruby-rake-file-edge', () => runCase('ruby-rake-file-edge'));
+});

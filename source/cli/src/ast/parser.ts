@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { getGrammarForExtension } from '../utils/language-registry.js';
+import { getGrammarForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 
 const _require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -140,13 +140,50 @@ export function loadedParserFor(extension: string): Parser | undefined {
 }
 
 export async function parseFile(filePath: string, content: string): Promise<Tree> {
-  const ext = path.extname(filePath);
-  const parser = await getParser(ext);
-  const tree = parser.parse(content);
+  const ext = grammarExtensionForPath(filePath);
+  // A grammar's external scanner can trap on one pathological input (tree-sitter-ruby
+  // 0.23.1 on a heredoc delimiter of 256+ characters). The trap leaves THAT Parser instance
+  // unusable: every later parse on it throws the same error, while a fresh Parser over the
+  // same loaded Language parses normally. So a throwing parse drops its parser from the
+  // cache and is retried ONCE on a private fresh Parser. Concurrent callers may already hold
+  // the poisoned instance, so it is not freed (they would hit freed memory instead of a clean
+  // throw); they fail on it and take the same retry. The pathological file throws again on
+  // its private parser and fails alone; every other file parses.
+  let tree: Tree | null;
+  const first = await getParser(ext);
+  try {
+    tree = first.parse(content);
+  } catch {
+    evictParser(first);
+    const fresh = await freshParser(ext);
+    try {
+      tree = fresh.parse(content);
+    } finally {
+      fresh.delete(); // the tree does not depend on the parser that built it
+    }
+  }
   if (tree === null) {
     throw new Error(`tree-sitter failed to parse file: ${filePath}`);
   }
   return tree;
+}
+
+/** Drop a Parser that threw mid-parse from the cache (see parseFile), so the next caller
+ *  gets a fresh one. It is not freed: a concurrent caller may still hold it. */
+function evictParser(parser: Parser): void {
+  for (const [key, cached] of parserCache) {
+    if (cached === parser) parserCache.delete(key);
+  }
+}
+
+/** A new Parser for `extension`'s (already loaded or loadable) grammar, outside the cache. */
+async function freshParser(extension: string): Promise<Parser> {
+  await getParser(extension); // loads the language (and repopulates the cache) if needed
+  const info = getGrammarForExtension(extension)!;
+  const lang = await langCache.get(info.wasmFile)!;
+  const parser = new Parser();
+  parser.setLanguage(lang);
+  return parser;
 }
 
 /**

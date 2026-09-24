@@ -46,3 +46,57 @@ export function resolveRubyRequireRelative(
 function toPosix(p: string): string {
   return p.replace(/\\/g, '/');
 }
+
+/**
+ * Root constants that are ALWAYS external to the repository, whatever the repository
+ * declares: Ruby's core classes and modules (loaded before any application code, so an
+ * in-repo `class String` can only reopen them) and the namespaces of the ubiquitous
+ * frameworks and tools whose monkey-patches live in application initializers and `lib/`
+ * (`module ActiveRecord; class Base; …`). A reopening is not a definition, and the syntax
+ * cannot tell the two apart, so a reference rooted at one of these never binds to an in-repo
+ * declaration. The cost is recall inside the Rails, Rack or RSpec repositories themselves,
+ * whose own constants are silenced; the gain is that no application ever gets a false edge
+ * from `class ApplicationRecord < ActiveRecord::Base` or from `String` in a spec.
+ *
+ * Other gems' namespaces are not listed: their compact reopenings are caught by the
+ * root-anchoring guard, and a nested reopening of an unlisted gem namespace remains a known
+ * residual gap.
+ */
+const RUBY_EXTERNAL_ROOTS: ReadonlySet<string> = new Set([
+  // core classes and modules
+  'BasicObject', 'Object', 'Kernel', 'Module', 'Class', 'Comparable', 'Enumerable', 'Enumerator',
+  'String', 'Symbol', 'Integer', 'Float', 'Numeric', 'Rational', 'Complex', 'Array', 'Hash', 'Range',
+  'Regexp', 'MatchData', 'Proc', 'Method', 'UnboundMethod', 'NilClass', 'TrueClass', 'FalseClass',
+  'IO', 'File', 'Dir', 'Time', 'Struct', 'Data', 'Thread', 'Fiber', 'Mutex', 'Queue', 'SizedQueue',
+  'ConditionVariable', 'Process', 'Signal', 'GC', 'ObjectSpace', 'Marshal', 'Math', 'Random',
+  'Encoding', 'Warning', 'Ractor', 'RubyVM', 'TracePoint', 'Binding', 'Set', 'Refinement', 'Errno',
+  'ENV', 'ARGV', 'ARGF', 'STDIN', 'STDOUT', 'STDERR',
+  // the core exception hierarchy
+  'Exception', 'StandardError', 'RuntimeError', 'ArgumentError', 'TypeError', 'NameError',
+  'NoMethodError', 'KeyError', 'IndexError', 'StopIteration', 'ClosedQueueError', 'IOError',
+  'EOFError', 'SystemExit', 'NotImplementedError', 'ZeroDivisionError', 'FrozenError', 'RangeError',
+  'FloatDomainError', 'ScriptError', 'LoadError', 'SyntaxError', 'SecurityError', 'SignalException',
+  'Interrupt', 'SystemCallError', 'EncodingError', 'FiberError', 'ThreadError', 'LocalJumpError',
+  'RegexpError', 'UncaughtThrowError', 'NoMatchingPatternError', 'NoMatchingPatternKeyError',
+  'NoMemoryError', 'SystemStackError',
+  // ubiquitous frameworks and tools
+  'Rails', 'ActiveRecord', 'ActiveSupport', 'ActiveModel', 'ActiveJob', 'ActiveStorage',
+  'ActionController', 'ActionDispatch', 'ActionView', 'ActionMailer', 'ActionCable', 'ActionMailbox',
+  'ActionText', 'Arel', 'Rack', 'RSpec', 'Minitest', 'Sinatra', 'Rake', 'Bundler', 'Gem',
+]);
+
+/** True when a Ruby constant key (`A::B::C`, leading `::` already stripped) is rooted at a
+ *  constant that is always external (see RUBY_EXTERNAL_ROOTS). */
+export function isRubyExternalConstant(symbolKey: string): boolean {
+  const idx = symbolKey.indexOf('::');
+  return RUBY_EXTERNAL_ROOTS.has(idx === -1 ? symbolKey : symbolKey.slice(0, idx));
+}
+
+/** ActiveSupport's `underscore` for one constant segment (`HTMLParser` → `html_parser`,
+ *  `ApiV1` → `api_v1`): the file/directory name Zeitwerk expects for it. */
+export function rubyUnderscore(segment: string): string {
+  return segment
+    .replace(/([A-Z\d]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+    .toLowerCase();
+}

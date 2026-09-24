@@ -3,14 +3,14 @@ import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
 import { parseFile, grammarWasmHash } from '../ast/parser.js';
-import { getLanguageForExtension } from '../utils/language-registry.js';
+import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
 import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet } from '../io/repo-scanner.js';
 
 import { buildOwnerIndex, guardOwnerIndex } from './owner-index.js';
 import { SymbolTable } from './symbol-table.js';
-import { makeResolver, resolveCandidateGroup } from './resolver.js';
+import { makeResolver, resolveDetectedEdges } from './resolver.js';
 import {
   extractCsharpRefs,
   assembleCsharpCandidates,
@@ -255,7 +255,7 @@ export async function runRelationPass(
     for (const [i, rel] of fresh.entries()) {
       const content = contents[i];
       if (content === null || content === undefined) continue; // unreadable → skip
-      const language = getLanguageForExtension(path.extname(rel));
+      const language = getLanguageForExtension(grammarExtensionForPath(rel));
       const record: FileRecord = {
         path: rel,
         content,
@@ -281,7 +281,7 @@ export async function runRelationPass(
     } catch {
       continue; // unreadable → skip
     }
-    const language = getLanguageForExtension(path.extname(rel));
+    const language = getLanguageForExtension(grammarExtensionForPath(rel));
     const record: FileRecord = { path: rel, content, hash: hashString(content), language, nodeId: '', typeId };
     fileRecords.push(record);
     recordByPath.set(rel, record);
@@ -430,7 +430,7 @@ export async function runRelationPass(
   ): Promise<FileFacts | null> {
     const language = record.language!;
     const isCsharp = language === 'csharp';
-    const grammarHash = grammarHashForExt(path.extname(record.path));
+    const grammarHash = grammarHashForExt(grammarExtensionForPath(record.path));
 
     // No grammar hash → cannot key the cache. Parse live, do not cache.
     if (grammarHash === null) return extractFileFacts(record, extractor);
@@ -614,21 +614,12 @@ export async function runRelationPass(
 
   // Resolve one file's detected uses into cross-node edges (shared by both paths below).
   const resolveDetected = (record: FileRecord, detected: DetectedDep[], resolvedDeps: ResolvedDep[]): void => {
-    // One site (file:line) depending on one node is one finding, however many specifiers on
-    // that line resolved there (a Rust use tree `a::b::{C, D}` names the same module twice).
-    const seenSites = new Set<string>();
-    for (const dep of detected) {
-      // Ordered first-unique-match-wins walk over the candidate group — the SINGLE
-      // definition shared verbatim with the reference-case runner (resolveCandidateGroup).
-      // A resolved self-edge is pushed here and filtered downstream by verifyNodeDeps
-      // against the node's declared relations.
-      const ownerNode = resolveCandidateGroup(dep.candidates, resolver, record.path, record.language!);
-      if (ownerNode !== undefined) {
-        const site = `${dep.line}\0${ownerNode}`;
-        if (seenSites.has(site)) continue;
-        seenSites.add(site);
-        resolvedDeps.push({ fromFile: record.path, line: dep.line, ownerNode });
-      }
+    // Ordered first-unique-match-wins walk over each candidate group — the SINGLE
+    // definition shared verbatim with the reference-case runner (resolveDetectedEdges →
+    // resolveCandidateGroup), one row per (line, node). A resolved self-edge is pushed here
+    // and filtered downstream by verifyNodeDeps against the node's declared relations.
+    for (const { line, ownerNode } of resolveDetectedEdges(detected, resolver, record.path, record.language!)) {
+      resolvedDeps.push({ fromFile: record.path, line, ownerNode });
     }
   };
 

@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
-import type { DependencyExtractor, DetectedDep, DeclaredSymbol, ParsedFile } from './types.js';
+import type { DependencyExtractor, DetectedDep, DeclaredSymbol, ParsedFile, TargetHint } from './types.js';
 import { single } from './types.js';
+import { rubyUnderscore } from './ruby-resolve.js';
 
 /**
  * Ruby dependency extractor — the LAST language, and honestly the LOWEST-detectability
@@ -19,8 +20,10 @@ import { single } from './types.js';
  * SymbolTable → `resolveUnique` returns undefined → SILENCE. Zeitwerk/Rails autoload
  * means a constant is used with NO `require` at all; `const_get`/`send` metaprogramming
  * uses dynamic strings (never a `constant` node). The net effect: `require_relative` is
- * precise; constant deps are mostly silenced. This trades recall for ZERO false
- * positives BY DESIGN (D8 — no waiver, a false red blocks CI with no escape).
+ * precise; a constant binds only when Ruby's own lookup (Module.nesting, nearest first)
+ * reaches exactly one in-repo definition that cannot be a reopening of a core class or a
+ * framework namespace, and anything less certain is silenced. This trades recall for ZERO
+ * false positives BY DESIGN (D8 — no waiver, a false red blocks CI with no escape).
  *
  * v1 SCOPE = EXISTENCE, not relation type. The edge is "depends on a constant/file owned
  * by another node". No `calls`/`uses`/`extends`/`implements` classification here.
@@ -60,16 +63,6 @@ function constantKey(node: Node | null): string | undefined {
     return t === '' ? undefined : t;
   }
   return undefined;
-}
-
-/** True when a constant-name node is a COMPLETE reference path — `::`-rooted
- *  (`::Top`) or `::`-qualified (`A::B`). Such a reference does NOT lexically shadow
- *  against an enclosing namespace, so it stays emittable inside a namespace (C1). A
- *  bare single-segment `constant` is shadowing-prone and is suppressed when nested. */
-function isCompleteReference(node: Node | null): boolean {
-  if (node === null) return false;
-  if (node.type === 'scope_resolution') return true; // has `::` (rooted or dotted)
-  return false; // a bare `constant` node is never a complete reference
 }
 
 /** The first named child of a node (or null). */
@@ -115,7 +108,24 @@ const REQUIRE_RELATIVE = new Set(['require_relative']);
  * The dependency hints this file emits. TWO kinds:
  *   - PATH: a `require_relative '<lit>'` → `{kind:'path', specifier:<lit>}`.
  *   - SYMBOL: a superclass constant, a mixin-argument constant, a `scope_resolution`, and
- *     a bare `constant` used as a value/receiver → `{kind:'symbol', symbolKey:<name>}`.
+ *     a bare `constant` used as a value/receiver → an ordered candidate group of symbol hints.
+ *
+ * LEXICAL RESOLUTION (Module.nesting). The walk keeps the lexical nesting: the FQN of every
+ * enclosing class/module, innermost first (`module Shop; class Cart` → [Shop::Cart, Shop];
+ * a compact `class Shop::Cart` at top level → [Shop::Cart] only, exactly as Ruby records it).
+ * A reference is turned into candidates the way Ruby looks it up:
+ *   - `::A::B` (rooted) is absolute → the single key `A::B`.
+ *   - at top level (empty nesting) → the single key as written (cref is Object).
+ *   - inside a namespace, `A::B` or a bare `A` → `N1::A::B`, `N2::A::B`, … for each nesting
+ *     entry, nearest first, then the top-level `A::B`. A nesting candidate carries its
+ *     first-segment name (`rubyAnchor`): when that name exists but the full candidate does
+ *     not, Ruby has committed to it and the reference is silenced. The top-level fallback
+ *     carries `rubyInheritGuard`: when any in-repo namespace nests a constant named `A`, it
+ *     may be inherited through the enclosing class's ancestors, so the fallback is silenced.
+ * The shared candidate walk takes the first candidate that binds (resolver.ts).
+ *
+ * A superclass is looked up in the scope that CONTAINS the `class` keyword (the outer
+ * nesting); mixins and value uses in a body are looked up in the body's nesting.
  *
  * Definition-position constants (a `class`/`module` `name` field) are EXCLUDED so a node
  * never depends on itself. The superclass and mixin constants are emitted under the same
@@ -134,77 +144,71 @@ function uses(file: ParsedFile): DetectedDep[] {
     out.push(single({ kind: 'path', specifier }, 'import', line));
   };
 
-  const emitSymbol = (symbolKey: string | undefined, line: number): void => {
-    if (symbolKey === undefined || symbolKey === '') return;
-    const dedupKey = `symbol\0${symbolKey}\0${line}`;
+  const emitConstant = (ref: Node | null, nesting: readonly string[], line: number): void => {
+    const key = constantKey(ref);
+    if (ref === null || key === undefined) return;
+    const rooted = ref.type === 'scope_resolution' && ref.text.trimStart().startsWith('::');
+    const scope = rooted ? [] : nesting;
+    const dedupKey = `symbol\0${key}\0${scope.join(',')}\0${line}`;
     if (seen.has(dedupKey)) return;
     seen.add(dedupKey);
-    out.push(single({ kind: 'symbol', symbolKey }, 'import', line));
+    if (scope.length === 0) {
+      out.push(single({ kind: 'symbol', symbolKey: key }, 'import', line));
+      return;
+    }
+    const first = key.split('::')[0];
+    const multi = key.includes('::');
+    const candidates: TargetHint[] = scope.map((ns) =>
+      multi
+        ? { kind: 'symbol', symbolKey: `${ns}::${key}`, rubyAnchor: `${ns}::${first}` }
+        : { kind: 'symbol', symbolKey: `${ns}::${key}` },
+    );
+    candidates.push({ kind: 'symbol', symbolKey: key, rubyInheritGuard: first });
+    out.push({ candidates, kind: 'import', line });
   };
 
-  // Namespace-aware recursive visitor (mirrors declarations()). `nsDepth` counts
-  // enclosing CLASS and MODULE bodies (both are constant namespaces in Ruby). A bare
-  // unqualified constant value-use inside any class or module body is suppressed because
-  // it lexically resolves against the enclosing namespace — a bare `Helper` inside
-  // `class Order` may resolve to `Order::Helper`, not to a uniquely-defined top-level
-  // constant owned by another node. A complete reference (`::`-rooted or `::` -qualified)
-  // is always emitted regardless of depth (it is unambiguously absolute).
-  //
-  // A superclass/mixin constant is emitted based on the OUTER depth — the nsDepth at the
-  // class/module node itself (before descending into its body). So `class C < Base` nested
-  // inside `module App` (outer nsDepth=1) suppresses the bare `Base`, while a top-level
-  // `class C < Base` (outer nsDepth=0) emits it.
-  const visit = (node: Node, nsDepth: number): void => {
-    // (a) require_relative '<lit>' → PATH hint. Path links never shadow; depth-agnostic.
+  const visit = (node: Node, nesting: readonly string[]): void => {
+    // (a) require_relative '<lit>' → PATH hint. Path links never shadow; nesting-agnostic.
     if (isBareCallTo(node, REQUIRE_RELATIVE)) {
       emitPath(literalStringArg(node), node.startPosition.row + 1);
       return; // a string arg, no constant children to descend for symbols
     }
 
-    // (b) class C < Base / module M → handle superclass, then descend into body.
+    // (b) class C < Base / module M → superclass in the OUTER nesting, then the body under
+    //     the extended nesting.
     if (node.type === 'class' || node.type === 'module') {
       if (node.type === 'class') {
         const sup = node.childForFieldName('superclass');
         if (sup !== null) {
           const expr = firstNamedChild(sup);
-          // Suppress a BARE superclass when inside any class/module namespace (outer
-          // nsDepth > 0); a complete ::/qualified ref still emits.
-          if (nsDepth === 0 || isCompleteReference(expr)) {
-            emitSymbol(constantKey(expr), (expr ?? sup).startPosition.row + 1);
-          }
+          emitConstant(expr, nesting, (expr ?? sup).startPosition.row + 1);
         }
       }
-      // Descend into the body. Both `class` and `module` introduce a new constant
-      // namespace in Ruby, so nsDepth increments for the body contents in both cases.
       const body = node.childForFieldName('body');
       if (body !== null) {
-        const childDepth = nsDepth + 1;
+        const nameNode = node.childForFieldName('name');
+        const name = constantKey(nameNode);
+        const rootedName = nameNode !== null && nameNode.text.trimStart().startsWith('::');
+        const fqn = name === undefined ? undefined : rootedName || nesting.length === 0 ? name : `${nesting[0]}::${name}`;
+        const inner = fqn === undefined ? nesting : [fqn, ...nesting];
         for (let i = 0; i < body.namedChildCount; i++) {
           const c = body.namedChild(i);
-          if (c !== null) visit(c, childDepth);
+          if (c !== null) visit(c, inner);
         }
       }
       return;
     }
 
-    // (c) include / extend / prepend Mod[, Mod2] → SYMBOL hint per constant argument.
-    // Direct mixins written in a class/module body use the OUTER depth of that class/module
-    // (one level above the current nsDepth, since nsDepth was incremented when entering the
-    // body). A mixin at top level (nsDepth=0) or in a top-level class body (nsDepth=1,
-    // outer depth=0) emits; a mixin nested deeper (nsDepth>1, outer depth>0) suppresses.
-    // A complete ::/qualified ref always emits regardless of depth.
+    // (c) include / extend / prepend Mod[, Mod2] → one candidate group per constant argument.
     if (isBareCallTo(node, MIXIN_METHODS)) {
       const args = node.childForFieldName('arguments');
       if (args !== null) {
         for (let i = 0; i < args.namedChildCount; i++) {
           const arg = args.namedChild(i);
-          const key = constantKey(arg);
-          if (key !== undefined && arg !== null && (nsDepth <= 1 || isCompleteReference(arg))) {
-            emitSymbol(key, arg.startPosition.row + 1);
-          }
+          if (arg !== null) emitConstant(arg, nesting, arg.startPosition.row + 1);
         }
       }
-      return; // mixin-arg constants handled; do not descend (would re-emit as bare)
+      return; // mixin-arg constants handled; do not descend (would re-emit)
     }
 
     // (d) A bare `constant` or a `scope_resolution` used as a value / receiver.
@@ -218,22 +222,34 @@ function uses(file: ParsedFile): DetectedDep[] {
         if (parent.type === 'scope_resolution') return; // inner qualifier of a longer name
         if (parent.type === 'superclass') return; // handled in (b)
       }
-      // C1: inside any class/module namespace, emit ONLY a complete (::-rooted / qualified) ref.
-      if (nsDepth === 0 || isCompleteReference(node)) {
-        emitSymbol(constantKey(node), node.startPosition.row + 1);
-      }
+      emitConstant(node, nesting, node.startPosition.row + 1);
       return; // do not descend into a scope_resolution's inner constants
     }
 
-    // Generic descent (nsDepth unchanged for non-class/module containers).
+    // Generic descent (nesting unchanged for non-class/module containers).
     for (let i = 0; i < node.namedChildCount; i++) {
       const c = node.namedChild(i);
-      if (c !== null) visit(c, nsDepth);
+      if (c !== null) visit(c, nesting);
     }
   };
 
-  visit(file.tree.rootNode, 0);
+  visit(file.tree.rootNode, []);
   return out;
+}
+
+/**
+ * True when a file path follows the Zeitwerk / gem convention for a constant's full name:
+ * the file stem is the underscored last segment and the directories right above it are the
+ * underscored outer segments (`…/billing/invoice.rb` for `Billing::Invoice`).
+ */
+function pathCorroborates(filePath: string, segments: readonly string[]): boolean {
+  const parts = filePath.replace(/\\/g, '/').split('/');
+  const stem = parts[parts.length - 1].replace(/\.[^.]*$/, '');
+  const dirs = parts.slice(0, -1);
+  if (stem !== rubyUnderscore(segments[segments.length - 1])) return false;
+  const outer = segments.slice(0, -1).map(rubyUnderscore);
+  if (outer.length > dirs.length) return false;
+  return outer.every((seg, i) => dirs[dirs.length - outer.length + i] === seg);
 }
 
 /**
@@ -243,9 +259,17 @@ function uses(file: ParsedFile): DetectedDep[] {
  *
  * REOPENINGS ARE NOT DEDUPED (intentional and correct): every reopening of a class/module
  * emits another definition of the same FQN. The pass folds these into the shared
- * SymbolTable, which then has 2+ files for that FQN → `resolveUnique` returns undefined →
- * any use of it is SILENCED. This is exactly the anti-false-positive behavior Ruby needs
- * (monkey-patching / reopening must never produce a flag).
+ * SymbolTable, which then has 2+ files for that FQN → the reference silences. A reopening
+ * that lives in ONE file is indistinguishable from a definition here; the resolver treats
+ * core classes and framework namespaces as external for exactly that reason
+ * (isRubyExternalConstant).
+ *
+ * ZEITWERK IMPLICIT NAMESPACES: a compact `class Billing::Invoice` in `…/billing/invoice.rb`
+ * relies on Zeitwerk to create `Billing` from the directory, so no file declares it. When the
+ * file path corroborates the full name (pathCorroborates), the implicit outer namespaces are
+ * declared by this file too, which anchors the root (resolver.ts rubyRootUnanchored). A
+ * compact declaration whose path does not match (a stub `module Rack::Handler` in
+ * `server_stub.rb`) anchors nothing.
  */
 function declarations(file: ParsedFile): DeclaredSymbol[] {
   const out: DeclaredSymbol[] = [];
@@ -257,7 +281,16 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
       const name = constantKey(nameField);
       if (name !== undefined) {
         const fqn = nsStack.length === 0 ? name : `${nsStack.join('::')}::${name}`;
-        out.push({ symbolKey: fqn, line: node.startPosition.row + 1 });
+        const line = node.startPosition.row + 1;
+        out.push({ symbolKey: fqn, line });
+        if (nameField !== null && nameField.type === 'scope_resolution') {
+          const segments = fqn.split('::');
+          if (pathCorroborates(file.path, segments)) {
+            for (let k = 1; k < segments.length; k++) {
+              out.push({ symbolKey: segments.slice(0, k).join('::'), line });
+            }
+          }
+        }
         // Descend into the body under the EXTENDED namespace. The name itself may be a
         // scoped name (`class A::B`), in which case it already carries its own prefix; push
         // the whole FQN so deeper nesting concatenates correctly.
@@ -304,7 +337,7 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
 
 export const rubyExtractor: DependencyExtractor = {
   languages: new Set(['ruby']),
-  rev: 1,
+  rev: 2,
   declarations,
   uses,
 };

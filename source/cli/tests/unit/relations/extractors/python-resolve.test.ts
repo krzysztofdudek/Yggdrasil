@@ -222,3 +222,51 @@ describe('resolvePythonModule — relative', () => {
     });
   });
 });
+
+describe('resolvePythonModule — sys.path-like roots', () => {
+  it('an ancestor package never roots an absolute import (stdlib name shadowed by app/logging.py)', () => {
+    const files = new Set(['app/__init__.py', 'app/logging.py', 'app/api/__init__.py', 'app/api/routes.py']);
+    expect(resolvePythonModule('logging', 'app/api/routes.py', (p) => files.has(p))).toBeUndefined();
+  });
+
+  it('a namespace sub-directory of a regular package is not a root either', () => {
+    // app/api has no __init__.py, but its parent app/ is a regular package.
+    const files = new Set(['app/__init__.py', 'app/api/logging.py', 'app/api/routes.py']);
+    expect(resolvePythonModule('logging', 'app/api/routes.py', (p) => files.has(p))).toBeUndefined();
+  });
+
+  it('the directory above the top-level package still roots the package itself', () => {
+    const files = new Set(['app/__init__.py', 'app/logging.py', 'app/api/__init__.py', 'app/api/routes.py']);
+    expect(resolvePythonModule('app.logging', 'app/api/routes.py', (p) => files.has(p))).toBe('app/logging.py');
+  });
+
+  it('a discovered project root resolves a module that no ancestor roots', () => {
+    const files = new Set(['src/core/service.py', 'tests/test_service.py']);
+    const roots = (): readonly string[] => ['src'];
+    expect(resolvePythonModule('core.service', 'tests/test_service.py', (p) => files.has(p), undefined, roots)).toBe(
+      'src/core/service.py',
+    );
+    // without the discovered roots the same import stays silent (the pre-discovery behaviour)
+    expect(resolvePythonModule('core.service', 'tests/test_service.py', (p) => files.has(p))).toBeUndefined();
+  });
+
+  it('a discovered root never matches a standard-library top-level name', () => {
+    const files = new Set(['packages/tools/logging.py', 'packages/tools/json/__init__.py']);
+    const roots = (): readonly string[] => ['packages/tools'];
+    const exists = (p: string): boolean => files.has(p);
+    expect(resolvePythonModule('logging', 'packages/api/src/api/main.py', exists, undefined, roots)).toBeUndefined();
+    expect(resolvePythonModule('json.decoder', 'packages/api/src/api/main.py', exists, undefined, roots)).toBeUndefined();
+  });
+
+  it('a module found under two discovered roots stays silent (distinct-match rule)', () => {
+    const files = new Set(['packages/a/src/util.py', 'packages/b/src/util.py']);
+    const roots = (): readonly string[] => ['packages/a/src', 'packages/b/src'];
+    expect(resolvePythonModule('util', 'apps/web/main.py', (p) => files.has(p), undefined, roots)).toBeUndefined();
+  });
+
+  it('a discovered root inside a regular package is ignored', () => {
+    const files = new Set(['pkg/__init__.py', 'pkg/sub/mod.py']);
+    const roots = (): readonly string[] => ['pkg/sub'];
+    expect(resolvePythonModule('mod', 'apps/web/main.py', (p) => files.has(p), undefined, roots)).toBeUndefined();
+  });
+});
