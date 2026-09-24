@@ -1,5 +1,7 @@
+import { lstatSync, readdirSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { toPosixPath } from '../utils/posix.js';
 import type { Artifact } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { hashFile } from './hash.js';
@@ -83,4 +85,80 @@ export async function readSupportFileHashes(
 
   await walk(dirPath, '');
   return out.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * Symbolic links in the files a rule is made of are refused, not followed.
+ *
+ * A rule's text and code are verdict inputs: what a reviewer is shown, what a
+ * check runs, and what the verdict hash folds must be the same bytes. A symlink
+ * breaks that in two ways. Readers disagree about it — one follows the link and
+ * another skips it as "not a regular file" — so a rule ran its target while
+ * hashing as nothing, or was reviewed as an empty rule while listed as
+ * enforced. And a link can point outside the repository, so a clone, a CI
+ * runner and a developer machine would each see different content under one
+ * committed path, or a host file would reach a third-party reviewer.
+ *
+ * The same policy covers rule sources and the reference files a rule shows the
+ * reviewer, and it matches the one mapped source files already follow: a path
+ * that runs through a symlink is an error naming the link. A monorepo that
+ * shares a rule copies it, or installs it as a package.
+ */
+
+/**
+ * The first component of `rel` (a repository-relative path) that is a symbolic
+ * link, as a repository-relative POSIX path, or null when none is. Components
+ * that do not exist end the walk: a missing path is some other check's error.
+ * Only components below `root` are examined — whatever the repository itself
+ * sits under is not the repository's to answer for.
+ */
+export function symlinkOnPath(root: string, rel: string): string | null {
+  const parts = toPosixPath(rel).split('/').filter((p) => p !== '' && p !== '.');
+  let current = root;
+  for (let i = 0; i < parts.length; i++) {
+    current = path.join(current, parts[i]);
+    let stat;
+    try {
+      stat = lstatSync(current);
+    } catch {
+      return null;
+    }
+    if (stat.isSymbolicLink()) return parts.slice(0, i + 1).join('/');
+  }
+  return null;
+}
+
+/**
+ * Every symbolic link among the files a rule directory contributes to its rule,
+ * as POSIX paths relative to the directory, sorted: the top-level files
+ * (yg-aspect.yaml, content.md, check.mjs, companion.mjs, an adaptation) and the
+ * support files its code can reach, walked exactly as the verdict's support-file
+ * hash walks them — dot-prefixed entries, `node_modules`, the top-level
+ * `drills/` corpus and nested rule directories are not part of this rule and
+ * are not examined. A directory that cannot be read yields nothing.
+ */
+export function ruleDirSymlinks(aspectDir: string): string[] {
+  const found: string[] = [];
+  const walk = (dirAbs: string, relPrefix: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(dirAbs, { withFileTypes: true });
+    } catch (err) {
+      debugWrite(`[artifact-reader] ${dirAbs}: ${(err as Error).message}`);
+      return;
+    }
+    if (relPrefix !== '' && entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml')) return;
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      const rel = relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
+      if (entry.isSymbolicLink()) {
+        found.push(rel);
+      } else if (entry.isDirectory()) {
+        if (relPrefix === '' && entry.name === 'drills') continue;
+        walk(path.join(dirAbs, entry.name), rel);
+      }
+    }
+  };
+  walk(aspectDir, '');
+  return found.sort();
 }

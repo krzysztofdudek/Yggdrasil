@@ -30,5 +30,6 @@ relations:
 mapping:
   - source/cli/src/portal/server/server.ts
   - source/cli/src/portal/server/router.ts
+  - source/cli/src/portal/server/data-source.ts
   - source/cli/src/portal/server/approve.ts
   - source/cli/src/portal/server/boot-pages.ts

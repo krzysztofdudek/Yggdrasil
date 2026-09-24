@@ -5,10 +5,14 @@
  * aspect (`scenario-matches-test`), a `uses -> specs` relation, and a companion.mjs
  * that reads ONE paired spec via ctx.fs.read (the spec path is in the scenario's
  * frontmatter `test:` key). Editing the paired spec must admit the scenario pair as
- * `observe-companion / precise`; editing an unrelated spec must not.
+ * a potential invalidation.
  *
- * These are COLD tests: the lock is empty, so there are no warm lock entries. The
- * companion resolver is run live to find the paired spec.
+ * These are COLD tests: the lock is empty, so there are no warm lock entries.
+ * `yg impact` executes no repository code, so the companion is NOT run to narrow
+ * the answer: every scenario unit whose companion may read the edited spec (it is
+ * within the scenarios node's allowed reads) is admitted as
+ * `cold-potential-companion / potential` — an upper bound, the same one a cold
+ * deterministic pair gets.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -30,31 +34,24 @@ async function loadE2eCompanionFixture(): Promise<{ graph: Awaited<ReturnType<ty
 const emptyLock = (): LockFile => ({ version: 1, verdicts: {}, nodes: {} });
 
 describe('collectInvalidatedPairs — cold companion-LLM', () => {
-  it('cold: editing the paired spec admits the scenario pair as observe-companion (precise)', async () => {
+  it('cold: editing a spec the companion may read admits every scenario unit as a potential invalidation, without running the companion', async () => {
     const { graph, projectRoot } = await loadE2eCompanionFixture();
     const lock = emptyLock();
-    // checkout.md's companion reads checkout.spec.ts; editing it should admit that pair.
     const F = 'apps/e2e/tests/checkout.spec.ts';
     const set = await collectInvalidatedPairs(graph, F, lock, projectRoot);
-    const hit = set.pairs.find(
-      (p) => p.aspectId === 'scenario-matches-test' && p.reasons.includes('observe-companion'),
-    );
-    expect(hit).toBeDefined();
-    expect(hit?.mode).toBe('precise');
+    const hits = set.pairs.filter((p) => p.aspectId === 'scenario-matches-test');
+    expect(hits.length).toBeGreaterThan(0);
+    for (const h of hits) {
+      expect(h.reasons).toEqual(['cold-potential-companion']);
+      expect(h.mode).toBe('potential');
+    }
+    expect(hits.map((h) => h.unitKey)).toContain('file:references/e2e-test-scenarios/checkout.md');
     expect(set.unresolved).toHaveLength(0);
   });
 
-  it('cold: editing a non-paired spec does NOT admit the scenario units whose companion does not read it', async () => {
+  it('cold: a companion is never precise without a verdict — no unit is admitted as observe-companion', async () => {
     const { graph, projectRoot } = await loadE2eCompanionFixture();
-    const lock = emptyLock();
-    // login.spec.ts is paired with login.md, NOT with checkout.md.
-    // So editing login.spec.ts must not admit the checkout.md pair.
-    const F = 'apps/e2e/tests/login.spec.ts';
-    const set = await collectInvalidatedPairs(graph, F, lock, projectRoot);
-    const admittedUnits = set.pairs
-      .filter((p) => p.aspectId === 'scenario-matches-test')
-      .map((p) => p.unitKey);
-    // checkout scenario's companion reads ONLY checkout.spec.ts; editing login.spec.ts must not admit it.
-    expect(admittedUnits).not.toContain('file:references/e2e-test-scenarios/checkout.md');
+    const set = await collectInvalidatedPairs(graph, 'apps/e2e/tests/login.spec.ts', emptyLock(), projectRoot);
+    expect(set.pairs.some((p) => p.reasons.includes('observe-companion'))).toBe(false);
   });
 });

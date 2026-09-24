@@ -20,6 +20,28 @@ import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { type Diagnostic, type Fix, fromIssueMessage, toIssueMessage } from './output-diagnostic.js';
+import { neutralizeStream } from '../utils/terminal-safe.js';
+
+// ── Terminal safety ────────────────────────────────────────
+
+/**
+ * Show, never obey, control sequences in anything written to stdout or stderr
+ * other than yg's own colour and line redraw (see utils/terminal-safe.ts).
+ * File names, descriptions, rule text, log entries and reviewer reasons come
+ * from the repository or a model and reach the terminal inside yg's output; an
+ * OSC 52 in a file name wrote the clipboard, an `ESC[2J` in a description
+ * cleared the screen.
+ *
+ * Installed when this module loads. Every command reaches its output through
+ * this layer, so it is loaded before any command writes a byte; the entry point
+ * cannot install it itself, because it may depend on command modules only.
+ * Idempotent.
+ */
+export function guardTerminalOutput(): void {
+  neutralizeStream(process.stdout);
+  neutralizeStream(process.stderr);
+}
+guardTerminalOutput();
 
 // ── Counts ─────────────────────────────────────────────────
 

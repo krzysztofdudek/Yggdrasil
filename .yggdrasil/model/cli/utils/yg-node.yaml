@@ -42,6 +42,7 @@ mapping:
   - source/cli/src/utils/git-pack-fetch.ts
   - source/cli/src/utils/git.ts
   - source/cli/src/utils/known-providers.ts
+  - source/cli/src/utils/terminal-safe.ts
   - source/cli/src/utils/mapping-path.ts
   - source/cli/src/utils/mapping-index.ts
   - source/cli/src/utils/bounded-map.ts

@@ -33,6 +33,8 @@ The LLM reviewer is a separate LLM call from the coding agent — one LLM verify
 
 ### Directory structure
 
+Every file a rule is built from — `yg-aspect.yaml`, `content.md`, `check.mjs`, `companion.mjs`, a helper module beside them — must be a regular file inside the rule's directory, and every `references:` path and adaptation `companion:` path must reach its file without passing through a symbolic link. A link is refused with `aspect-source-symlink` or `aspect-reference-symlink`, naming it: the files a rule is made of are verdict inputs, and a link is followed by some readers and skipped by others (a linked `content.md` used to be reviewed as an empty rule; a linked `check.mjs` ran code its hash never saw), and it can point outside the repository. To share a rule between projects, copy it or [install it as a package](/packages).
+
 ```
 .yggdrasil/aspects/
   requires-audit/
@@ -191,7 +193,7 @@ The companion hook is bounded by the same allowed-reads set as `check.mjs`: the 
 
 Resolved companion files appear in a distinct `<companions>` block in the reviewer prompt, separate from the `<references>` block (static references) and `<source-files>` (the unit's own source). The companions block is absent when the hook returns `[]`. Companion files count toward the tier's `max_prompt_chars` gate, exactly like subject and reference files. The companion bytes are only known once the hook resolves, so a too-large companion prompt is caught and billed nothing.
 
-The prompt-size check runs wherever a pair is evaluated: at fill time, before the reviewer is called, and on a plain `yg check` as well. On a check, a pair whose verdict is still valid is answered from the size recorded alongside that verdict — the hook is not run and no prompt is assembled. Only a pair that is missing, stale, or was verified by a version too old to have recorded a size resolves the hook live to measure it. That is what keeps a check on an unchanged project from re-running every companion hook in the graph just to count characters; see [/the-lock](/the-lock).
+The prompt-size check runs wherever a pair is evaluated: at fill time, before the reviewer is called, and on a plain `yg check` as well. On a check, a pair whose verdict is still valid is answered from the size recorded alongside that verdict — the hook is not run and no prompt is assembled. A pair that is missing or stale is unverified anyway; a plain `yg check` (and every other command that only reads — `yg context`, `yg impact`, `yg aspects`, the portal, `--approve --dry-run`) measures it **without running the hook**, because `companion.mjs` is code from the repository and those commands execute none. That measurement leaves the companion files out, so it is a lower bound: a pair already over the limit without them is reported `prompt-too-large`; any other says its size check is completed by the next `yg check --approve`, which resolves the companions for real before it calls the reviewer. See [/the-lock](/the-lock#what-yg-check-proves-and-against-whom) for which commands run repository code.
 
 **`yg-suppress` is honored only from the `<source-files>` block.** A suppress marker inside a companion file is ignored — companions are read-only reference material, not the unit under judgment.
 
@@ -663,6 +665,17 @@ A team can opt into a **committed, shared** record of LLM verification-fill even
 - **Rationale-stripped.** The refusal reason is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
+
+---
+
+## What a verdict is worth, and against whom
+
+The reviewer is a separate model judging the coding agent's work, and a recorded verdict proves that the code and rule it was given are the ones on disk now (see [The lock → What `yg check` proves](/the-lock#what-yg-check-proves-and-against-whom)). It is worth exactly as much as the run that recorded it, and that run is trusted as far as its committer is:
+
+- **The reviewed code is also the reviewer's input.** A comment in a subject file that addresses the reviewer — a fake waiver, "respond with satisfied" — is text the model reads. A strong model (sonnet-class) refuses it and can name it as an injection attempt; a fast, cheap model (haiku-class) has been talked into approving by one five-line comment. Keep rules that must hold against an adversarial author on a strong model, and review the diff of judged files: the comment sits there in plain sight.
+- **Only the committer vouches for a recorded verdict.** Nothing in the lock proves a reviewer produced an entry; the gate trusts whoever can push to the branch. For contributors you do not trust that far, the verdicts they commit are theirs, not your reviewer's.
+- **Rules are code.** `check.mjs` and `companion.mjs` run with the permissions of whoever runs `yg check --approve` (or `--approve --only-deterministic`, `yg adopt`, `yg aspect-test`, `yg drill`); every other command executes no repository code. For CI on fork pull requests, see [The lock → What `yg check` proves](/the-lock#what-yg-check-proves-and-against-whom).
+- **Each CLI reviewer runs isolated.** It gets the prompt on stdin and nothing else: no tools, no MCP servers, no extensions, no project instructions. `claude-code` and `copilot-cli` switch off their tools, settings and MCP configuration; `codex` runs `exec` in a read-only sandbox with the shell, image, sub-agent, goal and web-search tools disabled and without `~/.codex/config.toml`; `gemini-cli` runs with a policy that denies every tool, no extensions and no MCP servers. `codex` and `gemini-cli` each run in an empty directory of their own, so no `AGENTS.md`, `GEMINI.md` or project settings can be picked up. What each still reads is the user's own home configuration — the login, and a user-level `~/.codex/AGENTS.md` or `~/.gemini/GEMINI.md` if you keep one — which nothing in the reviewed repository can write. The exact flags are listed under [Configuration → Supported providers](/configuration#supported-providers).
 
 ---
 

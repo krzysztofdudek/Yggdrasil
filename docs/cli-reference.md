@@ -161,13 +161,12 @@ For `--file`, it ends with a precise `Total to re-verify:` block — billed
 reviewer calls, free deterministic pairs, and currently-green verdicts re-rolled —
 preceded by a per-node breakdown tagged with why each node is affected (own
 pairs / references this file / companion observes this file / deterministic check
-observes this file / may observe this file (cold-start) — the last one for a
-deterministic pair with no lock entry yet, whose observation set is therefore not
-yet known). To compute this precisely even before the first fill,
-`yg impact` runs the companion resolver for cold companion-backed pairs — it
-makes no LLM call, never runs `check.mjs`, and writes nothing. A companion whose
-hook fails is listed under `Unresolved` (cost unknown; it will infra-fail at
-fill).
+observes this file / may observe this file (cold-start) / companion may observe
+this file (cold-start; companion not run) — the last two for a pair with no lock
+entry yet, whose observation set is therefore not yet known, when the file is
+within what its check or companion may read). `yg impact` executes no repository
+code: it never runs `check.mjs` or `companion.mjs`, makes no LLM call, and writes
+nothing, so those two are upper bounds.
 
 That is the owned case: `--file` resolves the owning node first, and the block
 it prints is its own output, not the `--node` summary. Three further outcomes
@@ -197,7 +196,7 @@ yg impact --type <id>
 ```
 
 - `--node` — Reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
-- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. Runs the companion resolver for cold companion-backed pairs (no LLM call). A companion whose hook fails appears under `Unresolved`. The three ownerless outcomes above — the `.yggdrasil/` graph-file redirect, the excluded-by-design report, and the graduation preview for a type-covered file — all exit 0; only a file with no coverage at all (not mapped, not referenced, not observed) is an error.
+- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. A companion-backed pair with no lock entry yet is likewise marked as one that *may* observe the file — its `companion.mjs` is not run, since `yg impact` executes no repository code. The three ownerless outcomes above — the `.yggdrasil/` graph-file redirect, the excluded-by-design report, and the graduation preview for a type-covered file — all exit 0; only a file with no coverage at all (not mapped, not referenced, not observed) is an error.
 - `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations. On a type-covered project, the cost line also counts files enforced by the aspect's architecture type alone (no owning node) — named separately, since "Directly affected" itself only lists components.
 - `--flow` — All participants and their descendants, plus structural dependents of participants
 - `--type <id>` — All nodes of that architecture type and their source files. Useful

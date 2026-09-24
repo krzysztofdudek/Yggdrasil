@@ -9,9 +9,12 @@
  *   - classify each pair as verified / refused / unverified / prompt-too-large.
  *
  * This engine NEVER executes a reviewer and NEVER executes a deterministic
- * check.mjs. It MAY run an LLM aspect's companion.mjs (the dependency resolver,
- * never a judge) to size the §4 prompt-size gate over the REAL injected companions
- * — see the gate below. For deterministic pairs it re-OBSERVES the stored
+ * check.mjs. By default it executes NO repository code at all: an LLM aspect's
+ * companion.mjs (the dependency resolver, never a judge) runs only when the
+ * caller passes `runCompanionHooks: true`, which only the `--approve` fill stage
+ * does, to size the §4 prompt-size gate over the REAL injected companions — see
+ * the gate below. A read-only caller (plain `yg check`, the portal, `yg aspects`,
+ * `yg owner`/`yg context`, `--dry-run`) sizes a stale companion pair without them. For deterministic pairs it re-OBSERVES the stored
  * observation keys (read:/list:/exists:/graph:) against current disk state — a
  * value that changed (or a file/node that vanished) yields a mismatch ⇒ unverified,
  * never a throw (spec §3.1). The fill stage (B2) is the only place check.mjs and
@@ -113,6 +116,17 @@ export interface VerifiedPair {
    */
   backfillPromptChars?: number;
   /**
+   * Set on an unverified companion pair when this call did not run its
+   * companion.mjs because the caller runs no repository code (see
+   * `VerifyOptions.runCompanionHooks`). The pair is unverified either way — its
+   * hash no longer matches — and the size gate measured it WITHOUT the files the
+   * hook would inject: a lower bound, so an over-limit result is still certain,
+   * but an under-limit one is settled only by the `--approve` run that resolves
+   * the companions for real. The report says so, so nobody reads the missing
+   * size check as a pass.
+   */
+  companionNotRun?: true;
+  /**
    * Who judged this pair, when the judge was not a configured provider — read
    * straight off the stored entry, whatever the pair's state. Present on a
    * verified pair too (which reports no issue at all), because "who decided
@@ -186,14 +200,29 @@ export interface LockVerification {
  * attach to, so they render as unexpected and the run goes red even though it
  * should be green.
  */
+/**
+ * What a lock verification may do beyond reading files and hashing them.
+ *
+ * `runCompanionHooks` — execute an LLM aspect's companion.mjs to size a pair
+ * whose verdict is stale. A companion is code from the repository, so a
+ * command that is meant to be read-only (and is run on branches nobody has
+ * reviewed yet — a fork's pull request in CI, a colleague's branch checked out
+ * locally) must never run it; only the `--approve` fill, which runs the
+ * repository's rule code anyway, turns this on. Default false.
+ */
+export interface VerifyOptions {
+  runCompanionHooks?: boolean;
+}
+
 export async function verifyLock(
   graph: Graph,
   lock: LockFile,
   typeCoverage?: TypeCoverageInput,
   byteCache?: Map<string, Buffer | null>,
+  opts: VerifyOptions = {},
 ): Promise<LockVerification> {
   const { pairs, unreadable, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
-  const verified = await verifyPairs(graph, lock, pairs, typeCoverage, byteCache);
+  const verified = await verifyPairs(graph, lock, pairs, typeCoverage, byteCache, opts);
   return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
 }
 
@@ -216,8 +245,10 @@ export async function verifyPairs(
   pairs: ExpectedPair[],
   typeCoverage?: TypeCoverageInput,
   byteCache?: Map<string, Buffer | null>,
+  opts: VerifyOptions = {},
 ): Promise<VerifiedPair[]> {
   const projectRoot = path.dirname(graph.rootPath);
+  const runCompanionHooks = opts.runCompanionHooks === true;
 
   // Index aspect defs by id for O(1) lookup.
   const aspectById = new Map<string, AspectDef>();
@@ -300,7 +331,7 @@ export async function verifyPairs(
           : undefined;
         try {
           verified.push(
-            await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache, bucket?.cache, fileSetMemo),
+            await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache, bucket?.cache, fileSetMemo, runCompanionHooks),
           );
         } finally {
           // Release even when the pair threw: the bucket's countdown must reach
@@ -340,6 +371,7 @@ async function verifyLlmPair(
   reachCache: Map<string, Set<string>>,
   parseCache: ParseCache | undefined,
   fileSetMemo: FileSetMemo,
+  runCompanionHooks: boolean,
 ): Promise<VerifiedPair> {
   // ── Resolve the tier (needed for both validity recompute and the gate). ──
   const reviewer = graph.config.reviewer;
@@ -469,8 +501,13 @@ async function verifyLlmPair(
   // resolved live so the assembled-prompt size MATCHES what fill / the reviewer
   // see — otherwise a plain LLM aspect (verify-lock is its only gate) whose
   // <suppressed-ranges> block tips it over the limit would slip past unflagged.
-  // This is why plain `yg check` MAY run companion.mjs / the suppress resolver
-  // (never a judge) — it still runs no check.mjs and calls no reviewer. Inputs
+  // That live companion resolution runs repository code, so it happens only when
+  // the caller allows it (`runCompanionHooks`, the `--approve` fill). A read-only
+  // caller sizes the prompt without the companions instead: the result is a
+  // lower bound (companions only ever add), so an over-limit answer still gates,
+  // and the pair — unverified anyway — carries `companionNotRun` so the report
+  // says the full size check waits for `--approve`. The suppress resolver is
+  // yg's own parser, not repository code, and always runs. Inputs
   // that cannot resolve here (a companion that fails, a reasonless suppress
   // marker) cannot be assembled or sized → fail closed (companion-error /
   // unverified).
@@ -480,6 +517,7 @@ async function verifyLlmPair(
   // verdicts that are otherwise still valid — which is exactly what comparing a
   // stored SIZE against the current limit does.
   let gate: { chars: number; limit: number; tierName: string } | undefined;
+  let companionNotRun = false;
   if (tierResult?.ok && valid && storedEntry?.promptChars !== undefined) {
     const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
     if (storedEntry.promptChars > limit) {
@@ -492,7 +530,9 @@ async function verifyLlmPair(
     // load-bearing gate for plain LLM aspects (a stored entry is re-checked here).
     const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
     let gateCompanions: PromptCompanionInput[] = [];
-    if (aspect.hasCompanion === true) {
+    if (aspect.hasCompanion === true && !runCompanionHooks) {
+      companionNotRun = true;
+    } else if (aspect.hasCompanion === true) {
       const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache, parseCache);
       if (resolved.kind === 'infra') {
         return { pair, state: { kind: 'companion-error', messageData: resolved.messageData } };
@@ -542,12 +582,15 @@ async function verifyLlmPair(
     // entry from before the field existed. Hand the number up so `--approve` can
     // record it (see `backfillPromptChars`); the next check then takes the fast
     // path instead of reassembling this prompt forever.
-    if (valid) {
+    // Never from a size measured without the companions: it is a lower bound,
+    // and a recorded size is taken at its word on every later check.
+    if (valid && !companionNotRun) {
       return { ...classifyWithGate(pair, storedEntry, valid, gate, resolvedTierName), backfillPromptChars: chars };
     }
   }
 
-  return classifyWithGate(pair, storedEntry, valid, gate, resolvedTierName);
+  const classified = classifyWithGate(pair, storedEntry, valid, gate, resolvedTierName);
+  return companionNotRun && classified.state.kind === 'unverified' ? { ...classified, companionNotRun: true } : classified;
 }
 
 // ============================================================

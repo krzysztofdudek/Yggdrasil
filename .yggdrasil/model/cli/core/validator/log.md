@@ -112,5 +112,9 @@ The gate now also verifies that every rule installed from another repository sti
 The validator no longer runs the reserved default port check, because that check was removed: a deliberate default port declaration is the documented way to hang aspects on the implicit port and warning about it on every run only trained readers to ignore warnings.
 ## [2026-09-23T23:00:44.157Z]
 A yg-config.yaml that does not parse reports the parser's message as what happened and, as why, that every setting has fallen back to its default — the two were swapped, and nothing said that the rest of the report described the default configuration rather than the project's.
+## [2026-09-24T01:23:20.287Z]
+The validator now includes the reviewer-credentials findings, so a key committed to the shared configuration, a tracked secrets overlay, or a committed endpoint that would receive the environment's key surface on every check, where the repository's own guardrail is expected to catch them.
 ## [2026-09-24T01:25:07.576Z]
 Validation can now be told which components the caller will read, so the checks that go to disk once per component run only for those while every graph-wide check still runs in full. The context command uses it, since it reads only the issues of the components its answer draws on and was validating the whole repository to answer about one.
+## [2026-09-24T01:51:20.476Z]
+The security fixes (read-only commands no longer run repository companion hooks, symlinked rule sources refused, committed credentials blocked, portal Host check on every route with a shared cached extraction) and the scale fixes (per-command walk cache, mapping index, linear deterministic fill, cycle-scoped context) met in this component at merge. Both merged cleanly at source level and the merged code carries both behaviours; this entry records that the combination is what the verdicts now answer for.

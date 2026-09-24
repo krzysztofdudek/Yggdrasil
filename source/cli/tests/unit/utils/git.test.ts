@@ -6,6 +6,7 @@ import { getLastCommitTimestamp, getFirstCommitTimestamp, getHeadSha } from '../
 
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -368,7 +368,8 @@ export type ImpactReason =
   | 'reference'                     // an LLM aspect references F (hashed into every pair of the aspect)
   | 'observe-companion'             // companion-LLM observation references F (warm lock OR cold-resolved)
   | 'observe-deterministic'         // deterministic check observation references F (warm lock)
-  | 'cold-potential-deterministic'; // deterministic, no lock entry, F in allowed-reads (free, upper bound)
+  | 'cold-potential-deterministic'  // deterministic, no lock entry, F in allowed-reads (free, upper bound)
+  | 'cold-potential-companion';     // companion-LLM, no lock entry, F in allowed-reads (upper bound; the companion is never run to narrow it)
 
 export interface InvalidatedPair {
   aspectId: string;

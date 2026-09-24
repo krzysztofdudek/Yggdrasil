@@ -122,6 +122,7 @@ mapping:
   - source/cli/tests/integration/portal-structure.test.ts
   - source/cli/tests/integration/portal-boundary.test.ts
   - source/cli/tests/integration/portal-server.test.ts
+  - source/cli/tests/integration/portal-data-source.test.ts
   - source/cli/tests/integration/portal-frontend-modules.test.ts
   - source/cli/tests/integration/portal-views-support.ts
   - source/cli/tests/integration/portal-views-overview.test.ts

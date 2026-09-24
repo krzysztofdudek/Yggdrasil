@@ -12,6 +12,7 @@ import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
 import { fail } from './output.js';
+import { escapeControls } from '../utils/terminal-safe.js';
 
 /** Schema id of `yg tree --json`. */
 export const TREE_JSON_SCHEMA = 'yg-tree/1';
@@ -116,7 +117,9 @@ export function registerTreeCommand(program: Command): void {
 
         for (const n of nodes) {
           const desc = n.description === null ? '' : options.long === true ? n.description : shortDescription(n.description);
-          process.stdout.write(desc !== '' ? `${n.path} [${n.type}] — ${desc}\n` : `${n.path} [${n.type}]\n`);
+          // Node paths, types and descriptions are repository text: shown, never obeyed by the terminal.
+          const line = desc !== '' ? `${n.path} [${n.type}] — ${desc}` : `${n.path} [${n.type}]`;
+          process.stdout.write(`${escapeControls(line)}\n`);
         }
         // An empty graph must still say it ran: a blank listing reads as a
         // failure. (--root always names an existing node, so it never lands here.)

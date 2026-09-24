@@ -92,3 +92,5 @@ One unverified label covered pairs that were stale, never judged, missing only f
 Adds the notice printed when the attention index was skipped because git does not ignore it, shared as one text so every surface says the same thing.
 ## [2026-09-23T22:37:54.261Z]
 The graph-governance work met the release work already merged in this component: the shared unverified-cause type and its action order sit beside the new notice for an attention index skipped because git does not ignore it. Both are independent vocabulary and both are kept.
+## [2026-09-24T01:23:18.353Z]
+New blocking findings needed a place in the structural group: a reviewer key committed to the shared configuration, a tracked secrets overlay, and rule sources or references that pass through a symbolic link. A reference through a link also stops an approval before any reviewer call, because the link could carry a file from outside the repository into a prompt sent to a third-party reviewer.

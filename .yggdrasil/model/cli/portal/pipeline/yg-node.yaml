@@ -22,8 +22,11 @@ relations:
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/io/stores
+    type: calls
 mapping:
   - source/cli/src/portal/extract.ts
+  - source/cli/src/portal/state-key.ts
   - source/cli/src/portal/derive-counts.ts
   - source/cli/src/portal/derive-nodes.ts
   - source/cli/src/portal/derive-node-state.ts

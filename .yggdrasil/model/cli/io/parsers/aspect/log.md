@@ -24,3 +24,7 @@ The aspect parser now collects the hashes of the other files in a rule's directo
 The references block is parsed by its own function instead of inline in the aspect parser, shrinking the largest function in the module; behaviour and messages are unchanged.
 ## [2026-09-23T22:38:05.722Z]
 The graph-governance work met the release work already merged in this component: the references block is parsed by its own function, which now receives the adaptation path of an installed package rule so its refusal of references on a script or aggregating rule still names the adaptation instead of the package's own file; the rule's support-file hashes are unchanged.
+## [2026-09-24T01:23:21.134Z]
+Readers disagreed about symbolic links in a rule directory: the presence check followed them while the artifact and support-file readers skipped them, so a linked rule text was reviewed as an empty rule and approved, and a linked check ran code its verdict hash never covered. Any link among a rule's files, or in an adaptation's companion path, is now refused before anything reads the rule, with the link named and the remedy of copying the file or installing it as a package.
+## [2026-09-24T01:32:01.972Z]
+The name of a symbolic link on an adaptation companion path is now written into the refusal in forward-slash form, like every other path this parser reports, so the message reads the same on Windows as elsewhere.

@@ -663,6 +663,8 @@ export function registerCheckCommand(program: Command): void {
               const abort = { stage: err.stage, issues: err.gatingIssues, retry: err.retry };
               if (asJson) {
                 const read = await runCheck(graph, repoFiles, {
+                  // A report about an aborted approval executes no repository code.
+                  runCompanionHooks: false,
                   nowUtc: () => new Date(),
                   trackedFiles: tracked,
                   rulesArtifacts: await readRulesArtifacts(projectRoot),
@@ -692,6 +694,8 @@ export function registerCheckCommand(program: Command): void {
         // `yg check --approve` keep the index current. Only --dry-run (returns before the
         // fill's report) and the internal fill/portal re-checks stay byproduct-free.
         const result = await runCheck(graph, repoFiles, {
+          // A plain check executes no repository code (no companion.mjs).
+          runCompanionHooks: false,
           nowUtc: () => new Date(),
           writeFeatureIndex: true,
           now: () => new Date(),

@@ -5,7 +5,6 @@ import {
   classifyInvalidations,
   collectIndirectDependents,
   nodesWithRefusedVerdict,
-  touchedReferencesFile,
 } from '../core/graph/impact-graph.js';
 import type { ImpactSet, ImpactReason, UnresolvedUnit } from '../core/graph/impact-graph.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -15,7 +14,6 @@ import { computeExpectedPairs } from '../core/pairs.js';
 import type { ExpectedPair, TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
-import { resolveCompanionsForPair } from '../core/companion-resolve.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
@@ -37,19 +35,8 @@ async function computeTypeCoverageForImpact(graph: Graph, projectRoot: string): 
 }
 
 // ============================================================
-// collectInvalidatedPairs — async, runs cold companion resolver
+// collectInvalidatedPairs — never runs repository code
 // ============================================================
-
-const COMPANION_RESOLVE_TIMEOUT_MS = 5000;
-const TIMEOUT = Symbol('companion-resolve-timeout');
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | typeof TIMEOUT> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => resolve(TIMEOUT), ms);
-    (timer as { unref?: () => void }).unref?.(); // do not keep the process alive
-    p.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
-  });
-}
 
 /**
  * collectInvalidatedPairs' own ImpactSet, plus the full expected-pair universe
@@ -74,32 +61,14 @@ export async function collectInvalidatedPairs(
   const typeCoverage = await computeTypeCoverageForImpact(graph, projectRoot);
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   const { pairs: admitted, coldCompanionCandidates } = classifyInvalidations(pairs, graph, repoRelative, lock);
+  // A cold companion pair (no verdict yet, this file within what its companion
+  // may read) is admitted as a POTENTIAL invalidation, the same upper bound a
+  // cold deterministic pair gets — its companion.mjs is not run to narrow it.
+  // `yg impact` is a read-only question, and a companion is repository code: it
+  // runs only under `yg check --approve`, never to answer "what would this cost".
   const unresolved: UnresolvedUnit[] = [];
-  // Shared across every cold-companion resolution below (mirrors fill.ts's own
-  // per-run cache) — a nodeless candidate's architecture reach is computed
-  // once per matched type, not once per candidate.
-  const reachCache = new Map<string, Set<string>>();
-
   for (const p of coldCompanionCandidates) {
-    const aspect = graph.aspects.find((a) => a.id === p.aspectId)!;
-    let result: Awaited<ReturnType<typeof resolveCompanionsForPair>> | typeof TIMEOUT;
-    try {
-      result = await withTimeout(resolveCompanionsForPair(graph, projectRoot, p, aspect, typeCoverage, reachCache), COMPANION_RESOLVE_TIMEOUT_MS);
-    } catch (err) {
-      unresolved.push({ aspectId: p.aspectId, unitKey: p.unitKey, nodePath: p.nodePath, why: (err as Error).message });
-      continue;
-    }
-    if (result === TIMEOUT) {
-      unresolved.push({ aspectId: p.aspectId, unitKey: p.unitKey, nodePath: p.nodePath, why: 'companion resolution timed out' });
-      continue;
-    }
-    if (result.kind === 'infra') {
-      unresolved.push({ aspectId: p.aspectId, unitKey: p.unitKey, nodePath: p.nodePath, why: result.why });
-      continue;
-    }
-    if (touchedReferencesFile(result.companions.observations, repoRelative)) {
-      admitted.push({ aspectId: p.aspectId, unitKey: p.unitKey, nodePath: p.nodePath, kind: p.kind, reasons: ['observe-companion'], mode: 'precise' });
-    }
+    admitted.push({ aspectId: p.aspectId, unitKey: p.unitKey, nodePath: p.nodePath, kind: p.kind, reasons: ['cold-potential-companion'], mode: 'potential' });
   }
   return { pairs: admitted, unresolved, allPairs: pairs, typeCoverage };
 }
@@ -370,6 +339,7 @@ const REASON_GLOSS: Record<ImpactReason, string> = {
   'observe-companion': 'companion observes this file',
   'observe-deterministic': 'deterministic check observes this file',
   'cold-potential-deterministic': 'may observe this file (cold-start)',
+  'cold-potential-companion': 'companion may observe this file (cold-start; companion not run)',
 };
 
 const CAP_NODES = 12;

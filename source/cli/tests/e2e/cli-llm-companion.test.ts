@@ -534,16 +534,18 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // (not only the one whose verdict was invalidated). An out-of-reach companion read
       // surfaces as a blocking aspect-companion-runtime-error naming the undeclared path
       // and the relation fix — replacing the generic per-unit "No valid verdict".
+      // A plain check executes no repository code: it reports the invalidated pair
+      // unverified with its companion not run. The undeclared read and its relation
+      // fix are named by the run that executes the hook, --approve.
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // The grouped view shows the blocking runtime-error group with the shared why
-      // (an undeclared read is infra, not a code violation) and the relation-fix
-      // Fix:. The per-unit `what` (which named the undeclared path) is no longer
-      // rendered in the default view; the group label + why + Fix carry the intent.
-      expect(after.all).toContain('aspect-companion-runtime-error');
-      expect(after.all).toContain('undeclared read is an infrastructure fault, not a code violation');
-      expect(after.all).toContain('Declare a relation in yg-node.yaml to the node owning that path');
+      expect(after.all).toContain('companion.mjs was not run');
       expect(after.all).toContain('- scenarios');
+      const approve = run(['check', '--approve'], dir);
+      expect(approve.status).toBe(1);
+      expect(approve.all).toContain('aspect-companion-runtime-error');
+      expect(approve.all).toContain('undeclared read is an infrastructure fault, not a code violation');
+      expect(approve.all).toContain('Declare a relation in yg-node.yaml to the node owning that path');
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);

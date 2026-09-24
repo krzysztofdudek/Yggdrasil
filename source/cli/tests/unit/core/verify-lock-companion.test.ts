@@ -333,8 +333,13 @@ describe('verifyLock — LLM companion verdicts', () => {
       hash: await companionLlmHash({ aspectDef, nodePath: 'svc', subjectFiles: ['src/a.ts'], touched, verdict: 'approved' }),
     });
     rmSync(path.join(tmpDir, 'src/partner.ts'));
-    const result = await verifyLock(graph, lock); // must not throw
+    // The live resolution runs only where repository code may run (--approve).
+    const result = await verifyLock(graph, lock, undefined, undefined, { runCompanionHooks: true }); // must not throw
     expect(result.pairs[0].state.kind).toBe('companion-error');
+    // A read-only verification never runs the hook: the stale pair is simply unverified.
+    const readOnly = await verifyLock(graph, lock);
+    expect(readOnly.pairs[0].state.kind).toBe('unverified');
+    expect(readOnly.pairs[0].companionNotRun).toBe(true);
   });
 
   it('plain LLM entry (no companion, no touched) → verified and NOT invalidated by an unrelated cross-node edit', async () => {
@@ -400,5 +405,51 @@ describe('verifyLock — LLM companion verdicts', () => {
     const lock = emptyLock();
     setEntry(lock, 'asp', nodeUnit('svc'), { verdict: 'approved', hash: subjectHash });
     expect((await verifyLock(graph, lock)).pairs[0].state.kind).toBe('verified');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A read-only verification executes no repository code
+//
+// A companion.mjs is code from the repository. Plain `yg check`, the portal and
+// every other read-only caller verify on branches nobody has reviewed yet (a
+// fork's pull request in CI), so they must never import it; only the --approve
+// fill, which runs the repository's rule code anyway, opts in.
+// ---------------------------------------------------------------------------
+
+describe('verifyLock — companion hooks run only when the caller opts in', () => {
+  function markerCompanion(marker: string): string {
+    return `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\nexport function companion() { return []; }\n`;
+  }
+
+  it('a stale companion pair is not sized by running its hook on a read-only verification', async () => {
+    const marker = path.join(tmpDir, 'companion-ran');
+    writeFile('src/a.ts', 'code');
+    const aspect: TestAspect = { id: 'asp', kind: 'llm', ruleContent: 'rule', companion: markerCompanion(marker) };
+    const graph = buildGraph([{ path: 'svc', mapping: ['src/a.ts'], aspects: ['asp'] }], [aspect]);
+
+    const result = await verifyLock(graph, emptyLock());
+    expect(result.pairs[0].state.kind).toBe('unverified');
+    expect(result.pairs[0].companionNotRun).toBe(true);
+    expect(() => readFileSync(marker)).toThrow();
+
+    const approving = await verifyLock(graph, emptyLock(), undefined, undefined, { runCompanionHooks: true });
+    expect(approving.pairs[0].state.kind).toBe('unverified');
+    expect(approving.pairs[0].companionNotRun).toBeUndefined();
+    expect(readFileSync(marker, 'utf-8')).toBe('ran');
+  });
+
+  it('the size gate still fires without the hook when the subjects alone are over the limit (a lower bound)', async () => {
+    const marker = path.join(tmpDir, 'companion-ran');
+    writeFile('src/a.ts', 'x'.repeat(3000));
+    const aspect: TestAspect = { id: 'asp', kind: 'llm', ruleContent: 'rule', companion: markerCompanion(marker) };
+    const graph = buildGraph(
+      [{ path: 'svc', mapping: ['src/a.ts'], aspects: ['asp'] }],
+      [aspect],
+      { tier: { ...DEFAULT_TIER, max_prompt_chars: 1000 } },
+    );
+    const result = await verifyLock(graph, emptyLock());
+    expect(result.pairs[0].state.kind).toBe('prompt-too-large');
+    expect(() => readFileSync(marker)).toThrow();
   });
 });

@@ -102,3 +102,7 @@ checks.
 The portal's per-node relation summary and its structural-edge collector now read a relation's port list from the model's renamed field; the per-node summary keeps omitting the port annotation when a relation names only the implicit default port, matching its prior appearance for a relation that named nothing at all.
 ## [2026-09-23T20:25:09.519Z]
 The residue's excluded-file list includes the files a mapping sweeps in that the graph excludes, which the check engine now counts as excluded, so the list and the count it summarises agree.
+## [2026-09-24T01:23:22.376Z]
+The portal server needs a cheap way to tell that nothing in the project changed since its last extraction, so it can hand the previous result back instead of re-reading a large repository on every refresh. The state key combines the HEAD commit, every changed or untracked path with its size and modification time, and the local deterministic cache that git does not see; when there is no git repository it declines to produce a key and nothing is reused.
+## [2026-09-24T01:32:02.639Z]
+The pipeline may not hash inputs itself — hashing belongs to the engine and utilities, so a verdict can never be re-derived here — and a utility may not touch the file system directly. The state key therefore hands a size-and-modification-time reader built on the file-system adapter to the git fingerprint utility, which does the hashing, instead of doing either job in the pipeline.

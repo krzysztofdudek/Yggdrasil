@@ -8,6 +8,7 @@ description: Unit tests for the core validator pipeline — the main validator
 aspects: []
 relations:
   [
+    { target: cli/io/parsers/config, type: uses },
     { target: cli/core/checks/aspects, type: uses },
     { target: cli/core/graph, type: uses },
     { target: cli/core/check-codes, type: uses },
@@ -27,5 +28,6 @@ mapping:
   - source/cli/tests/unit/core/validator-aspect-aggregate.test.ts
   - source/cli/tests/unit/core/aspect-effective-nowhere.test.ts
   - source/cli/tests/unit/core/checks-aspects-branch-coverage.test.ts
+  - source/cli/tests/unit/core/checks-credentials.test.ts
   - source/cli/tests/unit/core/aspect-errs-contract.test.ts
   - source/cli/tests/unit/core/aspect-review-overdue.test.ts

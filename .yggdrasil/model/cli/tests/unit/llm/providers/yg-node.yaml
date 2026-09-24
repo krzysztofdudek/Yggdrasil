@@ -18,6 +18,7 @@ mapping:
   - source/cli/tests/unit/llm/ollama.test.ts
   - source/cli/tests/unit/llm/verdict-response-corpus.test.ts
   - source/cli/tests/unit/llm/cli-providers.test.ts
+  - source/cli/tests/unit/llm/cli-provider-contract.test.ts
   - source/cli/tests/unit/llm/copilot-cli.test.ts
   - source/cli/tests/unit/llm/google.test.ts
   - source/cli/tests/unit/llm/openai.test.ts

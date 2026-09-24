@@ -1,5 +1,10 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { toPosixPath } from './posix.js';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Returns Unix timestamp (seconds) of the last commit touching the given path,
@@ -77,5 +82,66 @@ export function getHeadSha(projectRoot: string): string | undefined {
     return sha.length > 0 ? sha : undefined;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * A digest of a working tree's state under `dir`, or null when `dir` is not in
+ * a git repository or git fails: the HEAD commit, every changed or untracked
+ * path under `dir` (untracked files one by one, renames as plain changes) with
+ * its size and modification time — so a second edit to an already-modified
+ * file still moves the digest — and the size and modification time of each of
+ * `extraFiles` (absolute paths git does not report, such as gitignored files
+ * the caller depends on). Equal digests mean nothing git or those files can
+ * show has changed. Asynchronous, because a long-lived caller (the portal
+ * server) must not block its event loop on a large working tree; the git calls
+ * are argv-only. `stamp` gives a file's size and modification time (or any
+ * token that changes when the file does) — supplied by the caller, which owns
+ * the file-system access.
+ */
+export async function worktreeFingerprint(
+  dir: string,
+  extraFiles: readonly string[],
+  stamp: (absPath: string) => Promise<string>,
+): Promise<string | null> {
+  const run = async (args: string[]): Promise<string> =>
+    (await execFileAsync('git', ['-C', dir, ...args], { maxBuffer: 256 * 1024 * 1024, encoding: 'utf-8' })).stdout;
+  let head: string;
+  let top: string;
+  let status: string;
+  try {
+    head = (await run(['rev-parse', 'HEAD'])).trim();
+    // Porcelain paths are relative to the repository's top level, which is not
+    // `dir` when `dir` is a subdirectory; the pathspec keeps changes elsewhere
+    // in that repository out of the digest, and -z keeps odd file names whole.
+    top = (await run(['rev-parse', '--show-toplevel'])).trim();
+    status = await run(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--', '.']);
+  } catch {
+    return null;
+  }
+  const h = createHash('sha256');
+  h.update(`head\0${head}\0`);
+  for (const record of status.split('\0')) {
+    if (record.length < 4) continue;
+    h.update(`${record}\0${await stamp(path.join(top, record.slice(3)))}\0`);
+  }
+  for (const file of extraFiles) h.update(`${toPosixPath(file)}\0${await stamp(file)}\0`);
+  return h.digest('hex');
+}
+
+/**
+ * Whether git tracks `relativePath` (relative to `projectRoot`), false when it
+ * does not, when `projectRoot` is not in a git repository, or when git fails.
+ */
+export function isTrackedByGit(projectRoot: string, relativePath: string): boolean {
+  try {
+    const out = execFileSync('git', ['ls-files', '-z', '--', toPosixPath(relativePath)], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return out.length > 0;
+  } catch {
+    return false;
   }
 }

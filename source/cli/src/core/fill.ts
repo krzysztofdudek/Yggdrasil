@@ -263,7 +263,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // every number this run reports comes from the report sets beside it.
   const lock = readLock(graph.rootPath);
   const classification = await classifyFillPairs(
-    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
+    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles, !dryRun,
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
@@ -317,6 +317,8 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     });
     emit({ type: 'prune', ...prunePreview });
     const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
+      // A preview executes no repository code; its verification (below) ran none.
+      runCompanionHooks: false,
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
       trackedFiles: opts.trackedFiles,
@@ -534,6 +536,9 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // CLI asks (best-effort, byproduct-free elsewhere). The dry-run re-check above returns
   // before reaching here, so a cost preview never writes it regardless of the flag.
   const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
+    // A real fill already ran the repository's rule code; its report sizes a
+    // stale companion pair with the companions resolved, as the fill itself did.
+    runCompanionHooks: true,
     writeFeatureIndex: opts.writeFeatureIndex,
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,

@@ -6,7 +6,7 @@ import type { AspectDef, AspectReviewerSpec, AspectStatus, StatusInherit, ScopeD
 import { ASPECT_STATUS_VALUES, ERRS_DIRECTION_VALUES } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { WhenPredicate } from '../model/when.js';
-import { readArtifacts, readSupportFileHashes } from './artifact-reader.js';
+import { readArtifacts, readSupportFileHashes, ruleDirSymlinks, symlinkOnPath } from './artifact-reader.js';
 import { mergeAdaptOverAspect, parseAspectAdapt, resolveAspectConfig } from './aspect-adapt-parser.js';
 import { ADAPT_FILENAME, ADAPT_LOG_FILENAME } from '../model/packages.js';
 import type { PackageConfigKeyDef } from '../model/packages.js';
@@ -83,6 +83,15 @@ export interface ParseAspectOptions {
    * which is exact for the real `.yggdrasil/aspects/<id>` layout.
    */
   projectRoot?: string;
+}
+
+/** The refusal for a rule whose sources run through a symbolic link (see io/artifact-reader.ts). */
+function aspectSourceSymlinkMessage(aspectId: string, links: string[]): IssueMessage {
+  return {
+    what: `Aspect '${aspectId}' is built from a symbolic link: ${links.join(', ')}.`,
+    why: 'A rule\'s files are verdict inputs, and a link is followed by some readers and skipped by others — the rule would be reviewed or hashed as something other than what runs — and it can point outside the repository, so each machine could see a different rule.',
+    next: `Replace ${links.length === 1 ? 'the link' : 'each link'} with the file itself (copy it into the rule), or share the rule as a package; then run yg check.`,
+  };
 }
 
 /**
@@ -359,6 +368,19 @@ export async function parseAspect(
   // check.mjs. `hasImplies` is a coarse check (non-empty array) — the full
   // implies parse happens later; here we only need it to recognize an
   // aggregating aspect (neither file + implies).
+  // A rule made of symlinks is refused before anything reads it: the readers
+  // below disagree about links (presence checks follow them, the artifact and
+  // support-file readers skip them), so a linked content.md was reviewed as an
+  // empty rule and a linked check.mjs ran code its hash never saw.
+  const linked = ruleDirSymlinks(aspectDir);
+  if (linked.length > 0) {
+    return {
+      ok: false,
+      aspectId: idTrimmed,
+      errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, linked.map((l) => `${toPosixPath(path.relative(options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed), path.join(aspectDir, l)))}`)) }],
+    };
+  }
+
   const hasContentMd = fileExistsSync(path.join(aspectDir, 'content.md'));
   const hasCheckMjs = fileExistsSync(path.join(aspectDir, 'check.mjs'));
   const hasCompanionMjs = fileExistsSync(path.join(aspectDir, 'companion.mjs'));
@@ -691,6 +713,14 @@ export async function parseAspect(
       };
     }
     const root = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+    const linkedCompanion = symlinkOnPath(root, normalized);
+    if (linkedCompanion !== null) {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, [toPosixPath(linkedCompanion)]) }],
+      };
+    }
     try {
       companionSource = await readFile(path.resolve(root, normalized), 'utf-8');
     } catch {

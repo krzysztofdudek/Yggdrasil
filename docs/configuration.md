@@ -217,9 +217,15 @@ installed CLI tool.
 
 `copilot-cli` has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses a model outside it instead of substituting another, so `config.model` must name one the plan allows (`auto` lets Copilot pick). The provider runs the real CLI, never the `copilot` stub the VS Code Copilot extension puts on PATH (an installer prompt): it takes `YG_COPILOT_BIN` when set, otherwise the first `copilot` on PATH outside the extension's storage. Each review runs with the user's configuration and MCP servers out of reach (an empty `COPILOT_HOME`), with no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept.
 
+`codex` (verified against codex-cli 0.156.1) runs `codex exec` with `--skip-git-repo-check --sandbox read-only --ephemeral --ignore-user-config --ignore-rules --color never`, the shell, image, sub-agent and goal tools disabled (`--disable shell_tool`, `view_image`, `multi_agent`, `goals`) and web search off (`-c web_search=disabled`), in an empty directory of its own (`-C`), with the verdict schema written to a file there for `--output-schema`. The login in `CODEX_HOME` is used; `~/.codex/config.toml` is not — so neither are its MCP servers, profiles or a `model_provider` set there, and the default OpenAI provider answers. A codex older than these flags refuses them by name ("Unknown feature flag"), which is the reason a failed review reports.
+
+`gemini-cli` (verified against @google/gemini-cli 0.61.0) runs headless with `-o text --skip-trust --approval-mode plan -e none`, an MCP allow-list that names no server, and `--policy` pointing at a file that denies every tool, in an empty directory of its own (trusted for that one run). The login and settings in `~/.gemini` are used.
+
+For both, a user-level `~/.codex/AGENTS.md` or `~/.gemini/GEMINI.md` still reaches the model; nothing in the reviewed repository can write either.
+
 ### When the reviewer cannot run
 
-`yg check --approve` names the cause in the provider's own terms and writes no verdict for the pairs it could not review. A CLI provider whose binary is missing says so and names the package that installs it (for `copilot-cli`, also `YG_COPILOT_BIN` and the VS Code stub). A CLI that fails reports its exit code, or the timeout it ran past, with the last few hundred characters it printed, credentials masked — which is where "please run /login" or an unknown-model error shows up. A hosted API with no key says which variable to set, and a refused request gives its HTTP status with what it usually means: 401/403 the key or its permissions, 404 or 400 the model name or endpoint path, 429 the rate limit (after one retry), 5xx the provider's own servers. The full output behind that line — a CLI's whole stderr, the raw unparseable reply — goes to `.yggdrasil/.debug.log` when `debug: true` is set in `yg-config.yaml`. `yg init --provider` runs the same binary check for a CLI provider and warns when it fails; the configuration is written either way.
+`yg check --approve` names the cause in the provider's own terms and writes no verdict for the pairs it could not review. A CLI provider whose binary is missing says so and names the package that installs it (for `copilot-cli`, also `YG_COPILOT_BIN` and the VS Code stub). A CLI that fails reports its exit code, or the timeout it ran past, with the last few hundred characters it printed, credentials masked — which is where "please run /login" or an unknown-model error shows up. A hosted API with no key says which variable to set, and a refused request gives its HTTP status with what it usually means: 401/403 the key or its permissions, 404 or 400 the model name or endpoint path, 429 the rate limit (after one retry), 5xx the provider's own servers. The full output behind that line — a CLI's whole stderr, the raw unparseable reply — goes to `.yggdrasil/.debug.log` when `debug: true` is set in `yg-config.yaml`. `yg init --provider` runs the same binary check for a CLI provider and warns when it fails; for `codex` and `gemini-cli` it also asks for one probe verdict through the exact command a review uses (one tiny prompt), so a missing login, a rejected flag or an untrusted directory shows at setup rather than on the first `yg check --approve`. The configuration is written either way.
 
 ---
 
@@ -257,7 +263,11 @@ or key.
 API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 (`openai` only), `OPENAI_COMPATIBLE_API_KEY` (`openai-compatible` only), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
 
-`yg-config.yaml` itself must never contain credentials. Commit it to the repository.
+`yg-config.yaml` itself must never contain credentials. Commit it to the repository. `yg check` enforces the split:
+
+- a `config.api_key` in the committed `yg-config.yaml` is a blocking `config-committed-api-key` error (the key is never repeated in the message; revoke it — it is in the history);
+- a `yg-secrets.yaml` tracked by git (force-added past its `.gitignore` entry) is a blocking `secrets-file-tracked` error;
+- a first-party tier (`anthropic`, `openai`, `google`) whose committed `config.endpoint` is not the provider's own, or is plain `http`, while the key would come from the environment variable, gets a `reviewer-endpoint-committed` warning: whoever last changed the committed file decides where your key and the reviewed source go. An endpoint of your own belongs in `yg-secrets.yaml`, where it is a local choice and is not flagged.
 
 ---
 

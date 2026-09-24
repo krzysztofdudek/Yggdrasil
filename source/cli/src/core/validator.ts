@@ -1,4 +1,5 @@
 // yg-suppress-disable(silent-missing-files) validator.ts reads no optional files or directories itself — every file/dir read is delegated to the loader and parsers, so the aspect is vacuously satisfied; the per-node reviewer evaluates the file in isolation and cannot observe it performs no optional reads.
+import { checkReviewerCredentials } from './checks/credentials.js';
 import type { Graph } from '../model/graph.js';
 import type { ValidationResult, ValidationIssue } from '../model/validation.js';
 import type { IssueMessage } from '../model/validation.js';
@@ -172,6 +173,9 @@ export async function validate(
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
     issues.push(...(await checkReviewerPresence(graph, typeCoverage)));
+    // A reviewer key committed to the repository, a tracked yg-secrets.yaml, or
+    // a committed endpoint that would receive this machine's environment key.
+    issues.push(...checkReviewerCredentials(graph));
     // Incident-ledger integrity (spec §3.2): a NON-blocking WARNING when the
     // committed incidents.md datetimes are not strictly ascending. Config-
     // independent and absence-tolerant; never gates `yg check` (severity warning,

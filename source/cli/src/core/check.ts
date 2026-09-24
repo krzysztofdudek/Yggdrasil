@@ -211,6 +211,16 @@ export interface RunCheckOptions {
    * unverified. That path deliberately re-verifies.
    */
   precomputedVerification?: LockVerification;
+  /**
+   * Whether the lock verification may run companion.mjs hooks to size stale
+   * pairs (see verify-lock's VerifyOptions). It moves the issue set (a hook
+   * failure or an over-limit companion prompt is reported only when the hook
+   * runs), so it is REQUIRED: every caller states it. Only the report a real
+   * `--approve` prints after filling passes true — that run executes the
+   * repository's rule code anyway; a plain check, the portal and a preview
+   * execute no repository code.
+   */
+  runCompanionHooks: boolean;
   /** runFill's own fill→check handoff, this run only. Absent ⇒ none (a plain read never fills). */
   runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
   /**
@@ -352,6 +362,7 @@ export async function runCheck(
     runtimeDispositions: options?.runtimeDispositions,
     precomputedVerification: options?.precomputedVerification,
     byteCache: subjectByteCache,
+    runCompanionHooks: options?.runCompanionHooks ?? false,
   });
 
   // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the
@@ -385,7 +396,7 @@ export async function runCheck(
   let excludedFiles = phaseExcludedFiles;
   let mappedExcludedFiles: string[] | undefined;
   if (typeLevel && totalFiles > 0 && coverageVisibleFiles !== null) {
-    mappedExcludedFiles = await listMappedButExcludedFiles(graph, coverageVisibleFiles);
+    mappedExcludedFiles = (await listMappedButExcludedFiles(graph, coverageVisibleFiles)).map((f) => toPosixPath(f));
     if (mappedExcludedFiles.length > 0) {
       nodeOwnedFiles = (nodeOwnedFiles ?? 0) - mappedExcludedFiles.length;
       excludedFiles = (excludedFiles ?? 0) + mappedExcludedFiles.length;

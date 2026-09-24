@@ -88,6 +88,6 @@ describe('gemini-cli sends the prompt on stdin', () => {
     expect(p.stdinMode).toBe(true);
     const args = p.buildArgs('the whole prompt');
     expect(args).not.toContain('the whole prompt');
-    expect(args).toEqual(expect.arrayContaining(['-m', 'gemini-2.5-pro', '-o', 'json']));
+    expect(args).toEqual(expect.arrayContaining(['-m', 'gemini-2.5-pro', '-o', 'text']));
   });
 });

@@ -654,11 +654,10 @@ deterministic = free; G currently-green verdict(s) re-rolled\`). For \`--file\`,
 and currently-green verdicts re-rolled -- preceded by a per-node breakdown tagged
 with why each node is affected (own pairs / references this file / companion
 observes this file / deterministic check observes this file / may observe this file
-(cold-start)). To compute this
-precisely even before the first fill, \`yg impact\` runs the companion resolver for
-cold companion-backed pairs -- it makes no LLM call, never runs \`check.mjs\`, and
-writes nothing. A companion whose hook fails is listed under \`Unresolved\` (cost
-unknown; it will infra-fail at fill). Editing a graph file under \`.yggdrasil/\`
+(cold-start) / companion may observe this file (cold-start; companion not run) --
+the last two for a pair with no lock entry yet, an upper bound). \`yg impact\`
+executes no repository code: it never runs \`check.mjs\` or \`companion.mjs\`, makes
+no LLM call, and writes nothing. Editing a graph file under \`.yggdrasil/\`
 redirects you to \`yg impact --aspect <id>\`.
 
 \`--json\` renders the component modes -- \`--node\`, and \`--file\` once it has

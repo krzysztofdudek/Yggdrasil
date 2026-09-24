@@ -104,8 +104,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(passHash).toBeTruthy();
 
     // Reporting path: writeFeatureIndex requested with a pinned clock, scoped to the tracked set.
-    await runCheck(graph, SVC_TRACKED, {
-      writeFeatureIndex: true,
+    await runCheck(graph, SVC_TRACKED, { runCompanionHooks: false,       writeFeatureIndex: true,
       now: () => new Date('2026-07-05T09:00:00.000Z'),
     });
 
@@ -138,7 +137,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     // a stale two-segment key must be rejected by a reader expecting a v2 index, and
     // that only holds if the writer really emits 2.
     const graph = await loadGraph(root);
-    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date('2026-07-05T09:00:00.000Z') });
+    await runCheck(graph, SVC_TRACKED, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date('2026-07-05T09:00:00.000Z') });
     const index = readIndex();
     expect(index.v).toBe(2);
   });
@@ -147,7 +146,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     rmSync(path.join(root, '.yggdrasil', '.gitignore'));
     const graph = await loadGraph(root);
 
-    const result = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+    const result = await runCheck(graph, SVC_TRACKED, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date() });
 
     expect(existsSync(path.join(root, '.yggdrasil', '.gitignore'))).toBe(false);
     expect(existsSync(indexAbs())).toBe(false);
@@ -222,7 +221,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     const graph = await loadGraph(root);
     // Omit the outlier from the tracked set (it is owned by svc but "gitignored/scratch").
     const trackedWithoutOutlier = SVC_TRACKED.filter((p) => p !== OUTLIER_PATH);
-    await runCheck(graph, trackedWithoutOutlier, { writeFeatureIndex: true, now: () => new Date() });
+    await runCheck(graph, trackedWithoutOutlier, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date() });
 
     expect(existsSync(indexAbs())).toBe(true); // the index is still written…
     expect(Object.keys(readIndex().files)).not.toContain(OUTLIER_PATH); // …but never mentions the untracked file
@@ -230,7 +229,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it('writes NO index when coverageVisibleFiles is null (honest scoping — unknown ≠ unfiltered)', async () => {
     const graph = await loadGraph(root);
-    await runCheck(graph, null, { writeFeatureIndex: true, now: () => new Date() });
+    await runCheck(graph, null, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date() });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
@@ -239,14 +238,14 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     writeFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'node_modules/\n', 'utf-8');
     const graph = await loadGraph(root);
 
-    const skipped = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+    const skipped = await runCheck(graph, SVC_TRACKED, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date() });
     expect(readFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'utf-8')).toBe('node_modules/\n');
     expect(existsSync(indexAbs())).toBe(false);
     expect(skipped.featureIndexNotIgnored).toBe(true);
 
     // The repository root's .gitignore is as good as the graph's own.
     writeFileSync(path.join(root, '.gitignore'), `.yggdrasil/${FEATURE_FIELD_FILENAME}\n`, 'utf-8');
-    const written = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+    const written = await runCheck(graph, SVC_TRACKED, { runCompanionHooks: false, writeFeatureIndex: true, now: () => new Date() });
     expect(existsSync(indexAbs())).toBe(true);
     expect(written.featureIndexNotIgnored).toBeUndefined();
   });
@@ -379,8 +378,7 @@ describe('feature-field index — a type-covered file (no owning node) is admitt
 
       const graph = await loadGraph(dir);
       const trackedFiles = await walkRepoFiles(dir);
-      const result = await runCheck(graph, trackedFiles, {
-        writeFeatureIndex: true,
+      const result = await runCheck(graph, trackedFiles, { runCompanionHooks: false,         writeFeatureIndex: true,
         now: () => new Date('2026-07-28T00:00:00.000Z'),
       });
       // The lattice classified all 5 as type-covered svc — confirms the family
@@ -427,8 +425,7 @@ describe('feature-field index — a type-covered file (no owning node) is admitt
         config: { ...graphOn.config, coverage: { ...graphOn.config.coverage!, typeLevel: false } },
       };
       const trackedFiles = await walkRepoFiles(dir);
-      await runCheck(graphOff, trackedFiles, {
-        writeFeatureIndex: true,
+      await runCheck(graphOff, trackedFiles, { runCompanionHooks: false,         writeFeatureIndex: true,
         now: () => new Date('2026-07-28T00:00:00.000Z'),
       });
 
