@@ -3,17 +3,19 @@ id: csharp-di-reflection-extension-silence
 language: csharp
 category: dynamic
 expectation: silence
-cites: "C# — runtime DI/reflection/extension-method dispatch (no static type reference); MS Learn — dependency injection, Type.GetType"
+cites: "C# — runtime DI resolution and reflection strings (no static type reference); MS Learn — dependency injection, Type.GetType"
 ---
 
 ## Rule
 
-Dependency-injection registration (`services.AddScoped<IFoo, Foo>()` resolved at
-runtime), a reflection string (`Type.GetType("MyApp.Pay.Gateway")`), and an
-extension-method call on a runtime value (`order.Validate()`) are not statically
-resolvable type references. A type named ONLY inside a reflection string is not a
-real static dependency, so no cross-node edge may be emitted — even when that type
-exists in the graph.
+Dependency-injection registration resolved at runtime (`services.AddScoped<IFoo, Foo>()`
+where neither type is declared in the graph) and a reflection string
+(`Type.GetType("MyApp.Pay.Gateway")`) are not statically resolvable type references. A
+type named ONLY inside a reflection string is not a real static dependency, so no
+cross-node edge may be emitted — even when that type exists in the graph. An extension
+method call on a value (`order.Validate()`) binds at compile time and is resolved when an
+in-repo extension of that name is in scope (csharp-extension-via-owned-namespace); here
+none is declared, so it resolves to nothing.
 
 ## Files
 
@@ -37,6 +39,7 @@ public class Gateway {}
 
 ## Why
 
-Reflection strings, runtime DI resolution, and extension dispatch are dynamic;
-treating them as static references would invent dependencies that the compiler
-never sees. Silence preserves zero false positives.
+Reflection strings and runtime DI resolution are dynamic: the compiler never sees the
+dependency, so treating them as static references would invent edges. Extension methods
+are different — C# binds them statically — which is why they have their own edge case
+rather than a place in this silence.

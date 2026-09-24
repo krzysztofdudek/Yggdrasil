@@ -9,6 +9,7 @@ mapping:
   - source/cli/src/relations/extractors/c.ts
   - source/cli/src/relations/extractors/cpp.ts
   - source/cli/src/relations/extractors/csharp.ts
+  - source/cli/src/relations/extractors/csharp-project.ts
   - source/cli/src/relations/extractors/go-resolve.ts
   - source/cli/src/relations/extractors/go.ts
   - source/cli/src/relations/extractors/include-resolve.ts

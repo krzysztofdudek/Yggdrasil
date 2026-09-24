@@ -1,5 +1,8 @@
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import type { Node } from 'web-tree-sitter';
 import { runCase } from '../reference-case-runner.js';
+import { ensureLoaderRegistered } from '../../../../src/ast/loader-hook.js';
+import { withParsedFile } from '../../../../src/ast/parser.js';
 
 /**
  * C# NAME-RESOLUTION IDENTIFICATION MATRIX — one runCase-backed test per
@@ -138,4 +141,70 @@ describe('MATRIX — edge-form learning (file-local FP fix + 8 learned edges)', 
   it('csharp-using-alias-colon-colon', () => runCase('csharp-using-alias-colon-colon'));
   it('csharp-alias-anytype-embedded', () => runCase('csharp-alias-anytype-embedded'));
   it('csharp-global-using-alias', () => runCase('csharp-global-using-alias'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-24 LANGUAGES & RELATIONS AUDIT — C# forms the audit found missing or wrong:
+// project-scoped global usings (M6/M7), owner-node ambiguity (B4), generic base names (B5),
+// member access through a type name (M16), C# 14 forms on the shipped grammar (m2), and the
+// statically bound extension-method call (m27).
+describe('MATRIX — project-scoped global usings (.csproj)', () => {
+  it('csharp-global-using-other-project-no-leak', () => runCase('csharp-global-using-other-project-no-leak'));
+  it('csharp-csproj-using-item-edge', () => runCase('csharp-csproj-using-item-edge'));
+  it('csharp-global-alias-cross-project-collision-silence', () => runCase('csharp-global-alias-cross-project-collision-silence'));
+  it('csharp-global-alias-per-project-edge', () => runCase('csharp-global-alias-per-project-edge'));
+});
+
+describe('MATRIX — one type declared across several files (owner-node ambiguity)', () => {
+  it('csharp-partial-class-multi-file-edge', () => runCase('csharp-partial-class-multi-file-edge'));
+  it('csharp-partial-class-split-across-nodes-silence', () => runCase('csharp-partial-class-split-across-nodes-silence'));
+  it('csharp-generic-arity-split-files-edge', () => runCase('csharp-generic-arity-split-files-edge'));
+});
+
+describe('MATRIX — generic base names', () => {
+  it('csharp-generic-base-class-edge', () => runCase('csharp-generic-base-class-edge'));
+  it('csharp-generic-interface-impl-edge', () => runCase('csharp-generic-interface-impl-edge'));
+  it('csharp-generic-external-container-silence', () => runCase('csharp-generic-external-container-silence'));
+});
+
+describe('MATRIX — member access through a type name', () => {
+  it('csharp-static-member-access-edge', () => runCase('csharp-static-member-access-edge'));
+  it('csharp-enum-member-access-edge', () => runCase('csharp-enum-member-access-edge'));
+  it('csharp-local-shadows-type-name-silence', () => runCase('csharp-local-shadows-type-name-silence'));
+});
+
+/** The receiver's AST shape in an extension block: `c14` on a C# 14 grammar (a receiver_parameter
+ *  under an extension_declaration), `misparse` on the shipped pre-C# 14 grammar (a parameter of a
+ *  constructor named `extension`), `other` for anything else — which must fail loudly. */
+async function extensionBlockShape(code: string): Promise<'c14' | 'misparse' | 'other'> {
+  ensureLoaderRegistered();
+  return withParsedFile('x.cs', code, (tree) => {
+    let shape: 'c14' | 'misparse' | 'other' = 'other';
+    const visit = (n: Node): void => {
+      if (n.type === 'receiver_parameter' && n.parent?.type === 'extension_declaration') shape = 'c14';
+      if (n.type === 'constructor_declaration' && n.childForFieldName('name')?.text === 'extension') {
+        const params = n.childForFieldName('parameters');
+        if (params?.namedChildren.some((c) => c !== null && c.type === 'parameter')) shape = 'misparse';
+      }
+      for (const c of n.namedChildren) if (c !== null) visit(c);
+    };
+    visit(tree.rootNode);
+    return shape;
+  });
+}
+
+describe('MATRIX — C# 14 forms on the shipped grammar', () => {
+  it('csharp-extension-block-receiver-edge', async () => {
+    await runCase('csharp-extension-block-receiver-edge');
+    // AST-shape assertion: the edge above must come from one of the two KNOWN shapes. A grammar
+    // upgrade that yields a third shape fails here instead of silently losing the edge.
+    const shape = await extensionBlockShape('static class E { extension(Order order) { public int X() => 0; } }');
+    expect(['c14', 'misparse']).toContain(shape);
+  });
+  it('csharp-null-conditional-assignment-rhs-edge', () => runCase('csharp-null-conditional-assignment-rhs-edge'));
+});
+
+describe('MATRIX — extension-method calls (bound at compile time)', () => {
+  it('csharp-extension-via-owned-namespace', () => runCase('csharp-extension-via-owned-namespace'));
+  it('csharp-extension-not-in-scope-silence', () => runCase('csharp-extension-not-in-scope-silence'));
 });

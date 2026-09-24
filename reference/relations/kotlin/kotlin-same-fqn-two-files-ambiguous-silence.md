@@ -37,6 +37,7 @@ class Use
 
 ## Why
 
-A genuine ambiguity (also how `expect`/`actual` same-FQN duplicates collapse) must
+A genuine ambiguity (also how `expect`/`actual` same-FQN duplicates split across two
+nodes collapse; in one node they are an edge, see kotlin-expect-actual-same-node-edge) must
 silence, never bind one side arbitrarily — that would be a false positive against the
 unpicked node.

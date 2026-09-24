@@ -21,6 +21,7 @@ import {
   collectGlobalUsings,
   collectGlobalUsingAliases,
 } from '../../../src/relations/extractors/csharp.js';
+import { buildCsharpProjectScopes } from '../../../src/relations/extractors/csharp-project.js';
 import { SymbolTable } from '../../../src/relations/symbol-table.js';
 import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
 import { makeResolver, resolveDetectedEdges } from '../../../src/relations/resolver.js';
@@ -81,7 +82,13 @@ const CONFIG_BASENAMES = new Set([
   'composer.json',
   'Cargo.toml',
   'Cargo.lock',
+  'Directory.Build.props',
+  'Directory.Build.targets',
 ]);
+
+/** Support-file EXTENSIONS accepted the same way: a C# project file (`*.csproj`, any basename)
+ *  scopes global usings to its project and carries `<Using>` items (csharp-project.ts). */
+const CONFIG_EXTENSIONS = new Set(['.csproj']);
 
 interface ExpectEdge {
   fromFile: string;
@@ -158,7 +165,7 @@ function loadCaseDoc(id: string, mdPath: string): CaseDoc {
     const lang = getLanguageForExtension(ext);
     if (lang) {
       files.push({ path: fpath, language: lang, code: m[2] });
-    } else if (CONFIG_BASENAMES.has(path.posix.basename(fpath))) {
+    } else if (CONFIG_BASENAMES.has(path.posix.basename(fpath)) || CONFIG_EXTENSIONS.has(ext)) {
       configFiles.push({ path: fpath, code: m[2] });
     } else {
       throw new Error(`reference-case ${id}: no language for extension '${ext}' (${fpath})`);
@@ -237,20 +244,7 @@ export async function runCase(id: string): Promise<void> {
         }
       }
 
-      // 3. C# global-using pre-pass (pass.ts step 4.5): namespace prefixes AND project-wide aliases.
-      const csharpGlobalUsings = new Set<string>();
-      const csharpGlobalUsingAliasMap = new Map<string, string>();
-      for (const f of doc.files) {
-        if (f.language !== 'csharp') continue;
-        for (const prefix of collectGlobalUsings(parsedByPath.get(f.path)!)) csharpGlobalUsings.add(prefix);
-        for (const [name, fqn] of collectGlobalUsingAliases(parsedByPath.get(f.path)!)) {
-          csharpGlobalUsingAliasMap.set(name, fqn);
-        }
-      }
-      const csharpGlobalUsingsList = [...csharpGlobalUsings];
-      const csharpGlobalUsingAliasesList = [...csharpGlobalUsingAliasMap.entries()];
-
-      // 4. Owner index over the in-memory graph (one node per file's parent dir).
+      // 3. Owner index over the in-memory graph (one node per file's parent dir).
       const nodes = new Map<string, { path: string; meta: { mapping: string[] } }>();
       for (const f of doc.files) {
         const nodeId = nodeOf(f.path);
@@ -263,15 +257,31 @@ export async function runCase(id: string): Promise<void> {
       }
       const ownerIndex = buildOwnerIndex(nodes as any);
 
-      // 5. Real resolver. Symbol-axis languages (C#, Kotlin) resolve through the SymbolTable;
-      //    path-axis languages (Java, Go, PHP, TS/JS, Python, Rust, C/C++, Ruby) resolve by the
-      //    package/module = file/directory convention through `makeResolvePathToFile`, which is
-      //    pure filesystem access. To drive the IDENTICAL production path resolver (never a copy),
-      //    materialize the embedded `## Files` into a throwaway project root and point the real
-      //    `makeResolvePathToFile` at it. The whole pipeline — extractor.uses(), the path resolver,
-      //    the owner-set-collapse for a wildcard package import — is then byte-identical to pass.ts.
+      // 4. The throwaway project root (materialized before the C# pre-pass, which reads the
+      //    `.csproj` / `Directory.Build.*` support files from disk exactly as pass.ts does). Every
+      //    step after its creation runs inside the try, so the finally below always removes it.
       const projectRoot = materializeProject(doc.files, doc.configFiles);
       try {
+        // 4b. C# global-using pre-pass (pass.ts step 4.5): per-PROJECT namespace prefixes and aliases,
+        //     via the SAME `buildCsharpProjectScopes` the live pass calls.
+        const csharpScopes = buildCsharpProjectScopes(
+          projectRoot,
+          doc.files
+            .filter((f) => f.language === 'csharp')
+            .map((f) => ({
+              path: f.path,
+              globalPrefixes: collectGlobalUsings(parsedByPath.get(f.path)!),
+              globalAliases: collectGlobalUsingAliases(parsedByPath.get(f.path)!),
+            })),
+        );
+
+        // 5. Real resolver. Symbol-axis languages (C#, Kotlin) resolve through the SymbolTable;
+        //    path-axis languages (Java, Go, PHP, TS/JS, Python, Rust, C/C++, Ruby) resolve by the
+        //    package/module = file/directory convention through `makeResolvePathToFile`, which is
+        //    pure filesystem access. To drive the IDENTICAL production path resolver (never a copy),
+        //    materialize the embedded `## Files` into a throwaway project root and point the real
+        //    `makeResolvePathToFile` at it. The whole pipeline — extractor.uses(), the path resolver,
+        //    the owner-set-collapse for a wildcard package import — is then byte-identical to pass.ts.
         const resolver = makeResolver({
           ownerIndex,
           symbolTable,
@@ -289,8 +299,8 @@ export async function runCase(id: string): Promise<void> {
           const detected =
             f.language === 'csharp'
               ? csharpUses(parsed, {
-                  projectGlobalUsings: csharpGlobalUsingsList,
-                  projectGlobalUsingAliases: csharpGlobalUsingAliasesList,
+                  projectGlobalUsings: csharpScopes.get(f.path)?.usings ?? [],
+                  projectGlobalUsingAliases: csharpScopes.get(f.path)?.aliases ?? [],
                 })
               : extractor.uses(parsed);
           // The SAME candidate walk and per-(line, node) dedupe the live pass runs

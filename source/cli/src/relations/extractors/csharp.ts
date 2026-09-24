@@ -43,12 +43,12 @@ import type {
  *    `static` token child and no `name` field), plus an ALIAS map from `using Alias = Foo.Bar;`
  *    (D6: the `name` field carries the alias; the `qualified_name` sibling is the aliased FQN).
  *    `using static X;` (a `static` token child) is SKIPPED — it imports a type's static MEMBERS,
- *    not a namespace. A `global using Foo.Bar;` declared in ANY file applies PROJECT-WIDE (R5):
- *    pass.ts runs a cross-file pre-pass (`collectGlobalUsings`) that aggregates every file's
- *    global-using prefixes and injects them into each file's `uses(file, { projectGlobalUsings })`
- *    as the lowest using tier. Then, for each type reference (detected across every syntactic
- *    type position — base/`new`, field/property/parameter/return/local types, generic type
- *    arguments, attributes `[Foo]`/`[FooAttribute]`, generic constraints, `typeof`/`is`/`as`/
+ *    not a namespace. A `global using Foo.Bar;` applies to every file of its PROJECT (R5, M6):
+ *    pass.ts groups the files by nearest `.csproj` (csharp-project.ts), aggregates each project's
+ *    global-using prefixes — plus its MSBuild `<Using>` items and SDK implicit usings — and
+ *    injects them into each file's `uses(file, { projectGlobalUsings })` as the lowest using tier. Then, for each type reference (detected across every syntactic
+ *    type position — base/`new`, field/property/parameter/return/local types, generic base names
+ *    and type arguments, member-access receivers through a type name (`Guard.NotNull()`), attributes `[Foo]`/`[FooAttribute]`, generic constraints, `typeof`/`is`/`as`/
  *    cast operands, tuple/array/nullable element types, and a C#12 alias RHS's embedded named
  *    types), build ONE ORDERED candidate group in C# name-binding order (nearest scope first,
  *    verbatim/top-level LAST), and emit it as a single `DetectedDep`:
@@ -83,12 +83,15 @@ import type {
  * SILENCE-ON-DOUBT (D8 — no waiver; a false positive blocks CI with no escape). All of
  * the following stay silent here, by construction:
  *   - DI-container registration / reflection (`Type.GetType`, `Activator.CreateInstance`)
- *     / extension methods / source generators — they surface no resolvable qualified type, so
- *     any candidate FQN they do emit resolves to nothing.
+ *     / source generators — they surface no resolvable qualified type, so any candidate FQN they
+ *     do emit resolves to nothing. (Extension-method calls are NOT dynamic: C# binds them at
+ *     compile time through the namespaces in scope, so they resolve against the `<ns>.<Name>()`
+ *     extension keys — see `extensionKey`.)
  *   - `using static X;` — skipped (no namespace prefix recorded).
- *   - IMPLICIT / SDK `global using`s — invisible to a source-only tool; a bare name they would
- *     have qualified resolves to nothing → SILENCE. (DECLARED `global using`s ARE aggregated
- *     project-wide per R5 above.)
+ *   - IMPLICIT / SDK `global using`s — read from the project file when `<ImplicitUsings>` is on,
+ *     but they name external namespaces, so a bare name they qualify resolves to nothing unless
+ *     the repository declares it there → SILENCE. (DECLARED `global using`s are aggregated per
+ *     project per R5 above.)
  *   - external-assembly / BCL types (System.*, Microsoft.*) — emit candidate FQNs, but
  *     they resolve to no in-graph file → never flagged.
  *   - any reference that does not resolve to exactly one mapped file (zero or ≥2 matches across
@@ -207,6 +210,82 @@ function isFileLocalType(node: Node): boolean {
 }
 
 /**
+ * The symbol key of an EXTENSION METHOD named `name` declared in namespace `ns`: `<ns>.<name>()`
+ * (`<name>()` in the global namespace). C# binds an extension-method call `x.Name()` by the
+ * method NAME among the extension methods of the namespaces in scope (the enclosing namespaces
+ * and the imported ones) — the declaring static class is not part of the lookup, so it is not
+ * part of the key. The trailing `()` puts these keys in a string space no type key or type-use
+ * candidate can ever produce (a type name never contains parentheses), so an extension key can
+ * never be mistaken for, or silence, a type.
+ */
+function extensionKey(ns: string, name: string): string {
+  return ns === '' ? `${name}()` : `${ns}.${name}()`;
+}
+
+/** True when `node` has a `static` modifier child. */
+function hasStaticModifier(node: Node): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const c = node.child(i);
+    if (c !== null && c.type === 'modifier' && c.text === 'static') return true;
+  }
+  return false;
+}
+
+/** True when a parameter carries the `this` modifier (the receiver of a classic extension method). */
+function isThisParameter(param: Node): boolean {
+  for (let i = 0; i < param.childCount; i++) {
+    const c = param.child(i);
+    if (c !== null && c.type === 'modifier' && c.text === 'this') return true;
+  }
+  return false;
+}
+
+/** The enclosing type declaration of `node` (its nearest TYPE ancestor), or null. */
+function enclosingTypeDecl(node: Node): Node | null {
+  let cur: Node | null = node.parent;
+  while (cur !== null) {
+    if (TYPE_DECLARATION_TYPES.has(cur.type)) return cur;
+    cur = cur.parent;
+  }
+  return null;
+}
+
+/**
+ * The name of the extension method `node` declares, or undefined when it declares none. Three
+ * shapes are recognised, each inside a TOP-LEVEL (non-nested) `static` class that is not
+ * `file`-local — the only place C# allows extension members:
+ *  - the classic form: a `method_declaration` whose first parameter carries `this`;
+ *  - a C# 14 extension-block member on a grammar that knows the block: a `method_declaration`
+ *    whose ancestor is an `extension_declaration`;
+ *  - the same member on the shipped pre-C# 14 grammar, which misreads the block as a constructor
+ *    named `extension` and its methods as local functions in that constructor's body.
+ * Indexing the last shape only ever ADDS a key; nothing else depends on the misreading.
+ */
+function extensionMethodName(node: Node): string | undefined {
+  if (node.type !== 'method_declaration' && node.type !== 'local_function_statement') return undefined;
+  const owner = enclosingTypeDecl(node);
+  if (owner?.type !== 'class_declaration' || !hasStaticModifier(owner) || isFileLocalType(owner) || enclosingTypeDecl(owner) !== null) {
+    return undefined;
+  }
+  const name = node.childForFieldName('name')!.text; // a method / local function always has a name
+  if (node.type === 'local_function_statement') {
+    // Only a local function DIRECTLY in the body of the misread `extension(…)` constructor of the
+    // static class itself; a local function anywhere else is a helper, never an extension member.
+    const ctor = node.parent!.parent!;
+    const misreadBlock =
+      ctor.type === 'constructor_declaration' && ctor.childForFieldName('name')!.text === 'extension' && ctor.parent!.parent!.id === owner.id;
+    return misreadBlock ? name : undefined;
+  }
+  // The C# 14 block form on a grammar that knows it: a method inside an extension declaration.
+  for (let cur = node.parent!; cur.id !== owner.id; cur = cur.parent!) {
+    if (cur.type === 'extension_declaration') return name;
+  }
+  // The classic form: the first parameter carries `this`.
+  const first = node.childForFieldName('parameters')!.namedChild(0);
+  return first?.type === 'parameter' && isThisParameter(first) ? name : undefined;
+}
+
+/**
  * The FULLY-QUALIFIED symbol keys this file DEFINES. The namespace for each type is the
  * file-scoped namespace (if any) joined with the block-namespace ancestor chain. The TYPE
  * part is the enclosing-type chain joined by the reflection separator `+`, ending in the
@@ -228,6 +307,12 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
   const fileNs = fileScopedNamespace(file.tree.rootNode);
 
   walk(file.tree.rootNode, (node) => {
+    const extName = extensionMethodName(node);
+    if (extName !== undefined) {
+      const ns = [fileNs, blockNamespace(node)].filter((p) => p !== '').join('.');
+      out.push({ symbolKey: extensionKey(ns, extName), line: node.startPosition.row + 1 });
+      return undefined;
+    }
     if (!TYPE_DECLARATION_TYPES.has(node.type)) return undefined;
     const nameField = node.childForFieldName('name');
     if (nameField === null || nameField.text === '') return undefined;
@@ -305,6 +390,18 @@ function stripGlobalQualifier(text: string): string {
   return text.startsWith('global::') ? text.slice('global::'.length) : text;
 }
 
+/** `A.B<C<D>>.E` → `A.B.E`: drop every (nested) type-argument list from a written type name. */
+function stripTypeArguments(text: string): string {
+  let depth = 0;
+  let out = '';
+  for (const ch of text) {
+    if (ch === '<') depth++;
+    else if (ch === '>') depth = Math.max(0, depth - 1);
+    else if (depth === 0) out += ch;
+  }
+  return out;
+}
+
 /** Build the file's using scope: file-local plain prefixes, project-wide `global using`
  *  prefixes, the alias map (file-local + project-wide global aliases tracked apart), and the
  *  fully-resolved target type of each `using static` / `global using static` directive. */
@@ -334,7 +431,11 @@ function buildUsingScope(file: ParsedFile): UsingScope {
     // recorded apart so pass.ts can apply the alias project-wide (A12).
     const aliasName = node.childForFieldName('name');
     if (aliasName !== null) {
-      const fqn = directiveNamespaceText(node, aliasName);
+      const written = directiveNamespaceText(node, aliasName);
+      // A closed-generic alias target (`using R = Shop.Core.Repository<Order>;`) binds by its
+      // plain container name — declaration keys carry no arity (the embedded type arguments are
+      // harvested separately as their own references).
+      const fqn = written === undefined ? undefined : stripTypeArguments(written);
       if (fqn !== undefined && fqn !== '') {
         aliases.set(aliasName.text, fqn);
         if (hasTokenChild(node, 'global')) globalAliases.set(aliasName.text, fqn);
@@ -358,9 +459,9 @@ function buildUsingScope(file: ParsedFile): UsingScope {
 
 /**
  * Collect the `global using Foo.Bar;` namespace prefixes a C# file declares (project-wide
- * imports). Used by the cross-file pre-pass in pass.ts to aggregate every file's global usings
- * before per-file resolution, so a `global using` in ANY file qualifies bare names in EVERY
- * file (R5). Aliases and `using static` are file-local (per the C# spec, a `global using static`
+ * imports). Used by the cross-file pre-pass in pass.ts to aggregate the global usings of every
+ * file of a project before per-file resolution, so a `global using` in ANY file of the project
+ * qualifies bare names in EVERY file of that project (R5, M6). Aliases and `using static` are file-local (per the C# spec, a `global using static`
  * / `global using alias` is still project-wide, but its members/alias are not a namespace
  * prefix), so only the namespace-import global prefixes are aggregated here.
  */
@@ -404,8 +505,9 @@ export interface CsharpUsesOptions {
    *  project (a project-wide import set). Applied to every file's simple-name resolution. */
   projectGlobalUsings?: string[];
   /** Alias name → fully-qualified target from `global using Alias = ...;` directives aggregated
-   *  across EVERY C# file (A12, project-wide aliases). Merged into this file's alias map BELOW
-   *  any file-local alias of the same name (a file-local alias takes precedence). */
+   *  across EVERY C# file of the project (A12), and from `<Using Include Alias>` items. Merged
+   *  into this file's alias map BELOW any file-local alias of the same name (a file-local alias
+   *  takes precedence). A name listed with 2+ distinct targets is ambiguous → silenced (M7). */
   projectGlobalUsingAliases?: Array<[string, string]>;
 }
 
@@ -435,7 +537,19 @@ export type CsharpRefDescriptor =
   | { kind: 'static'; fqn: string; line: number }
   /** An attribute usage `[Foo]` / `[FooAttribute]` — TWO readings (`written` + the optional
    *  `Attribute`-suffixed form) merged into ONE ordered group on assembly (E9). */
-  | { kind: 'attr'; written: string; suffixed?: string; line: number; enclosingNs: string[] };
+  | { kind: 'attr'; written: string; suffixed?: string; line: number; enclosingNs: string[] }
+  /** The receiver of a member access through a TYPE name (`Guard.NotNull(x)`, `OrderStatus.Paid`,
+   *  `Shop.Core.Guard.NotNull(x)`): `chain` is the dotted receiver, leftmost first, without the
+   *  accessed member. On assembly each prefix (`Shop`, `Shop.Core`, `Shop.Core.Guard`) is one
+   *  reading, concatenated in that order into ONE group — C# binds the leftmost simple name first
+   *  and only reads further segments when it names a namespace. Emitted only when the leftmost
+   *  identifier is not a name this file declares (a local, parameter, field, property, method…),
+   *  so a value that shadows a type name never manufactures a type edge. */
+  | { kind: 'receiver'; chain: string[]; line: number; enclosingNs: string[] }
+  /** An extension-method call `value.Name(…)` on an instance-like receiver: resolved against the
+   *  extension-method keys (`<ns>.Name()`) of the enclosing namespaces, then the imported
+   *  namespaces as one set, then the global namespace. */
+  | { kind: 'ext'; name: string; line: number; enclosingNs: string[] };
 
 /**
  * The pure, alias-UNRESOLVED extract of one C# file — the cacheable fact (design §14 Correction
@@ -455,6 +569,76 @@ export interface CsharpExtract {
   refs: CsharpRefDescriptor[];
 }
 
+/** Receiver node types that name a TYPE, never an instance (`base.X()`, `string.Join()`,
+ *  `List<int>.X`, `A.B.X()` as a qualified name) — an extension method is never called on them. */
+const NON_INSTANCE_RECEIVERS = new Set(['base', 'predefined_type', 'generic_name', 'qualified_name', 'alias_qualified_name']);
+
+/** `System.Object` member names. Every receiver has these as instance methods, and an instance
+ *  method always wins over a same-named extension method, so a call to one of them is never an
+ *  extension-method call even when an in-repo extension of that name is in scope. */
+const OBJECT_MEMBER_NAMES = new Set(['ToString', 'Equals', 'GetHashCode', 'GetType', 'MemberwiseClone', 'ReferenceEquals']);
+
+/** Declaring node types whose `name` field introduces a value or member name. */
+const NAME_DECLARING_TYPES = new Set([
+  'variable_declarator',
+  'parameter',
+  'method_declaration',
+  'local_function_statement',
+  'property_declaration',
+  'event_declaration',
+  'enum_member_declaration',
+  'delegate_declaration',
+  'type_parameter',
+  'declaration_pattern',
+  'declaration_expression',
+  'catch_declaration',
+  'from_clause',
+  'let_clause',
+  'join_clause',
+  'join_into_clause',
+  'tuple_pattern',
+  'receiver_parameter',
+  ...TYPE_DECLARATION_TYPES,
+]);
+
+/**
+ * Every name this file DECLARES that is not a namespace: locals, parameters (method, lambda,
+ * primary-constructor), fields, properties, events, methods and local functions, enum members,
+ * type parameters, pattern/`out var`/deconstruction designations, `foreach`/`catch`/query range
+ * variables, and the file's own type names — collected file-wide, not per scope.
+ *
+ * WHY FILE-WIDE (the M16 shadow guard): a member access `X.Member` reads as a static access
+ * through the TYPE `X` only when no nearer value named `X` is in scope. Deciding real C# scoping
+ * would need the enclosing method, lambda and type bodies; over-approximating to the whole file
+ * can only drop a reading (a missed edge), never add one, which is the direction the zero-false-
+ * positive contract allows. Also returns the ordinary (non-extension) method names the file
+ * declares: a call `x.Name()` whose name the file itself declares as a method is most likely that
+ * instance method, which C# prefers over any extension method.
+ */
+function collectDeclaredNames(root: Node): { declaredNames: Set<string>; methodNames: Set<string> } {
+  const declaredNames = new Set<string>();
+  const methodNames = new Set<string>();
+  walk(root, (node) => {
+    if (node.type === 'implicit_parameter' || node.type === 'single_variable_designation') {
+      declaredNames.add(node.text);
+    } else if (node.type === 'foreach_statement') {
+      const left = node.childForFieldName('left')!;
+      if (left.type === 'identifier') declaredNames.add(left.text); // `foreach (var (a, b) in …)` is a pattern
+    } else if (NAME_DECLARING_TYPES.has(node.type)) {
+      // An ordinary (non-extension) method or local function also names a callable member.
+      const ordinaryMethod =
+        (node.type === 'method_declaration' || node.type === 'local_function_statement') && extensionMethodName(node) === undefined;
+      for (let i = 0; i < node.childCount; i++) {
+        if (node.fieldNameForChild(i) !== 'name' || node.child(i)!.type !== 'identifier') continue;
+        declaredNames.add(node.child(i)!.text);
+        if (ordinaryMethod) methodNames.add(node.child(i)!.text);
+      }
+    }
+    return undefined;
+  });
+  return { declaredNames, methodNames };
+}
+
 /**
  * Extract one C# file's alias-UNRESOLVED reference descriptors + full file-local using scope.
  *
@@ -472,6 +656,53 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
   // A node id is recorded here once its TYPE reference has been emitted, so a later, broader
   // walk visit (e.g. the generic outermost-qualified_name pass) never re-emits the same node.
   const emitted = new Set<number>();
+
+  // Every value/member name this file declares (M16 shadow guard) and the names of the ordinary
+  // (non-extension) methods it declares (m27 guard). See `collectDeclaredNames`.
+  const { declaredNames, methodNames } = collectDeclaredNames(file.tree.rootNode);
+
+  /** True when `node` sits inside a `nameof(…)` operand — a string producer, never a dependency. */
+  const insideNameof = (node: Node): boolean => {
+    for (let cur = node.parent; cur !== null; cur = cur.parent) {
+      if (cur.type === 'invocation_expression' && cur.childForFieldName('function')?.text === 'nameof') return true;
+    }
+    return false;
+  };
+
+  /** True when a call's receiver is a VALUE rather than a type name: its leftmost element is a
+   *  name this file declares, `this`, or any non-name expression (a call result, `new`, a literal,
+   *  an index…). An undeclared leftmost identifier reads as a type (a static call, handled as a
+   *  `receiver`); `base.X()` and a predefined/generic/qualified type receiver are never instances. */
+  const instanceLikeReceiver = (receiver: Node): boolean => {
+    let cur = receiver;
+    while (cur.type === 'member_access_expression') cur = cur.childForFieldName('expression')!;
+    if (cur.type === 'identifier') return declaredNames.has(cur.text);
+    return !NON_INSTANCE_RECEIVERS.has(cur.type);
+  };
+
+  /** The method name of an extension-method-shaped call `value.Name(…)` / `value?.Name(…)`, or
+   *  undefined when the call cannot be an in-repo extension-method call worth resolving. */
+  const extensionCall = (inv: Node): string | undefined => {
+    const fn = inv.childForFieldName('function')!;
+    let nameNode: Node;
+    let receiver: Node;
+    if (fn.type === 'member_access_expression') {
+      nameNode = fn.childForFieldName('name')!;
+      receiver = fn.childForFieldName('expression')!;
+    } else if (fn.type === 'conditional_access_expression') {
+      // `value?.Name(…)`; a binding holding an ERROR is a parser recovery, never read as a call.
+      const binding = findChild(fn, 'member_binding_expression');
+      if (binding === null || findChild(binding, 'ERROR') !== null) return undefined;
+      nameNode = binding.childForFieldName('name')!;
+      receiver = fn.childForFieldName('condition')!;
+    } else {
+      return undefined;
+    }
+    // `value.Name<T>(…)` names the method by the generic's base identifier.
+    const name = (nameNode.type === 'generic_name' ? findChild(nameNode, 'identifier')! : nameNode).text;
+    if (OBJECT_MEMBER_NAMES.has(name) || methodNames.has(name)) return undefined;
+    return instanceLikeReceiver(receiver) ? name : undefined;
+  };
 
   /** Emit a plain reference descriptor (alias-unresolved). `enclosingNs` is precomputed from the
    *  node before the tree is destroyed; the alias/using expansion happens later, on assembly. */
@@ -504,9 +735,9 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
   /**
    * Emit references for every NAMED type a TYPE node carries, descending the type-constructor
    * shapes (generics, arrays, nullables, tuples) to their leaf named types. A bare `identifier`
-   * or a `qualified_name` is one reference; a `generic_name`'s type ARGUMENTS are references
-   * (its base name is NOT emitted — that mirrors the pre-existing `List<int>` no-candidate rule
-   * and keeps external container types like `List`/`Task` from manufacturing edges); an
+   * or a `qualified_name` is one reference; a `generic_name`'s BASE name and each of its type
+   * ARGUMENTS are references (an external container like `List`/`Task` resolves to nothing, so
+   * it manufactures no edge); an
    * `array_type`/`nullable_type` unwraps to its element type; a `tuple_type` descends each
    * element. `predefined_type` (int, string, void, object…) and `implicit_type` (`var`) carry
    * no named dependency and are skipped.
@@ -523,8 +754,7 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
       case 'qualified_name': {
         if (emitted.has(typeNode.id)) return;
         emitted.add(typeNode.id);
-        const rooted = typeNode.text.startsWith('global::');
-        pushRef(stripGlobalQualifier(typeNode.text), typeNode, typeNode.startPosition.row + 1, rooted);
+        emitQualified(typeNode);
         return;
       }
       case 'alias_qualified_name': {
@@ -558,11 +788,14 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
         return;
       }
       case 'generic_name': {
-        // Descend the type arguments ONLY (the base container name is not a dependency here).
-        const args = typeNode.childForFieldName('type_arguments') ?? findChild(typeNode, 'type_argument_list');
-        if (args !== null) {
-          for (let i = 0; i < args.namedChildCount; i++) emitTypeNode(args.namedChild(i));
-        }
+        // The generic's BASE name is a type reference of its own (`Repository<Order>` depends on
+        // `Repository` as much as on `Order`), resolved like a bare identifier. An external
+        // container (`List`, `Task`, `Dictionary`) resolves to no in-graph declaration, so it stays
+        // silent by the ordinary fail-to-silence rule. The type arguments are descended as before.
+        if (emitted.has(typeNode.id)) return;
+        emitted.add(typeNode.id);
+        pushRef(findChild(typeNode, 'identifier')!.text, typeNode, typeNode.startPosition.row + 1);
+        emitTypeArguments(typeNode);
         return;
       }
       case 'array_type':
@@ -583,6 +816,50 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
         return;
     }
   };
+
+  /** Descend the type arguments of one `generic_name` (each argument is its own reference). */
+  function emitTypeArguments(generic: Node): void {
+    const args = findChild(generic, 'type_argument_list')!; // a generic_name always has its argument list
+    for (let i = 0; i < args.namedChildCount; i++) emitTypeNode(args.namedChild(i));
+  }
+
+  /**
+   * Emit one `qualified_name` reference. A qualified name that carries generic segments
+   * (`Shop.Core.Repository<int>`, `Outer<int>.Inner`) is referenced by its PLAIN dotted name — the
+   * type-argument lists stripped (`Shop.Core.Repository`, `Outer.Inner`), because declaration keys
+   * carry no arity — and every type-argument list inside it is descended as its own references.
+   * Without the strip the written text, `<…>` included, could never match a declaration key.
+   */
+  function emitQualified(q: Node): void {
+    const line = q.startPosition.row + 1;
+    const rooted = q.text.startsWith('global::');
+    if (!q.text.includes('<')) {
+      pushRef(stripGlobalQualifier(q.text), q, line, rooted);
+      return;
+    }
+    const segs: string[] = [];
+    const generics: Node[] = [];
+    let ok = true;
+    const collect = (n: Node): void => {
+      if (n.type === 'qualified_name') {
+        collect(n.childForFieldName('qualifier')!);
+        collect(n.childForFieldName('name')!);
+      } else if (n.type === 'generic_name') {
+        segs.push(findChild(n, 'identifier')!.text);
+        generics.push(n);
+      } else if (n.type === 'alias_qualified_name') {
+        // `global::A.B<T>` resolves from the root (R12); any other alias qualifier (`Lib::A<T>.B`)
+        // can never match a dot-only key (R13), so the name is not emitted at all.
+        if (n.childForFieldName('alias')!.text === 'global') collect(n.childForFieldName('name')!);
+        else ok = false;
+      } else {
+        segs.push(n.text); // identifier
+      }
+    };
+    collect(q);
+    if (ok) pushRef(segs.join('.'), q, line, rooted);
+    for (const g of generics) emitTypeArguments(g);
+  }
 
   /** The first child of the given type, or null. */
   function findChild(node: Node, childType: string): Node | null {
@@ -787,7 +1064,73 @@ export function extractCsharpRefs(file: ParsedFile): CsharpExtract {
       // of a `global::`-rooted name handled at the alias node — skip the bare qualifier.
       if (node.parent !== null && node.parent.type === 'alias_qualified_name') return undefined;
       emitted.add(node.id);
-      pushRef(stripGlobalQualifier(node.text), node, node.startPosition.row + 1, node.text.startsWith('global::'));
+      emitQualified(node);
+      return undefined;
+    }
+
+    // C# 14 extension block on a grammar that knows it (M2): `extension(Order order) { … }` —
+    // the receiver's type is a type reference. The shipped pre-C# 14 grammar misreads the block
+    // as a constructor named `extension`, whose receiver is then an ordinary `parameter` (handled
+    // above); this case keeps the edge when the grammar is upgraded to the real node shape.
+    if (node.type === 'receiver_parameter') {
+      emitTypeNode(node.childForFieldName('type'));
+      return undefined;
+    }
+
+    // C# 14 null-conditional assignment `h?.Last = new Order();` on the shipped pre-C# 14 grammar:
+    // the parser recovers as `h?.<ERROR Last = new> Order(…)`, a member binding whose name is
+    // really the created type. Read that exact recovery shape (an ERROR child ending in the `new`
+    // keyword, right before the binding's name) as the `new T()` it is. A grammar that knows the
+    // form yields a plain object creation instead.
+    if (node.type === 'member_binding_expression') {
+      const recoveredNew = node.namedChildren.some(
+        (c) => c !== null && c.type === 'ERROR' && c.childCount > 0 && c.child(c.childCount - 1)?.type === 'new',
+      );
+      const nm = node.childForFieldName('name');
+      if (recoveredNew && nm !== null) emitTypeNode(nm);
+      return undefined;
+    }
+
+    // Member access through a TYPE name (M16): `Guard.NotNull(o)`, `OrderStatus.Paid`,
+    // `Shop.Core.Guard.NotNull(o)`. Handled once, at the innermost access (the one whose receiver
+    // is the leftmost identifier). A generic receiver `Result<int>.Ok()` is a type position.
+    if (node.type === 'member_access_expression') {
+      const expr = node.childForFieldName('expression');
+      if (expr !== null && expr.type === 'generic_name') {
+        emitTypeNode(expr);
+      } else if (expr !== null && expr.type === 'identifier' && !declaredNames.has(expr.text) && !insideNameof(node)) {
+        const chain = [expr.text];
+        let cur = node;
+        // Walk outward while this access is itself the receiver of a further access (a member
+        // access only ever nests through its `expression`): every name but the outermost accessed
+        // member is a receiver segment. A generic segment (`A.B<int>.C`) ends the dotted chain.
+        while (cur.parent!.type === 'member_access_expression') {
+          const nm = cur.childForFieldName('name')!;
+          if (nm.type !== 'identifier') break;
+          chain.push(nm.text);
+          cur = cur.parent!;
+        }
+        refs.push({
+          kind: 'receiver',
+          chain,
+          line: expr.startPosition.row + 1,
+          enclosingNs: enclosingNamespaceChain(fileNs, node),
+        });
+      }
+      return undefined;
+    }
+
+    // Extension-method call on an instance-like receiver (m27): `builder.Services.AddInfrastructure()`.
+    if (node.type === 'invocation_expression') {
+      const call = extensionCall(node);
+      if (call !== undefined && !insideNameof(node)) {
+        refs.push({
+          kind: 'ext',
+          name: call,
+          line: node.startPosition.row + 1,
+          enclosingNs: enclosingNamespaceChain(fileNs, node),
+        });
+      }
       return undefined;
     }
 
@@ -831,9 +1174,27 @@ export function assembleCsharpCandidates(
   // file-local alias of the same name takes precedence (the local directive wins for this file).
   // Copy first so the cached extract's `scope.aliases` is never mutated (it may be reused across
   // option variants / runs).
+  //
+  // M7: when the project-wide set maps one alias name to 2+ DISTINCT targets (two files of what
+  // the pass could only treat as one project each declare `global using Money = …;` with a
+  // different right-hand side), no single target is the binding — picking one would be an
+  // order-dependent wrong edge. Such a name (unless this file declares its own alias of that name)
+  // is AMBIGUOUS: every reference led by it stays silent.
   const aliases = new Map(scope.aliases);
+  const projectAliasTargets = new Map<string, Set<string>>();
   for (const [name, fqn] of options.projectGlobalUsingAliases ?? []) {
-    if (!aliases.has(name)) aliases.set(name, fqn);
+    let targets = projectAliasTargets.get(name);
+    if (!targets) {
+      targets = new Set();
+      projectAliasTargets.set(name, targets);
+    }
+    targets.add(fqn);
+  }
+  const ambiguousAliases = new Set<string>();
+  for (const [name, targets] of projectAliasTargets) {
+    if (aliases.has(name)) continue;
+    if (targets.size === 1) aliases.set(name, [...targets][0]);
+    else ambiguousAliases.add(name);
   }
 
   // The using-import binding level (R2/R9: an UNORDERED set at one scope). File-local plain
@@ -887,6 +1248,7 @@ export function assembleCsharpCandidates(
     }
 
     const lead = ref.split('.')[0];
+    if (ambiguousAliases.has(lead)) return; // M7: an alias with 2+ project-wide targets → silence
     const multi = ref.includes('.');
     const aliasTarget = aliases.get(lead);
     const enclosing = enclosingNs.map((ns) => `${ns}.${ref}`);
@@ -946,20 +1308,44 @@ export function assembleCsharpCandidates(
     if (suffixed !== undefined) pushRef(suffixed, enclosingNs, line, false);
     // Merge the (at most two) groups just pushed into one ordered group so both readings live
     // in a single reference (an attribute is ONE dependency, resolved by whichever name binds).
-    if (out.length > before + 1) {
-      const merged: TargetHint[] = [];
-      const seenK = new Set<string>();
-      for (const g of out.splice(before)) {
-        for (const c of g.candidates) {
-          if (c.kind === 'symbol') {
-            if (seenK.has(c.symbolKey)) continue;
-            seenK.add(c.symbolKey);
-          }
-          merged.push(c);
+    mergeGroupsFrom(before, line);
+  };
+
+  /** Merge every group pushed since `before` into ONE ordered group (first-seen key order), so
+   *  several readings of one reference resolve as a single dependency: the first reading that
+   *  binds wins, and a present-but-ambiguous reading silences the rest. */
+  const mergeGroupsFrom = (before: number, line: number): void => {
+    if (out.length <= before + 1) return;
+    const merged: TargetHint[] = [];
+    const seenK = new Set<string>();
+    for (const g of out.splice(before)) {
+      for (const c of g.candidates) {
+        if (c.kind === 'symbol') {
+          if (seenK.has(c.symbolKey)) continue;
+          seenK.add(c.symbolKey);
         }
+        merged.push(c);
       }
-      out.push({ candidates: merged, kind: 'import', line });
     }
+    out.push({ candidates: merged, kind: 'import', line });
+  };
+
+  /** The extension-method group for a call `value.Name(…)`: the extension keys of the enclosing
+   *  namespaces innermost first, then the imported namespaces as ONE set (2+ owners declaring an
+   *  in-scope `Name` → ambiguous → silence), then the global namespace. Aliases import no
+   *  extension methods, and `using static` is not modelled, so neither contributes. */
+  const pushExtension = (name: string, enclosingNs: string[], line: number): void => {
+    // Distinct keys by construction: enclosing namespaces are distinct, the using prefixes are a
+    // set, and a namespace both enclosing and imported only repeats a key the set already covers.
+    const usingSet: SymbolSetMember[] = usingPrefixes
+      .filter((p) => !enclosingNs.includes(p))
+      .map((p) => ({ symbolKey: extensionKey(p, name) }));
+    const candidates: TargetHint[] = [
+      ...enclosingNs.map((ns): TargetHint => ({ kind: 'symbol', symbolKey: extensionKey(ns, name) })),
+      ...usingSet.map((m): TargetHint => ({ kind: 'symbol', symbolKey: m.symbolKey, set: usingSet })),
+      { kind: 'symbol', symbolKey: extensionKey('', name) },
+    ];
+    out.push({ candidates, kind: 'import', line });
   };
 
   // Replay the descriptors in original emit order (static targets first, then alias-RHS embedded
@@ -987,6 +1373,17 @@ export function assembleCsharpCandidates(
       case 'attr':
         pushAttribute(r.written, r.suffixed, r.enclosingNs, r.line);
         break;
+      case 'receiver': {
+        // Each dotted prefix of the receiver is one reading, leftmost first, merged into ONE group.
+        if (ambiguousAliases.has(r.chain[0])) break;
+        const before = out.length;
+        for (let i = 1; i <= r.chain.length; i++) pushRef(r.chain.slice(0, i).join('.'), r.enclosingNs, r.line, false);
+        mergeGroupsFrom(before, r.line);
+        break;
+      }
+      case 'ext':
+        pushExtension(r.name, r.enclosingNs, r.line);
+        break;
     }
   }
 
@@ -1009,7 +1406,7 @@ export function csharpUses(file: ParsedFile, options?: CsharpUsesOptions): Detec
 
 export const csharpExtractor: DependencyExtractor = {
   languages: new Set(['csharp']),
-  rev: 2,
+  rev: 3,
   declarations,
   uses,
 };

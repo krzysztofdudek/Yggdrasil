@@ -167,6 +167,9 @@ describe('MATRIX — one JVM namespace: Kotlin imports Java declarations', () =>
 // ─────────────────────────────────────────────────────────────────────────────
 describe('MATRIX — ambiguity collapses to SILENCE (never an arbitrary edge)', () => {
   it('kotlin-same-fqn-two-files-ambiguous-silence', () => runCase('kotlin-same-fqn-two-files-ambiguous-silence'));
+  // B4: ambiguity is counted by owner node — several defining files of ONE node are one target.
+  it('kotlin-expect-actual-same-node-edge', () => runCase('kotlin-expect-actual-same-node-edge'));
+  it('kotlin-toplevel-overload-multi-file-edge', () => runCase('kotlin-toplevel-overload-multi-file-edge'));
 
   // Resolver-level case that the runCase harness cannot express: the harness maps EVERY
   // embedded file to its parent-directory node, so a declared-but-UNMAPPED in-graph file

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runExtractor } from './_harness.js';
-import { csharpExtractor } from '../../../../src/relations/extractors/csharp.js';
+import { csharpExtractor, csharpUses } from '../../../../src/relations/extractors/csharp.js';
+import { withParsedFile } from '../../../../src/ast/parser.js';
 import { SymbolTable } from '../../../../src/relations/symbol-table.js';
 import { makeResolver } from '../../../../src/relations/resolver.js';
 import type { ParsedFile } from '../../../../src/relations/extractors/types.js';
@@ -253,22 +254,23 @@ describe('csharp extractor — uses() emits SYMBOL hints (never path hints)', ()
     expect(symbolKeys(uses)).toContain('Foo.Bar.Base');
   });
 
-  it('SKIPS a GENERIC base type (`: List<int>`) — not a bare identifier, no candidate', async () => {
-    // A `generic_name` is neither a bare identifier nor a qualified_name, so bareTypeName
-    // returns undefined and emitBare is skipped.
+  it('a GENERIC base type (`: List<int>`) emits its BASE name like a bare identifier (B5)', async () => {
+    // The generic's base name is a type reference of its own; an external container such as
+    // `List` simply resolves to no in-graph declaration (fail-to-silence), so the candidates are
+    // harmless — only the in-scope readings are ever produced.
     const { uses } = await run(['using Foo.Bar;', 'class C : List<int> { }', ''].join('\n'));
-    expect(symbolKeys(uses)).toHaveLength(0);
+    expect(symbolKeys(uses)).toEqual(['Foo.Bar.List', 'List']);
   });
 
   it('handles a base_list with MULTIPLE entries (qualified bare base + bare interface)', async () => {
-    // Two base entries on one line: a bare base and a bare interface, each qualified by
-    // the using prefix; a third generic entry is skipped.
+    // Two base entries on one line: a bare base and a generic interface, each qualified by
+    // the using prefix (the generic by its base name, B5).
     const { uses } = await run(
       ['using N;', 'class C : MyBase, IFoo<int> { }', ''].join('\n'),
     );
     const keys = symbolKeys(uses);
     expect(keys).toContain('N.MyBase'); // bare base qualified
-    expect(keys.every((k) => !k.includes('IFoo'))).toBe(true); // generic skipped
+    expect(keys).toContain('N.IFoo'); // generic base name qualified
   });
 
   it('does NOT emit the namespace HEADER of a block `namespace Foo.Bar { }` as a use', async () => {
@@ -501,7 +503,7 @@ describe('csharp SYMBOL-TABLE resolution — the half this language validates', 
 
         // Through the ordered walk the use resolves to nothing — the verbatim `MyApp.Dup.Thing`
         // is present-but-ambiguous (2 defs) → the group silences; never a flag.
-        const ownerIndex = { ownerOf: () => 'someNode' };
+        const ownerIndex = { ownerOf: (f: string) => f.split('/')[1] }; // src/<node>/… — the two declaring files are two NODES
         const resolver = makeResolver({
           ownerIndex: ownerIndex as never,
           symbolTable: st,
@@ -581,12 +583,14 @@ describe('csharp anti-FALSE-POSITIVE — the silence list (D8 gate)', () => {
     expect(owners.every((o) => o === undefined)).toBe(true);
   });
 
-  it('EXTENSION METHOD call emits NO flag (order.Validate() — receiver type unknown)', async () => {
+  it('EXTENSION METHOD call emits ONLY an extension-method key (order.Validate()), never a type key', async () => {
     const { uses } = await run(
       ['class C { void M(object order) { order.Validate(); } }', ''].join('\n'),
     );
-    // No qualified_name, no base_list, no `new` of a named type → no hints at all.
-    expect(symbolKeys(uses)).toHaveLength(0);
+    // The receiver `order` is a parameter (a value), so the call is looked up as an extension
+    // method by NAME in the namespaces in scope (m27). Its `()`-suffixed key lives in a string
+    // space no type key can reach, and with no in-repo `Validate` extension it resolves to nothing.
+    expect(symbolKeys(uses)).toEqual(['Validate()']);
   });
 
   it('SOURCE-GENERATED / partial type emits NO flag (partial class, no base/new)', async () => {
@@ -753,7 +757,7 @@ describe('csharp NESTED-TYPE resolution + the tri-state / split over-silence gua
         const owners = csharpExtractor.uses(consumer);
         // `App.Outer` is declared in two files (defCount 2) — the split guard `has` still fires,
         // but the split key `App.Outer+Inner` maps to two files → ≥2 distinct → ambiguous → silence.
-        expect(walk(owners, 'App.Outer.Inner', st, () => 'someNode', consumer.path)).toBeUndefined();
+        expect(walk(owners, 'App.Outer.Inner', st, (f: string) => f.split('/')[1], consumer.path)).toBeUndefined();
       },
     );
   });
@@ -800,5 +804,148 @@ describe('csharp NESTED-TYPE resolution + the tri-state / split over-silence gua
 describe('csharp extractor — registry wiring', () => {
   it('declares the csharp language', () => {
     expect(csharpExtractor.languages.has('csharp')).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-24 audit: member access through a type name (M16), extension-method calls and their
+// declaration keys (m27), qualified generics and the C# 14 recovery shapes (B5, m2).
+describe('csharp — extension-method declaration keys (m27)', () => {
+  it('a classic `this` extension in a top-level static class declares `<ns>.<Name>()`', async () => {
+    const { declarations } = await run(
+      ['namespace Shop.Infra;', 'public static class DI {', '  public static object AddInfra(this object s) => s;', '  public static void Plain(object s) {}', '}', ''].join('\n'),
+    );
+    const keys = declarations.map((d) => d.symbolKey);
+    expect(keys).toContain('Shop.Infra.AddInfra()');
+    expect(keys).not.toContain('Shop.Infra.Plain()'); // no `this` receiver → not an extension
+  });
+  it('a `this` method in a NON-static, nested, or file-local class declares no extension key', async () => {
+    const { declarations } = await run(
+      [
+        'namespace N;',
+        'public class NotStatic { public static void A(this object s) {} }',
+        'public static class Outer { public static class Inner { public static void B(this object s) {} } }',
+        'file static class Local { public static void C(this object s) {} }',
+        '',
+      ].join('\n'),
+    );
+    expect(declarations.map((d) => d.symbolKey).filter((k) => k.endsWith('()'))).toEqual([]);
+  });
+  it('a C# 14 extension-block member declares a key on the shipped grammar (misread block)', async () => {
+    const { declarations } = await run(
+      ['namespace N;', 'public static class E { extension(object o) { public int Size() => 0; } }', ''].join('\n'),
+    );
+    expect(declarations.map((d) => d.symbolKey)).toContain('N.Size()');
+  });
+});
+
+describe('csharp — member-access receivers and extension calls (M16, m27)', () => {
+  const groups = (uses: Awaited<ReturnType<typeof run>>['uses']): string[][] =>
+    uses.map((u) => u.candidates.flatMap((c) => (c.kind === 'symbol' ? [c.symbolKey] : [])));
+
+  it('a dotted receiver emits ONE group of its prefixes, leftmost first', async () => {
+    const { uses } = await run(['class C { void M(object o) { Shop.Core.Guard.NotNull(o); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Shop', 'Shop.Core', 'Shop.Core.Guard']]);
+  });
+  it('a receiver inside nameof(…) emits nothing', async () => {
+    const { uses } = await run(['class C { string M() => nameof(Guard.NotNull); }', ''].join('\n'));
+    expect(uses).toHaveLength(0);
+  });
+  it('a value receiver emits an extension group, never a type group', async () => {
+    const { uses } = await run(['using Shop.Infra;', 'class C { void M(object s) { s.AddInfra(); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Shop.Infra.AddInfra()', 'AddInfra()']]);
+  });
+  it('an unshadowed type-name receiver emits no extension group (a static call)', async () => {
+    const { uses } = await run(['class C { void M() { Guard.Check(); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Guard']]);
+  });
+  it('System.Object members, names the file declares as methods, and base.X() are never extension calls', async () => {
+    const { uses } = await run(
+      ['class C : B { void Run() {} void M(object s) { s.ToString(); s.Equals(s); s.Run(); base.Go(); } }', ''].join('\n'),
+    );
+    expect(groups(uses).filter((g) => g.some((k) => k.endsWith('()')))).toEqual([]);
+  });
+  it('a null-conditional call `s?.AddInfra()` is an extension call too', async () => {
+    const { uses } = await run(['class C { void M(object s) { s?.AddInfra(); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['AddInfra()']]);
+  });
+  it('a generic receiver `Result<Order>.Ok()` is a type position (base + argument)', async () => {
+    const { uses } = await run(['class C { void M() { Result<Order>.Ok(); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Result'], ['Order']]);
+  });
+  it('a qualified generic `A.B<C>.D` resolves by its plain dotted name, with its arguments', async () => {
+    const { uses } = await run(['class C { A.B<X.Y>.D f; }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['A.B.D'], ['X.Y']]);
+  });
+  it('a closed-generic alias target binds by its plain container name', async () => {
+    const { uses } = await run(['using R = Shop.Core.Repository<int>;', 'class C { R r; }', ''].join('\n'));
+    expect(groups(uses)[0][0]).toBe('Shop.Core.Repository');
+  });
+});
+
+describe('csharp — project-wide global alias with 2+ targets (M7)', () => {
+  it('silences every reference led by the ambiguous alias; a file-local alias still wins', async () => {
+    ensureLoaderRegistered();
+    const code = ['class C { Money m; }', ''].join('\n');
+    await withParsedFile('x.cs', code, (tree) => {
+      const file = { path: 'x.cs', content: code, tree, language: 'csharp' };
+      const ambiguous = csharpUses(file, { projectGlobalUsingAliases: [['Money', 'A.Money'], ['Money', 'B.Money']] });
+      expect(ambiguous).toHaveLength(0);
+      const single = csharpUses(file, { projectGlobalUsingAliases: [['Money', 'A.Money']] });
+      expect(single[0].candidates[0]).toMatchObject({ kind: 'symbol', symbolKey: 'A.Money' });
+    });
+    const local = ['using Money = L.Money;', 'class C { Money m; }', ''].join('\n');
+    await withParsedFile('y.cs', local, (tree) => {
+      const file = { path: 'y.cs', content: local, tree, language: 'csharp' };
+      const uses = csharpUses(file, { projectGlobalUsingAliases: [['Money', 'A.Money'], ['Money', 'B.Money']] });
+      expect(uses[0].candidates[0]).toMatchObject({ kind: 'symbol', symbolKey: 'L.Money' });
+    });
+  });
+});
+
+describe('csharp — extension and receiver shapes that must NOT count (branch guards)', () => {
+  const groups = (uses: Awaited<ReturnType<typeof run>>['uses']): string[][] =>
+    uses.map((u) => u.candidates.flatMap((c) => (c.kind === 'symbol' ? [c.symbolKey] : [])));
+
+  it('only a static top-level class member with a `this` receiver, or a misread extension block member, is an extension', async () => {
+    const { declarations } = await run(
+      [
+        'namespace N;',
+        'public interface I { void A(object s); }',
+        'public static class S {',
+        '  public static void NoParams() {}',
+        '  public static void Helper(object s) { void Local() {} }',
+        '  static S() { void InCtor() {} }',
+        '}',
+        '',
+      ].join('\n'),
+    );
+    expect(declarations.map((d) => d.symbolKey).filter((k) => k.endsWith('()'))).toEqual([]);
+  });
+  it('a generic extension call `s.Get<int>()` is looked up by its base name', async () => {
+    const { uses } = await run(['class C { void M(object s) { s.Get<int>(); } }', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Get()']]);
+  });
+  it('a plain call `Foo()` and an element-access call are not member calls', async () => {
+    const { uses } = await run(['class C { void M(System.Action[] a) { Foo(); a[0](); } }', ''].join('\n'));
+    expect(groups(uses).filter((g) => g.some((k) => k.endsWith('()')))).toEqual([]);
+  });
+  it('a deconstructing foreach declares its names through the pattern', async () => {
+    const { uses } = await run(['class C { void M(object xs) { foreach (var (Guard, b) in xs) { Guard.X(); } } }', ''].join('\n'));
+    expect(groups(uses).filter((g) => g.includes('Guard'))).toEqual([]);
+  });
+  it('a lambda parameter shadows a type name', async () => {
+    const { uses } = await run(['class C { System.Func<object, object> f = Guard => Guard.ToString(); }', ''].join('\n'));
+    expect(groups(uses).filter((g) => g.includes('Guard'))).toEqual([]);
+  });
+  it('a generic segment ends the receiver chain (`A.B<int>.C()`)', async () => {
+    const { uses } = await run(['class C { void M() { A.B<int>.C(); } }', ''].join('\n'));
+    expect(groups(uses)).toContainEqual(['A']);
+  });
+  it('a `global::` qualified generic resolves from the root; a non-global alias-qualified generic emits nothing', async () => {
+    const { uses } = await run(['class C { global::A.B<X> f; Lib::A<X>.B g; }', ''].join('\n'));
+    const g = groups(uses);
+    expect(g).toContainEqual(['A.B']);
+    expect(g.flat().some((k) => k.includes('Lib'))).toBe(false);
   });
 });
