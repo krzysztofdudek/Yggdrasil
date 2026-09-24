@@ -2,11 +2,12 @@ name: Relations Reference — C and C++
 type: reference-catalogue
 description: "C / C++ name-resolution case catalogue — one .md per identification case
   (a syntactic form by which a cross-node C or C++ dependency is detected and resolved
-  through the canonical quoted-include join, or deliberately silenced), 1:1 with a
-  runCase('<id>') test in the combined C/C++ matrix suite. C and C++ share one include
-  mechanism end to end, so a single catalogue covers both (the schema forbids a combined
-  directory, so every case lives under cpp/ with language: cpp; C-grammar behaviour is
-  exercised through embedded .c/.h fixture files). The two relations aspects enforce that
+  through the includer's directory, a compilation database's include roots or the
+  conservative include-root probe, or deliberately silenced), 1:1 with a runCase('<id>')
+  test in the combined C/C++ matrix suite. C and C++ share one include mechanism end to
+  end, so this catalogue covers the shared include-path forms for both (C-grammar
+  behaviour is exercised through embedded .c/.h fixture files); cases about C itself
+  live in the sibling c catalogue. The two relations aspects enforce that
   correspondence."
 aspects:
   - reference/relations/case-has-test

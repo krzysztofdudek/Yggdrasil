@@ -79,7 +79,7 @@ function functionName(def: Node): string | undefined {
 
 export const cExtractor: DependencyExtractor = {
   languages: new Set(['c']),
-  rev: 1,
+  rev: 2,
   declarations,
   uses,
 };

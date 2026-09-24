@@ -10,14 +10,17 @@ import { runCase } from '../reference-case-runner.js';
  * relations aspects (reference/relations/case-has-test + case-is-tested) enforce the 1:1
  * catalogue↔test correspondence, so this file cannot drift from the catalogue.
  *
- * THE GOVERNING DECISION (.plans/2026-06-14-import-only-languages-decision.md): the PHP
- * extractor establishes a dependency edge from a `use` CLASS import — whose operand is a
- * fully-qualified name resolved to a file via composer PSR-4 — and from a leading-backslash
- * INLINE class reference in a class-autoload position (the one provably-shadow-free recall
- * extension; `\App\X` names the absolute type independent of namespace/use). Backslash-LESS
- * (namespace-relative) usage-site names, `use function`/`use const`, function-call and
- * bare-constant FQNs, and every dynamic form stay SILENT — a deliberate tolerated false-
- * NEGATIVE. The cardinal invariant — ZERO false positives — outranks recall.
+ * THE GOVERNING DECISION (.plans/2026-06-14-import-only-languages-decision.md, widened in
+ * 6.1.0): the PHP extractor establishes a dependency edge from a `use` CLASS import — whose
+ * operand is a fully-qualified name resolved to a file via composer autoload maps (the nearest
+ * composer.json, then every composer.json in the repository; PSR-4 incl. the `""` fallback,
+ * then PSR-0) — from a leading-backslash INLINE class reference, and from a namespace-RELATIVE
+ * class name in a class position, resolved with PHP's own compile-time rules (alias table,
+ * else current namespace; no global fallback exists for classes), plus a statically
+ * file-relative `require`/`include`. `use function`/`use const`, function-call and
+ * bare-constant names, runtime-resolved include paths and every dynamic form stay SILENT.
+ * The cardinal invariant — ZERO false positives — outranks recall: every resolution applies
+ * the exactly-one-hit rule and a name whose file does not exist is silent.
  *
  * The catalogue covers the full research enumeration (.plans/2026-06-15-php-name-resolution-
  * research.md): every `use` import form (PART A), PSR-4 path resolution incl. longest-prefix
@@ -53,11 +56,12 @@ describe('MATRIX — function / const imports (no class edge; sibling class clau
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Namespace-RELATIVE inline forms (no leading `\`). Resolved against the file's namespace +
-// `use` aliases, which a source-only tool cannot reconstruct (no-global-fallback / sibling
-// same-name traps), so they STAY a tolerated recall gap (silence). The absolute counterparts
-// edge (see the leading-backslash block below).
-describe('MATRIX — namespace-relative inline forms (FP-prone → SILENT, not a bug)', () => {
+// Namespace-RELATIVE inline forms (no leading `\`), resolved as PHP does: the first segment
+// through the file's class imports, else the current namespace (no global fallback for classes).
+// The silence cases are the no-global-fallback / sibling same-name traps: PHP's rule names a
+// class with no file, and a same-named class elsewhere is never a candidate. The two edge cases
+// at the end are the twins whose target exists.
+describe('MATRIX — namespace-relative inline forms (PHP name resolution; no file → SILENT)', () => {
   it('php-new-relative-silence', () => runCase('php-new-relative-silence'));
   it('php-extends-implements-relative-silence', () =>
     runCase('php-extends-implements-relative-silence'));
@@ -73,6 +77,8 @@ describe('MATRIX — namespace-relative inline forms (FP-prone → SILENT, not a
     runCase('php-namespace-relative-keyword-silence'));
   it('php-enum-case-relative-silence', () => runCase('php-enum-case-relative-silence'));
   it('php-qualified-usage-via-alias-edge', () => runCase('php-qualified-usage-via-alias-edge'));
+  it('php-namespace-alias-qualified-usage', () => runCase('php-namespace-alias-qualified-usage'));
+  it('php-namespace-relative-qualified-edge', () => runCase('php-namespace-relative-qualified-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,4 +136,27 @@ describe('MATRIX — PSR-4 resolution (longest prefix; unique-root → resolved;
   it('php-psr4-two-roots-both-hit-ambiguous-silence', () =>
     runCase('php-psr4-two-roots-both-hit-ambiguous-silence'));
   it('php-psr4-extra-prefix-single-hit-edge', () => runCase('php-psr4-extra-prefix-single-hit-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Several composer.json files: nearest map first, then the repo-wide union (vendor/ excluded)
+// with the exactly-one-hit rule. The empty PSR-4 prefix and PSR-0 are fallbacks after PSR-4.
+describe('MATRIX — monorepo composer maps, empty prefix, PSR-0 (exactly one hit)', () => {
+  it('php-psr4-monorepo-sibling-package-edge', () => runCase('php-psr4-monorepo-sibling-package-edge'));
+  it('php-psr4-root-map-shadowed-edge', () => runCase('php-psr4-root-map-shadowed-edge'));
+  it('php-psr4-cross-package-duplicate-silence', () =>
+    runCase('php-psr4-cross-package-duplicate-silence'));
+  it('php-psr4-empty-prefix-edge', () => runCase('php-psr4-empty-prefix-edge'));
+  it('php-psr0-edge', () => runCase('php-psr0-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — require/include (file-relative via __DIR__/dirname → EDGE; runtime-resolved → SILENCE)', () => {
+  it('php-require-dir-relative-edge', () => runCase('php-require-dir-relative-edge'));
+  it('php-require-bare-path-silence', () => runCase('php-require-bare-path-silence'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — grammar gaps that must not cost an edge', () => {
+  it('php-84-asymmetric-promotion-edge', () => runCase('php-84-asymmetric-promotion-edge'));
 });

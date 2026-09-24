@@ -8,11 +8,11 @@ cites: "php.net language.namespaces.rules Rule 6 (E1 new); research 2026-06-15 P
 
 ## Rule
 
-`new Foo()` with no leading backslash is a namespace-RELATIVE class reference: in
-`namespace App` it resolves to `App\Foo` by current-namespace prepend (Rule 6, no
-global fallback). Binding it would require reconstructing the file's namespace + `use`
-aliases, which a source-only import-only tool does not do — so it is a deliberate
-tolerated recall miss (silence), never a guess at the global `\Metrics\Timer`.
+`new Timer()` with no leading backslash is a namespace-RELATIVE class reference: in
+`namespace App` it resolves to `App\Timer` by current-namespace prepend (Rule 6, no
+global fallback). The extractor applies exactly that rule, so the specifier is
+`App\Timer`, which PSR-4 maps to `src/Timer.php`. No such file exists, so nothing binds;
+the same-named `App\Metrics\Timer` in another node is never considered.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Handler { function m() { $o = new Timer(); } }
 
 ## Expect
 
-- silence      # `new Timer()` is namespace-relative (→ `App\Timer`), never the global `App\Metrics\Timer` → silent recall miss
+- silence      # `new Timer()` is namespace-relative (→ `App\Timer`, no src/Timer.php), never `App\Metrics\Timer` → silent
 
 ## Why
 
-A relative inline name needs the namespace + use table to bind; the import-only model
-declines to resolve it rather than risk binding the wrong target.
+PHP's own compile-time rule names the class; when its file is absent there is no
+dependency to report, and a same-named class elsewhere is never a candidate.

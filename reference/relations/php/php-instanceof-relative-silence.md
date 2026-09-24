@@ -9,8 +9,8 @@ cites: "php.net language.operators.type (E5 instanceof); research 2026-06-15 PAR
 ## Rule
 
 `$x instanceof Timer` with no leading backslash names a namespace-relative class
-reference (Rule 6). It is a usage-site form — the import-only model emits nothing,
-rather than guess at a global `Timer`.
+reference (Rule 6) — `App\Timer`. The extractor resolves it so; `src/Timer.php` does not
+exist, so it is silent and never binds to a global or same-named `Timer`.
 
 ## Files
 
@@ -32,9 +32,8 @@ class Handler { function m($x) { return $x instanceof Timer; } }
 
 ## Expect
 
-- silence      # relative `instanceof Timer` is a usage-site reference → silent recall miss
+- silence      # relative `instanceof Timer` resolves to `App\Timer` (no file) → silent
 
 ## Why
 
-The operand is namespace-relative; without the use table it cannot be bound, so it is
-left silent.
+The operand names `App\Timer`, which has no file; nothing binds.

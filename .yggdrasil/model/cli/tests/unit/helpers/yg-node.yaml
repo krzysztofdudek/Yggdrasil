@@ -14,6 +14,7 @@ relations:
     { target: cli/core/reviewer-tiers, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/io/stores, type: uses },
+    { target: cli/language-registry, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/relations/extractors, type: uses }
   ]

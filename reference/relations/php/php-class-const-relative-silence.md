@@ -9,9 +9,9 @@ cites: "php.net language.oop5.basic (E6 ::class literal); research 2026-06-15 PA
 ## Rule
 
 `Gateway::class` with no leading backslash is a compile-time class-name literal
-resolved against the current namespace + `use` imports (Rule 6). It is a genuine
-static reference, but a namespace-relative one — the import-only model declines to
-surface it (silence), a tolerated recall miss.
+resolved against the current namespace + `use` imports (Rule 6) — here `App\Gateway`.
+The extractor resolves it so; `src/Gateway.php` does not exist, so it is silent and
+`App\Pay\Gateway` is never a candidate.
 
 ## Files
 
@@ -33,9 +33,9 @@ class Handler { function m() { return Gateway::class; } }
 
 ## Expect
 
-- silence      # relative `Gateway::class` is a usage-site reference → silent recall miss
+- silence      # relative `Gateway::class` resolves to `App\Gateway` (no file) → silent
 
 ## Why
 
-The literal resolves against the file's namespace + use table; the import-only model
-does not reconstruct that, so it stays silent.
+The literal names `App\Gateway`, which has no file; the same-named class in another
+namespace is not what it names.

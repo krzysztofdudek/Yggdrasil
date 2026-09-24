@@ -10,8 +10,8 @@ cites: "php.net language.namespaces.rules Rule 6 (no global fallback); research 
 
 `new ArrayObject()` inside a namespace resolves to `A\B\C\ArrayObject` by
 current-namespace prepend (Rule 6), never the stdlib `\ArrayObject` — there is no class
-global fallback. Binding it to the global stdlib type would be a false positive. The
-import-only model never resolves a bare class name, so it is silent.
+global fallback. The extractor resolves it to `A\B\C\ArrayObject`, which no PSR-4
+prefix maps, so it is silent; the in-repo `App\Std\ArrayObject` is never a candidate.
 
 ## Files
 
@@ -33,9 +33,9 @@ class Service { function f() { return new ArrayObject(); } }
 
 ## Expect
 
-- silence      # bare `new ArrayObject()` resolves to `A\B\C\ArrayObject` (no global fallback) → never the stdlib `\ArrayObject` → silent
+- silence      # bare `new ArrayObject()` resolves to `A\B\C\ArrayObject` (no global fallback, unmapped) → never `App\Std\ArrayObject` → silent
 
 ## Why
 
 The no-global-fallback rule means a bare stdlib-looking name is current-namespace
-relative; binding it to the global type would be a false positive, so it is silent.
+relative; resolving it that way can never land on an unrelated same-named class.

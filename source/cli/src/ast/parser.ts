@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { getGrammarForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
+import { getGrammarForExtension, grammarExtensionForPath, primaryExtensionForLanguage } from '../utils/language-registry.js';
 
 const _require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -139,8 +139,13 @@ export function loadedParserFor(extension: string): Parser | undefined {
   return parserCache.get(info.wasmFile);
 }
 
-export async function parseFile(filePath: string, content: string): Promise<Tree> {
-  const ext = grammarExtensionForPath(filePath);
+/**
+ * Parse `content` with the grammar of `filePath`'s extension, or — when `language` is given —
+ * with that language's grammar (the relation pass routes a C++ `.h` header to the C++
+ * grammar this way).
+ */
+export async function parseFile(filePath: string, content: string, language?: string): Promise<Tree> {
+  const ext = (language !== undefined ? primaryExtensionForLanguage(language) : undefined) ?? grammarExtensionForPath(filePath);
   // A grammar's external scanner can trap on one pathological input (tree-sitter-ruby
   // 0.23.1 on a heredoc delimiter of 256+ characters). The trap leaves THAT Parser instance
   // unusable: every later parse on it throws the same error, while a fresh Parser over the
@@ -199,8 +204,9 @@ export async function withParsedFile<T>(
   filePath: string,
   content: string,
   fn: (tree: Tree) => T | Promise<T>,
+  language?: string,
 ): Promise<T> {
-  const tree = await parseFile(filePath, content);
+  const tree = await parseFile(filePath, content, language);
   try {
     return await fn(tree);
   } finally {

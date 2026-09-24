@@ -132,7 +132,10 @@ export const LANGUAGES: Record<string, LanguageDef> = {
   },
   cpp: {
     id: 'cpp',
-    extensions: ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'],
+    // Besides sources and headers: C++20 module interface units (.cppm Clang/CMake, .ixx
+    // MSVC, .mpp) and template-implementation files (.ipp/.inl/.tpp/.txx), which are C++ and
+    // carry real #include dependencies; .c++/.h++ are rarer spellings of the same.
+    extensions: ['.cpp', '.cc', '.cxx', '.c++', '.hpp', '.hh', '.hxx', '.h++', '.cppm', '.ixx', '.mpp', '.ipp', '.inl', '.tpp', '.txx'],
     wasmFile: 'tree-sitter-cpp.wasm',
     wasmPackage: 'tree-sitter-cpp',
     grammarRepo: 'https://github.com/tree-sitter/tree-sitter-cpp',
@@ -248,6 +251,40 @@ export function getLanguageForExtension(ext: string, overrides?: Record<string, 
   const normalized = ext.toLowerCase();
   if (overrides && normalized in overrides) return overrides[normalized];
   return EXTENSION_TO_LANGUAGE[normalized] ?? null;
+}
+
+/**
+ * The language of a file for RELATION extraction, which may differ from its extension's
+ * default in one place: a `.h` header. `.h` is used for both C and C++ headers (the Google
+ * C++ style default), and the extension alone binds it to C. A `.h` is routed to C++ when
+ * its own directory holds a C++ file (any cpp extension) and no `.c` file — the sibling
+ * sources say which language the directory is written in. `siblingNames` lists the file
+ * names in the header's directory; it is called only for a `.h`.
+ *
+ * Only the relation pass uses this routing. Deterministic AST rules (`ctx.parseAst`) keep
+ * the extension's grammar, because their verdicts are keyed on the file's bytes and would
+ * not notice a grammar switch caused by a sibling file appearing or disappearing.
+ */
+export function relationLanguageForPath(filePath: string, siblingNames: () => Iterable<string>): string | null {
+  const ext = grammarExtensionForPath(filePath);
+  const language = getLanguageForExtension(ext);
+  if (language !== 'c' || ext.toLowerCase() !== '.h') return language;
+  let sawCpp = false;
+  for (const name of siblingNames()) {
+    const d = name.lastIndexOf('.');
+    if (d <= 0) continue;
+    const sibExt = name.slice(d).toLowerCase();
+    if (sibExt === '.c') return 'c';
+    if (EXTENSION_TO_LANGUAGE[sibExt] === 'cpp') sawCpp = true;
+  }
+  return sawCpp ? 'cpp' : 'c';
+}
+
+/** The canonical (first) extension of a language, used to pick its grammar when a file is
+ *  parsed under a language other than its extension's (see relationLanguageForPath). */
+export function primaryExtensionForLanguage(language: string): string | undefined {
+  const def = Object.hasOwn(LANGUAGES, language) ? LANGUAGES[language] : undefined;
+  return def?.extensions[0];
 }
 
 export function getGrammarForExtension(ext: string): { wasmFile: string; wasmPackage: string } | null {

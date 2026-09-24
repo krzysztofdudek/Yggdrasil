@@ -6,33 +6,43 @@ import { single } from './types.js';
 /**
  * PHP dependency extractor.
  *
- * v1 scope = EXISTENCE, not relation type. The unit of an inter-component edge in
+ * v1 scope = EXISTENCE, not relation type. The main unit of an inter-component edge in
  * PHP is the IMPORT: a top-level `namespace_use_declaration` (`use Foo\Bar;`) names a
- * fully-qualified class / interface / trait / enum. A dependency edge is therefore
- * established ONLY by a `use` import. Usage-site constructs — `extends` / `implements`
- * super-types, in-body trait `use`, `new`, static calls (`Foo::bar()`), type hints,
- * `instanceof`, attributes — would only REFINE the relation type of an already-imported
- * binding, and v1 does not enforce relation type, so this extractor performs NO
- * usage-site refinement. It emits exactly one path hint per imported symbol, whose
- * specifier is a PHP FULLY-QUALIFIED NAME with `\` separators (`Foo\Bar\Baz`); the
- * resolver maps that FQN → a file via composer.json PSR-4.
+ * fully-qualified class / interface / trait / enum, and emits one path hint per imported
+ * symbol whose specifier is a PHP FULLY-QUALIFIED NAME with `\` separators
+ * (`Foo\Bar\Baz`); the resolver maps that FQN → a file via composer autoload maps.
+ * Usage sites in class positions add an edge only when they name a class the imports do
+ * not already cover (see below); relation type is not enforced.
  *
  * Fully-qualified INLINE references WITH A LEADING BACKSLASH (`new \App\X()`,
  * `\App\X::y()`, `\App\X $param`, `extends \App\X`) ARE emitted. The leading `\` is PHP's
  * absoluteness marker: `\App\X` names the type `App\X` from the GLOBAL namespace, with no
- * dependence on the file's `namespace` or its `use` aliases — so it is shadow-free and maps
- * to a file by the SAME PSR-4 rule as an import. Detection is restricted two ways to stay
- * false-positive-free:
- *   - ONLY a leading-backslash `qualified_name` is read; a backslash-LESS `qualified_name`
- *     (`Sub\Rel`, `Rel`) is namespace-relative and would need the current namespace + use
- *     aliases to bind — out of reach for a source-only tool, so it stays silent.
- *   - ONLY when the reference sits in a CLASS-autoload position (a type, `new`, `extends` /
- *     `implements`, `::` static access, an attribute, `instanceof`). A leading-backslash
- *     name in FUNCTION-call position (`\App\f()`) or as a bare CONSTANT (`\App\FOO`) does
- *     NOT trigger class autoloading — PHP keeps functions/constants in separate namespaces
- *     resolved at call time, never mapped to a PSR-4 class file — so emitting them could
- *     bind to an unrelated class file that merely shares the path. Those positions are
- *     excluded; the emitted set is exactly the class references PSR-4 actually resolves.
+ * dependence on the file's `namespace` or its `use` aliases — so it maps to a file by the
+ * SAME PSR-4 rule as an import.
+ *
+ * NAMESPACE-RELATIVE class names (`Model\Id`, `namespace\Model\Id`, an unqualified `Id`)
+ * in the same class positions are resolved with PHP's own compile-time rules, which need
+ * nothing but the file itself: a qualified name's first segment goes through the file's
+ * class imports (case-insensitively), else the current namespace is prepended; an
+ * unqualified name that is imported is skipped (the import line already carries its edge),
+ * else it takes the current namespace. PHP has NO global fallback for class names, so this
+ * is the only reading — and the resolver still requires the file to exist. A result in the
+ * global namespace is dropped (it may name a built-in class, which is never autoloaded).
+ * Namespace regions (`namespace A;` runs, `namespace A { }` blocks) each keep their own
+ * import table.
+ *
+ * Class positions only (a type, `new`, `extends` / `implements`, `::` static access, an
+ * attribute, `instanceof`, `catch`, an in-class trait `use`). A name in FUNCTION-call
+ * position (`\App\f()`, `helper()`) or a bare CONSTANT does NOT trigger class autoloading
+ * — PHP keeps functions/constants in separate namespaces resolved at call time, never
+ * mapped to a PSR-4 class file — so those positions are excluded.
+ *
+ * FILE INCLUDES: `require`/`require_once`/`include`/`include_once` whose operand is
+ * statically file-relative (`__DIR__ . '/../lib/x.php'`, `dirname(__FILE__) . '/x.php'`,
+ * `dirname(__DIR__, 2) . '/x.php'`) emit a path relative to the includer's directory
+ * (`./../lib/x.php`), which the resolver tells apart from an FQN by its `/`. A bare
+ * `'x.php'` is resolved at runtime through include_path and the working directory, and a
+ * dynamic operand is unknowable, so both stay silent.
  *
  * Grammar shapes this extractor reads (verified live against tree-sitter-php_only):
  *   - Plain      `use App\Payment\Gateway;`
@@ -170,6 +180,219 @@ function isClassReferenceContext(qn: Node): boolean {
   return isInstanceofClassRef(qn);
 }
 
+/**
+ * Class names that are never autoloaded: the relative scope keywords and the built-in type
+ * names a type hint can spell as a plain `name` (`self`, `static`, `parent`, `mixed`, …).
+ * Compared case-insensitively, as PHP does.
+ */
+const NON_CLASS_NAMES = new Set([
+  'self', 'static', 'parent', 'array', 'bool', 'boolean', 'callable', 'false', 'float', 'double',
+  'int', 'integer', 'iterable', 'mixed', 'never', 'null', 'object', 'string', 'true', 'void',
+]);
+
+/** One namespace region of a file: its byte range, its namespace (no leading/trailing `\`,
+ *  '' = global) and its class-import table (lower-cased alias → FQN). */
+interface NamespaceScope { start: number; end: number; ns: string; aliases: Map<string, string> }
+
+/** Add the CLASS imports of one `use` declaration to an alias table. Function and constant
+ *  imports are skipped (declaration-level and per-clause), exactly as for emission. */
+function collectAliases(decl: Node, aliases: Map<string, string>): void {
+  if (isFunctionOrConstUse(decl)) return;
+  const base = groupBase(decl);
+  const addClause = (clause: Node, prefix: string | undefined): void => {
+    if (clauseIsFunctionOrConst(clause)) return;
+    const nameText = clauseNameText(clause);
+    if (nameText === undefined) return;
+    const seg = stripLeadingBackslash(nameText);
+    const fqn = prefix !== undefined && prefix !== '' ? `${prefix}\\${seg}` : seg;
+    const aliasNode = clause.childForFieldName('alias');
+    const alias = aliasNode !== null ? aliasNode.text : fqn.slice(fqn.lastIndexOf('\\') + 1);
+    if (alias !== '') aliases.set(alias.toLowerCase(), fqn);
+  };
+  for (let i = 0; i < decl.namedChildCount; i++) {
+    const child = decl.namedChild(i);
+    if (child === null) continue;
+    if (child.type === 'namespace_use_clause') addClause(child, undefined);
+    else if (child.type === 'namespace_use_group') {
+      for (let g = 0; g < child.namedChildCount; g++) {
+        const clause = child.namedChild(g);
+        if (clause !== null && clause.type === 'namespace_use_clause') addClause(clause, base);
+      }
+    }
+  }
+}
+
+/** The namespace regions of a file, in source order. Unbracketed `namespace A;` runs to the
+ *  next namespace declaration; bracketed `namespace A { … }` covers its own node. Code before
+ *  any declaration is the global namespace. Imports belong to the region they appear in. */
+function namespaceScopes(root: Node): NamespaceScope[] {
+  let current: NamespaceScope = { start: 0, end: Number.POSITIVE_INFINITY, ns: '', aliases: new Map() };
+  const scopes: NamespaceScope[] = [current];
+  for (let i = 0; i < root.namedChildCount; i++) {
+    const child = root.namedChild(i);
+    if (child === null) continue;
+    if (child.type === 'namespace_definition') {
+      const ns = stripLeadingBackslash(child.childForFieldName('name')?.text ?? '');
+      const body = child.childForFieldName('body');
+      if (body !== null) {
+        const scope: NamespaceScope = { start: child.startIndex, end: child.endIndex, ns, aliases: new Map() };
+        for (let j = 0; j < body.namedChildCount; j++) {
+          const stmt = body.namedChild(j);
+          if (stmt !== null && stmt.type === 'namespace_use_declaration') collectAliases(stmt, scope.aliases);
+        }
+        scopes.push(scope);
+      } else {
+        current.end = child.startIndex;
+        current = { start: child.startIndex, end: Number.POSITIVE_INFINITY, ns, aliases: new Map() };
+        scopes.push(current);
+      }
+    } else if (child.type === 'namespace_use_declaration') {
+      collectAliases(child, current.aliases);
+    }
+  }
+  return scopes;
+}
+
+function scopeAt(scopes: NamespaceScope[], index: number): NamespaceScope {
+  for (let i = scopes.length - 1; i >= 0; i--) {
+    const sc = scopes[i];
+    if (index >= sc.start && index < sc.end) return sc;
+  }
+  return scopes[0];
+}
+
+/**
+ * Is this `name` / `qualified_name` / `relative_name` node the CLASS operand of a
+ * class-autoload position? Unlike the leading-backslash check (parent type only), this also
+ * checks the node's place under its parent, because a plain `name` also spells member names
+ * (`X::method`, `X::CONST`), function names and constants.
+ */
+function isClassOperand(node: Node): boolean {
+  const parent = node.parent;
+  if (parent === null) return false;
+  const first = parent.namedChild(0);
+  const isFirst = first !== null && first.id === node.id;
+  switch (parent.type) {
+    case 'object_creation_expression':
+    case 'named_type':
+    case 'class_constant_access_expression':
+    case 'attribute':
+      return isFirst;
+    case 'base_clause':
+    case 'class_interface_clause':
+    case 'use_declaration':
+      return true;
+    case 'scoped_call_expression':
+    case 'scoped_property_access_expression': {
+      const scope = parent.childForFieldName('scope');
+      return scope !== null && scope.id === node.id;
+    }
+    case 'binary_expression': {
+      const right = parent.childForFieldName('right');
+      return right !== null && right.id === node.id && isInstanceofClassRef(node);
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * Resolve a namespace-relative class name the way PHP does at compile time, or undefined
+ * when it must not produce an edge:
+ *   - `namespace\A\B` → current namespace + `A\B`;
+ *   - a qualified `A\B` → the import aliased `A` + `\B` when there is one (case-insensitive),
+ *     else current namespace + `A\B`;
+ *   - an unqualified `A` → undefined when it is IMPORTED (the import line already carries
+ *     that edge) or is a keyword/built-in type; else current namespace + `A`.
+ * A result in the global namespace (no `\`) is dropped: a global class name may be a PHP
+ * built-in, which is never autoloaded, so an in-repo file of that name proves nothing.
+ */
+function resolveRelativeClassName(node: Node, scope: NamespaceScope): string | undefined {
+  const text = node.text.replace(/\s+/g, '');
+  const prefixNs = (rest: string): string => (scope.ns === '' ? rest : `${scope.ns}\\${rest}`);
+  let fqn: string;
+  if (node.type === 'relative_name') {
+    const rest = text.replace(/^namespace\\/i, '');
+    if (rest === text || rest === '') return undefined;
+    fqn = prefixNs(rest);
+  } else if (node.type === 'qualified_name') {
+    const segs = text.split('\\');
+    const alias = scope.aliases.get(segs[0].toLowerCase());
+    fqn = alias !== undefined ? [alias, ...segs.slice(1)].join('\\') : prefixNs(text);
+  } else {
+    const lower = text.toLowerCase();
+    if (NON_CLASS_NAMES.has(lower) || scope.aliases.has(lower)) return undefined;
+    fqn = prefixNs(text);
+  }
+  return fqn.includes('\\') ? fqn : undefined;
+}
+
+/** Magic constants are case-insensitive in PHP. */
+function isMagic(node: Node | null, name: string): boolean {
+  return node !== null && node.type === 'name' && node.text.toUpperCase() === name;
+}
+
+/**
+ * The file-relative path of a `require`/`include` operand, as a specifier the resolver joins
+ * to the includer's directory (`./../lib/x.php`), or undefined when it is not statically
+ * file-relative. Accepted: `<base> . '<literal starting with />'` where `<base>` is
+ * `__DIR__` (0 levels up), `dirname(__FILE__[, n])` (n − 1 levels) or `dirname(__DIR__[, n])`
+ * (n levels), n an integer literal ≥ 1, and the literal a single-quoted or double-quoted
+ * string with no interpolation. Anything else — a bare `'x.php'` (resolved through
+ * include_path and the working directory), a variable, another function — is undefined.
+ */
+function staticIncludePath(operand: Node | null): string | undefined {
+  let expr = operand;
+  while (expr !== null && expr.type === 'parenthesized_expression') expr = expr.namedChild(0);
+  if (expr === null || expr.type !== 'binary_expression') return undefined;
+  let isConcat = false;
+  for (let i = 0; i < expr.childCount; i++) {
+    const c = expr.child(i);
+    if (c !== null && !c.isNamed && c.type === '.') isConcat = true;
+  }
+  if (!isConcat) return undefined;
+  const left = expr.childForFieldName('left');
+  const right = expr.childForFieldName('right');
+  if (left === null || right === null) return undefined;
+  if (right.type !== 'string' && right.type !== 'encapsed_string') return undefined;
+  if (right.namedChildCount !== 1 || right.namedChild(0)?.type !== 'string_content') return undefined;
+  const literal = right.namedChild(0)!.text;
+  if (!literal.startsWith('/') || literal.includes('\\')) return undefined;
+
+  let levels: number;
+  if (isMagic(left, '__DIR__')) {
+    levels = 0;
+  } else if (left.type === 'function_call_expression' && left.childForFieldName('function')?.text.toLowerCase() === 'dirname') {
+    const args = left.childForFieldName('arguments');
+    const argNodes: Node[] = [];
+    for (let i = 0; i < (args?.namedChildCount ?? 0); i++) {
+      const a = args!.namedChild(i);
+      if (a !== null && a.type === 'argument') argNodes.push(a);
+    }
+    if (argNodes.length < 1 || argNodes.length > 2) return undefined;
+    let n = 1;
+    if (argNodes.length === 2) {
+      const lit = argNodes[1].namedChild(0);
+      if (lit === null || lit.type !== 'integer' || !/^[1-9][0-9]*$/.test(lit.text)) return undefined;
+      n = Number(lit.text);
+    }
+    const target = argNodes[0].namedChild(0);
+    if (isMagic(target, '__DIR__')) levels = n;
+    else if (isMagic(target, '__FILE__')) levels = n - 1;
+    else return undefined;
+  } else {
+    return undefined;
+  }
+  return `./${'../'.repeat(levels)}${literal.slice(1)}`;
+}
+
+const INCLUDE_TYPES = new Set([
+  'include_expression',
+  'include_once_expression',
+  'require_expression',
+  'require_once_expression',
+]);
+
 function uses(file: ParsedFile): DetectedDep[] {
   const out: DetectedDep[] = [];
   const seen = new Set<string>();
@@ -185,7 +408,27 @@ function uses(file: ParsedFile): DetectedDep[] {
     out.push(single({ kind: 'path', specifier: cleaned }, 'import', line));
   };
 
+  const scopes = namespaceScopes(file.tree.rootNode);
+
   walk(file.tree.rootNode, (node) => {
+    // A statically file-relative require/include (`__DIR__ . '/../lib/x.php'`).
+    if (INCLUDE_TYPES.has(node.type)) {
+      const spec = staticIncludePath(node.namedChild(0));
+      if (spec !== undefined) emit(spec, node);
+      return undefined;
+    }
+
+    // A namespace-relative class name in a class-autoload position (no leading `\`):
+    // resolved with PHP's own compile-time rules from the file's namespace and imports.
+    if (
+      (node.type === 'name' || node.type === 'relative_name' ||
+        (node.type === 'qualified_name' && !node.text.startsWith('\\'))) &&
+      isClassOperand(node)
+    ) {
+      emit(resolveRelativeClassName(node, scopeAt(scopes, node.startIndex)), node);
+      return undefined;
+    }
+
     // Inline class reference: a leading-backslash `qualified_name` in a class-autoload
     // position. The leading `\` is the absoluteness marker (resolved from the global
     // namespace, shadow-free); the position allowlist excludes function/constant FQNs.
@@ -260,7 +503,7 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
 
 export const phpExtractor: DependencyExtractor = {
   languages: new Set(['php']),
-  rev: 1,
+  rev: 2,
   declarations,
   uses,
 };

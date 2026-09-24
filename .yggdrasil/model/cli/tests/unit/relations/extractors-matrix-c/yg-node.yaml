@@ -1,0 +1,13 @@
+name: Relations Name-Resolution Matrix — C
+type: test-suite
+description: "Name-resolution identification matrix for the C-specific relation cases —
+  the .c/.h grammar routing, constant-false preprocessor groups that the C grammar parses
+  (#if (0), __has_include with #elif 0, #elifdef after a taken #if), the extern \"C\"
+  wrapper and #embed. Catalogue-driven: every it('<id>') is a runCase('<id>')
+  over a reference case in reference/relations/c/, mirroring the C/C++ matrix."
+aspects: []
+relations:
+  - target: cli/tests/unit/relations/reference-runner
+    type: uses
+mapping:
+  - source/cli/tests/unit/relations/extractors/c-name-resolution-matrix.test.ts

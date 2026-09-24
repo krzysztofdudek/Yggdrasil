@@ -1,6 +1,6 @@
 ---
 id: c-header-parses-as-c-routing-edge
-language: cpp
+language: c
 category: import
 expectation: edge
 cites: "language-registry (`.c`/`.h` → C grammar; `.cpp`/`.hpp`/… → C++ grammar); research E1 (the C/C++ split is irrelevant to path resolution — shared includeUses + shared resolver)"

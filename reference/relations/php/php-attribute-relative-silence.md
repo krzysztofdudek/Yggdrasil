@@ -9,9 +9,10 @@ cites: "php.net language.attributes.syntax (E9 attribute); research 2026-06-15 P
 ## Rule
 
 An attribute name `#[Route("/x")]` with no leading backslash is a class reference
-resolved exactly like any class name (Rule 6) — namespace-relative here. The
-import-only model emits nothing for an attribute usage; all attribute positions added
-across 8.0→8.5 are the same form in new locations.
+resolved exactly like any class name (Rule 6) — here `App\Route`. The extractor resolves
+it so; `src/Route.php` does not exist, so it is silent and the `App\Http\Route` in
+another node is never a candidate. All attribute positions added across 8.0→8.5 are the
+same form in new locations.
 
 ## Files
 
@@ -34,9 +35,9 @@ class Handler {}
 
 ## Expect
 
-- silence      # relative attribute `#[Route(...)]` is a usage-site class reference → silent recall miss
+- silence      # relative `#[Route(...)]` resolves to `App\Route` (no src/Route.php), never `App\Http\Route` → silent
 
 ## Why
 
-The attribute name is namespace-relative; resolving it needs the use table, so it is
-left silent.
+The attribute name is namespace-relative; PHP's rule names `App\Route`, which has no
+file, so nothing binds.

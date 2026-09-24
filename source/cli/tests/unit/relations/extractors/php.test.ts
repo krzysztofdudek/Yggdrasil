@@ -194,13 +194,126 @@ describe('php extractor — uses()', () => {
     expect(s).toHaveLength(5);
   });
 
-  it('does NOT emit a backslash-LESS (namespace-relative) inline reference — needs namespace+use context', async () => {
-    // `new Sub\\Rel()` and a bare `Rel` are relative to the current namespace / use aliases; a
-    // source-only tool cannot bind them, so they stay silent (recall miss, never an FP).
+  it('resolves a backslash-LESS (namespace-relative) class name from the current namespace', async () => {
+    // PHP has no global fallback for class names, so `new Sub\\Rel()` in `namespace App\\App`
+    // is App\\App\\Sub\\Rel — decided from the file alone; the resolver still needs the file.
     const { uses } = await run(
       ['<?php', 'namespace App\\App;', 'class C { function m() { $o = new Sub\\Rel(); } }', ''].join('\n'),
     );
-    expect(uses).toHaveLength(0);
+    expect(specs(uses)).toEqual(['App\\App\\Sub\\Rel']);
+  });
+
+  it('translates a qualified name\'s first segment through a class import (case-insensitive)', async () => {
+    const { uses } = await run(
+      ['<?php', 'namespace App\\F1;', 'use App\\Model as M;', 'class C { function f(m\\Id $id) {} }', ''].join('\n'),
+    );
+    expect(specs(uses)).toEqual(['App\\Model', 'App\\Model\\Id']);
+  });
+
+  it('resolves `namespace\\X` against the current namespace', async () => {
+    const { uses } = await run(['<?php', 'namespace App;', 'function f(): namespace\\Sub\\X {}', ''].join('\n'));
+    expect(specs(uses)).toEqual(['App\\Sub\\X']);
+  });
+
+  it('skips imported unqualified names, keywords and built-in types, and global results', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        'namespace App\\Http;',
+        'use App\\Model\\Id;',
+        'class C extends Base {',
+        '  function f(Id $a, self $b, mixed $c): static { return new Id(); }',
+        '}',
+        'namespace Other { }',
+        '',
+      ].join('\n'),
+    );
+    // The import carries Id; `Base` is App\\Http\\Base; self/mixed/static are not classes.
+    expect(specs(uses)).toEqual(['App\\Model\\Id', 'App\\Http\\Base']);
+    const global = await run(['<?php', 'class C extends Exception { function f() { new Sub\\X(); } }', ''].join('\n'));
+    // In the global namespace an unqualified name may be a built-in → dropped; a qualified one is kept.
+    expect(specs(global.uses)).toEqual(['Sub\\X']);
+  });
+
+  it('reads only the class operand of `::` and instanceof, never member names or functions', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        'namespace App;',
+        'function g($x) { Foo::bar(); $a = Foo::BAR; $b = $x instanceof Sub\\Y; helper(); Sub\\helper(); $c = CONST_X; }',
+        '',
+      ].join('\n'),
+    );
+    expect(specs(uses)).toEqual(['App\\Foo', 'App\\Sub\\Y']);
+  });
+
+  it('skips a bare `namespace\\` and imports of functions or constants in the alias table', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        'namespace App;',
+        'use function Lib\\helper;',
+        'use Lib\\{function f, const C, Klass};',
+        'class A extends helper\\X { function g(): Klass\\Y {} }',
+        '',
+      ].join('\n'),
+    );
+    // `helper` and `f` are function imports, so `helper\\X` is namespace-relative (App\\helper\\X);
+    // `Klass` is a class import, so `Klass\\Y` translates through it.
+    expect(specs(uses)).toEqual(['Lib\\Klass', 'App\\helper\\X', 'Lib\\Klass\\Y']);
+  });
+
+  it('keeps one import table per bracketed namespace block', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        'namespace A { use X\\Lib; class C extends Lib\\Base {} }',
+        'namespace B { class D extends Lib\\Base {} }',
+        '',
+      ].join('\n'),
+    );
+    expect(specs(uses)).toEqual(['X\\Lib', 'X\\Lib\\Base', 'B\\Lib\\Base']);
+  });
+
+  it('emits a file-relative path for statically file-relative require/include', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        "require_once __DIR__ . '/../lib/a.php';",
+        'include dirname(__FILE__) . "/b.php";',
+        "require dirname(__DIR__, 2) . '/c.php';",
+        "include_once(dirname(__FILE__, 2) . '/d.php');",
+        "require __dir__ . '/e.php';",
+        '',
+      ].join('\n'),
+    );
+    expect(specs(uses)).toEqual(['./../lib/a.php', './b.php', './../../c.php', './../d.php', './e.php']);
+  });
+
+  it('does NOT emit runtime-resolved or dynamic require paths', async () => {
+    const { uses } = await run(
+      [
+        '<?php',
+        "require 'lib/a.php';",
+        "require __DIR__ . 'a.php';",
+        'require __DIR__ . "/$name.php";',
+        "require $base . '/a.php';",
+        "require plugin_dir_path(__FILE__) . '/a.php';",
+        "require dirname(__DIR__, $n) . '/a.php';",
+        "require __DIR__ . '/a' . '/b.php';",
+        "require __DIR__ . $x;",
+        "require __DIR__ + '/a.php';",
+        "require __DIR__ . '/a\\\\b.php';",
+        "require dirname(__DIR__, 2, 3) . '/a.php';",
+        "require dirname() . '/a.php';",
+        "require dirname(__DIR__, 'x') . '/a.php';",
+        "require dirname(__LINE__) . '/a.php';",
+        "require dirname2(__DIR__) . '/a.php';",
+        "require __FILE__ . '/a.php';",
+        '',
+      ].join('\n'),
+    );
+    expect(specs(uses)).toEqual([]);
   });
 
   it('does NOT emit a leading-backslash FUNCTION call or bare constant (not class autoloading)', async () => {

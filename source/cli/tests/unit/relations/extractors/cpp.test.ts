@@ -23,9 +23,9 @@ describe('C++ extractor — uses()', () => {
     expect(specs(uses)).toEqual(['../util/Helper.hpp']);
   });
 
-  it('does NOT emit a hint for an angle-bracket (system / stdlib) include', async () => {
+  it('emits an angle include as `<name>` (resolved only under a compile database -I root)', async () => {
     const { uses } = await run('#include <vector>\n#include <memory>\n');
-    expect(specs(uses)).toHaveLength(0);
+    expect(specs(uses)).toEqual(['<vector>', '<memory>']);
   });
 
   it('does NOT emit a hint for a macro include (#include MYHDR — no literal path)', async () => {
@@ -33,11 +33,9 @@ describe('C++ extractor — uses()', () => {
     expect(specs(uses)).toHaveLength(0);
   });
 
-  it('emits only the quoted includes when quoted and angle are mixed', async () => {
+  it('keeps quoted and angle includes apart when they are mixed', async () => {
     const { uses } = await run('#include <vector>\n#include "A.hpp"\n#include <string>\n#include "b/C.hpp"\n');
-    const s = specs(uses);
-    expect(s).toEqual(expect.arrayContaining(['A.hpp', 'b/C.hpp']));
-    expect(s).toHaveLength(2);
+    expect(specs(uses)).toEqual(['<vector>', 'A.hpp', '<string>', 'b/C.hpp']);
   });
 
   it('reports the line of each include', async () => {

@@ -9,10 +9,10 @@ cites: "php.net language.oop5.basic (E2 extends/implements); research 2026-06-15
 ## Rule
 
 A supertype list `class C extends Base implements Flowable, Other` names class /
-interface references without a leading backslash — namespace-relative usage sites
-resolved by the §rules precedence. The import-only model emits nothing for any of
-them; resolving a bare supertype name would reintroduce the no-global-fallback /
-sibling-same-name trap.
+interface references without a leading backslash — namespace-relative, so in
+`namespace App` they are `App\Base`, `App\Flowable` and `App\Other`. The extractor
+resolves them so; none of `src/Base.php`, `src/Flowable.php`, `src/Other.php` exists
+(`src/Base/Base.php` is `App\Base\Base`), so all stay silent.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Handler extends Base implements Flowable, Other {}
 
 ## Expect
 
-- silence      # relative `extends Base` / `implements Flowable, Other` are usage-site references → silent recall miss
+- silence      # relative `extends Base` / `implements Flowable, Other` resolve to `App\Base` etc., which have no file → silent
 
 ## Why
 
-The supertype names are namespace-relative; binding them needs the use table, so the
-import-only model leaves them silent.
+The supertype names resolve by PHP's rule to classes with no file; the same-named
+`App\Base\Base` is a different class and is never a candidate.

@@ -12,9 +12,10 @@ When two nodes each declare a type with the SAME simple name in DIFFERENT namesp
 a `use` import binds ONLY the namespace it names. `use App\Http\Request;` in a file
 whose own namespace is `App\Auth` (which could itself hold an `App\Auth\Request`) is
 the EXACT FQN `App\Http\Request` — there is no current-namespace prepend on a `use`
-operand and no sibling binding. The bare usage `Request` (which would resolve to the
-import or to the sibling) is a usage-site form and is silent, so the import can never
-mis-bind to the sibling `App\Auth\Request`.
+operand and no sibling binding. The bare usage `Request` is imported, so PHP binds it
+to the import (never the sibling); the extractor skips an imported unqualified usage,
+since the import line already carries its edge, so the import can never mis-bind to
+the sibling `App\Auth\Request`.
 
 ## Files
 
@@ -49,4 +50,4 @@ class Controller { function m(Request $r) {} }
 
 The decisive false-positive class: a same-simple-name type in another namespace must
 NOT be chosen over the imported FQN. The exact dotted operand rejects it, and the
-bare usage adds no edge.
+imported bare usage adds no edge of its own.

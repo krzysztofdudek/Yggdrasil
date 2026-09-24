@@ -1,0 +1,16 @@
+name: Relations Reference — C
+type: reference-catalogue
+description: "C name-resolution case catalogue — one .md per identification case that
+  is about C sources and headers themselves (the .c/.h grammar routing, the dead-branch
+  guard on C preprocessor shapes, the extern \"C\" wrapper, #embed), 1:1 with a
+  runCase('<id>') test in the C matrix suite. C shares the include extractor and
+  resolver with C++, whose catalogue covers the shared include-path forms. The two
+  relations aspects enforce the correspondence."
+aspects:
+  - reference/relations/case-has-test
+  - reference/relations/case-is-tested
+relations:
+  - target: cli/tests/unit/relations/extractors-matrix-c
+    type: uses
+mapping:
+  - reference/relations/c/*.md

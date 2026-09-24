@@ -10,7 +10,8 @@ cites: "php.net language.oop5.static (E7 static access); research 2026-06-15 PAR
 
 A static access on a literal class name with no leading backslash —
 `AuditLog::record("x")` — references the namespace-relative class `App\AuditLog`
-(Rule 6). It is a usage-site form; the import-only model emits nothing.
+(Rule 6). The extractor reads the class operand of `::` (never the member name) and
+resolves it so; `src/AuditLog.php` does not exist, so it is silent.
 
 ## Files
 
@@ -32,9 +33,9 @@ class Handler { function m() { AuditLog::record("x"); } }
 
 ## Expect
 
-- silence      # relative `AuditLog::record()` is a usage-site reference → silent recall miss
+- silence      # relative `AuditLog::record()` resolves to `App\AuditLog` (no file) → silent
 
 ## Why
 
-The class operand is namespace-relative; binding it needs the use table, so it is left
-silent.
+The class operand names `App\AuditLog`, which has no file; the member name is never
+read as a class.

@@ -14,7 +14,7 @@ import { expect } from 'vitest';
 
 import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
 import { withParsedFiles } from '../helpers/with-parsed-files.js';
-import { getLanguageForExtension } from '../../../src/utils/language-registry.js';
+import { getLanguageForExtension, relationLanguageForPath } from '../../../src/utils/language-registry.js';
 import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
 import {
   csharpUses,
@@ -74,8 +74,10 @@ interface ConfigFile {
  *  `## Files` block whose extension has no grammar language is accepted ONLY when its
  *  basename is one of these (else it is a typo and throws — the guard is preserved).
  *  Kept in lockstep with resolve-path.ts: Go reads go.mod (and go.work), PHP reads
- *  composer.json, Rust reads Cargo.toml; the lock/sum files are harmless to materialize. */
+ *  composer.json (every one in the repository), C/C++ reads compile_commands.json, Rust
+ *  reads Cargo.toml; the lock/sum files are harmless to materialize. */
 const CONFIG_BASENAMES = new Set([
+  'compile_commands.json',
   'go.mod',
   'go.work',
   'go.sum',
@@ -172,6 +174,14 @@ function loadCaseDoc(id: string, mdPath: string): CaseDoc {
     }
   }
   if (files.length === 0) throw new Error(`reference-case ${id}: ## Files has no path-tagged code blocks`);
+  // The relation language, exactly as the pass decides it: a `.h` beside C++ files is C++.
+  for (const f of files) {
+    const dir = path.posix.dirname(f.path);
+    const siblings = [...files, ...configFiles]
+      .filter((o) => path.posix.dirname(o.path) === dir)
+      .map((o) => path.posix.basename(o.path));
+    f.language = relationLanguageForPath(f.path, () => siblings) ?? f.language;
+  }
 
   // ## Expect — edge lines `file:line -> node:<id>` and/or a bare `silence` line.
   const expectEdges: ExpectEdge[] = [];

@@ -2,7 +2,8 @@ name: Relations Name-Resolution Matrix — C and C++
 type: test-suite
 description: "Exhaustive name-resolution identification matrix for the C and C++
   relation-conformance extractors — every supported #include/reference form that
-  must resolve to a cross-node edge via the canonical relative join, and every
+  must resolve to a cross-node edge via the includer's directory or the include roots
+  (compile database, else the conservative probe), and every
   shape that must stay silent (zero false positives). Catalogue-driven: every
   it('<id>') is a runCase('<id>') over a reference case in reference/relations/cpp/
   (one combined catalogue for both C and C++, which share the include mechanism),
