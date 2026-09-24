@@ -1,7 +1,7 @@
 import { UndeclaredFsReadError } from './ctx-fs.js';
 import { describeExclusionCause } from '../io/repo-scanner.js';
 import { UndeclaredGraphReadError, StructureNodeContextUnavailableError } from './ctx-graph.js';
-import { ParseAstNotPrewarmedError, parseIntoCache } from './ctx-parsers.js';
+import { ParseAstNotPrewarmedError, parseIntoCache, recordGrammarObservation } from './ctx-parsers.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from '../ast/suppress.js';
 import type { SuppressedRange } from '../ast/suppress.js';
@@ -240,11 +240,14 @@ export async function runStructureAspect(
     let ranges: SuppressedRange[] | null;
     try {
       if (cached) {
+        recordGrammarObservation(recorder, filePath);
         ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
       } else {
         const content = sourceFor(filePath);
+        const tree = content !== undefined ? parseIntoCache(astCache, filePath, content) : undefined;
+        if (tree !== undefined) recordGrammarObservation(recorder, filePath);
         ranges = content !== undefined
-          ? collectSuppressions(parseIntoCache(astCache, filePath, content), filePath, content.split('\n').length, content)
+          ? collectSuppressions(tree, filePath, content.split('\n').length, content)
           : null;
       }
     } catch (err) {

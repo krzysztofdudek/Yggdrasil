@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
-import { parseFile, grammarWasmHash } from '../ast/parser.js';
+import { parseFile, grammarDigest } from '../ast/parser.js';
 import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
@@ -406,7 +406,7 @@ export async function runRelationPass(
     if (hit !== undefined) return hit;
     let h: string | null;
     try {
-      h = grammarWasmHash(ext);
+      h = grammarDigest(ext); // grammar wasm + web-tree-sitter runtime: either one changing re-parses
     } catch {
       h = null; // no grammar for this extension → cannot content-address → always parse live
     }

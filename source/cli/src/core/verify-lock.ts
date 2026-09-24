@@ -54,6 +54,7 @@ import {
 } from './pair-hash.js';
 import { computeAllowedNodePaths, rawMappingCandidatePaths } from '../structure/ctx-graph.js';
 import { nodeOwnFilePaths } from '../structure/hook-loader.js';
+import { grammarDigestForLanguage } from '../structure/ctx-parsers.js';
 import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
@@ -841,6 +842,13 @@ async function reObserve(
           ? config[target]
           : undefined;
       return hashConfigObservation(value);
+    }
+    case 'grammar': {
+      // target = a registry language id. The CURRENT grammar + runtime digest of
+      // that language, so a grammar or web-tree-sitter upgrade reproduces a
+      // different hash and the verdict is unverified. A language that no longer
+      // ships folds MISSING_OBSERVATION.
+      return grammarDigestForLanguage(target) ?? MISSING_OBSERVATION;
     }
     /* v8 ignore next 2 -- unknown kind never produced by observationKey() */
     default:

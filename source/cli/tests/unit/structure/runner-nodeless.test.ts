@@ -13,12 +13,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
+import { grammarDigestForLanguage } from '../../../src/ast/parser.js';
 import type { StructureUnit } from '../../../src/structure/runner.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
@@ -64,6 +65,26 @@ describe('deterministic runner — nodeless unit (unit.kind === "file")', () => 
     // hashed separately as a subject input, never double-recorded.
     expect(r.touchedFiles).toEqual(['src/leaf/a.ts']);
     expect(r.observations).toHaveLength(0);
+  });
+
+  it('reads-subject-ast: reading ctx.subject[0].ast records the grammar that built the tree, and only then', async () => {
+    const dir = aspectDir('reads-subject-ast');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'yg-aspect.yaml'), 'name: reads-subject-ast\ndescription: reads the subject tree\nreviewer:\n  type: deterministic\n');
+    writeFileSync(
+      path.join(dir, 'check.mjs'),
+      'export function check(ctx) { const f = ctx.subject[0]; return f.ast && f.ast.rootNode ? [] : [{ message: "no tree", file: f.path }]; }\n',
+    );
+    const r = await runStructureAspect({
+      aspectDir: dir,
+      aspectId: 'reads-subject-ast',
+      unit: fileUnit(['src/leaf/a.ts']),
+      graph: emptyGraph(),
+      projectRoot,
+    });
+    expect(r.succeeded).toBe(true);
+    expect(r.violations).toHaveLength(0);
+    expect(r.observations).toEqual([['grammar:typescript', grammarDigestForLanguage('typescript')]]);
   });
 
   it('reads-permitted-sibling: passes, records the sibling as an observation, and a later edit to it changes that observation', async () => {

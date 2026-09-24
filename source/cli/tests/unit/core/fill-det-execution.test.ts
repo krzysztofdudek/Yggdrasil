@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import {
   mkdtemp, mkdir, writeFile, rm, readFile,
 } from 'node:fs/promises';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -33,6 +33,8 @@ import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 import type { IssueMessage } from '../../../src/model/validation.js';
 import { readLock } from '../../../src/io/lock-store.js';
 import { verifyLock } from '../../../src/core/verify-lock.js';
+import { computeDetInputHash } from '../../../src/core/pair-hash.js';
+import { hashBytes } from '../../../src/io/hash.js';
 import type { LlmProvider } from '../../../src/llm/types.js';
 import type { RunStructureAspectResult } from '../../../src/structure/runner.js';
 
@@ -648,5 +650,84 @@ describe('readBytesOrEmpty', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// =============================================================================
+// The grammar that built a tree the check read is a verdict input (219 m4)
+// =============================================================================
+
+describe('grammar observation — a verdict that read a syntax tree is keyed on the grammar that built it', () => {
+  const READS_AST =
+    'export function check(ctx) { const f = ctx.files[0]; return f.ast && f.ast.rootNode.hasError ? [{ message: "parse error", file: f.path, line: 1 }] : []; }\n';
+  const READS_TEXT =
+    'export function check(ctx) { return ctx.files[0].content.includes("FORBIDDEN") ? [{ message: "forbidden", file: ctx.files[0].path, line: 1 }] : []; }\n';
+
+  // The digest itself (grammar wasm + runtime wasm) is pinned in
+  // tests/unit/ast/parser-wasm-hash.test.ts; here only its presence matters.
+  const grammarObservation = (touched: Array<[string, string]> | undefined) =>
+    touched?.find(([k]) => k === 'grammar:typescript')?.[1];
+
+  async function fill(rule: string) {
+    const { projectRoot } = await setupProject({ aspects: [{ id: 'det-g', kind: 'deterministic', status: 'enforced', rule }] });
+    const graph = await loadGraph(projectRoot);
+    await runFill(graph, { ...IO, coverageVisibleFiles: null, write: () => {} });
+    return { projectRoot, graph, entry: readLock(graph.rootPath).verdicts['det-g']?.['node:svc'] };
+  }
+
+  it('a check that reads `.ast` records grammar:<language> with the grammar + runtime digest', async () => {
+    const { entry } = await fill(READS_AST);
+    expect(entry?.verdict).toBe('approved');
+    expect(grammarObservation(entry?.touched)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('a check that reads only text records no grammar observation (a grammar change leaves it verified)', async () => {
+    const { entry } = await fill(READS_TEXT);
+    expect(entry?.verdict).toBe('approved');
+    expect((entry?.touched ?? []).some(([k]) => k.startsWith('grammar:'))).toBe(false);
+  });
+
+  it('a violation matched against suppress markers records the grammar of the scanned tree even when the check never read `.ast`', async () => {
+    const { entry } = await fill(
+      'export function check(ctx) { return [{ message: "always", file: ctx.files[0].path, line: 1 }]; }\n',
+    );
+    expect(entry?.verdict).toBe('refused');
+    expect(grammarObservation(entry?.touched)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('ctx.parseAst records the grammar of the tree it returns', async () => {
+    const { entry } = await fill(
+      'export function check(ctx) { const t = ctx.parseAst(ctx.files[0], "typescript"); return t ? [] : [{ message: "no tree" }]; }\n',
+    );
+    expect(entry?.verdict).toBe('approved');
+    expect(grammarObservation(entry?.touched)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('a verdict recorded under another grammar build is unverified; the current one stays verified', async () => {
+    const { projectRoot, graph, entry } = await fill(READS_AST);
+    const verify = async () => {
+      const g = await loadGraph(projectRoot);
+      const v = await verifyLock(g, readLock(g.rootPath));
+      return v.pairs.find((p) => p.pair.aspectId === 'det-g' && p.pair.unitKey === 'node:svc')?.state.kind;
+    };
+    expect(await verify()).toBe('verified');
+
+    // Re-record the same verdict as if a different grammar had built the tree:
+    // a self-consistent entry (its hash matches its own inputs) whose grammar
+    // digest is not the one shipping now — what an upgrade leaves behind.
+    const lockPath = path.join(graph.rootPath, '.yg-lock.deterministic.json');
+    const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+    const e = lock.verdicts['det-g']['node:svc'];
+    const touched = (e.touched as Array<[string, string]>).map(([k, h]) => [k, k === 'grammar:typescript' ? 'f'.repeat(64) : h] as [string, string]);
+    e.touched = touched;
+    e.hash = computeDetInputHash({
+      aspectId: 'det-g', scope: undefined, nodePath: 'svc',
+      ruleHash: hashBytes(Buffer.from(READS_AST)),
+      files: [['src/svc.ts', hashBytes(readFileSync(path.join(projectRoot, 'src/svc.ts')))]],
+      touched, verdict: 'approved',
+    });
+    await writeFile(lockPath, JSON.stringify(lock, null, 2));
+    expect(entry).toBeDefined();
+    expect(await verify()).toBe('unverified');
   });
 });

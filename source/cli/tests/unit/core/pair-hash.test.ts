@@ -472,7 +472,7 @@ describe('canonical form for a file enforced by its type alone', () => {
     // key, since the golden file's own load-bearing invariant names only its
     // TWO pre-existing keys, llmInputHash and hashListObservationGolden, as
     // frozen).
-    const EXISTING_DET_HASH = 'a4835a7dd9f9135bcbe2ad8bd63978dd471ab361fb6e7b8b46c47bcef1f8c919';
+    const EXISTING_DET_HASH = 'b62365e5b15b44caa9cacc7ae12d688e0195ea6d312f94363471ffb71a13086a';
     expect(computeDetInputHash({
       aspectId: 'no-direct-fs', scope: undefined, nodePath: 'billing/cancel',
       ruleHash: 'e'.repeat(64), files: [['src/billing/cancel.ts', 'f'.repeat(64)]],
@@ -722,7 +722,7 @@ describe('file-list observations — node-files: and graph-files:', () => {
       ],
       verdict: 'approved',
     });
-    expect(det).toBe('b80ba9861d6bb44b2781de0e7472e6e675634e752bbaba284b52023672b22bc9');
+    expect(det).toBe('5279be9e157bb9735a7cbe67af62f0e9eb6f6a4fc34a39dc9d9be8e20dde64dc');
   });
 
   it('adding the two kinds moved no stored verdict: every pinned fingerprint is unchanged', () => {

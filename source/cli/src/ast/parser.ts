@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { getGrammarForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
+import { createRequire } from 'node:module';
+import { getGrammarForExtension, grammarExtensionForPath, LANGUAGES } from '../utils/language-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +59,50 @@ export function grammarWasmHash(extension: string): string {
   const hash = createHash('sha256').update(readFileSync(wasmPath)).digest('hex');
   wasmHashCache.set(extension, hash);
   return hash;
+}
+
+let runtimeHash: string | undefined;
+
+/**
+ * SHA-256 of the web-tree-sitter runtime's own `.wasm` — the parsing engine
+ * every grammar runs on. Folded into {@link grammarDigest} because a runtime
+ * upgrade can change the trees a grammar produces just as a grammar upgrade can.
+ */
+export function treeSitterRuntimeHash(): string {
+  if (runtimeHash === undefined) {
+    const wasm = createRequire(import.meta.url).resolve('web-tree-sitter/web-tree-sitter.wasm');
+    runtimeHash = createHash('sha256').update(readFileSync(wasm)).digest('hex');
+  }
+  return runtimeHash;
+}
+
+const digestCache = new Map<string, string>();
+
+/**
+ * Identity of the syntax trees a file with `extension` gets: SHA-256 over the
+ * runtime hash and the grammar wasm hash. Two runs with the same digest parse the
+ * same bytes into the same tree, so anything derived from a tree (a relation
+ * fact, a deterministic verdict that read an AST) is keyed on it. Throws like
+ * {@link grammarWasmHash} when no grammar exists for the extension.
+ */
+export function grammarDigest(extension: string): string {
+  const cached = digestCache.get(extension);
+  if (cached !== undefined) return cached;
+  const digest = createHash('sha256')
+    .update(`web-tree-sitter:${treeSitterRuntimeHash()}\ngrammar:${grammarWasmHash(extension)}`)
+    .digest('hex');
+  digestCache.set(extension, digest);
+  return digest;
+}
+
+/**
+ * {@link grammarDigest} of a registry language id, or undefined when the id is
+ * not a registered language (a grammar that stopped shipping).
+ */
+export function grammarDigestForLanguage(languageId: string): string | undefined {
+  const def = Object.hasOwn(LANGUAGES, languageId) ? LANGUAGES[languageId] : undefined;
+  if (!def) return undefined;
+  return grammarDigest(def.extensions[0]);
 }
 
 function init(): Promise<void> {

@@ -148,7 +148,7 @@ describe('review_by never enters any verdict hash (G3)', () => {
     // BREAKING: this constant pins the deterministic-hash ingredient set. If it
     // changes, a hash ingredient changed — a deliberate frozen-contract decision.
     expect(computeDetInputHash(fixed)).toBe(
-      '0778919037b7ff31eb29ccde46db93c2c641a9b779fc09fec48ed0057f4defc6',
+      '12880d3bc18d38ae454287ec21ddf6675fc6ffcdf97729501e7874f21b8979a5',
     );
   });
 
