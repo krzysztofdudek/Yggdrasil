@@ -14,9 +14,9 @@ import type {
 } from '../../src/relations/extractors/types.js';
 
 import { computeTypeGateFindings } from '../../src/relations/type-gate.js';
-import { CACHE_SCHEMA_VERSION, factsKey, writeFacts } from '../../src/relations/facts-cache.js';
+import { CACHE_SCHEMA_VERSION, factsKey, writeFacts, loadFacts } from '../../src/relations/facts-cache.js';
 import { hashString } from '../../src/io/hash.js';
-import { grammarWasmHash } from '../../src/ast/parser.js';
+import { grammarDigest } from '../../src/ast/parser.js';
 import { csharpExtractor } from '../../src/relations/extractors/csharp.js';
 import { ensureLoaderRegistered } from '../../src/ast/loader-hook.js';
 import { isValidFeatureVector, type FeatureVector } from '../../src/relations/feature-vector.js';
@@ -809,7 +809,7 @@ describe('runRelationPass — AST fact cache', () => {
     const cKey = factsKey({
       contentHash: hashString(useSrc),
       language: 'csharp',
-      grammarHash: grammarWasmHash('.cs'),
+      grammarHash: grammarDigest('.cs'),
       rev: csharpExtractor.rev,
     });
     await writeFacts(astCacheDir, 'csharp', cKey, { declarations: [], uses: [], features: FV });
@@ -1410,5 +1410,27 @@ describe('runRelationPass routes a .h header by its directory', () => {
     });
     expect(seen.get('src/cxx/widget.h')).toEqual({ language: 'cpp', hasError: false });
     expect(seen.get('src/plain/api.h')).toEqual({ language: 'c', hasError: false });
+  });
+
+  it('keys each header\'s cached facts on the grammar that parsed it, not on its extension\'s', async () => {
+    const graph = await loadGraph(root);
+    const cacheDir = path.join(root, '.yg-cache');
+    const noop = (lang: string): DependencyExtractor => ({
+      languages: new Set([lang]), rev: 1, declarations: () => [], uses: () => [],
+    });
+    await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'c' || language === 'cpp' ? noop(language) : undefined),
+      resolvePathToFile: () => undefined,
+      symbolIndexDir: cacheDir,
+    });
+    const key = (content: string, language: string, ext: string): string =>
+      factsKey({ contentHash: hashString(content), language, grammarHash: grammarDigest(ext), rev: 1 });
+    const cxxHeader = 'namespace ui { class W final {}; }\n';
+    // The C++-routed header's shard sits under the C++ grammar's digest ...
+    expect(grammarDigest('.cpp')).not.toBe(grammarDigest('.h'));
+    expect(await loadFacts(cacheDir, 'cpp', key(cxxHeader, 'cpp', '.cpp'))).not.toBeNull();
+    expect(await loadFacts(cacheDir, 'cpp', key(cxxHeader, 'cpp', '.h'))).toBeNull();
+    // ... and a plain C header's under the C grammar's.
+    expect(await loadFacts(cacheDir, 'c', key('int api(void);\n', 'c', '.h'))).not.toBeNull();
   });
 });

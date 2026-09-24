@@ -3,10 +3,10 @@ import * as path from 'node:path';
 import { extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parse as parseTomlSmol } from 'smol-toml';
-import { parseFile as parseAstFile, loadedParserFor } from '../ast/parser.js';
+import { parseFile as parseAstFile, loadedParserFor, grammarDigestForLanguage } from '../ast/parser.js';
 import type { ParseCache } from '../ast/parse-cache.js';
 import type { Tree } from 'web-tree-sitter';
-import { getLanguageForExtension } from '../utils/language-registry.js';
+import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';
 import type { File } from './types.js';
 import type { ObservationRecorder } from './observations.js';
@@ -102,10 +102,16 @@ export function createCtxParsers(params: CtxParsersParams): CtxParsers {
       void language;
       const f = asFile(file);
       const cached = astCache.get(f.path);
-      if (cached && cached.content === f.content) return cached.ast;
+      if (cached && cached.content === f.content) {
+        recordGrammarObservation(recorder, f.path);
+        return cached.ast;
+      }
       if (astEligible?.has(f.path)) {
         const ast = parseIntoCache(astCache, f.path, f.content);
-        if (ast !== undefined) return ast;
+        if (ast !== undefined) {
+          recordGrammarObservation(recorder, f.path);
+          return ast;
+        }
       }
       throw new ParseAstNotPrewarmedError(f.path);
     },
@@ -129,6 +135,23 @@ export async function prewarmupAstCache(params: {
     const tree = await parseAstFile(f.path, f.content);
     astCache.set(f.path, { content: f.content, ast: tree });
   }
+}
+
+/**
+ * Fold the grammar that parses `filePath` into the run's observations: called
+ * wherever a syntax tree reaches the check or its suppression scan, so the
+ * verdict is keyed on the grammar and runtime that built the tree (see the
+ * `grammar` observation kind in core/pair-hash.ts). A file with no registered
+ * grammar, or no recorder, records nothing.
+ */
+export { grammarDigestForLanguage };
+
+export function recordGrammarObservation(recorder: ObservationRecorder | undefined, filePath: string): void {
+  if (!recorder) return;
+  const languageId = getLanguageForExtension(grammarExtensionForPath(filePath));
+  if (languageId === null) return;
+  const digest = grammarDigestForLanguage(languageId);
+  if (digest !== undefined) recorder.recordGrammar(languageId, digest);
 }
 
 /**
@@ -166,6 +189,7 @@ export function lazyAstFile(
   readContent: () => string,
   astCache: ParseCache,
   onContentAccess?: () => void,
+  onAstAccess?: () => void,
 ): File {
   const language = getLanguageForExtension(extname(filePath)) ?? undefined;
   const file = { path: filePath, language } as File;
@@ -182,7 +206,9 @@ export function lazyAstFile(
     configurable: true,
     get(): unknown {
       onContentAccess?.();
-      return parseIntoCache(astCache, filePath, readContent());
+      const ast = parseIntoCache(astCache, filePath, readContent());
+      if (ast !== undefined) onAstAccess?.();
+      return ast;
     },
   });
   return file;

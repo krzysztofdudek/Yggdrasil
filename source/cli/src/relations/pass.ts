@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 
 import type { Graph } from '../model/graph.js';
-import { parseFile, grammarWasmHash } from '../ast/parser.js';
+import { parseFile, grammarDigest } from '../ast/parser.js';
 import { relationLanguageForPath, primaryExtensionForLanguage, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
@@ -416,7 +416,7 @@ export async function runRelationPass(
   // Eager per-extension grammar wasm hash, memoized once per extension present in the run,
   // BEFORE any cache lookup. Critical: on an all-hit run the parser is never invoked, so a
   // lazily-derived grammar hash would never be produced and a grammar upgrade would go
-  // unnoticed (every file would stay a stale hit). `grammarWasmHash` itself memoizes per
+  // unnoticed (every file would stay a stale hit). `grammarDigest` itself memoizes per
   // extension; this local map only caches the (extension → hash | null) lookup so a file whose
   // extension has no grammar is recorded as `null` (→ uncacheable, always parsed live).
   const grammarHashByExt = new Map<string, string | null>();
@@ -425,7 +425,7 @@ export async function runRelationPass(
     if (hit !== undefined) return hit;
     let h: string | null;
     try {
-      h = grammarWasmHash(ext);
+      h = grammarDigest(ext); // grammar wasm + web-tree-sitter runtime: either one changing re-parses
     } catch {
       h = null; // no grammar for this extension → cannot content-address → always parse live
     }

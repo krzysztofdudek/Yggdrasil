@@ -248,6 +248,9 @@ graph-flow:<flow>      → sha256 of the sorted participant node-id list of <flo
 node-files:<node>      → sha256 of the sorted path list ctx.node.files was built from
 graph-files:<node>     → sha256 of the sorted path list .files of <node>, reached
                          through ctx.graph, was built from
+grammar:<language>     → sha256 of the grammar wasm and the web-tree-sitter runtime
+                         that built a syntax tree the check (or its yg-suppress
+                         scan) read — a grammar upgrade re-opens exactly those
 \`\`\`
 
 Observation-completeness is load-bearing: a deterministic verdict is reusable

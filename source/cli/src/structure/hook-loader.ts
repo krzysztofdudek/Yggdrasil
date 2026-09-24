@@ -7,7 +7,7 @@ import {
   createCtxGraph, createNodelessCtxGraph, UndeclaredGraphReadError, StructureNodeContextUnavailableError,
   computeAllowedNodePaths, recordNodeGraphObservation,
 } from './ctx-graph.js';
-import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, lazyAstFile, ParseAstNotPrewarmedError } from './ctx-parsers.js';
+import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, lazyAstFile, ParseAstNotPrewarmedError, recordGrammarObservation } from './ctx-parsers.js';
 import { loadGrammarsFor } from '../ast/parser.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
@@ -145,7 +145,7 @@ function buildOwnFiles(params: {
         continue; // unreadable — skip
       }
       loadedContent.set(key, content);
-      files.push(lazyAstFile(p, () => content, astCache));
+      files.push(lazyAstFile(p, () => content, astCache, undefined, () => recordGrammarObservation(recorder, p)));
       touchedFiles.push(p);
       continue;
     }
@@ -178,7 +178,7 @@ function buildOwnFiles(params: {
       }
       return served;
     };
-    files.push(lazyAstFile(p, readContent, astCache));
+    files.push(lazyAstFile(p, readContent, astCache, undefined, () => recordGrammarObservation(recorder, p)));
     touchedFiles.push(p);
   }
   return { files, loadedContent };
@@ -604,7 +604,21 @@ async function buildNodelessUnitCtx(params: {
   // Eagerly parse the subject file so ctx.subject carries .ast + .language
   // (AST-aspect parity) — exactly as the whole-node path does for ctx.files.
   await prewarmupAstCache({ astCache, projectRoot, files: ownFiles });
-  const ownFilesEnriched = enrichFilesWithAst(ownFiles, astCache);
+  // The subject's tree is parsed eagerly, but its grammar is observed only when
+  // the check reads `.ast`: a text-only check keeps an empty observation set.
+  const ownFilesEnriched = enrichFilesWithAst(ownFiles, astCache).map((f) => {
+    if (f.ast === undefined) return f;
+    const tree = f.ast;
+    Object.defineProperty(f, 'ast', {
+      enumerable: true,
+      configurable: true,
+      get(): unknown {
+        recordGrammarObservation(recorder, f.path);
+        return tree;
+      },
+    });
+    return f;
+  });
 
   const ctxNode = new Proxy({} as Ctx['node'], {
     get(_target, prop): never {

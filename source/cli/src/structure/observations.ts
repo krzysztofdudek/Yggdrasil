@@ -140,6 +140,17 @@ export class ObservationRecorder {
   }
 
   /**
+   * Record a grammar observation: the check was handed (or its suppression scan
+   * used) a syntax tree built by the grammar of `languageId`. `digest` is the
+   * grammar + runtime identity (ast/parser.ts grammarDigest), so a grammar or a
+   * web-tree-sitter upgrade sends exactly the verdicts that read a tree of that
+   * language back for re-judging, and none that never parsed.
+   */
+  recordGrammar(languageId: string, digest: string): void {
+    this._record(observationKey('grammar', languageId), digest);
+  }
+
+  /**
    * Returns a sorted, deduplicated array of [observationKey, observationHash] pairs.
    * Re-observing the same key with a different hash sets `tainted = true` and keeps
    * the first hash (first-observation-wins).

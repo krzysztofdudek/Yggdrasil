@@ -51,7 +51,7 @@ exit: 1
       "status": "enforced",
       "verdict": "stale",
       "reviewer": "deterministic",
-      "hash": "c4f63bf87c4c23101b5ad7cc7fc4cc10afd707a752289da2c29e761947acf36a",
+      "hash": "a1356e529249b4ba919373d75f7eaebc5c616df9aa2de53d6a2ae73403cc30b1",
       "filled": null
     },
     {
@@ -65,7 +65,7 @@ exit: 1
       "status": "enforced",
       "verdict": "refused",
       "reviewer": "deterministic",
-      "hash": "c3354a7f0416e257dfa663eedd1694fa740e37189d0ac56e4c960cdcad284e0e",
+      "hash": "ba136c1ecde2a95ed2ee82218e00d193d4279c6ef6f2a99a715b880d77c8845c",
       "filled": null,
       "report": "src/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker."
     },
@@ -80,7 +80,7 @@ exit: 1
       "status": "enforced",
       "verdict": "approved",
       "reviewer": "deterministic",
-      "hash": "228511da2fbc849a3af5b55011189d6100c44932e6c2fd37c49cb75a434cae66",
+      "hash": "7330e65b47e0ccd8714a23bbc484fab20f51fee745babd0d3f3b898058212f48",
       "filled": null
     }
   ],

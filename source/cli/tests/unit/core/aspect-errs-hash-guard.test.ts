@@ -80,7 +80,7 @@ describe('errs never enters the deterministic verdict hash (G3)', () => {
     // BREAKING: this constant pins the deterministic-hash ingredient set. If it
     // changes, a hash ingredient changed — a deliberate frozen-contract decision.
     expect(computeDetInputHash(fixed)).toBe(
-      '420d564241b00f709f3bf81932f8484cfb5bc823366214e41cb3269c18ba35d7',
+      '7d5e859b73bab9af43432c69bbbf87c93c4495715bc8c3109f8f9f2f28593358',
     );
   });
 });

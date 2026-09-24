@@ -9,6 +9,7 @@ description: "Unit tests for the structure-aspect runner and the allowed-reads
 aspects: []
 relations:
   [
+    { target: cli/ast/runtime, type: uses },
     { target: cli/structure, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
     { target: cli/tests/fixtures, type: uses },

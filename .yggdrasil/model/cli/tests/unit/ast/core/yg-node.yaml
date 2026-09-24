@@ -11,6 +11,7 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/ast/find-comments.test.ts
+  - source/cli/tests/unit/ast/grammar-pins.test.ts
   - source/cli/tests/unit/ast/grammar-registry-loads.test.ts
   - source/cli/tests/unit/ast/index-exports.test.ts
   - source/cli/tests/unit/ast/parser.test.ts

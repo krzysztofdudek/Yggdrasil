@@ -208,7 +208,17 @@ export function computeLlmInputHash(input: LlmHashInput): string {
  * Hash = sha256(codePointCanonicalJson(canonical_object)) where canonical_object
  * includes a 'kind: "deterministic"' discriminator so deterministic and LLM pairs
  * can never collide even if all other fields match.
+ *
+ * `contract: 2` marks deterministic verdicts recorded since checks began
+ * observing the grammar of every syntax tree they read (the `grammar:`
+ * observation). A verdict recorded before could have read a tree from a grammar
+ * that no longer ships and carries no observation that would notice, so the
+ * marker re-opens every older deterministic verdict once. That costs one free,
+ * keyless `yg check --approve --only-deterministic` (the deterministic lock is a
+ * local cache); LLM hashes are untouched.
  */
+export const DET_HASH_CONTRACT = 2;
+
 export function computeDetInputHash(input: DetHashInput): string {
   const common = buildCommonCanonical(input);
 
@@ -220,6 +230,7 @@ export function computeDetInputHash(input: DetHashInput): string {
 
   const canonical: Record<string, unknown> = {
     ...common,
+    contract: DET_HASH_CONTRACT,
     kind: 'deterministic',
     touched,
   };
@@ -264,13 +275,20 @@ export function computeDetInputHash(input: DetHashInput): string {
  * would record two values in a check that reads both. Like `config`, they move
  * no stored verdict: an entry written before them carries neither prefix.
  *
+ * `grammar` (target: a registry language id) was added so a verdict that read a
+ * syntax tree is keyed on the grammar and runtime that built it: the value is
+ * ast/parser.ts grammarDigest (grammar wasm + web-tree-sitter wasm). Recorded when
+ * a check is handed a tree (a file's `.ast`, ctx.parseAst, the nodeless subject)
+ * or when its suppression scan reads one, so a grammar upgrade re-opens those
+ * verdicts and no others.
+ *
  * Key encoding is part of the frozen contract — changing it changes all
  * deterministic hashes that include observations.
  */
 export function observationKey(
   kind:
     | 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow' | 'config'
-    | 'node-files' | 'graph-files',
+    | 'node-files' | 'graph-files' | 'grammar',
   target: string,
 ): string {
   return `${kind}:${target}`;

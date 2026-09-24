@@ -12,13 +12,25 @@ updates:
     # patches, a single breaking upgrade holds every harmless one hostage behind
     # a red build until somebody finds time for the migration; on its own it can
     # wait for that time without blocking anything.
+    #
+    # The tree-sitter grammars and the web-tree-sitter runtime are excluded from
+    # both groups, so each arrives as a PR of its own. They are all 0.x, where a
+    # "minor" (0.25 -> 0.26) is the breaking release: node types get renamed or
+    # restructured, the parser ABI moves. Such a PR's build fails until the
+    # grammar's pin in source/cli/src/utils/language-registry.ts (version,
+    # commit, sha256 of the wasm and node-types.json) is updated, which is where
+    # the node-types diff and the full relation/AST suite get reviewed. Grammars
+    # the build takes from a GitHub release or a pinned commit are not npm
+    # packages, so dependabot never sees them; they are bumped by hand the same way.
     groups:
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
+        exclude-patterns: ["tree-sitter-*", "web-tree-sitter"]
       production-dependencies:
         dependency-type: production
         update-types: [minor, patch]
+        exclude-patterns: ["tree-sitter-*", "web-tree-sitter"]
 
   - package-ecosystem: npm
     directory: /docs
