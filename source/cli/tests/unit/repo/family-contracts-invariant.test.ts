@@ -4,18 +4,18 @@
 // The bug class: `docs/family-contracts.md` is the ONE place that says which
 // machine documents this family exchanges, what each one's schema id is, who
 // writes it and who reads it. A register nobody checks is a register that is
-// wrong — a new `*_JSON_SCHEMA` constant lands in `src/formatters/` and the page
+// wrong — a new `*_JSON_SCHEMA` constant lands in `src/formatters/` (or a command file under `src/cli/`) and the page
 // never hears about it, or a document is retired from the code and its row sits
 // on the page forever. Either way a consumer in another repository reads the
 // page, believes it, and breaks against a shape that is no longer there.
 //
 // INVARIANT (both directions — this is what makes the page law rather than
 // commentary; a one-way assertion lets a ghost row live indefinitely):
-//   (→) Every `*_JSON_SCHEMA` constant declared in `source/cli/src/formatters/`
+//   (→) Every `*_JSON_SCHEMA` constant declared in `source/cli/src/formatters/` or `source/cli/src/cli/`
 //       appears on the page as a WHOLE word.
 //   (←) Every `yg-<name>/<n>`-shaped id on the page is either one of those
 //       constants OR is on the explicit whitelist below — documents produced
-//       somewhere other than `src/formatters/`, each named with its producer.
+//       somewhere other than those two directories, each named with its producer.
 //
 // It also pins the page's SHAPE, because the two halves above are only as good
 // as the table they read: exactly one six-column table, no empty cell, no
@@ -54,6 +54,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..');
 
 const FORMATTERS_DIR = path.join(REPO_ROOT, 'source', 'cli', 'src', 'formatters');
+// A command that owns its whole document declares the schema constant in its
+// own command file (yg tree, owner, find, log read; the yg-error/1 document in
+// the output layer), so both directories are read.
+const CLI_DIR = path.join(REPO_ROOT, 'source', 'cli', 'src', 'cli');
+const SCHEMA_DIRS: ReadonlyArray<{ dir: string; rel: string }> = [
+  { dir: FORMATTERS_DIR, rel: 'src/formatters' },
+  { dir: CLI_DIR, rel: 'src/cli' },
+];
 const DOCS_DIR = path.join(REPO_ROOT, 'docs');
 const PAGE_REL = 'docs/family-contracts.md';
 const PAGE_PATH = path.join(REPO_ROOT, PAGE_REL);
@@ -61,17 +69,17 @@ const SIDEBAR_PATH = path.join(REPO_ROOT, 'docs', '.vitepress', 'config.ts');
 const DOC_NODE_PATH = path.join(REPO_ROOT, '.yggdrasil', 'model', 'docs', 'guides', 'yg-node.yaml');
 
 /**
- * The lower bound on how many schema constants `src/formatters/` declares. It is
+ * The lower bound on how many schema constants `src/formatters/` and `src/cli/` declare. It is
  * NOT a count of today's constants (that would have to be edited on every
  * addition) — it is the tripwire for a regex that has stopped matching. A regex
  * silently returning the empty set makes every containment assertion below pass
  * vacuously, which is the quietest way this guard could fail.
  */
-const MIN_CONSTANTS = 8;
+const MIN_CONSTANTS = 12;
 
 /**
  * Schema ids that are legitimately on the page but are NOT `*_JSON_SCHEMA`
- * constants under `src/formatters/`. Every entry names who produces it, because
+ * constants under `src/formatters/` or `src/cli/`. Every entry names who produces it, because
  * an unexplained whitelist entry is how a ghost row gets laundered into a
  * legitimate one.
  *
@@ -226,11 +234,13 @@ const formatterFiles = readdirSync(FORMATTERS_DIR)
   .filter((f) => f.endsWith('.ts'))
   .sort();
 
-/** id → the formatter file it is declared in, for failure messages. */
+/** id → the source file it is declared in, for failure messages. */
 const CONSTANTS = new Map<string, string>();
-for (const file of formatterFiles) {
-  const text = readFileSync(path.join(FORMATTERS_DIR, file), 'utf-8');
-  for (const id of extractSchemaConstants(text)) CONSTANTS.set(id, `src/formatters/${file}`);
+for (const { dir, rel } of SCHEMA_DIRS) {
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.ts')).sort()) {
+    const text = readFileSync(path.join(dir, file), 'utf-8');
+    for (const id of extractSchemaConstants(text)) CONSTANTS.set(id, `${rel}/${file}`);
+  }
 }
 
 const PAGE = existsSync(PAGE_PATH) ? readFileSync(PAGE_PATH, 'utf-8') : '';
@@ -241,14 +251,14 @@ describe('GUARD 4 — docs/family-contracts.md and the code agree', () => {
   });
 
   // 1 — the constant set itself.
-  it('collects the schema constants by reading src/formatters/ as text', () => {
+  it('collects the schema constants by reading src/formatters/ and src/cli/ as text', () => {
     expect(
       formatterFiles.length,
       `no .ts files under ${FORMATTERS_DIR} — the directory moved and this guard is reading nothing`,
     ).toBeGreaterThan(0);
     expect(
       CONSTANTS.size,
-      `found ${CONSTANTS.size} *_JSON_SCHEMA constants under src/formatters/, expected at least ${MIN_CONSTANTS}. ` +
+      `found ${CONSTANTS.size} *_JSON_SCHEMA constants under src/formatters/ and src/cli/, expected at least ${MIN_CONSTANTS}. ` +
         'Either documents were removed, or the extraction regex has stopped matching and every assertion ' +
         'below is now passing vacuously.',
     ).toBeGreaterThanOrEqual(MIN_CONSTANTS);
@@ -272,7 +282,7 @@ describe('GUARD 4 — docs/family-contracts.md and the code agree', () => {
     const ghosts = idsOnPage(PAGE).filter((id) => !CONSTANTS.has(id) && !whitelisted.has(id));
     expect(
       ghosts,
-      `${PAGE_REL} names ${ghosts.join(', ')}, which no *_JSON_SCHEMA constant under src/formatters/ declares. ` +
+      `${PAGE_REL} names ${ghosts.join(', ')}, which no *_JSON_SCHEMA constant under src/formatters/ or src/cli/ declares. ` +
         'Either the document was retired (drop the row — the page must not outlive the code) or it is produced ' +
         'outside this repository, in which case add it to NON_FORMATTER_IDS in this test with its producer.',
     ).toEqual([]);

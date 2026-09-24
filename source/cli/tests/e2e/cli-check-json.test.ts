@@ -457,12 +457,17 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
     }
   });
 
-  it('8b: --health is refused with --json rather than folded into the same schema', () => {
+  it('8b: --health --json is its own document (yg-aspects-health/1), never folded into yg-aspects/1', () => {
     const dir = copyFixture('health');
     try {
       const result = run(['aspects', '--json', '--health'], dir);
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain('--health cannot be combined with --json.');
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.schema).toBe('yg-aspects-health/1');
+      expect(doc.aspects).toBeUndefined();
+      expect(Array.isArray(doc.rules)).toBe(true);
+      // The inventory keeps its schema and its meaning.
+      expect(JSON.parse(run(['aspects', '--json'], dir).stdout).schema).toBe('yg-aspects/1');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

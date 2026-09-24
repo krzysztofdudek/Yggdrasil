@@ -145,11 +145,11 @@ export function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): vo
 // ── Errors ─────────────────────────────────────────────────
 
 /** Schema id of the machine form of a command error. */
-export const ERROR_SCHEMA = 'yg-error/1';
+export const ERROR_JSON_SCHEMA = 'yg-error/1';
 
 /** The machine form of a command error. */
 export interface ErrorDocument {
-  schema: typeof ERROR_SCHEMA;
+  schema: typeof ERROR_JSON_SCHEMA;
   code: string;
   what: string;
   why: string;
@@ -181,7 +181,7 @@ export function isJsonOutput(): boolean {
 export function errorDocument(d: Diagnostic): ErrorDocument {
   const msg = toIssueMessage(d);
   return {
-    schema: ERROR_SCHEMA,
+    schema: ERROR_JSON_SCHEMA,
     code: d.code,
     what: msg.what,
     why: msg.why,

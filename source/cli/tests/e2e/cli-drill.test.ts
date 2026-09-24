@@ -255,6 +255,47 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
     }
   });
 
+  it('(6) --json: one yg-drill/1 document — counts, per-case results, the corpus — and the same exit codes', () => {
+    const dir = copyFixture('json');
+    try {
+      writeCase(dir, 'no-todo-comments', 'violates-todo/bad.ts', '// TODO: unfinished secret business logic here\nexport const x = 1;\n');
+      writeCase(dir, 'no-todo-comments', 'violates-todo/also-bad.ts', '// nothing to catch here\nexport const z = 3;\n');
+      writeCase(dir, 'no-todo-comments', 'satisfies-clean/good.ts', '// all clean\nexport const y = 2;\n');
+
+      const r = run(['drill', '--aspect', 'no-todo-comments', '--json'], dir);
+      expect(r.status).toBe(1); // one MISS, exactly as the text form exits
+      const doc = JSON.parse(r.stdout);
+      expect(doc.schema).toBe('yg-drill/1');
+      expect(doc.aspect).toBe('no-todo-comments');
+      expect(doc.corpus).toEqual({ label: 'dev', source: 'dev', path: '.yggdrasil/aspects/no-todo-comments/drills/' });
+      expect(doc.counts).toEqual({ pass: 2, miss: 1, falseAlarm: 0, unrun: 0, unsupported: 0 });
+      expect(doc.total).toBe(3);
+      expect(doc.exitCode).toBe(1);
+      expect(doc.cases.map((c: { case: string; outcome: string }) => [c.case, c.outcome])).toEqual([
+        ['satisfies-clean/good', 'pass'],
+        ['violates-todo/also-bad', 'miss'],
+        ['violates-todo/bad', 'pass'],
+      ]);
+      expect(doc.cases[1]).toMatchObject({ expect: 'refused', got: 'satisfied', kind: 'deterministic', tier: null, votes: null });
+      // The honesty frame holds in the document too: labels and hashes, never source.
+      expect(r.stdout).not.toContain('secret business logic');
+      // The sidecar is written the same way as a text run.
+      expect(jsonlLines(drillResultsPath(dir))).toHaveLength(3);
+
+      // An empty corpus is a document with nothing in it, exit 0 — never a pass by omission.
+      const empty = run(['drill', '--aspect', 'requires-named-export', '--json'], dir);
+      expect(empty.status).toBe(0);
+      expect(JSON.parse(empty.stdout)).toMatchObject({ schema: 'yg-drill/1', total: 0, cases: [], counts: { pass: 0, miss: 0, falseAlarm: 0, unrun: 0, unsupported: 0 } });
+
+      // A refused invocation answers yg-error/1 on stdout.
+      const unknown = run(['drill', '--aspect', 'no-such-aspect', '--json'], dir);
+      expect(unknown.status).toBe(1);
+      expect(JSON.parse(unknown.stdout).schema).toBe('yg-error/1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('(5) unknown aspect → what/why/next error, exit 1', () => {
     const dir = copyFixture('unknown');
     try {

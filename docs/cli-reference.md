@@ -1105,13 +1105,30 @@ ancestor's type) / `port` / `implied` (reached only through another rule's
 `implies`), plus `typeCovered` — `--reach` below names the channel per subject)
 and how many cases sit in its drill corpus. The
 corpus is counted, never run. `--health` is a different and far more expensive
-projection and is refused together with `--json`. Each rule also carries the last
+projection with its own document: `yg aspects --health --json` prints
+`yg-aspects-health/1` (below), never folded into this one. Each rule also carries the last
 thing its own log recorded — when, and what it said about where the rule stands —
 so a reader of the document does not have to open files.
 
 ```bash
 yg aspects --json
 yg aspects --json --reach   # add the units behind the usage counts
+```
+
+`yg aspects --health --json` prints the health view as one `yg-aspects-health/1`
+document: `rules`, one per rule sorted by id, each with `aspect`, `kind`, `status`,
+`nodes`, `files` (`null` while `coverage.type_level` is off), `pairs`, `refused`
+(refusals that still hold), `unverified` (pairs with no valid verdict — never
+counted as clean), `suppresses`, `errs`, `age`, `catch`, `exposure`, `signal`
+(`active`, `quiet`, `decorative?`), `reading` (the plain-words sentence the table
+prints under "Signal detail" for that rule, or `null`), `falseBlocks` (`count`,
+`blocks`, `thinData`, `reading`, or `null` when the rule has blocked nothing) and
+`wrongRuleIncidents`; then `wildcardMarkers` and `telemetry` (the window the
+counts come from, or `null`). A rule never judged has `catch`, `exposure` and
+`signal` all `null`, never `0`. `--reach` is refused with `--health`.
+
+```bash
+yg aspects --health --json
 ```
 
 `--reach` adds a `reach.units` array to every rule: each subject it actually
@@ -1554,6 +1571,7 @@ yg drill --aspect no-direct-minimatch              # the in-repo corpus
 yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 yg drill --aspect no-direct-minimatch --dir ../holdout --corpus holdout-v1
 yg drill --aspect has-doc-comment --dir ../holdout-nodeless --nodeless --corpus nodeless-v1
+yg drill --aspect no-direct-minimatch --json       # one yg-drill/1 document
 ```
 
 Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
@@ -1562,6 +1580,14 @@ a check error or an over-limit prompt), or `unsupported` (the rule needs context
 a single-file drill cannot supply). Deterministic drills run locally and free; an
 LLM aspect goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
+
+`--json` prints one `yg-drill/1` document instead of the case lines: `aspect`,
+`corpus` (`label`, `source` — `dev` or `holdout` — and `path`), `counts` (`pass`,
+`miss`, `falseAlarm`, `unrun`, `unsupported`), `total`, `cases` (each with `case`,
+`expect`, `got`, `outcome`, `kind`, `caseHash`, `ruleHash`, `tier`, `votes`,
+`detail`) and `exitCode`, the same exit code the command ends with. An empty
+corpus is a document with `total: 0`, exit `0`. The reviewer budget line goes to
+stderr, and the sidecars are written as in a text run.
 
 `--nodeless` assembles every LLM case's prompt WITHOUT a node — the shape a
 real file enforced by its architecture type alone (no owning component)

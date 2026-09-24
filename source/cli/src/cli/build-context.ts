@@ -654,7 +654,7 @@ export function registerBuildCommand(program: Command): void {
             what: `Node '${toPosixPath(notFound[1])}' does not exist in the graph.`,
             why: `The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.`,
             next: `Browse the graph with 'yg tree', or locate one with 'yg find "<keywords>"', then retry with a valid --node path.`,
-          });
+          }, 'node-not-found');
           process.exit(1);
         }
         // A --file path that resolves outside the repository is USER input, not an

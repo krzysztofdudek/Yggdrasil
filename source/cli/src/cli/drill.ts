@@ -24,6 +24,7 @@ import {
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
 import { fail } from './output.js';
+import { formatDrillJson, DRILL_JSON_SCHEMA, type DrillJsonDocument } from '../formatters/drill-json.js';
 
 /**
  * `yg drill` — re-run an aspect's REAL reviewer over its per-aspect corpus of
@@ -56,8 +57,10 @@ export function registerDrillCommand(program: Command): void {
       'assemble every LLM case without a node — the prompt shape a file enforced by its ' +
       'architecture type alone, with no owning component, receives from the real reviewer',
     )
+    .option('--json', `Machine-readable output: one ${DRILL_JSON_SCHEMA} document on stdout (counts, per-case results, the corpus) instead of the case lines. Same exit codes.`)
     .action(async (opts) => {
       const projectRoot = process.cwd();
+      const json = opts.json === true;
       try {
         const graph = await loadGraphOrAbort(projectRoot);
 
@@ -104,8 +107,14 @@ export function registerDrillCommand(program: Command): void {
           corpusLabel: typeof opts.corpus === 'string' ? opts.corpus : undefined,
         });
 
+        const where = typeof opts.dir === 'string' ? opts.dir : `.yggdrasil/aspects/${aspect.id}/drills/`;
         if (cases.length === 0) {
-          const where = typeof opts.dir === 'string' ? opts.dir : `.yggdrasil/aspects/${aspect.id}/drills/`;
+          if (json) {
+            const src: 'dev' | 'holdout' = typeof opts.dir === 'string' ? 'holdout' : 'dev';
+            const label = typeof opts.corpus === 'string' ? opts.corpus : src === 'holdout' ? path.basename(path.resolve(projectRoot, where)) : 'dev';
+            process.stdout.write(formatDrillJson(drillDocument(aspect.id, { label, source: src, path: where }, [], new Map(), 0)));
+            return;
+          }
           const filter = typeof opts.case === 'string' ? ` matching '${opts.case}'` : '';
           process.stdout.write(
             `yg drill '${aspect.id}': no ${typeof opts.dir === 'string' ? 'holdout ' : ''}case corpus found under ${where}${filter} — nothing to run. Drills are regression fixtures, not a build gate.\n`,
@@ -113,7 +122,17 @@ export function registerDrillCommand(program: Command): void {
           return;
         }
 
-        const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true);
+        // Under --json the case lines are not printed: each result is kept (with
+        // the runner's detail line) for the document, and the reviewer budget
+        // line, which is a notice rather than a result, goes to stderr.
+        const details = new Map<DrillResult, string>();
+        const sink: DrillSink | undefined = json
+          ? {
+              budget: (line) => process.stderr.write(line + '\n'),
+              caseResult: (result, detail) => { if (detail !== undefined) details.set(result, detail); },
+            }
+          : undefined;
+        const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true, sink);
         if (!setup.ok) {
           fail(setup.error);
           process.exit(1);
@@ -125,7 +144,11 @@ export function registerDrillCommand(program: Command): void {
 
         const src = cases[0].src;
         const corpus = cases[0].corpus;
-        process.stdout.write(drillSummaryFooter(aspect.id, summary.counts, corpus, src) + '\n');
+        if (json) {
+          process.stdout.write(formatDrillJson(drillDocument(aspect.id, { label: corpus, source: src, path: where }, summary.results, details, summary.exitCode)));
+        } else {
+          process.stdout.write(drillSummaryFooter(aspect.id, summary.counts, corpus, src) + '\n');
+        }
 
         if (summary.exitCode !== 0) await exitAfterFlush(summary.exitCode);
       } catch (e: unknown) {
@@ -146,6 +169,63 @@ export function registerDrillCommand(program: Command): void {
   // wiring is handed in rather than imported back from here, so the two
   // command files depend on each other in one direction only.
   registerDrillAddCommand(drill, buildDrillRun);
+}
+
+// ============================================================
+// The machine form
+// ============================================================
+
+/**
+ * Where a drill run's per-case output goes. The text form prints each result
+ * as it lands; the JSON form keeps them for the one document it prints at the
+ * end. The sidecar and telemetry lines are written either way.
+ */
+export interface DrillSink {
+  budget(line: string): void;
+  caseResult(result: DrillResult, detail: string | undefined): void;
+}
+
+const TEXT_SINK: DrillSink = {
+  budget: (line) => process.stdout.write(line + '\n'),
+  caseResult: (result, detail) => {
+    renderCaseResult(result);
+    if (detail !== undefined) process.stdout.write(`    ${detail}\n`);
+  },
+};
+
+/** The yg-drill/1 document for one run. */
+export function drillDocument(
+  aspectId: string,
+  corpus: DrillJsonDocument['corpus'],
+  results: readonly DrillResult[],
+  details: ReadonlyMap<DrillResult, string>,
+  exitCode: 0 | 1 | 2,
+): DrillJsonDocument {
+  const counts = { pass: 0, miss: 0, falseAlarm: 0, unrun: 0, unsupported: 0 };
+  for (const r of results) {
+    if (r.outcome === 'false-alarm') counts.falseAlarm++;
+    else counts[r.outcome]++;
+  }
+  return {
+    schema: DRILL_JSON_SCHEMA,
+    aspect: aspectId,
+    corpus,
+    counts,
+    total: results.length,
+    cases: results.map((r) => ({
+      case: r.case.caseLabel,
+      expect: r.case.expect,
+      got: r.got,
+      outcome: r.outcome,
+      kind: r.kind,
+      caseHash: r.caseHash,
+      ruleHash: r.ruleHash,
+      tier: r.tier ?? null,
+      votes: r.votes ?? null,
+      detail: details.get(r) ?? null,
+    })),
+    exitCode,
+  };
 }
 
 // ============================================================
@@ -305,6 +385,7 @@ export async function buildDrillRun(
   aspect: AspectDef,
   projectRoot: string,
   nodeless: boolean,
+  sink: DrillSink = TEXT_SINK,
 ): Promise<DrillRunSetup> {
   // Deterministic aspects never review, so their consensus/tier/limit are
   // placeholders; LLM aspects resolve the real tier.
@@ -368,10 +449,9 @@ export async function buildDrillRun(
         votes: { satisfied: votes.filter((v) => v.satisfied).length, total: votes.length },
       };
     },
-    onBudget: (line) => process.stdout.write(line + '\n'),
+    onBudget: (line) => sink.budget(line),
     onCaseResult: (result, detail) => {
-      renderCaseResult(result);
-      if (detail !== undefined) process.stdout.write(`    ${detail}\n`);
+      sink.caseResult(result, detail);
       const ts = new Date().toISOString();
       appendDrillResult(yggRoot, toResultLine(result, ts));
       const event = toVerdictEvent(result, ts, judge);

@@ -90,6 +90,16 @@ describe.skipIf(!existsSync(BIN_PATH))('read commands in JSON, errors as yg-erro
     }
   });
 
+  it('yg context --node <missing> --json answers yg-error/1 with code node-not-found, like yg node and yg impact', () => {
+    const r = run(['context', '--node', 'nope', '--json'], dir);
+    expect(r.status).toBe(1);
+    const doc = JSON.parse(r.stdout);
+    expect(doc).toMatchObject({ schema: 'yg-error/1', code: 'node-not-found' });
+    expect(doc.what).toContain("'nope'");
+    const impact = JSON.parse(run(['impact', '--node', 'nope', '--json'], dir).stdout);
+    expect(impact.code).toBe('node-not-found');
+  });
+
   it('without --json a failed command writes nothing to stdout', () => {
     const r = run(['node', 'nope'], dir);
     expect(r.status).toBe(1);

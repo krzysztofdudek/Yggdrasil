@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   count, plural, list, overflowLine, block, verdict, next, fixPointer,
-  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_SCHEMA, MEMBER_CAP,
+  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA, MEMBER_CAP,
 } from '../../../src/cli/output.js';
 import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/cli/output-diagnostic.js';
 
@@ -122,7 +122,7 @@ describe('fail / failAndExit / notice', () => {
     fail({ what: 'Node nope not found.', why: 'It must exist.', next: 'yg tree' }, 'node-not-found');
     const doc = JSON.parse(out.mock.calls.map((c) => String(c[0])).join(''));
     expect(doc).toEqual({
-      schema: ERROR_SCHEMA,
+      schema: ERROR_JSON_SCHEMA,
       code: 'node-not-found',
       what: 'Node nope not found.',
       why: 'It must exist.',
