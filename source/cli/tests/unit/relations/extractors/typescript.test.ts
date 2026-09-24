@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runExtractor } from './_harness.js';
-import { typescriptExtractor } from '../../../../src/relations/extractors/typescript.js';
+import { typescriptExtractor, sfcScriptView } from '../../../../src/relations/extractors/typescript.js';
 
 const run = (code: string, ext = '.ts', lang = 'typescript') =>
   runExtractor(typescriptExtractor, lang, ext, code);
@@ -15,9 +15,11 @@ describe('typescript extractor — uses()', () => {
       expect.objectContaining({ candidates: [{ kind: 'path', specifier: '../util/u' }] }),
     );
   });
-  it('ignores bare specifiers (external packages / node builtins)', async () => {
-    const { uses } = await run(`import path from 'node:path';\nimport { z } from 'zod';`);
-    expect(uses).toHaveLength(0);
+  it('drops scheme specifiers (node builtins, URLs) and hands bare ones to the resolver', async () => {
+    // A bare specifier may be a tsconfig alias or an in-repo workspace package, so the
+    // resolver decides; a `node:`/`https:` specifier never names a repository file.
+    const { uses } = await run(`import path from 'node:path';\nimport { z } from 'zod';\nimport u from 'https://x.dev/u.js';`);
+    expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: 'zod' }]);
   });
   it('excludes whole-statement import type', async () => {
     const { uses } = await run(`import type { T } from './t';\nimport { a } from './ab';`);
@@ -171,6 +173,96 @@ describe('typescript extractor — uses()', () => {
     // `require()` has an empty argument list → firstArgument is null → no edge.
     const { uses } = await run(`const x = require();`);
     expect(uses).toHaveLength(0);
+  });
+});
+
+describe('typescript extractor — one type-only rule, new forms, grammar recovery', () => {
+  it('silences `import type X = require()` and an import() in any type position, keeps value positions', async () => {
+    const { uses } = await run(
+      [
+        `import type B = require('./b');`,
+        `type M = typeof import('./m');`,
+        `let v: import('./t').T;`,
+        `const w = {} as import('./t2').T;`,
+        `const s = x satisfies import('./t3').T;`,
+        `const f = vi.fn<() => typeof import('./t4')>();`,
+        `function g<T extends import('./t5').T = import('./t6').T>() {}`,
+        `const d = import('./value');`,
+        `const e = (await import('./value2')) as import('./t7').T;`,
+        `import C = require('./c');`,
+      ].join('\n'),
+    );
+    expect(uses.map((u) => [u.candidates[0], u.line])).toEqual([
+      [{ kind: 'path', specifier: './value' }, 8],
+      [{ kind: 'path', specifier: './value2' }, 9],
+      [{ kind: 'path', specifier: './c' }, 10],
+    ]);
+  });
+
+  it('never follows a module augmentation (`declare module`), relative or not', async () => {
+    const { uses } = await run(`declare module './m' { interface X { a: 1 } }\ndeclare module 'pkg' {}\ndeclare module '*.css';`);
+    expect(uses).toHaveLength(0);
+  });
+
+  it('emits `new URL(lit, import.meta.url)` only for a literal import.meta.url base; a bare name is made relative', async () => {
+    const { uses } = await run(
+      `new URL('./a.wasm', import.meta.url);\nnew URL('b.js', import.meta.url);\nnew URL('./c.js', base);\nnew URL('https://x.dev/', import.meta.url);\nnew URL(\`./d-\${n}.js\`, import.meta.url);`,
+    );
+    expect(uses.map((u) => u.candidates[0])).toEqual([
+      { kind: 'path', specifier: './a.wasm' },
+      { kind: 'path', specifier: './b.js' },
+    ]);
+  });
+
+  it('recovers re-exports with attributes, which the shipped grammar turns into ERROR, at their own lines', async () => {
+    const { uses } = await run(
+      `import { A } from './a';\nexport {\n  B,\n} from './b' with { type: 'json' };\nexport * from './star' with { type: 'json' };\nimport C = require('./c');`,
+    );
+    expect(uses.map((u) => [u.candidates[0], u.line])).toEqual(
+      expect.arrayContaining([
+        [{ kind: 'path', specifier: './a' }, 1],
+        [{ kind: 'path', specifier: './b' }, 2],
+        [{ kind: 'path', specifier: './star' }, 5],
+        [{ kind: 'path', specifier: './c' }, 6],
+      ]),
+    );
+    expect(uses).toHaveLength(4);
+  });
+
+  it('recovery keeps the type-only rule: a recovered `export type` or all-`type` clause stays silent', async () => {
+    const { uses } = await run(
+      `export type { B } from './b' with { type: 'json' };\nexport { type C, type D } from './cd' with { type: 'json' };\nexport { type F, g } from './fg' with { type: 'json' };`,
+    );
+    expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: './fg' }]);
+  });
+
+  it('recovery reads only line-anchored statement text: a commented import inside an ERROR region is not one', async () => {
+    // The ERROR region spans all four rows; row 2 is a comment. The clause text of the
+    // export itself holds a comment too, so the recovery pattern (which admits only
+    // clause characters) does not guess across it: a missed edge, never a wrong one.
+    const { uses } = await run(`export {\n  // import { A } from './commented';\n  a,\n} from './real' with { type: 'json' };`);
+    expect(uses.some((u) => u.candidates[0].kind === 'path' && u.candidates[0].specifier === './commented')).toBe(false);
+  });
+
+  it('a clean parse never runs recovery (no ERROR rows)', async () => {
+    // A template literal holding a line-anchored import is not re-read when the tree is clean.
+    const { uses } = await run('const s = `\nimport z from \'./tpl\'\n`;');
+    expect(uses).toHaveLength(0);
+  });
+});
+
+describe('sfcScriptView', () => {
+  it('blanks everything outside script bodies, keeps line numbers, picks the grammar from lang', () => {
+    const vue = sfcScriptView('c/P.vue', '<template>\n  <a/>\n</template>\n<script setup lang="ts">\nimport x from \'./x\';\n</script>\n');
+    expect(vue?.language).toBe('typescript');
+    expect(vue?.parsePath).toBe('c/P.vue.ts');
+    expect(vue?.content.split('\n')[4]).toBe("import x from './x';");
+    expect(vue?.content.split('\n')).toHaveLength(7);
+    expect(vue?.content).not.toContain('template');
+    expect(sfcScriptView('c/B.svelte', '<script>\nimport a from "./a";\n</script>')?.language).toBe('javascript');
+    expect(sfcScriptView('c/T.vue', '<script lang="tsx">\n</script><script>\n</script>')?.language).toBe('tsx');
+    expect(sfcScriptView('c/N.vue', '<template><a/></template>')).toBeNull();
+    expect(sfcScriptView('c/x.ts', '<script></script>')).toBeNull();
   });
 });
 

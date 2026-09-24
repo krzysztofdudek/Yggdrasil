@@ -3,19 +3,12 @@ id: typescript-export-type-star-reexport-silence
 language: typescript
 category: trap
 expectation: silence
-cites: "TS 5.0 type modifiers on `export *` (`export type * [as ns] from` is type-only, erased; ERROR-wrapped `type` marker seal); research C8 (SEALED genuine FP)"
+cites: "TS 5.0 type modifiers on `export *` (`export type * [as ns] from` is type-only, erased; the `type` marker is a token in the shipped grammar, ERROR-wrapped in 0.23.2); research C8 (SEALED genuine FP)"
 ---
 
 ## Rule
 
-The SEALED genuine false-positive. `export type * from './t'` (and the aliased
-`export type * as T from './t'`) is a TYPE-ONLY star/namespace re-export valid since
-TypeScript 5.0; it erases at compile time and carries no runtime dependency. The current
-tree-sitter grammar does not model `export type *`, so it parses the leading `type`
-keyword into an `ERROR` node before the `*`. The guard recognizes an `ERROR` node whose
-text is EXACTLY `type` as the whole-statement type marker (matched verbatim so an
-unrelated parse error never trips it) and silences the statement — previously this
-emitted a spurious runtime edge.
+The SEALED genuine false-positive. `export type * from './t'` (and the aliased `export type * as T from './t'`) is a TYPE-ONLY star/namespace re-export valid since TypeScript 5.0; it erases at compile time and carries no runtime dependency. The grammar shipped since 6.1.0 parses the leading `type` as a token of the statement; tree-sitter-typescript 0.23.2 wrapped it in an `ERROR` node before the `*`. The guard accepts both: a direct `type` token, or an `ERROR` node whose text is EXACTLY `type` (matched verbatim so an unrelated parse error never trips it). Either way the statement is silenced — before the guard this emitted a spurious runtime edge.
 
 ## Files
 

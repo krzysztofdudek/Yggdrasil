@@ -2,8 +2,9 @@ name: Relations Reference — TypeScript
 type: reference-catalogue
 description: "TypeScript / TSX / JavaScript name-resolution case catalogue — one .md
   per identification case (a syntactic form by which a cross-node TS/JS dependency is
-  detected and resolved through the relative-specifier path resolver, or deliberately
-  silenced), 1:1 with a runCase('<id>') test in the TypeScript matrix suite. The two
+  detected and resolved through the TS/JS path resolver — relative, root-absolute,
+  package imports, tsconfig paths/baseUrl, in-repo packages, Vue/Svelte script blocks —
+  or deliberately silenced, type-only references included), 1:1 with a runCase('<id>') test in the TypeScript matrix suite. The two
   relations aspects enforce that correspondence."
 aspects:
   - reference/relations/case-has-test

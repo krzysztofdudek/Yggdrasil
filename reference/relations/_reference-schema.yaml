@@ -21,7 +21,7 @@ kind: relations
 layout:
   pattern: "<language>/<id>.md"
   segments:
-    language: [csharp, php, kotlin, java, typescript, python, go, rust, c, cpp, ruby]
+    language: [csharp, php, kotlin, java, typescript, javascript, python, go, rust, c, cpp, ruby]
   allow_only: ["*.md", "_reference-schema.yaml"]
 
 # ── Frontmatter contract ─────────────────────────────────────────────────────
