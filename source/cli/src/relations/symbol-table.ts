@@ -1,5 +1,6 @@
 export class SymbolTable {
   private readonly defs = new Map<string, Set<string>>(); // `${language}\0${symbolKey}` → set of defining files
+  private readonly nestedTails = new Set<string>(); // `${language}\0${lastSegment}` of every `A::B`-style key
   private key(language: string, symbolKey: string): string {
     return `${language}\0${symbolKey}`;
   }
@@ -8,6 +9,13 @@ export class SymbolTable {
     let s = this.defs.get(k);
     if (!s) { s = new Set(); this.defs.set(k, s); }
     s.add(file);
+    const sep = symbolKey.lastIndexOf('::');
+    if (sep !== -1) this.nestedTails.add(this.key(language, symbolKey.slice(sep + 2)));
+  }
+  /** True when some `::`-qualified key ends in the segment `name` (e.g. `Admin::Order` for
+   *  `Order`): a constant of that name is nested in some namespace. Ruby's lexical guard. */
+  hasNestedTail(language: string, name: string): boolean {
+    return this.nestedTails.has(this.key(language, name));
   }
   /** Exactly one same-language definition → that file; zero or 2+ (ambiguous, incl. off-graph) → undefined. */
   resolveUnique(language: string, symbolKey: string): string | undefined {

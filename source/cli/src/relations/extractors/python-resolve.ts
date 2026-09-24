@@ -43,12 +43,41 @@ export function resolvePythonModule(
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
   isExcluded?: (repoRelPosix: string) => boolean,
+  projectRoots?: () => readonly string[],
 ): string | undefined {
   if (specifier.startsWith('.')) {
     return resolveRelative(specifier, fromFile, exists, isExcluded);
   }
-  return resolveAbsolute(specifier, fromFile, exists, isExcluded);
+  return resolveAbsolute(specifier, fromFile, exists, isExcluded, projectRoots);
 }
+
+/**
+ * Top-level standard-library module names (CPython 3.13 `sys.stdlib_module_names` without
+ * the private `_x` modules, plus the modules removed in 3.12/3.13 and added in 3.14, so an
+ * older or newer interpreter is covered). A DISCOVERED project root (see resolveAbsolute)
+ * is on `sys.path` only because its project is installed, and installed projects come after
+ * the standard library, so a module there named like one of these can never shadow it.
+ */
+const PYTHON_STDLIB_TOP_LEVEL: ReadonlySet<string> = new Set(
+  (
+    'abc annotationlib antigravity argparse array ast asynchat asyncio asyncore atexit audioop base64 bdb binascii ' +
+    'bisect builtins bz2 cProfile calendar cgi cgitb chunk cmath cmd code codecs codeop collections colorsys ' +
+    'compileall compression concurrent configparser contextlib contextvars copy copyreg crypt csv ctypes curses ' +
+    'dataclasses datetime dbm decimal difflib dis distutils doctest email encodings ensurepip enum errno ' +
+    'faulthandler fcntl filecmp fileinput fnmatch fractions ftplib functools gc genericpath getopt getpass gettext ' +
+    'glob graphlib grp gzip hashlib heapq hmac html http idlelib imaplib imghdr imp importlib inspect io ipaddress ' +
+    'itertools json keyword lib2to3 linecache locale logging lzma mailbox mailcap marshal math mimetypes mmap ' +
+    'modulefinder msilib msvcrt multiprocessing netrc nis nntplib nt ntpath nturl2path numbers opcode operator ' +
+    'optparse os ossaudiodev pathlib pdb pickle pickletools pipes pkgutil platform plistlib poplib posix posixpath ' +
+    'pprint profile pstats pty pwd py_compile pyclbr pydoc pydoc_data pyexpat queue quopri random re readline ' +
+    'reprlib resource rlcompleter runpy sched secrets select selectors shelve shlex shutil signal site smtpd ' +
+    'smtplib sndhdr socket socketserver spwd sqlite3 sre_compile sre_constants sre_parse ssl stat statistics ' +
+    'string stringprep struct subprocess sunau symtable sys sysconfig syslog tabnanny tarfile telnetlib tempfile ' +
+    'termios textwrap this threading time timeit tkinter token tokenize tomllib trace traceback tracemalloc tty ' +
+    'turtle turtledemo types typing unicodedata unittest urllib uu uuid venv warnings wave weakref webbrowser ' +
+    'winreg winsound wsgiref xdrlib xml xmlrpc zipapp zipfile zipimport zlib zoneinfo'
+  ).split(' '),
+);
 
 /**
  * Absolute dotted module `a.b.c`. Without a directory listing we approximate
@@ -61,6 +90,20 @@ export function resolvePythonModule(
  * not shadow the real source root): a single distinct matching file is returned;
  * 2+ distinct matches are ambiguous and resolve to undefined (silence).
  *
+ * An ancestor directory INSIDE A REGULAR PACKAGE is never a root: one that holds an
+ * `__init__.py`, or whose parent does (a namespace sub-directory of a regular package).
+ * `sys.path` only ever holds directories outside packages, so `import logging` in
+ * `app/api/routes.py` loads the standard library even when the package `app/` has a
+ * `logging.py`, and must not bind to it.
+ *
+ * `projectRoots`, when supplied, adds the source roots discovered repo-wide from project
+ * manifests (a src-layout project's `src/`, each uv/Poetry workspace member's root), so a
+ * test outside `src/` or one workspace member importing another resolves although the
+ * root is no ancestor of the importing file. A discovered root is on `sys.path` only
+ * because its project is installed, after the standard library, so a top-level name the
+ * standard library owns is never matched there. Discovered roots join the SAME distinct-
+ * match count, so a module found under two roots still stays silent.
+ *
  * An excluded match is dropped BEFORE that ambiguity count. It is graph-told to
  * not exist, so it can never be the genuine target and must not keep a real,
  * surviving match silenced merely because it once shared a dotted module name
@@ -71,6 +114,7 @@ function resolveAbsolute(
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
   isExcluded?: (repoRelPosix: string) => boolean,
+  projectRoots?: () => readonly string[],
 ): string | undefined {
   const segments = specifier.split('.').filter((s) => s.length > 0);
   if (segments.length === 0) return undefined;
@@ -96,7 +140,15 @@ function resolveAbsolute(
   // real precedence) still reaches the match set.
   const isExcl = isExcluded ?? ((): boolean => false);
   const matches = new Set<string>();
-  for (const dir of ancestorDirs(path.posix.dirname(toPosix(fromFile)))) {
+  const roots = ancestorDirs(path.posix.dirname(toPosix(fromFile))).filter(
+    (dir) => !insideRegularPackage(dir, exists),
+  );
+  if (projectRoots !== undefined && !PYTHON_STDLIB_TOP_LEVEL.has(segments[0])) {
+    for (const root of projectRoots()) {
+      if (!roots.includes(root) && !insideRegularPackage(root, exists)) roots.push(root);
+    }
+  }
+  for (const dir of roots) {
     const candidates: string[] = [
       // package / module-as-file at this root — CPython imports a regular
       // package over a same-named module file (verified against the real
@@ -164,6 +216,16 @@ function resolveRelative(
     if (exists(cand) && !isExcl(cand)) return cand;
   }
   return undefined;
+}
+
+/** True when `dir` is inside a regular package, so it can never be a `sys.path` root: it
+ *  holds an `__init__.py` itself, or its parent does (a namespace sub-directory of a regular
+ *  package). The repo root has no parent inside the repo. */
+function insideRegularPackage(dir: string, exists: (repoRelPosix: string) => boolean): boolean {
+  if (exists(joinUnder(dir, '__init__.py'))) return true;
+  if (dir === '') return false;
+  const parent = path.posix.dirname(dir);
+  return exists(joinUnder(parent === '.' ? '' : parent, '__init__.py'));
 }
 
 /** The importing file's directory and every ancestor directory up to the repo root,

@@ -143,10 +143,10 @@ describe.skipIf(!distExists)('CLI E2E — Ruby relation conformance (live, requi
   });
 
   it('does NOT flag a bare namespaced constant that shadows a top-level same-name, but DOES flag a ::-rooted cross-node use', () => {
-    // Repo: b defines a UNIQUE top-level `Helper`; a uses a BARE `Helper` inside
-    // `module App`. Pre-C1 the flat symbol table resolved the bare use to b → false
-    // cross-node edge with NO declared relation. Under C1 the bare-in-namespace use is
-    // suppressed → no edge → check --approve is GREEN even WITHOUT a declared relation.
+    // Repo: b defines a top-level `Helper`; a defines `App::Helper` and uses a BARE
+    // `Helper` inside `module App; class Order`. Ruby's lexical lookup (Module.nesting)
+    // finds App::Helper first, so the use binds inside node a — never to b's top-level
+    // Helper → no cross-node edge → check --approve is GREEN WITHOUT a declared relation.
     const root = mkdtempSync(path.join(tmpdir(), 'yg-rel-ruby-c1-'));
     try {
       writeFile(
@@ -191,7 +191,9 @@ describe.skipIf(!distExists)('CLI E2E — Ruby relation conformance (live, requi
       writeFile(root, '.yggdrasil/model/a/yg-node.yaml',
         'name: A\ndescription: Requiring component.\ntype: component\nmapping:\n  - src/a\n');
       writeFile(root, 'src/b/helper.rb', ['class Helper', '  def self.run; end', 'end', ''].join('\n'));
-      // a uses a BARE Helper INSIDE module App → suppressed by C1 → must NOT flag.
+      // a defines the nearer App::Helper and uses a BARE Helper INSIDE module App → binds
+      // App::Helper (same node) → must NOT flag.
+      writeFile(root, 'src/a/app_helper.rb', ['module App', '  class Helper', '  end', 'end', ''].join('\n'));
       writeFile(root, 'src/a/order.rb',
         ['module App', '  class Order', '    def go', '      Helper.run', '    end', '  end', 'end', ''].join('\n'));
 
@@ -200,7 +202,7 @@ describe.skipIf(!distExists)('CLI E2E — Ruby relation conformance (live, requi
       expect(green.all).not.toContain('relation-undeclared-dependency');
 
       // Positive: change the use to a ::-rooted absolute reference to b's Helper. A
-      // complete top-level path is NOT suppressed → the undeclared cross-node edge flags.
+      // rooted path skips the lexical scope → the undeclared cross-node edge flags.
       writeFile(root, 'src/a/order.rb',
         ['module App', '  class Order', '    def go', '      ::Helper.run', '    end', '  end', 'end', ''].join('\n'));
       const flagged = run(['check', '--approve'], root);

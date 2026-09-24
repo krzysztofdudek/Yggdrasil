@@ -155,3 +155,53 @@ describe('relation Ruby anti-false-positive (D8 soundness gate)', () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Containment: one Ruby file that traps the grammar's scanner (a heredoc delimiter of
+// 256+ characters on tree-sitter-ruby 0.23.1) used to poison the cached parser, so every
+// later Ruby file failed too and the real edges were never computed. And the
+// extension-less Ruby files (Rakefile) are parsed like any `.rb` file.
+// ---------------------------------------------------------------------------
+describe('relation Ruby pass — one pathological file fails alone; Rakefile is Ruby', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-ruby-contain-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\n`, 'utf-8');
+    writeNode(root, 'a', 'A', ['src/a/**']);
+    writeNode(root, 'b', 'B', ['src/b/**']);
+    const delimiter = 'A'.repeat(256);
+    writeSrc(root, 'src/a/aa_first.rb', `x = <<~${delimiter}\nhello\n${delimiter}\n`);
+    writeSrc(root, 'src/a/zz_use.rb', 'y = Flag\n');
+    writeSrc(root, 'src/a/Rakefile', 'require_relative "../b/flag"\n');
+    writeSrc(root, 'src/b/flag.rb', 'class Flag\nend\n');
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('keeps the edges of every other Ruby file and parses the Rakefile', async () => {
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(root),
+      symbolIndexDir: path.join(root, '.yg-cache'),
+    });
+    const rows = (result.violationsByNode.get('a')?.violations ?? []).map((v) => `${v.fromFile}:${v.line}->${v.ownerNode}`);
+    expect(rows).toContain('src/a/zz_use.rb:1->b');
+    expect(rows).toContain('src/a/Rakefile:1->b');
+    // Only the pathological file itself may fail (it parses once the grammar carries the
+    // upstream scanner fix).
+    for (const failure of result.parseFailures) {
+      expect(failure.fileCount).toBe(1);
+      expect(failure.examplePath).toBe('src/a/aa_first.rb');
+    }
+  });
+});

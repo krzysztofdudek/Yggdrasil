@@ -404,3 +404,62 @@ describe('makeResolvePathToFile — absent manifests resolve to undefined', () =
     expect(resolve('crate::orders', 'src/lib.rs', 'rust')).toBeUndefined();
   });
 });
+
+describe('makeResolvePathToFile — Python project roots discovered from manifests', () => {
+  let root: string;
+  const write = (rel: string, body = ''): void => {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    writeFileSync(path.join(root, rel), body, 'utf-8');
+  };
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'resolve-path-py-'));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('a pyproject.toml makes its src/ child a root (src layout, tests outside src)', () => {
+    write('pyproject.toml', '[project]\nname = "shop"\n');
+    write('src/core/service.py');
+    write('tests/test_service.py');
+    expect(makeResolvePathToFile(root)('core.service', 'tests/test_service.py', 'python')).toBe('src/core/service.py');
+  });
+
+  it('a workspace member without src/ is its own (flat-layout) root', () => {
+    write('packages/lib/setup.cfg', '[metadata]\nname = lib\n');
+    write('packages/lib/lib/__init__.py');
+    write('packages/lib/lib/util.py');
+    write('packages/api/pyproject.toml', '[project]\nname = "api"\n');
+    write('packages/api/src/api/main.py');
+    expect(makeResolvePathToFile(root)('lib.util', 'packages/api/src/api/main.py', 'python')).toBe(
+      'packages/lib/lib/util.py',
+    );
+  });
+
+  it('skips virtual environments, hidden directories and dependency trees', () => {
+    write('.venv/pyvenv.cfg', 'home = /usr/bin\n');
+    write('.venv/lib/site-packages/vendored/pyproject.toml');
+    write('.venv/lib/site-packages/vendored/src/vendored/x.py');
+    write('env/pyvenv.cfg', 'home = /usr/bin\n');
+    write('env/pkg/pyproject.toml');
+    write('env/pkg/src/envpkg/x.py');
+    write('node_modules/pyish/pyproject.toml');
+    write('node_modules/pyish/src/pyish/x.py');
+    write('app/main.py');
+    const resolve = makeResolvePathToFile(root);
+    expect(resolve('vendored.x', 'app/main.py', 'python')).toBeUndefined();
+    expect(resolve('envpkg.x', 'app/main.py', 'python')).toBeUndefined();
+    expect(resolve('pyish.x', 'app/main.py', 'python')).toBeUndefined();
+  });
+
+  it('an excluded manifest contributes no root', () => {
+    write('packages/lib/pyproject.toml');
+    write('packages/lib/src/lib/util.py');
+    write('packages/api/src/api/main.py');
+    const isExcluded = (p: string): boolean => p.startsWith('packages/lib/');
+    expect(makeResolvePathToFile(root, undefined, isExcluded)('lib.util', 'packages/api/src/api/main.py', 'python')).toBeUndefined();
+    expect(makeResolvePathToFile(root)('lib.util', 'packages/api/src/api/main.py', 'python')).toBe('packages/lib/src/lib/util.py');
+  });
+});

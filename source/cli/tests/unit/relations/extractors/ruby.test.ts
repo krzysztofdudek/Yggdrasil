@@ -11,6 +11,16 @@ const run = (code: string) => runExtractor(rubyExtractor, 'ruby', '.rb', code);
 
 const symbolKeys = (uses: DetectedDep[]): string[] =>
   uses.flatMap((u) => (u.candidates[0].kind === 'symbol' ? [u.candidates[0].symbolKey] : []));
+/** The top-level (last) reading of every symbol group: the key the reference resolves to when
+ *  no nearer lexical candidate binds. */
+const fallbackKeys = (uses: DetectedDep[]): string[] =>
+  uses.flatMap((u) => {
+    const last = u.candidates[u.candidates.length - 1];
+    return last.kind === 'symbol' ? [last.symbolKey] : [];
+  });
+/** Every candidate key of every symbol group, in order, one array per group. */
+const groups = (uses: DetectedDep[]): string[][] =>
+  uses.map((u) => u.candidates.flatMap((c) => (c.kind === 'symbol' ? [c.symbolKey] : [])));
 const pathSpecs = (uses: DetectedDep[]): string[] =>
   uses.flatMap((u) => (u.candidates[0].kind === 'path' ? [u.candidates[0].specifier] : []));
 
@@ -85,7 +95,7 @@ describe('ruby extractor — uses() emits SYMBOL hints (constants)', () => {
     const { uses } = await run(
       ['class C', '  include Loggable', '  extend Forwardable', '  prepend Tracing::Hook', 'end', ''].join('\n'),
     );
-    const keys = symbolKeys(uses);
+    const keys = fallbackKeys(uses);
     expect(keys).toContain('Loggable');
     expect(keys).toContain('Forwardable');
     expect(keys).toContain('Tracing::Hook');
@@ -93,7 +103,7 @@ describe('ruby extractor — uses() emits SYMBOL hints (constants)', () => {
 
   it('emits both constants for `include A, B` (multiple modules per call)', async () => {
     const { uses } = await run('class C\n  include A, B\nend\n');
-    const keys = symbolKeys(uses);
+    const keys = fallbackKeys(uses);
     expect(keys).toContain('A');
     expect(keys).toContain('B');
   });
@@ -299,70 +309,71 @@ describe('ruby extractor — registry wiring', () => {
   });
 });
 
-describe('ruby extractor — C1: bare constants inside a namespace are suppressed (zero-FP)', () => {
-  it('SUPPRESSES a bare unqualified constant used inside a module body', async () => {
-    // `Helper` inside `module App` lexically resolves to App::Helper (or a top-level
-    // Helper) — never to a uniquely-defined top-level Helper owned by another node.
+describe('ruby extractor — lexical candidates through Module.nesting', () => {
+  it('a bare constant inside a module body yields the nesting candidate, then the top level', async () => {
     const { uses } = await run(['module App', '  x = Helper', 'end', ''].join('\n'));
-    expect(symbolKeys(uses)).not.toContain('Helper');
-    expect(symbolKeys(uses)).toHaveLength(0);
+    expect(groups(uses)).toEqual([['App::Helper', 'Helper']]);
+    const top = uses[0].candidates[1];
+    expect(top.kind === 'symbol' && top.rubyInheritGuard).toBe('Helper');
   });
 
-  it('SUPPRESSES a bare unqualified superclass inside a nested namespace', async () => {
-    // `class Widget < Base` nested in module App — `Base` is bare → suppressed.
-    const { uses } = await run(
-      ['module App', '  class Widget < Base', '  end', 'end', ''].join('\n'),
-    );
-    expect(symbolKeys(uses)).not.toContain('Base');
-    expect(symbolKeys(uses)).toHaveLength(0);
+  it('a superclass is looked up in the OUTER nesting (the scope holding `class`)', async () => {
+    const { uses } = await run(['module App', '  class Widget < Base', '  end', 'end', ''].join('\n'));
+    expect(groups(uses)).toEqual([['App::Base', 'Base']]);
   });
 
-  it('SUPPRESSES a bare mixin argument inside a module body', async () => {
-    const { uses } = await run(
-      ['module App', '  class C', '    include Loggable', '  end', 'end', ''].join('\n'),
-    );
-    expect(symbolKeys(uses)).not.toContain('Loggable');
-    expect(symbolKeys(uses)).toHaveLength(0);
+  it('a mixin is looked up in the body nesting, innermost first', async () => {
+    const { uses } = await run(['module App', '  class C', '    include Loggable', '  end', 'end', ''].join('\n'));
+    expect(groups(uses)).toEqual([['App::C::Loggable', 'App::Loggable', 'Loggable']]);
   });
 
-  // ---- PAIRED POSITIVES: do NOT over-silence real cross-node references ----
+  it('an unrooted `A::B` inside a namespace gets nesting candidates anchored at `N::A`', async () => {
+    const { uses } = await run(['module Shop', '  class Cart', '    Billing::Invoice.new', '  end', 'end', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Shop::Cart::Billing::Invoice', 'Shop::Billing::Invoice', 'Billing::Invoice']]);
+    const anchors = uses[0].candidates.map((c) => (c.kind === 'symbol' ? c.rubyAnchor : undefined));
+    expect(anchors).toEqual(['Shop::Cart::Billing', 'Shop::Billing', undefined]);
+  });
 
-  it('STILL emits a ::-rooted absolute constant used inside a namespace (key stripped)', async () => {
+  it('a compact `class Shop::Cart` nests only itself (Module.nesting is [Shop::Cart])', async () => {
+    const { uses } = await run(['class Shop::Cart', '  def x', '    Helper.go', '  end', 'end', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Shop::Cart::Helper', 'Helper']]);
+  });
+
+  it('a ::-rooted reference is absolute at any depth (key stripped, single candidate)', async () => {
     const { uses } = await run(['module App', '  x = ::TopHelper', 'end', ''].join('\n'));
-    // The ::-prefix makes it a complete top-level path — no lexical shadowing risk.
-    expect(symbolKeys(uses)).toContain('TopHelper');
+    expect(groups(uses)).toEqual([['TopHelper']]);
   });
 
-  it('STILL emits a ::-qualified (dotted) constant used inside a namespace', async () => {
-    const { uses } = await run(['module App', '  x = Payments::Gateway', 'end', ''].join('\n'));
-    expect(symbolKeys(uses)).toContain('Payments::Gateway');
+  it('a top-level reference stays a single verbatim candidate (cref is Object)', async () => {
+    const { uses } = await run(['class OrderService < BaseService', '  include Loggable', 'end', 'x = Helper', ''].join('\n'));
+    expect(groups(uses)).toEqual([['BaseService'], ['OrderService::Loggable', 'Loggable'], ['Helper']]);
   });
 
-  it('STILL emits a bare constant used at TOP LEVEL (no enclosing namespace)', async () => {
-    // Regression guard: the existing top-level behavior is unchanged.
-    const { uses } = await run('x = Helper\n');
-    expect(symbolKeys(uses)).toContain('Helper');
+  it('a constant inside a method body of a top-level class is resolved lexically too', async () => {
+    const { uses } = await run(['class Order', '  def run', '    Helper.go', '    ::TopHelper.go', '  end', 'end', ''].join('\n'));
+    expect(groups(uses)).toEqual([['Order::Helper', 'Helper'], ['TopHelper']]);
+  });
+});
+
+describe('ruby extractor — declarations(): Zeitwerk implicit namespaces', () => {
+  const declared = async (path: string, code: string): Promise<string[]> => {
+    ensureLoaderRegistered();
+    return withParsedFiles([rb(path, code)], ([parsed]) => rubyExtractor.declarations(parsed).map((d) => d.symbolKey));
+  };
+
+  it('a compact declaration whose path matches its full name anchors the outer namespaces', async () => {
+    expect(await declared('app/models/billing/invoice.rb', 'class Billing::Invoice\nend\n')).toEqual([
+      'Billing::Invoice',
+      'Billing',
+    ]);
   });
 
-  it('STILL emits a top-level superclass and a top-level mixin (depth 0)', async () => {
-    const { uses } = await run(
-      ['class OrderService < BaseService', '  include Loggable', 'end', ''].join('\n'),
-    );
-    const keys = symbolKeys(uses);
-    expect(keys).toContain('BaseService');
-    expect(keys).toContain('Loggable');
+  it('underscores every segment (Admin::HTMLParser ↔ admin/html_parser.rb)', async () => {
+    expect(await declared('lib/admin/html_parser.rb', 'class Admin::HTMLParser\nend\n')).toContain('Admin');
   });
 
-  it('SUPPRESSES a bare value-use constant inside a (top-level) class body', async () => {
-    // A class IS a constant namespace in Ruby: a bare `Helper` inside `class Order`
-    // lexically resolves to Order::Helper (if defined) or top-level Helper — never
-    // reliably to a uniquely-defined top-level Helper in another node. Zero-FP.
-    const { uses } = await run(['class Order', '  def run', '    Helper.go', '  end', 'end', ''].join('\n'));
-    expect(symbolKeys(uses)).not.toContain('Helper');
-  });
-
-  it('STILL emits a ::-rooted reference inside a class body (complete path, no shadow risk)', async () => {
-    const { uses } = await run(['class Order', '  def run', '    ::TopHelper.go', '  end', 'end', ''].join('\n'));
-    expect(symbolKeys(uses)).toContain('TopHelper');
+  it('a compact declaration whose path does not match anchors nothing', async () => {
+    expect(await declared('src/stub/server_stub.rb', 'module Rack::Handler\nend\n')).toEqual(['Rack::Handler']);
+    expect(await declared('lib/billing_invoice.rb', 'class Billing::Invoice\nend\n')).toEqual(['Billing::Invoice']);
   });
 });

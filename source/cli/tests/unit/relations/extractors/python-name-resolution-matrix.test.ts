@@ -88,3 +88,22 @@ describe('MATRIX — coverage / granularity / escape silences (zero false positi
   it('python-intra-node-import-silence', () => runCase('python-intra-node-import-silence'));
   it('python-relative-escape-silence', () => runCase('python-relative-escape-silence'));
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Source roots: only directories outside a regular package are sys.path-like roots
+// (an ancestor package's same-named module never shadows the stdlib or an installed
+// library), and roots are also discovered repo-wide from project manifests (src
+// layout, uv/Poetry workspace members) without letting them shadow the stdlib.
+describe('MATRIX — source roots (ancestor packages are not roots; discovered project roots)', () => {
+  it('python-stdlib-shadowed-by-ancestor-module-silence', () =>
+    runCase('python-stdlib-shadowed-by-ancestor-module-silence'));
+  it('python-src-layout-tests-edge', () => runCase('python-src-layout-tests-edge'));
+  it('python-workspace-member-edge', () => runCase('python-workspace-member-edge'));
+  it('python-workspace-stdlib-name-silence', () => runCase('python-workspace-stdlib-name-silence'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — newer import syntax and report shape', () => {
+  it('python-lazy-import-edge', () => runCase('python-lazy-import-edge'));
+  it('python-from-import-single-report', () => runCase('python-from-import-single-report'));
+});

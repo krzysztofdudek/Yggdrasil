@@ -50,12 +50,13 @@ export function makeResolvePathToFile(
   const javaDeps = makeJavaResolveDeps(projectRoot, exists, isExcluded);
   const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
   const rustDeps = makeRustResolveDeps(projectRoot);
+  const pythonRoots = makePythonProjectRoots(projectRoot, isExcluded);
   return (specifier, fromFile, language, isPackage = false) => {
     if (language === 'typescript' || language === 'tsx' || language === 'javascript') {
       return resolveTsPath(specifier, fromFile, exists);
     }
     if (language === 'python') {
-      return resolvePythonModule(specifier, fromFile, exists, isExcluded);
+      return resolvePythonModule(specifier, fromFile, exists, isExcluded, pythonRoots);
     }
     if (language === 'go') {
       return resolveGoImport(specifier, fromFile, goDeps);
@@ -222,6 +223,69 @@ function makeRustResolveDeps(projectRoot: string): RustResolveDeps {
   }
 
   return { crateRootFor };
+}
+
+/** Manifests that mark a Python project root (PEP 621 / setuptools / uv / Poetry / hatch). */
+const PYTHON_PROJECT_MANIFESTS = ['pyproject.toml', 'setup.cfg', 'setup.py'];
+
+/** Directories never searched for Python project manifests: VCS and tool state, dependency
+ *  trees and caches. A directory holding `pyvenv.cfg` (a virtual environment) is skipped too. */
+const PYTHON_ROOT_SCAN_SKIP = new Set(['node_modules', '__pycache__', 'site-packages', 'dist-packages']);
+
+/**
+ * The Python source roots discovered repo-wide from project manifests, computed lazily ONCE
+ * per factory instance (on the first absolute Python import) and cached. Every directory
+ * holding a `pyproject.toml`, `setup.cfg` or `setup.py` is a project; its source root is
+ * its `src/` child when that directory exists (the src layout), else the directory itself
+ * (the flat layout). A uv workspace's members, a Poetry monorepo's packages and a
+ * src-layout project's tests are all covered by this one rule, because each member is a
+ * project with its own manifest. A manifest that is excluded from the graph contributes no
+ * root. Hidden directories, dependency trees, caches and virtual environments are skipped.
+ *
+ * NOTE: makeResolvePathToFile's deps are pure filesystem access; listing directories and
+ * checking for manifests is fine there, it parses nothing.
+ */
+function makePythonProjectRoots(
+  projectRoot: string,
+  isExcluded?: (repoRelPosix: string) => boolean,
+): () => readonly string[] {
+  let roots: string[] | undefined;
+  const isDir = (repoRel: string): boolean => {
+    try {
+      return statSync(path.join(projectRoot, repoRel)).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+  return () => {
+    if (roots !== undefined) return roots;
+    const found: string[] = [];
+    const stack: string[] = [''];
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      let entries: import('node:fs').Dirent[];
+      try {
+        entries = readdirSync(path.join(projectRoot, dir), { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      if (entries.some((e) => e.isFile() && e.name === 'pyvenv.cfg')) continue; // a virtual environment
+      const rel = (name: string): string => (dir === '' ? name : `${dir}/${name}`);
+      const isProject = entries.some(
+        (e) => e.isFile() && PYTHON_PROJECT_MANIFESTS.includes(e.name) && !(isExcluded?.(rel(e.name)) ?? false),
+      );
+      if (isProject) {
+        const src = rel('src');
+        found.push(isDir(src) ? src : dir);
+      }
+      for (const e of entries) {
+        if (!e.isDirectory() || e.name.startsWith('.') || PYTHON_ROOT_SCAN_SKIP.has(e.name)) continue;
+        stack.push(rel(e.name));
+      }
+    }
+    roots = [...new Set(found)].sort();
+    return roots;
+  };
 }
 
 /**
