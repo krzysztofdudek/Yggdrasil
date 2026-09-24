@@ -10,9 +10,9 @@ cites: "php.net language.enumerations (enum case is a member; 8.1); research 202
 
 An enum-case access `Suit::Hearts` with no leading backslash is a member access on the
 namespace-relative enum class `App\Suit` (Rule 6) — the case `Hearts` is a member, not a
-separate type. The enum reference is the usage-site class `Suit`, silenced like any
-relative static access; treating the case as a separate `Hearts` type would be a false
-positive.
+separate type, and the extractor reads only the class operand of `::`. `App\Suit` maps to
+`src/Suit.php`, which does not exist, so it is silent; treating the case as a separate
+`Hearts` type would be a false positive.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Handler { function m() { return Suit::Hearts; } }
 
 ## Expect
 
-- silence      # relative `Suit::Hearts` is member access on a usage-site enum class → silent; the case is not a separate type
+- silence      # relative `Suit::Hearts` resolves to `App\Suit` (no file); the case is a member, not a type → silent
 
 ## Why
 
-The enum case is a member of the relative enum class; the import-only model resolves no
-relative usage site, so both the enum reference and the case stay silent.
+Only the class operand of `::` is a class reference; here it names `App\Suit`, which
+has no file, so nothing binds.

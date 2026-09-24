@@ -15,6 +15,7 @@ mapping:
   - source/cli/src/relations/messages.ts
   - source/cli/src/relations/owner-index.ts
   - source/cli/src/relations/pass.ts
+  - source/cli/src/relations/repo-layout.ts
   - source/cli/src/relations/resolve-path.ts
   - source/cli/src/relations/resolver.ts
   - source/cli/src/relations/symbol-table.ts

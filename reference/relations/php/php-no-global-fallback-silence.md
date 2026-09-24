@@ -10,9 +10,9 @@ cites: "php.net language.namespaces.rules Rule 6 (no class global fallback); res
 
 A bare class name `Logger` with no `use` import resolves to `App\Logger` by
 current-namespace prepend (Rule 6) — PHP has NO global fallback for classes, so it is
-NEVER `\Logger` or `Psr\Log\Logger`. Emitting an edge to any other node's `Logger`
-would be a false positive. The import-only model never resolves a bare class name, so
-no mis-binding is possible.
+NEVER `\Logger` or `App\Log\Logger`. The extractor resolves it to `App\Logger`, whose
+PSR-4 file `src/Logger.php` does not exist, so it is silent; the `Logger` in another
+node is never a candidate.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Service { function f(Logger $l) {} }
 
 ## Expect
 
-- silence      # bare `Logger` resolves to `App\Logger` (no global fallback) → never `App\Log\Logger` → silent
+- silence      # bare `Logger` resolves to `App\Logger` (no global fallback, no src/Logger.php) → never `App\Log\Logger` → silent
 
 ## Why
 
 There is no class global fallback in PHP; binding a bare name to an unrelated `Logger`
-node is the textbook false positive the import-only model structurally avoids.
+node is the textbook false positive, and applying the real rule cannot produce it.

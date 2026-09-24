@@ -5,6 +5,8 @@ import path from 'node:path';
 import {
   resolvePhpFqn,
   parsePsr4,
+  parseComposerAutoload,
+  type ComposerAutoload,
   type PhpResolveDeps,
 } from '../../../../src/relations/extractors/php-resolve.js';
 import { makeResolvePathToFile } from '../../../../src/relations/resolve-path.js';
@@ -171,8 +173,8 @@ describe('parsePsr4', () => {
     expect(parsePsr4('42', '').size).toBe(0);
   });
 
-  it('skips an empty prefix key (PSR-4 forbids it)', () => {
-    expect(parsePsr4('{ "autoload": { "psr-4": { "": "src/" } } }', '').size).toBe(0);
+  it('keeps an empty prefix key (Composer\'s fallback directory)', () => {
+    expect(parsePsr4('{ "autoload": { "psr-4": { "": "src/" } } }', '').get('')).toEqual(['src']);
   });
 
   it('skips a non-string directory value inside the array', () => {
@@ -261,6 +263,105 @@ describe('makeResolvePathToFile — php branch (disk-backed)', () => {
     try {
       const resolve = makeResolvePathToFile(root);
       expect(resolve('Vendor\\Lib\\Thing', 'src/Order/Handler.php', 'php')).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('resolvePhpFqn — fallbacks, the repo-wide union, file paths', () => {
+  const map = (psr4: [string, string[]][], psr0: [string, string[]][] = []): ComposerAutoload => ({
+    psr4: new Map(psr4),
+    psr0: new Map(psr0),
+  });
+
+  it('tries the empty PSR-4 prefix only after the named prefixes', () => {
+    const files = new Set(['src/Payment/Gateway.php', 'fallback/App/Payment/Gateway.php', 'fallback/Other/X.php']);
+    const nearest = map([['App\\', ['src']], ['', ['fallback']]]);
+    const d: PhpResolveDeps = { psr4For: () => nearest.psr4, exists: (p) => files.has(p) };
+    expect(resolvePhpFqn('App\\Payment\\Gateway', 'x.php', d)).toBe('src/Payment/Gateway.php');
+    expect(resolvePhpFqn('Other\\X', 'x.php', d)).toBe('fallback/Other/X.php');
+  });
+
+  it('maps PSR-0 with the whole FQN and `_` in the class name as a directory', () => {
+    const files = new Set(['lib/Twig/Loader/Array.php', 'lib/App/Model/Id.php']);
+    const nearest = map([], [['Twig_', ['lib']], ['App\\', ['lib']]]);
+    const d: PhpResolveDeps = { psr4For: () => nearest.psr4, psr0For: () => nearest.psr0, exists: (p) => files.has(p) };
+    expect(resolvePhpFqn('Twig_Loader_Array', 'x.php', d)).toBe('lib/Twig/Loader/Array.php');
+    expect(resolvePhpFqn('App\\Model\\Id', 'x.php', d)).toBe('lib/App/Model/Id.php');
+  });
+
+  it('falls back to the union only when the nearest map resolves nothing', () => {
+    const files = new Set(['a/src/Thing.php', 'b/src/Thing.php', 'b/src/Other.php']);
+    const nearest = map([['Acme\\A\\', ['a/src']]]);
+    const all = [nearest, map([['Acme\\B\\', ['b/src']]])];
+    const d: PhpResolveDeps = { psr4For: () => nearest.psr4, allMaps: () => all, exists: (p) => files.has(p) };
+    expect(resolvePhpFqn('Acme\\A\\Thing', 'a/src/X.php', d)).toBe('a/src/Thing.php');
+    expect(resolvePhpFqn('Acme\\B\\Other', 'a/src/X.php', d)).toBe('b/src/Other.php');
+    expect(resolvePhpFqn('Acme\\C\\Other', 'a/src/X.php', d)).toBeUndefined();
+  });
+
+  it('silences two distinct hits across the union, but not one file named twice', () => {
+    const files = new Set(['b/src/Thing.php', 'c/src/Thing.php']);
+    const nearest = map([]);
+    const twoPackages: PhpResolveDeps = {
+      psr4For: () => nearest.psr4,
+      allMaps: () => [map([['S\\', ['b/src']]]), map([['S\\', ['c/src']]])],
+      exists: (p) => files.has(p),
+    };
+    expect(resolvePhpFqn('S\\Thing', 'a/X.php', twoPackages)).toBeUndefined();
+    const sameFileTwice: PhpResolveDeps = {
+      psr4For: () => nearest.psr4,
+      allMaps: () => [map([['S\\', ['b/src']]]), map([['S\\B\\', ['b/src/B']], ['S\\', ['b/src']]])],
+      exists: (p) => files.has(p),
+    };
+    expect(resolvePhpFqn('S\\Thing', 'a/X.php', sameFileTwice)).toBe('b/src/Thing.php');
+  });
+
+  it('does not fall back past an ambiguous nearest map', () => {
+    const files = new Set(['src/X.php', 'lib/X.php', 'other/X.php']);
+    const nearest = map([['App\\', ['src', 'lib']]]);
+    const d: PhpResolveDeps = {
+      psr4For: () => nearest.psr4,
+      allMaps: () => [map([['App\\', ['other']]])],
+      exists: (p) => files.has(p),
+    };
+    expect(resolvePhpFqn('App\\X', 'a.php', d)).toBeUndefined();
+  });
+
+  it('resolves a file-relative include path and refuses one escaping the repository', () => {
+    const files = new Set(['app/lib/helpers.php']);
+    const d: PhpResolveDeps = { psr4For: () => new Map(), exists: (p) => files.has(p) };
+    expect(resolvePhpFqn('./../lib/helpers.php', 'app/legacy/index.php', d)).toBe('app/lib/helpers.php');
+    expect(resolvePhpFqn('./../../../x.php', 'app/legacy/index.php', d)).toBeUndefined();
+    expect(resolvePhpFqn('./missing.php', 'app/legacy/index.php', d)).toBeUndefined();
+    const excluded: PhpResolveDeps = { ...d, isExcluded: () => true };
+    expect(resolvePhpFqn('./../lib/helpers.php', 'app/legacy/index.php', excluded)).toBeUndefined();
+  });
+
+  it('parses psr-0 beside psr-4', () => {
+    const parsed = parseComposerAutoload('{ "autoload": { "psr-4": { "A\\\\": "src" }, "psr-0": { "B_": "lib/" } } }', 'pkg');
+    expect(parsed.psr4.get('A\\')).toEqual(['pkg/src']);
+    expect(parsed.psr0.get('B_')).toEqual(['pkg/lib']);
+  });
+});
+
+describe('makeResolvePathToFile — composer.json union on disk', () => {
+  it('finds a sibling package map and skips vendor/', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'php-union-'));
+    try {
+      const write = (rel: string, text: string): void => {
+        mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+        writeFileSync(path.join(root, rel), text, 'utf-8');
+      };
+      write('packages/a/composer.json', '{ "autoload": { "psr-4": { "Acme\\\\A\\\\": "src/" } } }');
+      write('packages/b/composer.json', '{ "autoload": { "psr-4": { "Acme\\\\B\\\\": "src/" } } }');
+      write('vendor/x/y/composer.json', '{ "autoload": { "psr-4": { "Acme\\\\V\\\\": "src/" } } }');
+      write('packages/b/src/Thing.php', '<?php');
+      write('vendor/x/y/src/Thing.php', '<?php');
+      const resolve = makeResolvePathToFile(root);
+      expect(resolve('Acme\\B\\Thing', 'packages/a/src/Svc.php', 'php')).toBe('packages/b/src/Thing.php');
+      expect(resolve('Acme\\V\\Thing', 'packages/a/src/Svc.php', 'php')).toBeUndefined();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

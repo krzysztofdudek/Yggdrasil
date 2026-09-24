@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { withParsedFile } from '../../../src/ast/parser.js';
+import { getLanguageForExtension } from '../../../src/utils/language-registry.js';
 import type { ParsedFile } from '../../../src/relations/extractors/types.js';
 
 /** One (path, code, language) input to withParsedFiles. */
@@ -25,8 +27,14 @@ export async function withParsedFiles<T>(
   const step = (i: number, acc: ParsedFile[]): Promise<T> => {
     if (i === specs.length) return Promise.resolve(fn(acc));
     const s = specs[i];
-    return withParsedFile(s.path, s.code, (tree) =>
-      step(i + 1, [...acc, { path: s.path, content: s.code, tree, language: s.language }]),
+    // A spec whose language differs from its extension's (a C++ `.h` header) is parsed
+    // with that language's grammar, as the relation pass does.
+    const override = getLanguageForExtension(path.extname(s.path)) === s.language ? undefined : s.language;
+    return withParsedFile(
+      s.path,
+      s.code,
+      (tree) => step(i + 1, [...acc, { path: s.path, content: s.code, tree, language: s.language }]),
+      override,
     );
   };
   return step(0, []);

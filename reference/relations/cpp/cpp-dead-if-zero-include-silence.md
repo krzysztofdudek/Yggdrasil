@@ -9,11 +9,12 @@ cites: "[cpp.cond] (a literal `0` controlling expression is unconditionally fals
 ## Rule
 
 A literal `#if 0` is unconditionally false: the branch is never compiled, so an
-`#include` in its dead body carries NO real dependency. This is the only preprocessor
-conditional a source-only tool can resolve with certainty (no macro state needed). The
-extractor walks the include's ancestor chain, finds the enclosing literal-`0`
-`preproc_if` (condition is `number_literal "0"`) with the include in its dead body (not
-its `alternative`), and SKIPS emission. Here `../core/dead.hpp` is a REAL file (node
+`#include` in its dead body carries NO real dependency. A condition built from literals
+only is the preprocessor state a source-only tool can resolve with certainty (no macro
+state needed; see c-if-paren-zero-silence and cpp-if-false-silence for the wider set).
+The extractor walks the include's ancestor chain, finds the enclosing `preproc_if` whose
+condition evaluates to 0 with the include in its dead body (not its `alternative`), and
+SKIPS emission. Here `../core/dead.hpp` is a REAL file (node
 `core`) — so WITHOUT the seal this would emit a spurious cross-node edge `app -> core`
 for code the compiler discards, a genuine false positive. With the seal, the dead-body
 include emits nothing → silence.

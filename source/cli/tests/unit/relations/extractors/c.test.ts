@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { runExtractor } from './_harness.js';
 import { cExtractor } from '../../../../src/relations/extractors/c.js';
+import {
+  evalPreprocessorCondition,
+  deadPreprocessorLines,
+} from '../../../../src/relations/extractors/c-cpp-shared.js';
 
 const run = (code: string, ext = '.c') => runExtractor(cExtractor, 'c', ext, code);
 
@@ -23,9 +27,9 @@ describe('C extractor — uses()', () => {
     expect(specs(uses)).toEqual(['../inc/foo.h']);
   });
 
-  it('does NOT emit a hint for an angle-bracket (system) include', async () => {
+  it('emits an angle include as `<name>` (resolved only under a compile database -I root)', async () => {
     const { uses } = await run('#include <stdio.h>\n#include <stdlib.h>\n');
-    expect(specs(uses)).toHaveLength(0);
+    expect(specs(uses)).toEqual(['<stdio.h>', '<stdlib.h>']);
   });
 
   it('does NOT emit a hint for a macro include (#include HDR — no literal path)', async () => {
@@ -33,11 +37,9 @@ describe('C extractor — uses()', () => {
     expect(specs(uses)).toHaveLength(0);
   });
 
-  it('emits only the quoted includes when quoted and angle are mixed', async () => {
+  it('keeps quoted and angle includes apart when they are mixed', async () => {
     const { uses } = await run('#include <stdio.h>\n#include "a.h"\n#include <string.h>\n#include "b/c.h"\n');
-    const s = specs(uses);
-    expect(s).toEqual(expect.arrayContaining(['a.h', 'b/c.h']));
-    expect(s).toHaveLength(2);
+    expect(specs(uses)).toEqual(['<stdio.h>', 'a.h', '<string.h>', 'b/c.h']);
   });
 
   it('reports the line of each include', async () => {
@@ -89,5 +91,82 @@ describe('C extractor — declarations()', () => {
     expect(keys).toContain('named');
     // The anonymous/abstract function produced no symbol of its own.
     expect(keys).not.toContain('void');
+  });
+});
+
+describe('C extractor — header names and dead branches', () => {
+  it('reads the raw header name, so backslashes are not escape sequences', async () => {
+    const { uses } = await run('#include "..\\lib\\hdr\\a.h"\n');
+    expect(specs(uses)).toEqual(['..\\lib\\hdr\\a.h']);
+  });
+
+  it('drops includes under constant-false conditions and keeps unknown ones', async () => {
+    const src = [
+      '#if (0)', '#include "a.h"', '#endif',           // 1-3 dead
+      '#if 0 && FOO', '#include "b.h"', '#endif',      // 4-6 dead (short-circuit)
+      '#if FOO', '#include "c.h"', '#endif',           // 7-9 live (unknown)
+      '#if 1', '#else', '#include "d.h"', '#endif',    // 10-13 dead (#else of a taken #if)
+      '#if defined(X) || 0', '#include "e.h"', '#endif', // 14-16 live
+    ].join('\n');
+    const { uses } = await run(src);
+    expect(specs(uses)).toEqual(['c.h', 'e.h']);
+  });
+
+  it('falls back to the text scan when __has_include flattens the chain', async () => {
+    const src = ['#if __has_include("x.h")', '#include "x.h"', '#elif 0', '#include "dead.h"', '#endif', ''].join('\n');
+    const { uses } = await run(src);
+    expect(specs(uses)).toEqual(['x.h']);
+  });
+});
+
+describe('evalPreprocessorCondition', () => {
+  it.each([
+    ['0', 0], ['(0)', 0], ['false', 0], ['true', 1], ['!1', 0], ['0x0', 0], ['0UL', 0],
+    ['1 + 1 == 2', 1], ['2 > 3', 0], ['0 && FOO', 0], ['FOO && 0', 0], ['1 || FOO', 1],
+    ['1 ? 0 : 1', 0], ["1'000 - 1000", 0], ['010', 8], ['0b11', 3],
+    ['~0 == -1', 1], ['-1 + 1', 0], ['+0', 0], ['3 | 4', 7], ['3 ^ 1', 2], ['3 & 4', 0],
+    ['1 != 1', 0], ['1 < 2', 1], ['2 <= 1', 0], ['2 >= 2', 1], ['1 << 2', 4], ['8 >> 1', 4],
+    ['2 * 3 - 6', 0], ['7 % 7', 0], ['6 / 3 - 2', 0], ['FOO ? 1 : 1', 1], ['0 || 0', 0],
+    ['defined(A) && 0', 0], ['  0  ', 0],
+  ])('%s → %s', (expr, value) => {
+    expect(evalPreprocessorCondition(expr)).toBe(value);
+  });
+
+  it.each([
+    'FOO', 'defined(FOO)', 'defined FOO', '__has_include("x.h")', '1 / 0', '1 % 0', 'FOO || 0', '(0', '0 0',
+    "'a'", '', '   ', 'constructor', '!constructor', '1 ? 2', 'FOO ? 1 : 2', '__has_include(<x.h>', 'defined(X', '$', ')',
+  ])(
+    '%s → unknown',
+    (expr) => {
+      expect(evalPreprocessorCondition(expr)).toBeUndefined();
+    },
+  );
+});
+
+describe('deadPreprocessorLines', () => {
+  it('marks the lines of a dead group, nested groups included', () => {
+    const dead = deadPreprocessorLines(['#if 0', 'a', '#if FOO', 'b', '#endif', '#else', 'c', '#endif'].join('\n'));
+    expect([...dead].sort((x, y) => x - y)).toEqual([2, 3, 4, 5]);
+  });
+
+  it('marks every group after a taken one', () => {
+    const dead = deadPreprocessorLines(['#if FOO', 'a', '#elif 1', 'b', '#elifdef X', 'c', '#else', 'd', '#endif'].join('\n'));
+    expect([...dead].sort((x, y) => x - y)).toEqual([6, 8]);
+  });
+
+  it('ignores directives inside comments and strings', () => {
+    const dead = deadPreprocessorLines(['/*', '#if 0', '*/', 'x', 'const char *s = "#if 0";'].join('\n'));
+    expect(dead.size).toBe(0);
+  });
+
+  it('joins backslash-continued directive lines', () => {
+    const dead = deadPreprocessorLines(['#if 0 && \\', '  FOO', 'a', '#endif'].join('\n'));
+    expect(dead.has(3)).toBe(true);
+  });
+
+  it('gives up (drops nothing) on an unbalanced structure', () => {
+    expect(deadPreprocessorLines(['#if 0', 'a'].join('\n')).size).toBe(0);
+    expect(deadPreprocessorLines(['#endif', '#if 0', 'a', '#endif'].join('\n')).size).toBe(0);
+    expect(deadPreprocessorLines(['#else'].join('\n')).size).toBe(0);
   });
 });

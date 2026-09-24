@@ -9,8 +9,9 @@ cites: "php.net language.exceptions (E8 catch / multi-catch); research 2026-06-1
 ## Rule
 
 A `catch (DomainError | OtherError $e)` names exception class references without a
-leading backslash — namespace-relative usage sites (multi-catch since 8.0). The
-import-only model emits nothing for either operand.
+leading backslash — namespace-relative (multi-catch since 8.0), so `App\DomainError` and
+`App\OtherError`. The extractor resolves them so; neither file exists, so both stay
+silent and `App\Err\DomainError` is never a candidate.
 
 ## Files
 
@@ -32,8 +33,8 @@ class Handler { function m() { try {} catch (DomainError | OtherError $e) {} } }
 
 ## Expect
 
-- silence      # relative `catch (DomainError | OtherError ...)` operands are usage-site references → silent recall miss
+- silence      # relative `catch (DomainError | OtherError ...)` resolve to `App\...`, which have no file → silent
 
 ## Why
 
-The caught types are namespace-relative; the import-only model does not resolve them.
+The caught types resolve by PHP's rule to classes with no file; nothing binds.

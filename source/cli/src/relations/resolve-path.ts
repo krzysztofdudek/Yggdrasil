@@ -4,11 +4,12 @@ import { resolveTsPath } from './extractors/typescript-resolve.js';
 import { resolvePythonModule } from './extractors/python-resolve.js';
 import { resolveGoImport, type GoResolveDeps } from './extractors/go-resolve.js';
 import { resolveJavaFqn, resolveJavaPackageFiles, type JavaResolveDeps } from './extractors/java-resolve.js';
-import { resolvePhpFqn, parsePsr4, type PhpResolveDeps } from './extractors/php-resolve.js';
+import { resolvePhpFqn, parseComposerAutoload, type ComposerAutoload, type PhpResolveDeps } from './extractors/php-resolve.js';
 import { resolveRustPath, type RustResolveDeps, type RustCrateRoot } from './extractors/rust-resolve.js';
 import { resolveIncludePath } from './extractors/include-resolve.js';
 import { resolveRubyRequireRelative } from './extractors/ruby-resolve.js';
 import { buildOwnerIndex } from './owner-index.js';
+import { makeRepoLayout } from './repo-layout.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import type { Graph } from '../model/graph.js';
 
@@ -48,7 +49,8 @@ export function makeResolvePathToFile(
   const exists = (repoRelPosix: string): boolean => existsSync(path.resolve(projectRoot, repoRelPosix));
   const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
   const javaDeps = makeJavaResolveDeps(projectRoot, exists, isExcluded);
-  const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
+  const layout = makeRepoLayout(projectRoot, isExcluded);
+  const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded, layout.composerMaps);
   const rustDeps = makeRustResolveDeps(projectRoot, exists);
   const pythonRoots = makePythonProjectRoots(projectRoot, isExcluded);
   return (specifier, fromFile, language, isPackage = false) => {
@@ -104,13 +106,13 @@ export function makeResolvePathToFile(
       return resolveRustPath(specifier, fromFile, exists, rustDeps);
     }
     if (language === 'c' || language === 'cpp') {
-      // C and C++ share ONE include resolver: a quoted `#include "header"` resolves
-      // ONLY relative to the including file's own directory — deliberately no probe of
-      // ancestor dirs or common include roots (see include-resolve.ts's own doc comment
-      // for why: such a probe can only match a same-basename decoy the real compiler,
-      // driven by -I flags this resolver cannot see, would never pick). The header's
-      // owning node is the dependency target (header/impl share a node).
-      return resolveIncludePath(specifier, fromFile, exists);
+      // C and C++ share ONE include resolver: a quoted include resolves next to the
+      // includer first, then under the include roots — a compile_commands.json's -iquote/-I
+      // roots when one exists, else a conservative probe of the repository root and every
+      // `include/` directory — with the exactly-one-hit rule (see include-resolve.ts's own
+      // doc comment). An angle include resolves only under a database's -I roots. The
+      // header's owning node is the dependency target (header/impl share a node).
+      return resolveIncludePath(specifier, fromFile, exists, layout.includeRoots);
     }
     if (language === 'ruby') {
       // Ruby's ONLY path-precise link: `require_relative '<lit>'` resolves relative to the
@@ -781,14 +783,14 @@ function makeJavaResolveDeps(
 
 /**
  * Build the disk-backed PHP resolution capabilities for a project root. PHP maps a
- * class FQN to a file through composer's PSR-4 autoloading, so the only extra
- * capability beyond `exists` is producing the PSR-4 prefix→directory map in effect for
- * an importing file. That map comes from the NEAREST ancestor composer.json (a monorepo
- * may have several); its `autoload.psr-4` / `autoload-dev.psr-4` are parsed once per
- * composer.json directory and CACHED — composer.json is stable across a single factory
- * instance, so each is read at most once.
+ * class FQN to a file through composer autoloading (PSR-4, including the `""` fallback
+ * prefix, and PSR-0), so the extra capabilities beyond `exists` are the maps in effect for
+ * an importing file — those of the NEAREST ancestor composer.json with a PSR-4 or PSR-0
+ * map, parsed once per composer.json directory and CACHED — and, as a fallback when those
+ * resolve nothing, the maps of every composer.json in the repository (`allMaps`, from the
+ * shared repo layout scan; a monorepo's cross-package class lives in another package's map).
  *
- * No composer.json found (or an unreadable / classmap-only one) yields an empty map,
+ * No composer.json found (or an unreadable / classmap-only one) yields empty maps,
  * which the resolver treats as silence — it never guesses a source root.
  *
  * NOTE: makeResolvePathToFile's deps are pure filesystem access;
@@ -797,47 +799,59 @@ function makeJavaResolveDeps(
 function makePhpResolveDeps(
   projectRoot: string,
   exists: (repoRelPosix: string) => boolean,
-  isExcluded?: (repoRelPosix: string) => boolean,
+  isExcluded: ((repoRelPosix: string) => boolean) | undefined,
+  allMaps: () => readonly ComposerAutoload[],
 ): PhpResolveDeps {
-  // Cache: composer.json directory (repo-rel POSIX, '' = root) → parsed PSR-4 map.
-  const psr4ByDir = new Map<string, Map<string, string[]>>();
+  // Cache: composer.json directory (repo-rel POSIX, '' = root) → parsed autoload maps.
+  const byDir = new Map<string, ComposerAutoload | undefined>();
+  const EMPTY: ComposerAutoload = { psr4: new Map(), psr0: new Map() };
 
-  /** Parse the PSR-4 map from a composer.json at the given repo-rel dir, or empty. */
-  function readPsr4(repoRelDir: string): Map<string, string[]> {
+  /** Parse the autoload maps from a composer.json at the given repo-rel dir, or empty. */
+  function readAutoload(repoRelDir: string): ComposerAutoload {
     const abs = path.join(projectRoot, repoRelDir, 'composer.json');
     let text: string;
     try {
       text = readFileSync(abs, 'utf-8');
     } catch {
-      return new Map();
+      return EMPTY;
     }
-    return parsePsr4(text, repoRelDir);
+    return parseComposerAutoload(text, repoRelDir);
   }
 
-  /** Find the nearest ancestor directory of `fromFile` that has a composer.json, then
-   *  return its parsed PSR-4 map. Walks up to (and including) the project root. The
-   *  FIRST composer.json found wins — nested packages own their files. */
-  function psr4For(fromFile: string): ReadonlyMap<string, readonly string[]> {
+  const usable = (a: ComposerAutoload | undefined): a is ComposerAutoload =>
+    a !== undefined && (a.psr4.size > 0 || a.psr0.size > 0);
+
+  /** Find the nearest ancestor directory of `fromFile` whose composer.json has a PSR-4 or
+   *  PSR-0 map. Walks up to (and including) the project root. The FIRST such composer.json
+   *  is the nearest map; the resolver falls back to every map in the repository only when
+   *  this one resolves nothing. */
+  function nearest(fromFile: string): ComposerAutoload {
     let dir = path.posix.dirname(toPosix(fromFile));
     if (dir === '.') dir = '';
     for (;;) {
-      if (psr4ByDir.has(dir)) {
-        const cached = psr4ByDir.get(dir);
-        if (cached !== undefined && cached.size > 0) return cached;
+      if (byDir.has(dir)) {
+        const cached = byDir.get(dir);
+        if (usable(cached)) return cached;
       } else if (existsSync(path.join(projectRoot, dir, 'composer.json'))) {
-        const map = readPsr4(dir);
-        psr4ByDir.set(dir, map);
-        if (map.size > 0) return map;
+        const maps = readAutoload(dir);
+        byDir.set(dir, maps);
+        if (usable(maps)) return maps;
       } else {
-        psr4ByDir.set(dir, new Map());
+        byDir.set(dir, undefined);
       }
-      if (dir === '') return new Map(); // reached the root without a usable composer.json
+      if (dir === '') return EMPTY; // reached the root without a usable composer.json
       const parent = path.posix.dirname(dir);
       dir = parent === '.' ? '' : parent;
     }
   }
 
-  return { psr4For, exists, isExcluded };
+  return {
+    psr4For: (fromFile) => nearest(fromFile).psr4,
+    psr0For: (fromFile) => nearest(fromFile).psr0,
+    allMaps,
+    exists,
+    isExcluded,
+  };
 }
 
 function toPosix(p: string): string {

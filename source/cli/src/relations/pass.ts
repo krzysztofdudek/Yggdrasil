@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
 
 import type { Graph } from '../model/graph.js';
 import { parseFile, grammarWasmHash } from '../ast/parser.js';
-import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
+import { relationLanguageForPath, primaryExtensionForLanguage, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
 import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet } from '../io/repo-scanner.js';
@@ -242,6 +243,24 @@ export async function runRelationPass(
   const fileRecords: FileRecord[] = [];
   const recordByPath = new Map<string, FileRecord>();
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
+  // A file's relation language: its extension's, except a `.h` header in a C++ directory,
+  // which is parsed as C++ (relationLanguageForPath). The directory is listed only for a
+  // `.h`, at most once per directory.
+  const dirListing = new Map<string, string[]>();
+  const languageOf = (rel: string): string | null =>
+    relationLanguageForPath(rel, () => {
+      const dir = path.posix.dirname(rel);
+      let names = dirListing.get(dir);
+      if (names === undefined) {
+        try {
+          names = readdirSync(path.join(projectRoot, dir));
+        } catch {
+          names = [];
+        }
+        dirListing.set(dir, names);
+      }
+      return names;
+    });
   for (const [nodeId, node] of graph.nodes) {
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
@@ -255,7 +274,7 @@ export async function runRelationPass(
     for (const [i, rel] of fresh.entries()) {
       const content = contents[i];
       if (content === null || content === undefined) continue; // unreadable → skip
-      const language = getLanguageForExtension(grammarExtensionForPath(rel));
+      const language = languageOf(rel);
       const record: FileRecord = {
         path: rel,
         content,
@@ -281,7 +300,7 @@ export async function runRelationPass(
     } catch {
       continue; // unreadable → skip
     }
-    const language = getLanguageForExtension(grammarExtensionForPath(rel));
+    const language = languageOf(rel);
     const record: FileRecord = { path: rel, content, hash: hashString(content), language, nodeId: '', typeId };
     fileRecords.push(record);
     recordByPath.set(rel, record);
@@ -329,7 +348,7 @@ export async function runRelationPass(
     // and must never surface as an error.
     if (!record.language) return null;
     try {
-      const tree = await parseFile(record.path, record.content);
+      const tree = await parseFile(record.path, record.content, record.language);
       return { path: record.path, content: record.content, tree, language: record.language };
     } catch (err) {
       // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
@@ -430,7 +449,7 @@ export async function runRelationPass(
   ): Promise<FileFacts | null> {
     const language = record.language!;
     const isCsharp = language === 'csharp';
-    const grammarHash = grammarHashForExt(grammarExtensionForPath(record.path));
+    const grammarHash = grammarHashForExt(primaryExtensionForLanguage(language) ?? grammarExtensionForPath(record.path));
 
     // No grammar hash → cannot key the cache. Parse live, do not cache.
     if (grammarHash === null) return extractFileFacts(record, extractor);

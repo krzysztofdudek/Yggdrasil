@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getGrammarForExtension, getLanguageDisplayName, grammarExtensionForPath } from '../../../src/utils/language-registry.js';
+import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getGrammarForExtension, getLanguageDisplayName, grammarExtensionForPath, relationLanguageForPath, primaryExtensionForLanguage } from '../../../src/utils/language-registry.js';
 
 describe('language registry', () => {
   it('lists Tier 0 (ts/tsx/js) + Tier 1 + JSON', () => {
@@ -129,5 +129,39 @@ describe('Ruby files beyond .rb', () => {
     expect(grammarExtensionForPath('Makefile')).toBe('');
     expect(grammarExtensionForPath('.gitignore')).toBe('');
     expect(grammarExtensionForPath('docs/Rakefile.md')).toBe('.md');
+  });
+});
+
+describe('relationLanguageForPath', () => {
+  it('routes a .h to C++ only when its directory has a C++ file and no .c file', () => {
+    expect(relationLanguageForPath('a/w.h', () => ['w.h', 'w.cpp'])).toBe('cpp');
+    expect(relationLanguageForPath('a/w.h', () => ['w.h', 'x.HPP'])).toBe('cpp');
+    expect(relationLanguageForPath('a/w.h', () => ['w.h', 'w.cpp', 'z.c'])).toBe('c');
+    expect(relationLanguageForPath('a/w.h', () => ['w.h'])).toBe('c');
+    expect(relationLanguageForPath('a/w.h', () => ['README', '.hidden'])).toBe('c');
+  });
+
+  it('never lists the directory for anything but a .h', () => {
+    const boom = (): string[] => {
+      throw new Error('listed');
+    };
+    expect(relationLanguageForPath('a/w.cpp', boom)).toBe('cpp');
+    expect(relationLanguageForPath('a/w.c', boom)).toBe('c');
+    expect(relationLanguageForPath('a/w.ts', boom)).toBe('typescript');
+    expect(relationLanguageForPath('a/Makefile', boom)).toBeNull();
+    expect(relationLanguageForPath('a.dir/Makefile', boom)).toBeNull();
+    expect(relationLanguageForPath('lib/Rakefile', boom)).toBe('ruby');
+  });
+
+  it('registers the C++ module and template-implementation extensions', () => {
+    for (const ext of ['.cppm', '.ixx', '.mpp', '.ipp', '.inl', '.tpp', '.txx', '.c++', '.h++']) {
+      expect(getLanguageForExtension(ext)).toBe('cpp');
+    }
+  });
+
+  it('names a language\'s primary extension', () => {
+    expect(primaryExtensionForLanguage('cpp')).toBe('.cpp');
+    expect(primaryExtensionForLanguage('c')).toBe('.c');
+    expect(primaryExtensionForLanguage('toString')).toBeUndefined();
   });
 });

@@ -10,10 +10,12 @@ cites: "php.net language.namespaces.rules Rule 3 (E11 qualified usage via alias)
 
 With `use App\Domain\Models;` the local name `Models` may prefix a qualified usage
 `new Models\User()`, whose first segment is translated by the import table to
-`App\Domain\Models\User` (Rule 3). The IMPORT line `use App\Domain\Models;` is the only
-emitted edge (it resolves to the file declaring that FQN); the qualified usage is a
-separate, silenced usage-site form. So exactly one edge survives — the import — and the
-usage adds nothing.
+`App\Domain\Models\User` (Rule 3). The IMPORT line `use App\Domain\Models;` resolves
+to the file declaring that FQN (`src/Domain/Models.php`). The extractor also resolves the
+qualified usage with the same rule, to `App\Domain\Models\User`, but no
+`src/Domain/Models/User.php` exists, so the usage adds nothing: exactly one edge survives
+— the import. (php-namespace-alias-qualified-usage is the twin where the usage's class
+exists and the namespace import names no file.)
 
 ## Files
 
@@ -36,9 +38,9 @@ class Handler { function m() { $u = new Models\User(); } }
 
 ## Expect
 
-- src/Order/Handler.php:3 -> node:Domain      # only the import `use App\Domain\Models` resolves (src/Domain/Models.php, node Domain); the usage `Models\User` is silent
+- src/Order/Handler.php:3 -> node:Domain      # only the import `use App\Domain\Models` resolves (src/Domain/Models.php, node Domain); the usage `Models\User` names a class with no file → silent
 
 ## Why
 
-The import operand is the only edge; the downstream qualified usage is usage-site and
-silent, so the import is never double-counted or turned into a phantom `Models\User`.
+The import operand is the FQN; the qualified usage is resolved through the alias to
+the class PHP loads, which has no file here, so it never becomes a phantom edge.

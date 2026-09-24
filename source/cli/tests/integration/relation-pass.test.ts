@@ -1357,3 +1357,58 @@ describe('runRelationPass + computeTypeGateFindings — a Java wildcard import i
     expect(finding!.edges.some((e) => e.toFile === 'src/com/a/Zzz.java')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A `.h` header is C by extension, but a `.h` in a directory of C++ files is a C++ header
+// (the Google C++ style default). The pass routes it to the C++ extractor and parses it with
+// the C++ grammar; a `.h` beside a `.c` stays C.
+// ---------------------------------------------------------------------------
+describe('runRelationPass routes a .h header by its directory', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(path.join(tmpdir(), 'rel-pass-h-'));
+    mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`,
+      'utf-8',
+    );
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\n`, 'utf-8');
+    writeNode(root, 'cxx', 'Cxx', 'src/cxx');
+    writeNode(root, 'plain', 'Plain', 'src/plain');
+    mkdirSync(path.join(root, 'src', 'cxx'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'plain'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'cxx', 'widget.h'), 'namespace ui { class W final {}; }\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'cxx', 'widget.cpp'), '#include "widget.h"\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'plain', 'api.h'), 'int api(void);\n', 'utf-8');
+    writeFileSync(path.join(root, 'src', 'plain', 'api.c'), '#include "api.h"\n', 'utf-8');
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('gives a .h the C++ language (and a clean C++ parse) only beside C++ files', async () => {
+    const seen = new Map<string, { language: string; hasError: boolean }>();
+    const recorder = (lang: string): DependencyExtractor => ({
+      languages: new Set([lang]),
+      rev: 1,
+      declarations: () => [],
+      uses(file: ParsedFile): DetectedDep[] {
+        seen.set(file.path, { language: file.language, hasError: file.tree.rootNode.hasError });
+        return [];
+      },
+    });
+    const c = recorder('c');
+    const cpp = recorder('cpp');
+    const graph = await loadGraph(root);
+    await runRelationPass(graph, root, {
+      extractorFor: (language) => (language === 'c' ? c : language === 'cpp' ? cpp : undefined),
+      resolvePathToFile: () => undefined,
+      symbolIndexDir: path.join(root, '.yg-cache'),
+    });
+    expect(seen.get('src/cxx/widget.h')).toEqual({ language: 'cpp', hasError: false });
+    expect(seen.get('src/plain/api.h')).toEqual({ language: 'c', hasError: false });
+  });
+});

@@ -11,8 +11,8 @@ cites: "php.net language.namespaces.rules Rule 3/4; research 2026-06-15 trap T5"
 `namespace App\Http; use App\Data\Builder as DB;` — the import edge is the absolute FQN
 `App\Data\Builder`. The qualified usages `new DB\QueryBuilder()` (first segment `DB`
 import-translated → `App\Data\Builder\QueryBuilder`) and `new Http\Request()`
-(current-ns prepend → `App\Http\Http\Request`) are usage-site and silent. The import
-never mis-binds; the usages emit nothing.
+(current-ns prepend → `App\Http\Http\Request`) would be resolved by exactly those
+rules, never by guessing another `Request`. The import never mis-binds.
 
 ## Files
 
@@ -40,4 +40,5 @@ class C {}
 ## Why
 
 The import operand is the absolute FQN; the first-segment clash lives only in
-usage-site qualified names, which the import-only model leaves silent.
+usage-site qualified names, which resolve through the alias table or the current
+namespace, never to a same-named class elsewhere.

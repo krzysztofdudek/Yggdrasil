@@ -1,10 +1,12 @@
 name: Relations Name-Resolution Matrix — PHP
 type: test-suite
 description: "Exhaustive name-resolution identification matrix for the PHP
-  relation-conformance extractor — every supported use-import and inline
-  leading-backslash class-reference form that must resolve to a cross-node edge,
-  the per-clause function/const guard in grouped use imports, and every shape that
-  must stay silent (namespace-relative inline, function/const FQN, dynamic forms).
+  relation-conformance extractor — every supported use-import, inline
+  leading-backslash and namespace-relative class-reference form, composer autoload
+  resolution (nearest map, repo-wide union, empty prefix, PSR-0) and file-relative
+  require that must resolve to a cross-node edge, the per-clause function/const guard
+  in grouped use imports, and every shape that must stay silent (relative names with no
+  file, function/const FQN, runtime-resolved includes, dynamic forms).
   Catalogue-driven: every it('<id>') is a runCase('<id>') over a reference case in
   reference/relations/php/, mirroring the Kotlin/Java matrices. Split from the
   former TS+PHP bundle so each language's matrix stays within the reviewer prompt

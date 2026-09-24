@@ -10,9 +10,9 @@ cites: "php.net language.types.declarations (E4 type positions); research 2026-0
 
 Class names in parameter, return, and property type positions — `private Repo $r;`,
 `function m(Logger $l): Result` — written without a leading backslash are
-namespace-relative usage-site references resolved by the §rules precedence (including
-union / intersection / DNF composites and 8.3 typed constants). The import-only model
-emits nothing for them.
+namespace-relative (including union / intersection / DNF composites and 8.3 typed
+constants), here `App\Repo`, `App\Logger`, `App\Result`. The extractor resolves them
+so; none has a file, so all stay silent and `App\Dep\Repo` is never a candidate.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Handler { private Repo $r; function m(Logger $l): Result {} }
 
 ## Expect
 
-- silence      # relative `Repo` / `Logger` / `Result` type hints are usage-site references → silent recall miss
+- silence      # relative `Repo` / `Logger` / `Result` resolve to `App\...`, which have no file → silent
 
 ## Why
 
-A relative type hint binds against the namespace + use table; the import-only model
-declines to resolve it.
+A relative type hint names the class PHP's rule gives it; here none of them has a
+file, so nothing binds.

@@ -10,9 +10,9 @@ cites: "php.net language.oop5.traits (E3 in-class trait use, namespace-relative)
 
 An in-class trait `use Timestamps;` (or `use Ns\Other;`) is namespace-RELATIVE, unlike
 the absolute top-level namespace `use`: in `namespace App` it resolves to `App\Timestamps`
-by current-namespace prepend, never global `\Timestamps`. The extractor never reads an
-in-class trait `use` (import-only), so it is silent — applying the absolute top-level
-rule here would be the T6 mis-bind.
+by current-namespace prepend, never global `\Timestamps`. The extractor resolves it so
+(and `Ns\Other` to `App\Ns\Other`); neither file exists, so both stay silent —
+applying the absolute top-level rule here would be the T6 mis-bind.
 
 ## Files
 
@@ -34,9 +34,9 @@ class Handler { use Timestamps; use Ns\Other; }
 
 ## Expect
 
-- silence      # in-class trait `use` is namespace-relative usage-site → silent; never the global `App\Mixin\Timestamps`
+- silence      # in-class trait `use` is namespace-relative (→ `App\Timestamps`, no file) → silent; never `App\Mixin\Timestamps`
 
 ## Why
 
 The in-class trait `use` resolves against the current namespace; treating it like the
-absolute top-level import would mis-bind, so it stays silent.
+absolute top-level import would mis-bind, and resolving it correctly finds no file.
