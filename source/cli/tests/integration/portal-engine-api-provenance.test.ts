@@ -281,7 +281,7 @@ describe('runPortalCheck — parity with `yg check` on the review-cadence signal
     expect(overduePortal.length).toBeGreaterThan(0);
 
     // Oracle: the CLI path passes `nowUtc: () => new Date()`; the portal must match it exactly.
-    const cliResult = await runCheck(graph, [], { nowUtc: () => new Date() });
+    const cliResult = await runCheck(graph, [], { runCompanionHooks: false, nowUtc: () => new Date() });
     const overdueCli = cliResult.issues.filter((i) => i.code === 'aspect-review-overdue');
     expect(overduePortal.length).toBe(overdueCli.length);
 
@@ -306,8 +306,7 @@ describe('runPortalCheck — parity with `yg check` on the review-cadence signal
 
     // Oracle: the CLI boundary reads the artifacts through the SAME shared reader and injects
     // them; the portal must match it exactly.
-    const cliResult = await runCheck(graph, [], {
-      rulesArtifacts: await readRulesArtifacts(BASIC_FIXTURE),
+    const cliResult = await runCheck(graph, [], { runCompanionHooks: false,       rulesArtifacts: await readRulesArtifacts(BASIC_FIXTURE),
     });
     const staleCli = cliResult.issues.filter((i) => i.code === 'rules-digest-stale');
     expect(stalePortal.length).toBe(staleCli.length);

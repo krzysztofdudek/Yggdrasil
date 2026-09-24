@@ -142,6 +142,15 @@ export interface YggConfig {
    * that is on and inert.
    */
   progressive?: { reference: string };
+  /**
+   * The reviewer settings the COMMITTED yg-config.yaml itself states, read
+   * before the gitignored yg-secrets.yaml overlay is merged: which tiers carry
+   * a `config.api_key` there, and each tier's committed `config.endpoint`.
+   * `yg check` judges the committed file by these (a credential must never be
+   * committed; a committed endpoint must not quietly receive a key from the
+   * environment). Never a verdict input — no hash reads them.
+   */
+  committedReviewer?: { apiKeyTiers: string[]; endpoints: Record<string, string> };
 }
 
 // ============================================================

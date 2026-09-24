@@ -160,13 +160,20 @@ export async function classifyFillPairs(
    * from the report, so a caller that HAS the walk must pass it.
    */
   visibleFiles: string[] | null = null,
+  /**
+   * Whether classification may run companion.mjs hooks to size stale pairs
+   * (see verify-lock's VerifyOptions). True for a real `--approve`, which runs
+   * the repository's rule code anyway; false for a `--dry-run` preview, which
+   * like every read-only command executes no repository code.
+   */
+  runCompanionHooks = false,
 ): Promise<FillPairSets> {
   const projectRoot = path.dirname(graph.rootPath);
   // The byte cache this verification fills is handed to the guard below, so the
   // content it compares is the content the re-hash just read — one pass over
   // those files, and no window in which the two could see different bytes.
   const byteCache = new Map<string, Buffer | null>();
-  const verification = await verifyLock(graph, lock, typeCoverage, byteCache);
+  const verification = await verifyLock(graph, lock, typeCoverage, byteCache, { runCompanionHooks });
 
   const unverifiedPairs: ExpectedPair[] = [];
   for (const vp of verification.pairs) {

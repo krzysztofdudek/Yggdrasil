@@ -95,6 +95,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'file-duplicate-mapping',
   'structural-cycle',
   'config-invalid',
+  // A reviewer credential in the committed configuration, or the local secrets
+  // overlay tracked by git (core/checks/credentials.ts).
+  'config-committed-api-key',
+  'secrets-file-tracked',
   'duplicate-aspect-id',
   'node-yaml-missing',
   'implied-aspect-missing',
@@ -152,6 +156,11 @@ export const STRUCTURAL_CODES = new Set<string>([
   'aspect-reference-blank-path',
   'aspect-reference-escape',
   'aspect-reference-duplicate',
+  // A rule source or a reference that runs through a symbolic link — refused,
+  // never followed (io/artifact-reader.ts): readers disagree about links, and a
+  // link can reach outside the repository.
+  'aspect-source-symlink',
+  'aspect-reference-symlink',
   'aspect-tier-unknown',
   // errs label declared on a non-deterministic aspect, or a malformed errs
   // literal — always blocks (structural graph-shape error), like the other
@@ -227,6 +236,10 @@ export const APPROVE_GATING_CODES = new Set<string>([
   // narrower gate would still spend money before ending red, and the
   // resolution the cost was spent on cannot be trusted anyway.
   'aspect-implies-cycle',
+  // A reference through a symbolic link could carry a file from outside the
+  // repository into a prompt sent to the reviewer; no fill runs until it is
+  // replaced by the file itself.
+  'aspect-reference-symlink',
   // Defense-in-depth for the mapping path-traversal hole (belt-and-suspenders;
   // the node-parser's parse-time escapesRepo guard is primary — an escaping
   // mapping fails to load, so the node never reaches the fill stage). If an

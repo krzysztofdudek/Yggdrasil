@@ -573,6 +573,10 @@ export async function parseConfig(
   // a drift warning for exactly one developer.
   const rulesArtifacts = parseRulesArtifacts(baseRaw.rules_artifacts, filename);
 
+  // Read from `baseRaw` too: what matters here is what the committed file says,
+  // whatever a local overlay adds on top (see YggConfig.committedReviewer).
+  const committedReviewer = readCommittedReviewer(baseRaw.reviewer);
+
   return {
     version,
     quality,
@@ -585,7 +589,30 @@ export async function parseConfig(
     coverage,
     progressive,
     rulesArtifacts,
+    ...(committedReviewer && { committedReviewer }),
   };
+}
+
+/**
+ * The api_key and endpoint facts of the committed reviewer block, taken
+ * leniently: the tier parser above has already refused a malformed block, so
+ * anything that is not a string is simply not reported here. Undefined when the
+ * committed file names neither.
+ */
+function readCommittedReviewer(rawReviewer: unknown): YggConfig['committedReviewer'] {
+  const tiers = (rawReviewer as { tiers?: unknown } | undefined)?.tiers;
+  if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) return undefined;
+  const apiKeyTiers: string[] = [];
+  const endpoints: Record<string, string> = {};
+  for (const [name, tier] of Object.entries(tiers as Record<string, unknown>)) {
+    const cfg = (tier as { config?: unknown } | null)?.config;
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
+    const c = cfg as Record<string, unknown>;
+    if (c.api_key !== undefined && c.api_key !== null && c.api_key !== '') apiKeyTiers.push(name);
+    if (typeof c.endpoint === 'string' && c.endpoint.trim() !== '') endpoints[name] = c.endpoint.trim();
+  }
+  if (apiKeyTiers.length === 0 && Object.keys(endpoints).length === 0) return undefined;
+  return { apiKeyTiers: apiKeyTiers.sort(), endpoints };
 }
 
 /**

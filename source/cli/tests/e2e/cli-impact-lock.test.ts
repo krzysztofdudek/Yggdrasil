@@ -685,7 +685,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --file unified Total (new ca
   });
 
   // (c) Always-failing companion — Unresolved line appears.
-  it('(c) always-failing companion: Unresolved line appears in Total output', () => {
+  it('(c) a cold companion rule is a potential invalidation; its companion is never run, so a throwing one cannot surface', () => {
     const dir = fixture('total-unresolved-companion');
     // Add a companion-backed LLM aspect whose companion.mjs always throws.
     const failAspDir = aspectDir(dir, 'always-fails');
@@ -735,13 +735,15 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --file unified Total (new ca
       ].join('\n'),
       'utf-8',
     );
-    // No lock — cold companion resolution will try to run always-fails companion.
+    // No lock. `yg impact` executes no repository code, so the companion is never
+    // run (its throw cannot happen here): the cold pair is admitted as a potential
+    // invalidation instead, named under its node, and nothing is "Unresolved".
     const { stdout, status } = run(['impact', '--file', 'src/services/payments.ts'], dir);
     expect(status).toBe(0);
-    // The Unresolved section must appear (companion threw during resolution).
-    expect(stdout).toContain('Unresolved');
-    // The node path of the unresolved unit must appear.
+    expect(stdout).not.toContain('Unresolved');
+    expect(stdout).not.toContain('intentional failure');
     expect(stdout).toContain('services/orders');
+    expect(stdout).toContain('companion not run');
   });
 
   // (d) Graph-file path: prints redirect, no Total.

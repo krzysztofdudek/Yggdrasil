@@ -149,3 +149,5 @@ The impact and component documents no longer report a port's version or contract
 evaluateNodeClause gained an id field: node.id matches a node's path exactly (string or list-of-strings, list meaning any-of), giving when: { not: { node: { id } } } a way to exclude one named child from a parent-attached aspect without removing it from the parent.
 ## [2026-09-12T06:25:19.710Z]
 A multi-field descendants: clause used to match if each field held on some descendant independently -- two different descendants could each satisfy one field and the clause matched, even though no single descendant satisfied both. Now requires one descendant to satisfy every field at once, matching how the sibling relations: clause already worked one level down.
+## [2026-09-24T01:23:19.849Z]
+Impact analysis used to run a companion hook to decide whether a pair with no verdict yet would read the edited file. Impact is a read-only question and a companion is repository code, so such a pair is now admitted as a potential invalidation under its own reason, the same upper bound a cold deterministic pair already gets.

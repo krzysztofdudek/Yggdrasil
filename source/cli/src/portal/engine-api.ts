@@ -176,6 +176,8 @@ export async function runPortalCheck(
   precomputedTypeCoverage?: TypeCoverageResult,
 ): Promise<CheckResult> {
   return runCheck(graph, repoFiles, {
+    // The portal is read-only: it executes no repository code (no companion.mjs).
+    runCompanionHooks: false,
     nowUtc,
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),

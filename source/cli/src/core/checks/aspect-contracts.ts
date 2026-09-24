@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { symlinkOnPath } from '../../io/artifact-reader.js';
 import type { Graph, GraphNode, AspectStatus } from '../../model/graph.js';
 import { STATUS_ORDER } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
@@ -682,6 +683,27 @@ export async function checkAspectReferences(graph: Graph): Promise<ValidationIss
       // message (the posix-paths-output contract governs these ValidationIssue
       // strings); absPath above is filesystem-only and stays OS-native.
       const refPath = toPosixPath(ref.path);
+      // A reference that runs through a symlink is refused like a rule source
+      // (io/artifact-reader.ts): it can pull a file from outside the repository
+      // into a prompt sent to a third-party reviewer, and it is content no
+      // clone or CI runner is guaranteed to share.
+      const linkedRaw = symlinkOnPath(projectRoot, ref.path);
+      if (linkedRaw !== null) {
+        const linked = toPosixPath(linkedRaw);
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' references '${refPath}', which runs through the symbolic link '${linked}'.`,
+          why: 'A reference is shown to the reviewer and hashed into every verdict of the rule; a link can reach outside the repository and resolve differently on each machine, so its content is neither reproducible nor contained.',
+          next: `Reference the file itself instead of the link (copy it into the repository at a real path), or remove the entry in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml.`,
+        };
+        issues.push({
+          severity: 'error',
+          code: 'aspect-reference-symlink',
+          rule: 'aspect-reference-symlink',
+          ...issueMsg(msgData),
+          messageData: msgData,
+        });
+        continue;
+      }
       let stats: Awaited<ReturnType<typeof statPath>>;
       try {
         stats = await statPath(absPath);

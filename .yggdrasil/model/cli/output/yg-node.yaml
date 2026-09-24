@@ -4,6 +4,8 @@ description: "The command layer's one place for how the CLI speaks: the Diagnost
 relations:
   - target: cli/formatters
     type: calls
+  - target: cli/utils
+    type: calls
   - target: cli/model/validation
     type: uses
 mapping:

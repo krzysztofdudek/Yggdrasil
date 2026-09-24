@@ -492,8 +492,7 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
 
     const withoutOption = await runCheck(graph, null);
-    const withOption = await runCheck(graph, null, {
-      changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
+    const withOption = await runCheck(graph, null, { runCompanionHooks: false,       changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
     });
 
     // Guard against a vacuous pass: there IS a scoped blocking finding here.
@@ -560,8 +559,7 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     const unscoped = await runCheck(graph, null);
     expect(unscoped.suggestedNext).toBe('yg check --approve');
 
-    const scoped = await runCheck(graph, null, {
-      changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
+    const scoped = await runCheck(graph, null, { runCompanionHooks: false,       changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
     });
     expect(scoped.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
     expect(scoped.suggestedNext).not.toBe('yg check --approve');
@@ -577,8 +575,7 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
 
     const withoutOption = await runCheck(graph, null);
-    const globalScope = await runCheck(graph, null, {
-      changeScope: { burn: { ...emptyBurn(), global: true, changedInputCount: 3 }, referenceName: 'origin/main', blobOidByPath: null },
+    const globalScope = await runCheck(graph, null, { runCompanionHooks: false,       changeScope: { burn: { ...emptyBurn(), global: true, changedInputCount: 3 }, referenceName: 'origin/main', blobOidByPath: null },
     });
 
     expect(withoutOption.issues.length).toBeGreaterThan(0);

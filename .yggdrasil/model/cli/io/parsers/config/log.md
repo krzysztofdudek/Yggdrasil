@@ -68,3 +68,5 @@ A copilot-cli tier with no model failed with the generic every-tier-needs-a-mode
 The config parser owns the one reader of the schema version field, telling absent, string and non-string apart, and rejects unknown top-level keys with a did-you-mean suggestion like every sub-block already did, because a misspelled block silently fell back to its default.
 ## [2026-09-23T22:38:07.274Z]
 The graph-governance work met the release work already merged in this component: the single schema-version reader and the unknown top-level key refusal sit beside the copilot-cli model guidance. The changes are independent and both survive.
+## [2026-09-24T01:23:21.552Z]
+Judging whether a credential was committed needs to know what the committed configuration itself says, before the local overlay is merged over it. The parser now records, from the committed file only, which tiers carry an api key and which endpoints it names; these facts feed the credentials check and are never a verdict input.

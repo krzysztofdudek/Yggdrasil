@@ -221,12 +221,12 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
     // Validate CLI is installed
     const s = p.spinner();
     s.start(`Checking ${provider} installation...`);
-    const testResult = await testCliProvider(provider);
-    s.stop(testResult.ok ? `${provider} found` : `${provider} not found`);
+    const testResult = await testCliProvider(provider, model);
+    s.stop(testResult.ok ? `${provider} works` : `${provider} cannot review yet`);
 
     if (!testResult.ok) {
-      p.log.warning(`${provider} not found on PATH: ${testResult.error}`);
-      p.log.info('You can install it later. Configuration will be saved.');
+      p.log.warning(`${provider} cannot review on this machine: ${testResult.error}`);
+      p.log.info('You can fix it later. Configuration will be saved.');
     }
 
     return { provider, model };
@@ -521,7 +521,7 @@ export function resolveReviewerConfigFromFlags(opts: {
  */
 export async function probeReviewerFromFlags(config: ResolvedReviewerConfig): Promise<IssueMessage | undefined> {
   if (!CLI_PROVIDERS.includes(config.provider)) return undefined;
-  const result = await testCliProvider(config.provider);
+  const result = await testCliProvider(config.provider, config.model);
   if (result.ok) return undefined;
   return {
     what: `The ${config.provider} reviewer cannot run on this machine: ${result.error ?? 'its CLI did not answer'}.`,

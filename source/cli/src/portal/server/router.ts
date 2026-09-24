@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extractPortalData } from '../extract.js';
+import type { PortalData } from '../contract.js';
+import type { PortalDataSource } from './data-source.js';
 import { renderPortalPage, readPortalAsset } from '../serializer.js';
 import { renderLoadingShell, renderErrorPage } from './boot-pages.js';
 import { runApproveViaCli, dryRunApproveViaCli, approveInProgress } from './approve.js';
@@ -25,6 +27,18 @@ export interface RouterConfig {
   projectRoot: string;
   /** false in --no-write / view-only mode: POST /approve is rejected 409. */
   writeEnabled: boolean;
+  /**
+   * Where /render and /data get their PortalData: one extraction shared by
+   * concurrent requests and reused while the project is unchanged (see
+   * data-source.ts). The server always supplies one; absent, each request
+   * extracts on its own.
+   */
+  dataSource?: PortalDataSource;
+}
+
+/** The PortalData a /render or /data request answers with. */
+function portalData(config: RouterConfig): Promise<PortalData> {
+  return config.dataSource ? config.dataSource.get() : extractPortalData(config.projectRoot, { writeEnabled: config.writeEnabled });
 }
 
 /** Send a JSON body with a status code. */
@@ -83,8 +97,8 @@ function isLoopbackHostValue(hostValue: string): boolean {
  * page a user opens in another tab silently POSTing /approve to the loopback port). The Origin
  * and Host checks are defense in depth: a request whose Origin is another site, or whose Host is
  * not a loopback literal (a DNS-rebinding attempt), is rejected even if the marker were present.
- * The HTML routes (/, /render, /static/*) are deliberately NOT guarded — a browser navigates
- * them directly and cannot attach a custom header.
+ * The HTML routes (/, /render, /static/*) do not ask for the marker — a browser navigates them
+ * directly and cannot attach a custom header — but they get the Host check below all the same.
  */
 function isTrustedApiRequest(req: IncomingMessage): boolean {
   if (req.headers['x-yg-portal'] === undefined) return false;
@@ -101,6 +115,21 @@ function isTrustedApiRequest(req: IncomingMessage): boolean {
   const host = req.headers['host'];
   if (host !== undefined && !isLoopbackHostValue(host)) return false;
   return true;
+}
+
+/**
+ * The DNS-rebinding guard every route gets, the page routes included. A page on
+ * another site that rebinds its own hostname to 127.0.0.1 reaches this server
+ * with that hostname in Host; a browser always sends Host, and a loopback
+ * address is the only one this server is ever reached at. `/render` serves the
+ * same PortalData as `/data` — rule text, logs, reviewer reasons — so exempting
+ * it (as the marker check must) left the data readable to exactly the attack
+ * the Host check exists for. A request with no Host at all (HTTP/1.0 from a
+ * local tool) is not a browser and is let through.
+ */
+function hasLoopbackHost(req: IncomingMessage): boolean {
+  const host = req.headers['host'];
+  return host === undefined || isLoopbackHostValue(host);
 }
 
 /** The sensitive routes the cross-origin guard protects (page/static routes are exempt). */
@@ -125,6 +154,16 @@ export async function handleRequest(
   const pathname = url.pathname;
 
   try {
+    if (!hasLoopbackHost(req)) {
+      sendText(
+        res,
+        403,
+        'text/plain; charset=utf-8',
+        'This portal answers only at the loopback address the CLI printed (127.0.0.1 or localhost).\n',
+      );
+      return;
+    }
+
     if (isGuardedApiRoute(method, pathname) && !isTrustedApiRequest(req)) {
       // The request did not come from the portal's own page (no marker header, or a
       // cross-origin Origin / non-loopback Host). Refuse before touching the engine.
@@ -152,7 +191,7 @@ export async function handleRequest(
       try {
         // Fresh and read-only: extraction loads the graph committed-only and persists
         // nothing, so any number of renders leaves the lock and caches byte-unchanged.
-        const data = await extractPortalData(config.projectRoot, { writeEnabled: config.writeEnabled });
+        const data = await portalData(config);
         const html = await renderPortalPage(data);
         sendText(res, 200, 'text/html; charset=utf-8', html);
       } catch (err) {
@@ -163,8 +202,9 @@ export async function handleRequest(
     }
 
     if (method === 'GET' && pathname === '/data') {
-      // Refresh: re-extract fresh, persist nothing.
-      const data = await extractPortalData(config.projectRoot, { writeEnabled: config.writeEnabled });
+      // Refresh: the project's current state, persisting nothing — a fresh
+      // extraction unless one is already running or nothing has changed since.
+      const data = await portalData(config);
       sendJson(res, 200, data);
       return;
     }

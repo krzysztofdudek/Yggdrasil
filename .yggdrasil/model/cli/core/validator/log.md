@@ -112,3 +112,5 @@ The gate now also verifies that every rule installed from another repository sti
 The validator no longer runs the reserved default port check, because that check was removed: a deliberate default port declaration is the documented way to hang aspects on the implicit port and warning about it on every run only trained readers to ignore warnings.
 ## [2026-09-23T23:00:44.157Z]
 A yg-config.yaml that does not parse reports the parser's message as what happened and, as why, that every setting has fallen back to its default — the two were swapped, and nothing said that the rest of the report described the default configuration rather than the project's.
+## [2026-09-24T01:23:20.287Z]
+The validator now includes the reviewer-credentials findings, so a key committed to the shared configuration, a tracked secrets overlay, or a committed endpoint that would receive the environment's key surface on every check, where the repository's own guardrail is expected to catch them.

@@ -23,6 +23,20 @@ import {
 import { cannotRunReasonFor, unverifiedIssueMessage, type TypeVisibilityReport } from './type-visibility.js';
 import type { CheckIssue } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
+import type { IssueMessage } from '../model/validation.js';
+
+/**
+ * The sentence an unverified companion pair carries when this run did not
+ * execute its companion.mjs (see VerifiedPair.companionNotRun): the pair is
+ * unverified for its own reason, and its prompt-size check is incomplete until
+ * a run that may execute repository code resolves the companions.
+ */
+export const COMPANION_NOT_RUN_WHY =
+  'Its companion.mjs was not run: this command executes no repository code, so the prompt-size check measured the pair without the companion files and is completed by the next yg check --approve.';
+
+function withCompanionNotRun(vp: VerifiedPair, md: IssueMessage): IssueMessage {
+  return vp.companionNotRun === true ? { ...md, why: `${md.why} ${COMPANION_NOT_RUN_WHY}` } : md;
+}
 
 /** Fallback text when a refused verdict carries no stored reason. Single source of truth. */
 const NO_REASON_FALLBACK = 'no violation details recorded';
@@ -87,8 +101,8 @@ export function emitPairIssue(
         severity: enforced ? 'error' : 'warning',
         code: 'unverified',
         rule: 'unverified',
-        messageData: unverifiedIssueMessage(rtRows, pair, (p) =>
-          unverifiedCauseMessage({ ...p, cause: cause === 'check-failed-to-run' ? 'never-reviewed' : cause })),
+        messageData: withCompanionNotRun(vp, unverifiedIssueMessage(rtRows, pair, (p) =>
+          unverifiedCauseMessage({ ...p, cause: cause === 'check-failed-to-run' ? 'never-reviewed' : cause }))),
         unverifiedCause: cause,
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,

@@ -174,3 +174,5 @@ The stores now carry two independent changes together: log appends take a short 
 The environment-robustness fixes and the release work already merged met in this component: the mapping walk and the coverage walk share one .gitignore implementation, so a nested .gitignore is honoured when mapped files are hashed, while the package store and artifact reader keep the release's earlier changes. The merged source carries both behaviours.
 ## [2026-09-23T22:38:08.836Z]
 The lock work met the release work already merged in this component: log appends take turns under the repository-wide log-write lock, the read-only gitignore probe runs over the shared ancestor gitignore stack, and the package store keeps its own separately named command lock with byte-exact copies, so the three locks never share a file.
+## [2026-09-24T01:23:21.965Z]
+The rule-artifact reader is the place that decides which files a rule is made of, so it now also answers which of them are symbolic links and whether a repository path passes through one. Rule sources and references share that single policy — refuse, never follow — which matches how mapped source files were already treated.

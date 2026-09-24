@@ -14,6 +14,7 @@ relations:
 mapping:
   - source/cli/tests/unit/utils/atomic-write.test.ts
   - source/cli/tests/unit/utils/binary-check.test.ts
+  - source/cli/tests/unit/utils/terminal-safe.test.ts
   - source/cli/tests/unit/utils/redact.test.ts
   - source/cli/tests/unit/utils/debug-log.test.ts
   - source/cli/tests/unit/utils/mapping-path.test.ts

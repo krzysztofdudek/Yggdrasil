@@ -179,21 +179,15 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       // never reached the reviewer (resolution precedes consensus).
       expect(mock.chatCount()).toBe(2);
 
-      // `yg check` stays red. Since v5.2.0 the §4 prompt-size gate is unconditional
-      // (an omitted max_prompt_chars defaults to 50000), so plain `yg check` resolves
-      // the companion LIVE to size the gate — and a throwing hook surfaces directly as
-      // a blocking aspect-companion-runtime-error carrying the hook's OWN message,
-      // rather than the generic per-unit "No valid verdict" (unverified) rendering.
+      // `yg check` stays red. A plain check executes no repository code, so it does
+      // not run the hook again: the one pair with no verdict is reported unverified,
+      // and the report says its companion was not run (the --approve report above is
+      // where the hook's own error surfaces).
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // Grouped view: the blocking runtime-error group fires for this aspect, its
-      // shared why carries the hook's OWN thrown error, and exactly ONE pair (the
-      // checkout unit) is a member — the resolvable login/search pairs resolve fine
-      // and never enter the group. The per-unit `what` is no longer rendered.
-      expect(after.all).toContain('aspect-companion-runtime-error');
       expect(after.all).toContain("aspect 'throwing-companion'");
-      expect(after.all).toContain('boom: deliberate hook failure');
-      expect(after.all).toContain('1 pair  ');
+      expect(after.all).toContain('companion.mjs was not run');
+      expect(after.all).not.toContain('boom: deliberate hook failure');
       expect(after.all).toContain('- scenarios');
     } finally {
       await mock.close();
@@ -238,13 +232,15 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       // "No valid verdict" unverified rendering.
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // Grouped view: every unit returns the same missing path → all three pairs
-      // are members of the runtime-error group (3 pairs). The per-unit `what`
-      // ("...could not be read.") is no longer rendered; the missing path survives
-      // in the shared Fix text, and the 3-pair count proves every unit is blocked.
-      expect(after.all).toContain('aspect-companion-runtime-error');
+      // A plain check executes no repository code: the hook is not run, so every
+      // unit is reported unverified (3 pairs) with its companion not run, and the
+      // missing path is named only where the hook ran — in --approve's report.
       expect(after.all).toContain('3 pairs');
-      expect(after.all).toContain('does-not-exist.spec.ts');
+      expect(after.all).toContain('companion.mjs was not run');
+      const approve = run(['check', '--approve'], dir);
+      expect(approve.status).toBe(1);
+      expect(approve.all).toContain('aspect-companion-runtime-error');
+      expect(approve.all).toContain('does-not-exist.spec.ts');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

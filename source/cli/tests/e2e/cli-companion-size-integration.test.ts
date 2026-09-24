@@ -125,9 +125,11 @@ describe.skipIf(!distExists)('CLI E2E — companion prompt-size gate', () => {
     }
   }, 40000);
 
-  // A broken companion.mjs (throws) with a tier limit set → the live gate resolver
-  // surfaces a CLEAR diagnostic naming the aspect, so the agent diagnoses immediately.
-  it('a broken companion surfaces a clear diagnostic on `yg check` when a limit is set', async () => {
+  // A broken companion.mjs (throws) with a tier limit set. Plain `yg check` executes
+  // no repository code, so it does not run the hook: the pair is unverified and the
+  // report says its size check waits for --approve. `--approve` runs the hook and
+  // surfaces a CLEAR diagnostic naming the aspect and the hook's own error.
+  it('a broken companion is not run by plain `yg check`; `yg check --approve` surfaces its error', async () => {
     const dir = copyFixture('broken');
     const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'ok' }) });
     try {
@@ -138,8 +140,13 @@ describe.skipIf(!distExists)('CLI E2E — companion prompt-size gate', () => {
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       expect(after.all).toContain('broad-companion');
-      expect(after.all.toLowerCase()).toContain('companion');
-      expect(after.all).toContain('boom');
+      expect(after.all).toContain('companion.mjs was not run');
+      expect(after.all).not.toContain('boom');
+
+      const approve = run(['check', '--approve'], dir);
+      expect(approve.status).toBe(1);
+      expect(approve.all).toContain('broad-companion');
+      expect(approve.all).toContain('boom');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

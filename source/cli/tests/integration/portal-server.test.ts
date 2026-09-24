@@ -157,8 +157,7 @@ describe('portal loopback server — read-only surface + no-persist refresh', ()
     // the CLI passes would agree with a portal that omits it too — both at zero — and the
     // "portal shows fewer warnings than the command line" class would slip through. This
     // fixture ships no agent-rules install, so the digest gate has a real finding to make.
-    const check = await runCheck(graph, gitFiles, {
-      nowUtc: () => new Date(),
+    const check = await runCheck(graph, gitFiles, { runCompanionHooks: false,       nowUtc: () => new Date(),
       rulesArtifacts: await readRulesArtifacts(FIXTURE_ROOT),
     });
     const errors = check.issues.filter((i) => i.severity === 'error').length;
@@ -271,6 +270,17 @@ describe('portal loopback server — cross-origin / CSRF guard on the sensitive 
   it('the un-guarded HTML page routes need no marker (a browser navigates them directly)', async () => {
     expect((await rawRequest(`${handle.url}/`, {})).status).toBe(200);
     expect((await rawRequest(`${handle.url}/render`, {})).status).toBe(200);
+  }, 60_000);
+
+  it('a non-loopback Host is refused on EVERY route — /render serves the same data as /data (DNS rebinding)', async () => {
+    for (const route of ['/render', '/', '/static/portal.css', '/data', '/nope']) {
+      const res = await rawRequest(`${handle.url}${route}`, { headers: { host: 'evil.example:4317' } });
+      expect({ route, status: res.status }).toEqual({ route, status: 403 });
+      expect(res.body).not.toContain('"nodes"');
+    }
+    // `localhost` is a loopback name the portal is also reached at.
+    const port = new URL(handle.url).port;
+    expect((await rawRequest(`${handle.url}/`, { headers: { host: `localhost:${port}` } })).status).toBe(200);
   }, 60_000);
 });
 

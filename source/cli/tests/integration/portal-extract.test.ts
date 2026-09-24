@@ -62,8 +62,7 @@ describe('portal extraction — count parity with yg check (the trust core)', ()
     // fails to inject shows up as a mismatch instead of matching a matching omission.
     const graph = await loadGraph(REPO_ROOT);
     const gitFiles = await walkRepoFiles(REPO_ROOT);
-    const check = await runCheck(graph, gitFiles, {
-      nowUtc: () => new Date(),
+    const check = await runCheck(graph, gitFiles, { runCompanionHooks: false,       nowUtc: () => new Date(),
       rulesArtifacts: await readRulesArtifacts(REPO_ROOT),
     });
     const expected = await computeExpectedPairs(graph);

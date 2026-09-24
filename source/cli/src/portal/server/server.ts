@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { handleRequest, type RouterConfig } from './router.js';
+import { createPortalDataSource } from './data-source.js';
 
 /**
  * server/server — the loopback HTTP server for the portal.
@@ -38,7 +39,11 @@ export interface ServerHandle {
  * that exposes the bound URL/port and a `close()` for teardown. Binds 127.0.0.1 ONLY.
  */
 export function startServer(opts: ServerOptions): Promise<ServerHandle> {
-  const config: RouterConfig = { projectRoot: opts.projectRoot, writeEnabled: opts.writeEnabled };
+  const config: RouterConfig = {
+    projectRoot: opts.projectRoot,
+    writeEnabled: opts.writeEnabled,
+    dataSource: createPortalDataSource(opts.projectRoot, opts.writeEnabled),
+  };
   const server: Server = createServer((req, res) => {
     void handleRequest(req, res, config);
   });

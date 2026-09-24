@@ -31,14 +31,24 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
   unsupported-capability gap (exit 0), not a check failure.
 
 **Plain \`yg check\` never executes a deterministic check** — it validates the entry
-by hashing, exactly like an LLM entry; its cost is hashing only. That does NOT
-make CI code-free: the deterministic cache is gitignored, so the recommended CI
-recipe first rebuilds it with \`yg check --approve --only-deterministic\`, and that
-step imports and runs EVERY \`check.mjs\` — this repository's own and those of
-every installed package (\`yg pack\`) — with the permissions of the CI job. Treat
-a rule's \`check.mjs\` like any other code your pipeline executes: review it,
-install packages only from sources you trust that far, and think twice before
-running that step on untrusted pull requests.
+by hashing, exactly like an LLM entry; its cost is hashing only. It executes no
+repository code at all: not a \`check.mjs\`, and not an LLM rule's \`companion.mjs\`
+either (a stale companion pair is reported unverified and sized on the next
+\`--approve\`). The same holds for \`--no-approve\`, \`--approve --dry-run\`,
+\`yg context\`, \`yg owner\`, \`yg tree\`, \`yg impact\`, \`yg aspects\` and \`yg portal\`.
+
+Code DOES run on: \`yg check --approve --only-deterministic\` (every \`check.mjs\`),
+\`yg check --approve\` and \`yg adopt\` (every \`check.mjs\` and \`companion.mjs\`),
+\`yg aspect-test\` and \`yg drill\` (the rule under test), and a bare \`yg check\` when
+the committed config sets \`auto_approve\` — this repository's rules and those of
+every installed package (\`yg pack\`), with the permissions and environment of
+whoever runs the command. The deterministic cache is gitignored, so the
+recommended CI recipe rebuilds it with \`--approve --only-deterministic\`: that step
+runs every \`check.mjs\` with the permissions of the CI job. Treat a rule's
+\`check.mjs\` like any other code your pipeline executes: review it, install
+packages only from sources you trust that far, and for pull requests from forks
+run only \`yg check --no-approve\` (read-only whatever \`auto_approve\` says), or run
+the rebuild step only in a job that holds no secrets.
 
 The verdict is cached in the lock like every other verdict. It is reusable while
 its inputs are unchanged — the subject files AND every value the check observed

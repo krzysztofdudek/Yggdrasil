@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { LlmProvider, AspectResponse } from './types.js';
@@ -242,6 +243,13 @@ function trackReviewerGroup(child: ChildProcess): void {
   });
 }
 
+/** Remove a call's private working directory; best effort, never throws. */
+function removeWorkDir(dir: string): void {
+  try { rmSync(dir, { recursive: true, force: true }); } catch (err) {
+    debugWrite(`[cli-base] could not remove ${dir}: ${(err as Error).message}`);
+  }
+}
+
 /** Signal the reviewer's whole process group (POSIX), falling back to the child alone. */
 function killReviewer(child: ChildProcess, signal: NodeJS.Signals): void {
   if (process.platform !== 'win32' && child.pid !== undefined) {
@@ -268,8 +276,25 @@ export abstract class CliAgentProvider implements LlmProvider {
   }
 
   abstract get binary(): string;
-  abstract buildArgs(prompt: string): string[];
+  /**
+   * The reviewer's argv. `workDir` is the call's private working directory when
+   * the provider asks for one (see usesPrivateWorkDir), so flags can name files
+   * written there; undefined otherwise.
+   */
+  abstract buildArgs(prompt: string, workDir?: string): string[];
   abstract get stdinMode(): boolean;
+  /**
+   * Whether each call runs in a fresh, empty directory of its own instead of the
+   * shared temp directory. A CLI that loads instructions, settings, hooks or
+   * policies from its working directory (an AGENTS.md, a .gemini/ or .codex/
+   * folder that anything on the machine could have left in the shared temp
+   * directory) must not find any there; the directory also holds whatever files
+   * the provider's flags point at (prepareWorkDir), and is removed when the call
+   * settles, whatever the outcome.
+   */
+  protected get usesPrivateWorkDir(): boolean { return false; }
+  /** Write the files this provider's flags name into the call's private directory. */
+  protected prepareWorkDir(_dir: string): void { /* nothing by default */ }
   /** Variables a provider sets on top of the caller's environment. */
   protected get extraEnv(): Record<string, string> { return {}; }
   /**
@@ -318,15 +343,35 @@ export abstract class CliAgentProvider implements LlmProvider {
       return failed(`${this.binary} model '${this.model}' is not a model name (letters, digits, '.', '_', ':' and '-' only)`);
     }
 
-    return new Promise((resolve) => {
-      const args = this.stdinMode ? this.buildArgs('') : this.buildArgs(prompt);
+    let workDir: string | undefined;
+    if (this.usesPrivateWorkDir) {
+      try {
+        workDir = mkdtempSync(path.join(tmpdir(), 'yg-reviewer-'));
+        this.prepareWorkDir(workDir);
+      } catch (err) {
+        if (workDir !== undefined) removeWorkDir(workDir);
+        return failed(`could not prepare a private working directory for '${this.binary}' (${err instanceof Error ? err.message : String(err)})`);
+      }
+    }
+
+    return new Promise<AspectResponse>((resolveCall) => {
+      const resolve = (r: AspectResponse): void => {
+        if (workDir !== undefined) removeWorkDir(workDir);
+        resolveCall(r);
+      };
+      const built = this.stdinMode ? this.buildArgs('', workDir) : this.buildArgs(prompt, workDir);
+      // Through a shell the arguments are joined into one command line, so a
+      // private directory under a temp path with a space in it (a Windows
+      // profile name) would split in two; quote those. The rest are fixed flags
+      // and a model name already checked above.
+      const args = shell ? built.map((a) => (/\s/.test(a) && !a.includes('"') ? `"${a}"` : a)) : built;
       let child: ChildProcess & { stdin: NonNullable<ChildProcess['stdin']>; stdout: NonNullable<ChildProcess['stdout']>; stderr: NonNullable<ChildProcess['stderr']> };
       try {
         child = spawn(this.binary, args, {
           shell,
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: this.timeout,
-          cwd: tmpdir(),
+          cwd: workDir ?? tmpdir(),
           env: { ...process.env, ...this.extraEnv },
           // Its own process group on POSIX, so the timeout below can end
           // everything the reviewer started (see killReviewer).

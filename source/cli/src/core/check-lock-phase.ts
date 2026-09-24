@@ -91,8 +91,10 @@ export async function runLockPhase(args: {
    * and releases its own exactly as it always did.
    */
   byteCache: Map<string, Buffer | null> | undefined;
+  /** Whether verification may run companion.mjs hooks (RunCheckOptions.runCompanionHooks). */
+  runCompanionHooks: boolean;
 }): Promise<LockPhaseResult> {
-  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification, byteCache } = args;
+  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification, byteCache, runCompanionHooks } = args;
 
   // Captured from the relation pass (run once by the orchestrator, ahead of
   // validate()) for the optional feature-field index write. Stays null if the
@@ -116,7 +118,7 @@ export async function runLockPhase(args: {
   let pairs: VerifiedPair[] = [];
   try {
     const lock = readLock(graph.rootPath);
-    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache);
+    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache, { runCompanionHooks });
     pairs = verification.pairs;
     const runtimeRows = toRuntimeVisibilityRows(runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage

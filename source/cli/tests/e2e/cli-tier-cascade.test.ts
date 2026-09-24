@@ -314,7 +314,13 @@ reviewer:
     const dir = copyFixture('t5');
     const mock = await startMockReviewer({ respond: OK });
     try {
-      // Author a config that carries an api_key, pointing at the live mock.
+      // The key lives where keys belong — the gitignored overlay (a key in the
+      // committed yg-config.yaml is a blocking config-committed-api-key error).
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'yg-secrets.yaml'),
+        'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: "secret-old-key-aaaa"\n',
+        'utf-8',
+      );
       writeConfig(
         dir,
         `version: "6.0.0"
@@ -331,7 +337,6 @@ reviewer:
       config:
         model: "qwen2.5-coder:0.5b"
         endpoint: "${mock.endpoint}"
-        api_key: "secret-old-key-aaaa"
 `,
       );
       await fillGreen(dir, mock.endpoint);
@@ -340,7 +345,8 @@ reviewer:
 
       // Rotate ONLY the api_key. The tier-identity hash omits api_key, so the
       // hash is unchanged → no pair is invalidated.
-      patchConfig(dir, 'secret-old-key-aaaa', 'secret-NEW-key-bbbb');
+      const secrets = path.join(dir, '.yggdrasil', 'yg-secrets.yaml');
+      writeFileSync(secrets, readFileSync(secrets, 'utf-8').replace('secret-old-key-aaaa', 'secret-NEW-key-bbbb'), 'utf-8');
 
       // The next fill finds NOTHING to do — every pair still holds a valid verdict.
       const refill = await runAsync(['check', '--approve'], dir);

@@ -6,6 +6,7 @@ import { groupIssues, type IssueGroup, getIssueLabel, COVERAGE_GROUP_EXCLUDED_CO
 import { useEmoji } from './check-render-header.js';
 import { count, MEMBER_CAP } from './output.js';
 import { toPosixPath } from '../utils/posix.js';
+import { escapeControls } from '../utils/terminal-safe.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
  *  COMPLETENESS_CODES are shared with the check engine via core/check-codes.ts
@@ -253,7 +254,8 @@ export function renderUnmappedBlock(
   // view shows the first FILE_CAP and names the view that shows every one.
   const shown = opts.capMembers ? files.slice(0, FILE_CAP) : files;
   for (const f of shown) {
-    lines.push(`            ${f}`);
+    // A file name is repository text: a control sequence in it is shown, never obeyed.
+    lines.push(`            ${escapeControls(f)}`);
   }
   if (files.length > shown.length) {
     lines.push(`            ... +${files.length - shown.length} (yg check --details)`);

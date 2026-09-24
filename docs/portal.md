@@ -40,8 +40,20 @@ For anything that could act on the project — the approve action, the cost
 preview, and the live data behind them — the portal answers only requests that
 come from its own page, so another website you happen to have open in a different
 browser tab cannot reach across and trigger the approve action, even though the
-portal lives on your own machine. (The page shell and its assets are served to
-anything on your machine, but they do nothing on their own.)
+portal lives on your own machine. Every route, the page itself included, also
+answers only when the browser addressed it as `127.0.0.1` or `localhost`: a
+website that re-points its own domain name at your machine (DNS rebinding) gets a
+refusal, not your graph, rules and logs. What the portal does not defend against
+is another account on the same machine, which can reach a local port like any
+other program; on a shared host, prefer `yg portal --static` or
+`--no-write`.
+
+Loading the page and pressing `↻ Refresh` read the project the same way, and
+share that read: a request that arrives while one is running waits for it, and
+one that finds nothing changed since the last read — the same commit, the same
+changed and untracked files as git reports them, the same local deterministic
+cache — gets that result back at once instead of re-reading a large project.
+Outside a git repository every refresh reads afresh.
 
 To hand the picture to someone who does not have the project checked out:
 

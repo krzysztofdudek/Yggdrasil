@@ -37,12 +37,32 @@ export async function testApiProvider(
 }
 
 /**
+ * CLI providers whose setup check also makes one real review call. Finding the
+ * binary proves little for these two: a wrong flag, a missing login or an
+ * untrusted working directory only shows once the CLI is asked for a verdict,
+ * and until then every judgment-rule pair would end as a provider error on the
+ * first `yg check --approve`. The call is one tiny prompt.
+ */
+const ROUND_TRIP_PROBED: ReviewerProvider[] = ['codex', 'gemini-cli'];
+
+/** The one prompt a round-trip probe sends. */
+export const PROBE_PROMPT =
+  'This is a setup check from `yg init`, not a review. Reply with exactly this JSON object and nothing else: {"satisfied": true, "reason": "probe"}';
+
+/** How long the round-trip probe may take — a first run of a CLI can be slow. */
+const ROUND_TRIP_TIMEOUT_MS = 120_000;
+
+/**
  * Whether a CLI provider can run here, and if not why — asked of the provider
  * itself through the registry, so the answer is the one `yg check --approve`
  * would give: the binary probe's cause plus that CLI's install hint, and for
  * copilot-cli the real CLI found past the VS Code extension's `copilot` stub.
+ *
+ * With a `model`, codex and gemini-cli are also asked for one verdict through
+ * the exact argv a review uses (see ROUND_TRIP_PROBED); a provider error there
+ * is reported with the CLI's own words.
  */
-export async function testCliProvider(provider: ReviewerProvider): Promise<ReviewerTestResult> {
+export async function testCliProvider(provider: ReviewerProvider, model?: string): Promise<ReviewerTestResult> {
   if (!CLI_PROVIDERS.includes(provider)) {
     return { ok: false, error: `Unsupported CLI provider: ${provider}` };
   }
@@ -54,9 +74,17 @@ export async function testCliProvider(provider: ReviewerProvider): Promise<Revie
     debugWrite(`[reviewer-test] testCliProvider(${provider}): ${(err as Error).message}`);
     return { ok: false, error: (err as Error).message };
   }
-  if (probe.available) return { ok: true };
-  debugWrite(`[reviewer-test] testCliProvider(${provider}): ${probe.reason}`);
-  return { ok: false, error: probe.reason };
+  if (!probe.available) {
+    debugWrite(`[reviewer-test] testCliProvider(${provider}): ${probe.reason}`);
+    return { ok: false, error: probe.reason };
+  }
+  if (model === undefined || !ROUND_TRIP_PROBED.includes(provider)) return { ok: true };
+  const reply = await createLlmProvider({ provider, model, temperature: 0, consensus: 1, timeout: ROUND_TRIP_TIMEOUT_MS }).verifyAspect(PROBE_PROMPT);
+  if (reply.errorSource === 'provider') {
+    debugWrite(`[reviewer-test] testCliProvider(${provider}) round trip: ${reply.reason}`);
+    return { ok: false, error: `a probe review with model '${model}' returned no verdict: ${reply.reason}` };
+  }
+  return { ok: true };
 }
 
 async function testAnthropic(apiKey: string, model: string, endpoint: string): Promise<ReviewerTestResult> {
