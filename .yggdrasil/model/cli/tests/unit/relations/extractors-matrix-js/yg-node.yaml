@@ -1,0 +1,11 @@
+name: Relations Name-Resolution Matrix — JavaScript
+type: test-suite
+description: "Name-resolution identification matrix for JavaScript sources through the
+  shared TypeScript/JavaScript extractor and path resolver. Catalogue-driven: every
+  it(<id>) is a runCase(<id>) over a reference case in reference/relations/javascript/."
+aspects: []
+relations:
+  - target: cli/tests/unit/relations/reference-runner
+    type: uses
+mapping:
+  - source/cli/tests/unit/relations/extractors/javascript-name-resolution-matrix.test.ts

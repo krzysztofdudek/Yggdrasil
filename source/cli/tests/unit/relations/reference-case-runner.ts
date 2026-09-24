@@ -16,6 +16,7 @@ import { ensureLoaderRegistered } from '../../../src/ast/loader-hook.js';
 import { withParsedFiles } from '../helpers/with-parsed-files.js';
 import { getLanguageForExtension, relationLanguageForPath } from '../../../src/utils/language-registry.js';
 import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
+import { sfcScriptView } from '../../../src/relations/extractors/typescript.js';
 import {
   csharpUses,
   collectGlobalUsings,
@@ -92,6 +93,12 @@ const CONFIG_BASENAMES = new Set([
  *  scopes global usings to its project and carries `<Using>` items (csharp-project.ts). */
 const CONFIG_EXTENSIONS = new Set(['.csproj']);
 
+/** TS/JS project files the TS resolver reads (tsconfig*.json `paths`/`baseUrl`/`extends`, a
+ *  package's `name`/`exports`/`imports`/`main`). They carry a `.json` extension, which
+ *  maps to the JSON grammar, so they are recognised by basename BEFORE the language
+ *  lookup — materialized for the resolver, never parsed, never owned by a case node. */
+const TS_CONFIG_BASENAME = /^(?:(?:tsconfig|jsconfig)(?:\.[\w-]+)*\.json|package\.json)$/;
+
 interface ExpectEdge {
   fromFile: string;
   line: number;
@@ -164,10 +171,15 @@ function loadCaseDoc(id: string, mdPath: string): CaseDoc {
   while ((m = fenceRe.exec(filesSection)) !== null) {
     const fpath = m[1].trim();
     const ext = path.extname(fpath);
-    const lang = getLanguageForExtension(ext);
+    const base = path.posix.basename(fpath);
+    // A Vue/Svelte component has no grammar of its own; the relation pass analyses it
+    // as its `<script>` view (sfcScriptView), and so does this runner.
+    const lang = TS_CONFIG_BASENAME.test(base)
+      ? null
+      : (getLanguageForExtension(ext) ?? sfcScriptView(fpath, m[2])?.language ?? null);
     if (lang) {
       files.push({ path: fpath, language: lang, code: m[2] });
-    } else if (CONFIG_BASENAMES.has(path.posix.basename(fpath)) || CONFIG_EXTENSIONS.has(ext)) {
+    } else if (CONFIG_BASENAMES.has(base) || CONFIG_EXTENSIONS.has(ext) || TS_CONFIG_BASENAME.test(base)) {
       configFiles.push({ path: fpath, code: m[2] });
     } else {
       throw new Error(`reference-case ${id}: no language for extension '${ext}' (${fpath})`);
@@ -237,10 +249,16 @@ export async function runCase(id: string): Promise<void> {
   //    and every one is guaranteed deleted (LIFO) once the case finishes below, success
   //    or failure (withParsedFiles nests ast/parser.ts's withParsedFile per file).
   await withParsedFiles(
-    doc.files.map((f) => ({ path: f.path, code: f.code, language: f.language })),
+    doc.files.map((f) => {
+      // A component is parsed as its script view, under the view's grammar extension.
+      const view = sfcScriptView(f.path, f.code);
+      return view === null
+        ? { path: f.path, code: f.code, language: f.language }
+        : { path: view.parsePath, code: view.content, language: f.language };
+    }),
     async (parsedFiles) => {
       const parsedByPath = new Map<string, ParsedFile>();
-      doc.files.forEach((f, i) => parsedByPath.set(f.path, parsedFiles[i]));
+      doc.files.forEach((f, i) => parsedByPath.set(f.path, { ...parsedFiles[i], path: f.path }));
 
       // 2. Universe SymbolTable — real extractor.declarations() over EVERY file of the
       //    case's language (pass.ts step 4: broad universe so ambiguity is detected).

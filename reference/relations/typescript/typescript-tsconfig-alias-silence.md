@@ -3,16 +3,12 @@ id: typescript-tsconfig-alias-silence
 language: typescript
 category: trap
 expectation: silence
-cites: "tsconfig — paths/baseUrl (a compile-time-only alias requiring tsconfig.json to resolve); research G2 (DELIBERATE-SILENCE)"
+cites: "TS Module Resolution — a non-relative specifier with no tsconfig mapping and no in-repo package is external"
 ---
 
 ## Rule
 
-A tsconfig `paths`/`baseUrl` alias (`@app/x`) is a compile-time-only mapping that
-requires reading `tsconfig.json` to resolve; it does not start with `.`/`/`, so the
-analyzer treats it as bare and silences it. Resolving it without the real `paths` map
-could pick the wrong file, so it is dropped BEFORE resolution — a tolerated
-false-negative, never a mis-map. tsconfig alias resolution is out of scope for v1.
+An alias-looking specifier (`@app/x`) with no tsconfig `paths`/`baseUrl` that maps it and no in-repo package.json named `@app/x` is an external package. A same-named in-repo directory is never guessed at.
 
 ## Files
 
@@ -27,10 +23,8 @@ console.log(X);
 
 ## Expect
 
-- silence      # `@app/x` is a non-relative tsconfig alias → out of scope → no edge
+- silence      # no tsconfig, no in-repo package named `@app/x` → external → no edge
 
 ## Why
 
-The alias-to-directory mapping is project-defined and lives only in tsconfig.json;
-dropping it before resolution guarantees zero false positives at the cost of one
-tolerated missed edge.
+The mapping is project-defined; without a tsconfig or package.json that defines it, any in-repo match would be a guess.

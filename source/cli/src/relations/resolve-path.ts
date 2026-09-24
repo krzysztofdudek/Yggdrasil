@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { resolveTsPath } from './extractors/typescript-resolve.js';
+import { resolveTsPath, makeTsResolveDeps } from './extractors/typescript-resolve.js';
 import { resolvePythonModule } from './extractors/python-resolve.js';
 import { resolveGoImport, type GoResolveDeps } from './extractors/go-resolve.js';
 import { resolveJavaFqn, resolveJavaPackageFiles, type JavaResolveDeps } from './extractors/java-resolve.js';
@@ -53,9 +53,19 @@ export function makeResolvePathToFile(
   const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded, layout.composerMaps);
   const rustDeps = makeRustResolveDeps(projectRoot, exists);
   const pythonRoots = makePythonProjectRoots(projectRoot, isExcluded);
+  // TS/JS: a candidate is a FILE (a directory named like `./x.config` is never a module), and
+  // non-relative specifiers read tsconfig `paths`/`baseUrl` and in-repo package.json files.
+  const isFile = (repoRelPosix: string): boolean => {
+    try {
+      return statSync(path.resolve(projectRoot, repoRelPosix)).isFile();
+    } catch {
+      return false;
+    }
+  };
+  const tsDeps = makeTsResolveDeps(projectRoot, isExcluded);
   return (specifier, fromFile, language, isPackage = false) => {
     if (language === 'typescript' || language === 'tsx' || language === 'javascript') {
-      return resolveTsPath(specifier, fromFile, exists);
+      return resolveTsPath(specifier, fromFile, isFile, tsDeps);
     }
     if (language === 'python') {
       return resolvePythonModule(specifier, fromFile, exists, isExcluded, pythonRoots);

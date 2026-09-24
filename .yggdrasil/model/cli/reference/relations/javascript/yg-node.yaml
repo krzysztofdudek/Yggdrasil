@@ -1,0 +1,16 @@
+name: Relations Reference — JavaScript
+type: reference-catalogue
+description: "JavaScript name-resolution case catalogue — one .md per identification
+  case specific to .js/.mjs/.cjs/.jsx sources and the JavaScript grammar (CommonJS,
+  JSX in .js, JSDoc comments, the grammar ERROR on re-export attributes), 1:1 with a
+  runCase(<id>) test in the JavaScript matrix suite. JavaScript shares the TypeScript
+  extractor and path resolver; the forms common to both live in the TypeScript
+  catalogue. The two relations aspects enforce the case-to-test correspondence."
+aspects:
+  - reference/relations/case-has-test
+  - reference/relations/case-is-tested
+relations:
+  - target: cli/tests/unit/relations/extractors-matrix-js
+    type: uses
+mapping:
+  - reference/relations/javascript/*.md

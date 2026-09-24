@@ -2,7 +2,7 @@ name: Relations Name-Resolution Matrix — TypeScript
 type: test-suite
 description: "Exhaustive name-resolution identification matrix for the TypeScript
   relation-conformance extractor — every supported import/reference form that must
-  resolve to a cross-node edge through the relative-specifier path resolver, and every
+  resolve to a cross-node edge through the TS/JS path resolver (relative, tsconfig, packages), and every
   shape that must stay silent (zero false positives). Catalogue-driven: every
   it('<id>') is a runCase('<id>') over a reference case in reference/relations/typescript/,
   mirroring the Go/Rust/PHP matrices."

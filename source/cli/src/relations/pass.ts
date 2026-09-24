@@ -19,6 +19,7 @@ import {
 } from './extractors/csharp.js';
 import { buildCsharpProjectScopes, type CsharpGlobalFacts } from './extractors/csharp-project.js';
 import { extractorForLanguage } from './extractors/registry.js';
+import { sfcScriptView } from './extractors/typescript.js';
 import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
 import { guardedResolve } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
@@ -216,6 +217,16 @@ interface FileRecord {
   typeId?: string;
 }
 
+/**
+ * The extractor language of a Vue/Svelte single-file component, which no grammar parses
+ * whole: the language of its `<script>` blocks (`sfcScriptView`), so the component's
+ * imports are analysed like any TS/JS module's. The parse (`parseSingle`) reads the same
+ * view; its facts are a pure function of the file's bytes, so they cache like any file's.
+ */
+function sfcLanguage(rel: string, content: string): string | null {
+  return sfcScriptView(rel, content)?.language ?? null;
+}
+
 // The exported `FileFacts` interface above is used directly throughout the pass body.
 // No internal alias needed — it is both the extractor-output shape and the public audit type.
 
@@ -275,7 +286,7 @@ export async function runRelationPass(
     for (const [i, rel] of fresh.entries()) {
       const content = contents[i];
       if (content === null || content === undefined) continue; // unreadable → skip
-      const language = languageOf(rel);
+      const language = languageOf(rel) ?? sfcLanguage(rel, content);
       const record: FileRecord = {
         path: rel,
         content,
@@ -301,7 +312,7 @@ export async function runRelationPass(
     } catch {
       continue; // unreadable → skip
     }
-    const language = languageOf(rel);
+    const language = languageOf(rel) ?? sfcLanguage(rel, content);
     const record: FileRecord = { path: rel, content, hash: hashString(content), language, nodeId: '', typeId };
     fileRecords.push(record);
     recordByPath.set(rel, record);
@@ -349,8 +360,11 @@ export async function runRelationPass(
     // and must never surface as an error.
     if (!record.language) return null;
     try {
-      const tree = await parseFile(record.path, record.content, record.language);
-      return { path: record.path, content: record.content, tree, language: record.language };
+      // A Vue/Svelte component is parsed as its script view (see sfcLanguage).
+      const view = sfcScriptView(record.path, record.content);
+      const content = view?.content ?? record.content;
+      const tree = await parseFile(view?.parsePath ?? record.path, content, record.language);
+      return { path: record.path, content, tree, language: record.language };
     } catch (err) {
       // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
       // nodes) for malformed source and never throws on bad syntax — so any throw from
