@@ -125,6 +125,7 @@ import { textFillSink } from '../formatters/fill-text.js';
 //    so a `relations:` applicability atom is answered identically here. ──
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { RelationPassResult } from '../relations/pass.js';
+import { count } from '../utils/count.js';
 
 // ============================================================
 // Public surface
@@ -294,7 +295,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     if (!reviewerConfigured && llmPairs.length > 0) {
       // Structured what / why / next; the renderer lays it out under the header.
       const noReviewer = {
-        what: `No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed.`,
+        what: `No reviewer is configured — the ${count(llmPairs.length, 'judgment pair')} counted here cannot be reviewed.`,
         why: 'Judgment rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
         next: "yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.",
       };
@@ -350,7 +351,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     onInterrupted: (saved, flushed) => {
       if (interruptTotal === 0) return;
       const total = interruptTotal;
-      const pairs = `${total} pair${total === 1 ? '' : 's'}`;
+      const pairs = count(total, 'pair');
       emit({
         type: 'interrupted',
         saved,
@@ -403,7 +404,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   if (blockedNodes.size > 0) {
     throw new FillGatingError([{
       code: 'log-entry-required',
-      what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
+      what: `${count(blockedNodes.size, 'node')} ${blockedNodes.size === 1 ? 'needs' : 'need'} a fresh log entry before --approve.`,
       why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
       next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
     }], 'log-gate', logGateIssues, retry);

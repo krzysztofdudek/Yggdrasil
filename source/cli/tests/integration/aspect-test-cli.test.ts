@@ -479,7 +479,7 @@ export function check(ctx) {
     expect(status).toBe(0);
     expect(stdout).toContain('No violations.');
     // The NOTE lands on stderr, naming the aspect and node.
-    expect(stderr).toContain("Note: aspect 'unattached' is not attached to node 'N'");
+    expect(stderr).toContain("note: Aspect 'unattached' is not attached to node 'N'");
     expect(stderr).toContain('yg check will not produce a verdict for this pair');
     // It is a stderr NOTE, not mixed into the verdict output.
     expect(stdout).not.toContain('is not attached to node');

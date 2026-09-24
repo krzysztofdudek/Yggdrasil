@@ -474,7 +474,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check surfaces blocking validation 
       // default body, but the group label + shared why/fix convey the same intent.
       expect(stdout).toContain('flow-node-broken');
       expect(stdout).toContain('Flow participants must exist in the graph.');
-      expect(stdout).toContain('Fix the nodes list in yg-flow.yaml or create the missing node.');
+      expect(stdout).toContain('Fix the nodes list in .yggdrasil/flows/broken-flow/yg-flow.yaml, or create the missing node .yggdrasil/model/ghost/missing-node/yg-node.yaml.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -503,12 +503,12 @@ describe.skipIf(!distExists)('CLI E2E — yg check surfaces blocking validation 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       // The duplicate mapping surfaces as a file-duplicate-mapping block naming
-      // the shared file; assert the label, the shared why, and the owning node lines.
+      // the shared file; assert the label, the shared why, both owners in the
+      // heading, and the node the finding is reported on as its member.
       expect(all).toContain('file-duplicate-mapping');
       expect(all).toContain('Each source file must have exactly one owner node.');
-      expect(all).toContain("error[file-duplicate-mapping] File 'src/shared.ts' appears in mappings of multiple nodes");
-      expect(all).toMatch(/^ +alpha$/m);
-      expect(all).toMatch(/^ +beta$/m);
+      expect(all).toContain("error[file-duplicate-mapping] File 'src/shared.ts' appears in the mappings of more than one node: alpha and beta");
+      expect(all).toMatch(/^ {2}at: +beta$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

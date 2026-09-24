@@ -71,6 +71,7 @@ import type { PackageUpdateSignal } from './advise-package-nominations.js';
 export type { PackageUpdateSignal } from './advise-package-nominations.js';
 import { architectureCutNominations } from './advise-architecture-cut.js';
 import { familyNominations } from './advise-family-nominations.js';
+import { count } from '../utils/count.js';
 export {
   parseFamilyCandidates,
   SUPPORTED_CANDIDATES_V,
@@ -812,8 +813,8 @@ function hotSpotNominations(
         `drafts verifies any of them — an uncovered hot spot: the code most in motion has the ` +
         `least protection.`,
       next:
-        `Consider adding a rule or coverage here — propose an aspect or a coverage node to ` +
-        `the user. Evidence: ${evidence}. Ask the user to approve it first.`,
+        `Consider adding a rule or coverage for node '${nodeQ}' — propose an aspect or a coverage ` +
+        `node to the user. Evidence: ${evidence}. Ask the user to approve it first.`,
       // Bind to churn + window + the file sample: a new commit (churn up), a widened
       // window, or a changed file set moves the hash, so a dismissed hot spot returns
       // when the evidence moves; a landed rule removes the item outright (it stops
@@ -959,7 +960,7 @@ function typeCoveredChurnNominations(
         : `${churn} commit${churn === 1 ? '' : 's'}`;
     // Total files the cluster sentence names: this file plus every partner —
     // "both" is only true at exactly 2; three or more must say how many.
-    const clusterSizePhrase = partners.length === 1 ? 'both files' : `all ${partners.length + 1} files`;
+    const clusterSizePhrase = partners.length === 1 ? 'both files' : `all ${count(partners.length + 1, 'file')}`;
 
     const why =
       partners.length > 0
@@ -1259,7 +1260,7 @@ export function buildAttention(sources: AttentionSources): string[] {
   }
   if (sources.deviationCount > 0) {
     lines.push(
-      `${sources.deviationCount} files deviate structurally from their neighbors — shown in yg context when you work there.`,
+      `${count(sources.deviationCount, 'file')} ${sources.deviationCount === 1 ? 'deviates' : 'deviate'} structurally from their neighbors — shown in yg context when you work there.`,
     );
   }
   return lines;

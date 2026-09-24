@@ -98,10 +98,10 @@ export function llmRefusedMessage(params: {
     why: params.intent ?? 'A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.',
     next:
       `Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:\n` +
-      `  1. Fix the code so it satisfies aspect '${params.aspectId}', then: yg check --approve\n` +
-      `  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check \`yg impact --aspect ${params.aspectId}\` first.\n` +
-      `  3. Propose a \`yg-suppress\` to the user for a deliberate exception — ask the user to approve the reason.\n` +
-      `  4. Not sure yet which it is: propose \`status: advisory\` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.`,
+      `1. Fix the code so it satisfies aspect '${params.aspectId}', then: yg check --approve\n` +
+      `2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check \`yg impact --aspect ${params.aspectId}\` first.\n` +
+      `3. Propose a \`yg-suppress\` to the user for a deliberate exception — ask the user to approve the reason.\n` +
+      `4. Not sure yet which it is: propose \`status: advisory\` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.`,
   };
 }
 
@@ -137,7 +137,7 @@ export function detRefusedMessage(params: {
  */
 export function raiseCapRemedy(tierName: string, limit: number): string {
   return (
-    `  4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
+    `4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
     `Or move the aspect to a tier with a higher limit — that re-reviews every pair of the aspect, because the tier name is part of each pair's hash.`
   );
 }
@@ -157,9 +157,9 @@ export function promptTooLargeMessage(params: {
     why: 'An over-limit prompt risks context-window truncation and a false verdict. The gate blocks the pair and skips it during fill until the prompt fits.',
     next:
       `Remedies, in safety order:\n` +
-      `  1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
-      `  2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
-      `  3. Split the node so its mapped files divide across smaller nodes.\n` +
+      `1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
+      `2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
+      `3. Split the node so its mapped files divide across smaller nodes.\n` +
       raiseCapRemedy(params.tierName, params.limit),
   };
 }

@@ -1,6 +1,7 @@
 import { execFile, type ExecFileException } from 'node:child_process';
 import { promisify } from 'node:util';
 import { toPosixPath } from './posix.js';
+import { count } from './count.js';
 
 // Argument-vector form (no shell): git args are passed as an array, so a ref or
 // file path containing shell metacharacters ($, `, ;, (), …) is treated as a
@@ -75,7 +76,7 @@ export async function getMergeParents(repoCwd: string, ref: string): Promise<str
   });
   const parts = stdout.trim().split(/\s+/);
   if (parts.length < 3) {
-    throw new Error(`${ref} is not a merge commit (has ${parts.length - 1} parent(s))`);
+    throw new Error(`${ref} is not a merge commit (has ${count(parts.length - 1, 'parent')})`);
   }
   return parts.slice(1);
 }

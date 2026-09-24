@@ -4,15 +4,14 @@
  * from `.family-candidates.json`, which Grain's `grain propose` and Yggdrasil's
  * own offline miner both write.
  *
- * Split out of the nomination engine beside it for room rather than for
- * principle: that file is the one this repository's own reviewer prompt runs
- * closest to its ceiling on, and a self-contained source with one entry point is
- * the cheapest thing to move out of it. The engine re-exports the parser and the
+ * Split out of the nomination engine beside it to keep that file small: this
+ * source is self-contained with one entry point. The engine re-exports the parser and the
  * format constants, so every caller keeps importing them from where it always did.
  */
 
 import type { FamilyCandidate, FamilyCandidatesData, Nomination } from './advise-nominations.js';
 import { CLASS_RANK, hashEvidence, quoteData } from './advise-nominations.js';
+import { count } from '../utils/count.js';
 
 /**
  * The `.family-candidates.json` format version (`v`) this consumer accepts. It is the
@@ -177,14 +176,14 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
     out.push({
       id: `family-without-law:${fam.id}`,
       classRank: CLASS_RANK.familyWithoutLaw,
-      what: `A candidate rule family — ${n} files ${lawlessShort}: ${memberList}.`,
+      what: `A candidate rule family — ${count(n, 'file')} ${lawlessShort}: ${memberList}.`,
       why:
         `${sinceLabel}: these files cluster tightly (tightness ${fam.tightness}) yet ${lawless} ` +
         `— the fingerprint of a convention with no rule of its own. A ` +
         `fitted scope \`${predQ}\` ${fits}; scope skeleton ${scopeList}.${measuredBy} Provenance: ${provenance}.`,
       // NEXT names the exact human action and ends with the literal consent suffix
       // (T2 uses "requires the user's consent", never the T0/T1 approval phrasing).
-      next: `Create a draft aspect scoped to \`${predQ}\` for these ${n} files, then supply the rationale — never invent it — and ask the user to approve it first.`,
+      next: `Create a draft aspect scoped to \`${predQ}\` for these ${count(n, 'file')}, then supply the rationale — never invent it — and ask the user to approve it first.`,
       // Bind to the family identity + fitted reach + member set + provenance: a
       // re-mine that changes members or the predicate moves the hash, so a
       // dismissed family returns as new evidence. The producer joins the hash only

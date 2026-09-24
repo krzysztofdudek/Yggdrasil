@@ -1,0 +1,38 @@
+name: OutputThroughLayer
+description: >-
+  Every byte the CLI prints goes through its output layer (cli/output.ts and
+  cli/output-diagnostic.ts), which owns the words, the layout, the counts, the
+  colour and the streams. DIRECTORY-scoped over every .ts file under
+  source/cli/src/, so a module written tomorrow is covered the day it is
+  written. Four ways around the layer are refused. (1) A hand-rolled plural: a
+  word with `(s)` glued on in a string (`pair(s)`). (2) A hand-built count: a
+  substitution followed by a counted noun — `${n} pairs`, `${n} nodes`,
+  `${n} files`, one word allowed between (`${n} source files`) — a noun with its
+  plural spliced on (`file${n === 1 ? '' : 's'}`), or the same built by
+  concatenation (`n + ' files'`); count() and plural() make the noun agree with
+  the number instead ("1 nodes" was the bug). (3) A direct stream write or a
+  console call: `process.stdout.write` / `process.stderr.write`, called or merely
+  referenced (a reference is how a write escapes into a callback), and any
+  `console.*`; output goes through writeOut / writeErr, a diagnostic through
+  fail / notice / warn. (4) An import of chalk: colour comes from the layer's
+  `paint` and `decorated`. The layer itself (plus utils/count.ts, where count()
+  and plural() live so the engine and formatters can call them) is exempt. Three
+  sanctioned sinks may make exactly the stream write they need and nothing else:
+  bin.ts's last-resort handlers (stderr — they run when the layer itself may be
+  what failed, and the entry point may depend on command modules only);
+  utils/debug-log.ts (both streams — the --debug tee wraps the write functions to
+  copy every printed byte into the debug log and adds none of its own); and
+  cli/exit-after-flush.ts (stdout — an empty write whose callback says
+  everything before it has left the process). WHY: the CLI communication audit
+  found 258 stdout and 145 stderr write sites across 30-plus files, hand-copied
+  error lines, engine modules writing finished prose, and plurals spelled per
+  call site, so one fact read differently from command to command and every
+  wording fix had to find every copy; the output layer (issues 188-191) fixed
+  that once, and this rule keeps it from growing back. errs: over — the count
+  form reads the substitution before a noun as a number, so a non-count
+  substitution directly before `files` (`${lang} files`) is flagged too; phrase
+  such a sentence without the substitution right before the noun.
+reviewer:
+  type: deterministic
+errs: over
+review_by: 2027-03-24

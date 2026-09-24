@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import path from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 
@@ -12,7 +11,7 @@ import { atomicWriteFile } from '../io/atomic-write.js';
 import { checkMarketplace } from '../core/marketplace-check.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { MarketplaceIssue } from '../core/marketplace-check.js';
-import { failAndExit } from './output.js';
+import { failAndExit, paint, writeOut } from './output.js';
 
 /**
  * `yg marketplace` — start a repository that publishes law, and ask it whether it
@@ -143,8 +142,8 @@ async function runMarketplaceInit(): Promise<void> {
     }
   }
 
-  process.stdout.write(
-    `\n${chalk.green('Marketplace ready')} at ${toPosixPath(gitRoot)}\n\n` +
+  writeOut(
+    `\n${paint.green('Marketplace ready')} at ${toPosixPath(gitRoot)}\n\n` +
       `  ${MARKETPLACE_FILENAME.padEnd(38)}what this repository publishes (nothing yet)\n` +
       `  ${`${PACKAGES_DIR}/`.padEnd(38)}one directory per package\n` +
       ciLine +
@@ -170,15 +169,15 @@ async function runMarketplaceCheck(): Promise<void> {
   const root = findUpwards(cwd, MARKETPLACE_FILENAME) ?? cwd;
   const result = await checkMarketplace(root);
 
-  for (const issue of result.errors) process.stdout.write(renderIssue(issue, chalk.red));
-  for (const issue of result.warnings) process.stdout.write(renderIssue(issue, chalk.yellow));
+  for (const issue of result.errors) writeOut(renderIssue(issue, paint.red));
+  for (const issue of result.warnings) writeOut(renderIssue(issue, paint.yellow));
 
   const errorCount = result.errors.length;
   const warningCount = result.warnings.length;
   if (errorCount === 0 && warningCount === 0) {
-    process.stdout.write(`\n${chalk.green('Ready to publish')} — ${toPosixPath(root)} passes every check.\n\n`);
+    writeOut(`\n${paint.green('Ready to publish')} — ${toPosixPath(root)} passes every check.\n\n`);
   } else {
-    process.stdout.write(
+    writeOut(
       `\n${errorCount} refusal${errorCount === 1 ? '' : 's'}, ` +
         `${warningCount} warning${warningCount === 1 ? '' : 's'} in ${toPosixPath(root)}.\n\n`,
     );

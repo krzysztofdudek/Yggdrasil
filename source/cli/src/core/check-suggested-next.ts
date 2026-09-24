@@ -14,6 +14,7 @@ import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES, unverifiedCauseRan
 import { countOutside } from './check-progressive.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { CheckIssue } from './check-contract.js';
+import { count as counted } from '../utils/count.js';
 
 /**
  * The one line a run points at when nothing blocks and at least one finding was
@@ -239,7 +240,7 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
       a.code.localeCompare(b.code, 'en') ||
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
     const then = coverageErrors.length > 0
-      ? `\n  then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
+      ? `\n  then: ${counted(coverageErrors[0].uncoveredCount ?? 0, 'file')} need coverage`
       : '';
     // Nodeless: name the FILE from the unit key, not the graph dir; only a
     // genuinely repo-level issue (neither) falls back to '.yggdrasil'.
@@ -254,7 +255,7 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   // 7. coverage.
   if (coverageErrors.length > 0) {
     const count = coverageErrors[0].uncoveredCount ?? 0;
-    return `yg context --file <uncovered-path>\n  ${count} file${count === 1 ? '' : 's'} need coverage — bootstrap workflow`;
+    return `yg context --file <uncovered-path>\n  ${counted(count, 'file')} ${count === 1 ? 'needs' : 'need'} coverage — bootstrap workflow`;
   }
 
   // 8. completeness.

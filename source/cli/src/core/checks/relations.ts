@@ -2,6 +2,7 @@ import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue } from '../../model/validation.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { count } from '../../utils/count.js';
 
 // --- Rule 1: Relation targets exist ---
 
@@ -184,8 +185,9 @@ function shortestCycleIn(graph: Graph, members: string[]): string[] {
 
 function formatCycle(cycle: string[]): string {
   const hops = cycle.length - 1;
-  if (hops <= CYCLE_MEMBER_CAP) return cycle.join(' -> ');
-  return `${cycle.slice(0, CYCLE_MEMBER_CAP).join(' -> ')} -> … -> ${cycle[cycle.length - 1]!} (${hops} hops)`;
+  const shown = cycle.map(toPosixPath);
+  if (hops <= CYCLE_MEMBER_CAP) return shown.join(' -> ');
+  return `${shown.slice(0, CYCLE_MEMBER_CAP).join(' -> ')} -> … -> ${shown[shown.length - 1]!} (${hops} hops)`;
 }
 
 export function checkNoCycles(graph: Graph): ValidationIssue[] {
@@ -196,12 +198,13 @@ export function checkNoCycles(graph: Graph): ValidationIssue[] {
   // the nodes the cycle actually touches, not every node in the repository.
   return structuralCycleComponents(graph).map((members) => {
     const cycle = shortestCycleIn(graph, members);
-    const shown = members.length > CYCLE_MEMBER_CAP
-      ? `${members.slice(0, CYCLE_MEMBER_CAP).join(', ')}, … (${members.length} in all)`
-      : members.join(', ');
+    const printed = members.map(toPosixPath);
+    const shown = printed.length > CYCLE_MEMBER_CAP
+      ? `${printed.slice(0, CYCLE_MEMBER_CAP).join(', ')}, … (${printed.length} in all)`
+      : printed.join(', ');
     const what = members.length === cycle.length - 1
       ? `Circular dependency: ${formatCycle(cycle)}.`
-      : `Circular dependency among ${members.length} nodes (${shown}); one cycle through them: ${formatCycle(cycle)}. The error clears when no structural relation leads back into the group.`;
+      : `Circular dependency among ${count(members.length, 'node')} (${shown}); one cycle through them: ${formatCycle(cycle)}. The error clears when no structural relation leads back into the group.`;
     return {
       severity: 'error' as const,
       code: 'structural-cycle',
@@ -209,8 +212,10 @@ export function checkNoCycles(graph: Graph): ValidationIssue[] {
       ...issueMsg({
         what,
         why: `Cycles prevent deterministic context assembly and cascade tracking.`,
-        next: `Break the cycle in the relations: of one of these nodes' .yggdrasil/model/<node>/yg-node.yaml (${members.slice(0, 3).join(', ')}${members.length > 3 ? ', …' : ''}) — extract a shared interface, invert a dependency, or merge nodes.`,
+        next: `Break the cycle in the relations: of one of these nodes' .yggdrasil/model/<node>/yg-node.yaml (${printed.slice(0, 3).join(', ')}${printed.length > 3 ? ', …' : ''}) — extract a shared interface, invert a dependency, or merge nodes.`,
       }),
+      // Graph keys, not text: yg context matches them against the graph's own
+      // node keys to decide which nodes the cycle blocks, and never prints them.
       cycleMembers: members,
     };
   });
@@ -241,7 +246,7 @@ export function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
             : {
                 what: `Flow '${flow.name}' references non-existent node '${toPosixPath(n)}'.`,
                 why: `Flow participants must exist in the graph.`,
-                next: `Fix the nodes list in yg-flow.yaml or create the missing node.`,
+                next: `Fix the nodes list in .yggdrasil/flows/${toPosixPath(flow.path)}/yg-flow.yaml, or create the missing node .yggdrasil/model/${toPosixPath(n)}/yg-node.yaml.`,
               }),
         });
       }
@@ -273,7 +278,7 @@ export function checkHighFanOut(graph: Graph): ValidationIssue[] {
         ...issueMsg({
           what: `Node has ${count} direct relations (max: ${maxRel}).`,
           why: `High fan-out makes context packages large and suggests unclear separation of concerns.`,
-          next: `Split .yggdrasil/model/${nodePath}/yg-node.yaml's responsibilities, or introduce an intermediary node its relations go through.`,
+          next: `Split .yggdrasil/model/${toPosixPath(nodePath)}/yg-node.yaml's responsibilities, or introduce an intermediary node its relations go through.`,
         }),
         nodePath,
       });

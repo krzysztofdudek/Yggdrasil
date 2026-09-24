@@ -1,5 +1,4 @@
 import type { Command } from 'commander';
-import chalk from 'chalk';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -12,7 +11,7 @@ import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { Graph } from '../model/graph.js';
-import { fail, count } from './output.js';
+import { fail, count, paint, writeOut, next, thenStep } from './output.js';
 
 /**
  * True when `filePath` (a `file:` unit-key path) is REALLY owned by `nodePath` —
@@ -34,7 +33,7 @@ function renderVerdictEvent(event: VerdictEvent): string {
   if (event.disposition === 'refused' && typeof event.reason === 'string' && event.reason.length > 0) {
     line += `\n      ↳ ${event.reason.split('\n')[0]}`;
   }
-  return chalk.dim(line) + '\n';
+  return paint.dim(line) + '\n';
 }
 
 function handleError(error: unknown): never {
@@ -63,7 +62,7 @@ function writeLogJson(
       ? { verdictEvents: { since: verdicts.since, sharedHistory: verdicts.gitTracked, events: verdicts.events } }
       : {}),
   };
-  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`);
+  writeOut(`${JSON.stringify(doc, null, 2)}\n`);
 }
 
 export function registerLogCommand(program: Command): void {
@@ -126,8 +125,8 @@ export function registerLogCommand(program: Command): void {
           fail(result.error);
           process.exit(1);
         }
-        process.stdout.write(
-          chalk.green(
+        writeOut(
+          paint.green(
             `Added log entry to .yggdrasil/model/${result.nodePath}/log.md\nTimestamp: ${result.datetime}\n`,
           ),
         );
@@ -201,22 +200,22 @@ export function registerLogCommand(program: Command): void {
           // the "local" wording and say so plainly.
           const since = evResult.firstTs ?? '(no events recorded)';
           if (evResult.gitTracked) {
-            process.stdout.write(
-              chalk.yellow(
+            writeOut(
+              paint.yellow(
                 `verification telemetry since ${since} — NOTE: the events sidecar is git-tracked, ` +
                   `so this is shared history, not local-only telemetry.\n`,
               ),
             );
           } else {
-            process.stdout.write(chalk.dim(`local telemetry since ${since}\n`));
+            writeOut(paint.dim(`local telemetry since ${since}\n`));
           }
 
           // Committed shared stream: when it contributed events, surface the
           // verbatim honesty label so the shared record is never mistaken for
           // complete — older CLIs write only locally and do not contribute.
           if (evResult.committedNote !== undefined) {
-            process.stdout.write(
-              chalk.dim(
+            writeOut(
+              paint.dim(
                 `includes ${count(evResult.committedCount, 'event')} from the committed shared stream ` +
                   `(${evResult.committedNote})\n`,
               ),
@@ -234,11 +233,11 @@ export function registerLogCommand(program: Command): void {
           items.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
 
           if (items.length === 0) {
-            process.stdout.write('No log entries or verification events.\n');
+            writeOut('No log entries or verification events.\n');
             return;
           }
           for (const it of items) {
-            process.stdout.write(it.text);
+            writeOut(it.text);
           }
           return;
         }
@@ -248,11 +247,11 @@ export function registerLogCommand(program: Command): void {
           return;
         }
         if (result.entries.length === 0) {
-          process.stdout.write('No log entries.\n');
+          writeOut('No log entries.\n');
           return;
         }
         for (const entry of result.entries) {
-          process.stdout.write(`## [${entry.datetime}]\n${entry.body}`);
+          writeOut(`## [${entry.datetime}]\n${entry.body}`);
         }
       } catch (error) {
         handleError(error);
@@ -290,14 +289,18 @@ export function registerLogCommand(program: Command): void {
           fail(result.error);
           process.exit(1);
         }
-        process.stdout.write(
-          chalk.green(
+        writeOut(
+          paint.green(
             result.wroteUnion === true
-              ? `Merge-resolve wrote the union of both sides into .yggdrasil/model/${result.nodePath}/log.md and verified it.\nLog baseline updated.\n` +
-                `next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the ${result.inProgress ?? 'merge'} (${OPERATION_COMMANDS[result.inProgress ?? 'merge'].finish}), then run yg check.\n`
+              ? `Merge-resolve wrote the union of both sides into .yggdrasil/model/${result.nodePath}/log.md and verified it.\nLog baseline updated.\n`
               : `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
           ),
         );
+        if (result.wroteUnion === true) {
+          const op = result.inProgress ?? 'merge';
+          writeOut(`${next(`git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json`)}\n`);
+          writeOut(`${thenStep(`${OPERATION_COMMANDS[op].finish}, then yg check`)}\n`);
+        }
       } catch (error) {
         handleError(error);
       }

@@ -74,6 +74,7 @@ import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
+import { count } from '../utils/count.js';
 
 function posixPath(p: string): string {
   return toPosixPath(p);
@@ -88,7 +89,7 @@ function posixPath(p: string): string {
 function formatSubjectCount(s: NodeAspectSubjects): string {
   if (s.count === 0) return '0 files — vacuous';
   if (s.perFile) return `${s.count} unit${s.count === 1 ? '' : 's'} (per-file)`;
-  return `${s.count} file${s.count === 1 ? '' : 's'}`;
+  return count(s.count, 'file');
 }
 
 export function formatNodeContext(data: NodeContextData): string {
@@ -191,10 +192,10 @@ export function formatNodeContext(data: NodeContextData): string {
   if (data.dependentCount > 0) {
     lines.push(`Dependents (${data.dependentCount}):`);
     if (data.dependentCount >= 16) {
-      lines.push(`  HIGH blast radius — changes cascade to ${data.dependentCount} nodes.`);
+      lines.push(`  HIGH blast radius — changes cascade to ${count(data.dependentCount, 'node')}.`);
       lines.push(`next: yg impact --node ${posixPath(data.path)}  (strongly recommended before editing)`);
     } else if (data.dependentCount >= 6) {
-      lines.push(`  Moderate blast radius — changes trigger cascade review on ${data.dependentCount} nodes.`);
+      lines.push(`  Moderate blast radius — changes trigger cascade review on ${count(data.dependentCount, 'node')}.`);
       lines.push(`next: yg impact --node ${posixPath(data.path)}`);
     } else {
       // 1-5: plain list of dependent node paths

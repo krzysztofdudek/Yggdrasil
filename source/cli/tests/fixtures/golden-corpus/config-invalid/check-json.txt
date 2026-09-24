@@ -143,7 +143,7 @@ exit: 1
     {
       "code": "unmapped-files",
       "severity": "error",
-      "what": "5 source files not covered by any node.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md\n  src/tools/gen.ts",
+      "what": "5 source files not covered by any node.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md\nsrc/tools/gen.ts",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
       "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
       "files": [

@@ -103,7 +103,7 @@ warning[waives-under] yg-suppress(no-console) at src/under.ts:2 waives a check l
 
 warning[wildcard] Wildcard suppression "*" at src/wild.ts:2 silences ALL aspects.
   why:  A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.
-  fix:  Replace "*" with the specific aspect id(s) you intend to suppress.
+  fix:  Replace "*" with the specific aspect ids you intend to suppress.
 `;
 
 describe.skipIf(!distExists)('CLI E2E — yg suppressions --json', () => {

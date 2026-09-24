@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { spawnSync } from 'node:child_process';
 import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,7 +8,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
-import { fail } from './output.js';
+import { fail, paint, writeOut } from './output.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -475,9 +474,9 @@ function outcomeToken(o: CommitOutcome): string {
 }
 
 function colorForOutcome(kind: CommitOutcome['kind'], token: string): string {
-  if (kind === 'ran-clean') return chalk.green(token);
-  if (kind === 'violations') return chalk.yellow(token);
-  return chalk.dim(token);
+  if (kind === 'ran-clean') return paint.green(token);
+  if (kind === 'violations') return paint.yellow(token);
+  return paint.dim(token);
 }
 
 /**
@@ -495,14 +494,14 @@ export function renderReport(params: {
   const lines: string[] = [];
 
   lines.push(
-    chalk.bold(
+    paint.bold(
       target.kind === 'node'
         ? `Replay of candidate rule '${candidateId}' over node '${target.nodePath}'`
         : `Replay of candidate rule '${candidateId}' over file '${target.file}' (enforced by its architecture type alone)`,
     ),
   );
   lines.push(
-    chalk.dim(
+    paint.dim(
       `Reaches only commits whose committed graph schema equals this graph's (${referenceSchema}); ` +
         `every other commit is reported as non-comparable, never as a clean pass.`,
     ),
@@ -512,7 +511,7 @@ export function renderReport(params: {
     // how it attaches (architecture + coverage settings) come from TODAY —
     // stated plainly so a reader never mistakes the result for pure history.
     lines.push(
-      chalk.dim(
+      paint.dim(
         'The rule and the way it attaches (architecture + coverage settings) come from TODAY; only the file\'s code comes from history.',
       ),
     );
@@ -527,10 +526,10 @@ export function renderReport(params: {
       const token = outcomeToken(o);
       const padded = colorForOutcome(o.kind, token.padEnd(width));
       const shortSha = o.sha.slice(0, 8);
-      const subject = o.subject === '' ? chalk.dim('(no subject)') : o.subject;
-      lines.push(`  ${chalk.dim(shortSha)}  ${padded}  ${subject}`);
+      const subject = o.subject === '' ? paint.dim('(no subject)') : o.subject;
+      lines.push(`  ${paint.dim(shortSha)}  ${padded}  ${subject}`);
       if (o.kind === 'non-comparable') {
-        lines.push(chalk.dim(`              ↳ ${o.reason}`));
+        lines.push(paint.dim(`              ↳ ${o.reason}`));
       }
     }
   }
@@ -541,14 +540,14 @@ export function renderReport(params: {
   lines.push('');
   lines.push(
     `Replayed ${outcomes.length} commit${outcomes.length === 1 ? '' : 's'}: ` +
-      `${chalk.green(`ran-clean ${ranClean}`)} · ` +
-      `${chalk.yellow(`violations ${violations}`)} · ` +
-      `${chalk.dim(`non-comparable ${nonComparable}`)}`,
+      `${paint.green(`ran-clean ${ranClean}`)} · ` +
+      `${paint.yellow(`violations ${violations}`)} · ` +
+      `${paint.dim(`non-comparable ${nonComparable}`)}`,
   );
   lines.push('');
   // ONE caveat line: the survivorship bias stated once, with the Wald label
   // verbatim as its conclusion (two lines once said the same thing twice).
-  lines.push(chalk.dim(`Caveat: the old rule gate already refused code that never landed, so ${WALD_LABEL}`));
+  lines.push(paint.dim(`Caveat: the old rule gate already refused code that never landed, so ${WALD_LABEL}`));
   lines.push('');
   return lines.join('\n');
 }
@@ -841,7 +840,7 @@ export function registerSimulateCommand(program: Command): void {
           maxCommits,
           cwd: process.cwd(),
           binPath,
-          emit: (chunk) => process.stdout.write(chunk),
+          emit: (chunk) => writeOut(chunk),
         });
         // The report was streamed to stdout; a bare process.exit could cut a
         // piped report short, so the exit waits for the buffer to drain.

@@ -385,7 +385,7 @@ export async function parsePackageManifest(
     return fail('package-requires-missing', {
       what: `${filePath} has no requires.yg.`,
       why: 'A package runs against a CLI major it was written for; without that declaration the consumer cannot tell whether this build can run it at all.',
-      next: 'Add:\n  requires:\n    yg: "6.x"',
+      next: `Add requires: { yg: "6.x" } to ${filePath}.`,
     });
   }
   const requiresYg = ((requiresRaw as Record<string, unknown>).yg as string).trim();

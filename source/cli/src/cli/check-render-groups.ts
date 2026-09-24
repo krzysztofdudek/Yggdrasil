@@ -291,12 +291,29 @@ function compareBlocks(a: CheckBlock, b: CheckBlock): number {
 }
 
 /**
+ * The issues with every exact repeat dropped: the same finding about the same
+ * unit, reported twice (a pair two passes both surface, a relation seen from
+ * both ends of one run), is one finding. Counted twice it inflates the
+ * heading's number; listed twice it repeats a member line and reads as two.
+ */
+function distinctIssues(issues: CheckIssue[]): CheckIssue[] {
+  const seen = new Set<string>();
+  return issues.filter((i) => {
+    const key = JSON.stringify([i.code, i.severity, i.nodePath ?? null, i.unitKey ?? null, i.aspectId ?? null, i.messageData, i.uncoveredFiles ?? null]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * Every finding of a run as blocks, most urgent first: errors by tier
  * (graph-invalid, code and graph, gate prerequisites, pending), then warnings.
  * A coverage finding is a block of its own (its members are files); every
  * other finding is grouped by code and rule, then split by why.
  */
-export function buildBlocks(issues: CheckIssue[]): CheckBlock[] {
+export function buildBlocks(reported: CheckIssue[]): CheckBlock[] {
+  const issues = distinctIssues(reported);
   const blocks: CheckBlock[] = [];
   for (const issue of issues) {
     if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) blocks.push(toBlock([issue], undefined));
@@ -377,7 +394,8 @@ function unverifiedEntries(members: CheckIssue[], capped: boolean): AtEntry[] {
 
 /** A coverage block's entries: one file per line. */
 function coverageEntries(members: CheckIssue[]): AtEntry[] {
-  const files = members.flatMap((m) => m.uncoveredFiles ?? []);
+  // A file listed by two members is one file: listed once.
+  const files = [...new Set(members.flatMap((m) => m.uncoveredFiles ?? []))];
   // A file name is repository text: a control sequence in it is shown, never obeyed.
   return files.map((f) => ({ lines: [escapeControls(toPosixPath(f))], members: 1, units: new Set([f]) }));
 }

@@ -17,7 +17,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { fail, plural } from './output.js';
+import { fail, plural, writeOut, count } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -166,42 +166,42 @@ export async function handleAspectImpact(
   // unit per subject file, so count from the expected-pair set, not node count.
   const cost = await computeAspectFillCost(graph, aspectId, projectRoot);
 
-  process.stdout.write(`Impact of changes in aspect ${aspectId}:\n\n`);
-  process.stdout.write(`Directly affected (${affected.length}):\n`);
+  writeOut(`Impact of changes in aspect ${aspectId}:\n\n`);
+  writeOut(`Directly affected (${affected.length}):\n`);
   if (affected.length === 0) {
     // "(none)" alone would claim literally nothing is affected — false when
     // this list's own graph.nodes walk misses a file this aspect's
     // architecture type enforces with no owning component (cost.fileUnits,
     // named honestly below in the cost line too).
-    process.stdout.write(
+    writeOut(
       cost.fileUnits > 0
-        ? `  (none among components — ${cost.fileUnits} file${cost.fileUnits === 1 ? '' : 's'} enforced by its architecture type alone would still be affected; see the cost below)\n`
+        ? `  (none among components — ${count(cost.fileUnits, 'file')} enforced by its architecture type alone would still be affected; see the cost below)\n`
         : '  (none)\n',
     );
   } else {
     for (const { path: p, source, status, refused } of affected) {
       const refusedTag = refused ? ' [refused]' : '';
-      process.stdout.write(`  ${p} (${source}) [${status}]${refusedTag}\n`);
+      writeOut(`  ${p} (${source}) [${status}]${refusedTag}\n`);
     }
   }
   if (chains.length > 0) {
-    process.stdout.write(`\nIndirectly affected (structural dependents):\n`);
+    writeOut(`\nIndirectly affected (structural dependents):\n`);
     for (const chain of chains) {
-      process.stdout.write(`  ${chain}\n`);
+      writeOut(`  ${chain}\n`);
     }
   }
-  process.stdout.write(
+  writeOut(
     `\nFlows propagating this aspect: ${propagatingFlows.length > 0 ? propagatingFlows.join(', ') : '(none)'}\n`,
   );
-  process.stdout.write(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
-  process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
-  process.stdout.write(`\nBlast radius: ${affected.length + indirectPaths.length} ${plural(affected.length + indirectPaths.length, 'node')}, ${propagatingFlows.length} ${plural(propagatingFlows.length, 'flow')}\n`);
-  process.stdout.write(renderFillCost(cost, affected.length));
+  writeOut(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
+  writeOut(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
+  writeOut(`\nBlast radius: ${affected.length + indirectPaths.length} ${plural(affected.length + indirectPaths.length, 'node')}, ${propagatingFlows.length} ${plural(propagatingFlows.length, 'flow')}\n`);
+  writeOut(renderFillCost(cost, affected.length));
   const totalAffected = affected.length + indirectPaths.length;
   if (totalAffected >= 10) {
-    process.stdout.write(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
+    writeOut(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
   }
-  process.stdout.write(
+  writeOut(
     `\nnext: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.\n`,
   );
 }
@@ -342,21 +342,23 @@ const REASON_GLOSS: Record<ImpactReason, string> = {
   'cold-potential-companion': 'companion may observe this file (cold-start; companion not run)',
 };
 
-const CAP_NODES = 12;
-
-export function renderImpactTotal(summary: ImpactSummary, editedFile: string, opts: { isTTY: boolean }): string {
+/**
+ * What editing one file costs to re-verify: every component it invalidates,
+ * then the totals. Every row is listed, whatever the output is connected to:
+ * the rows exist nowhere else (the impact document carries no cost rows), so
+ * a list cut short had nothing to point the reader at, and a cut that happened
+ * only on a terminal made the same command say different things to a person
+ * and to a pipe.
+ */
+export function renderImpactTotal(summary: ImpactSummary, editedFile: string): string {
   const lines: string[] = [];
   lines.push(`\nEditing ${editedFile} invalidates:`);
-  const shown = opts.isTTY && summary.byNode.length > CAP_NODES ? summary.byNode.slice(0, CAP_NODES) : summary.byNode;
-  for (const n of shown) {
+  for (const n of summary.byNode) {
     const parts: string[] = [];
     if (n.llmPairs > 0) parts.push(`${n.llmPairs} reviewer = ${n.reviewerCalls} reviewer ${plural(n.reviewerCalls, 'call')}`);
     if (n.detPairs > 0) parts.push(`${n.detPairs} deterministic`);
     const why = n.reasons.map((r) => REASON_GLOSS[r]).join(', ');
     lines.push(`  ${n.nodePath}  ${parts.join(', ')}  (${why})`);
-  }
-  if (opts.isTTY && summary.byNode.length > CAP_NODES) {
-    lines.push(`  ... and ${summary.byNode.length - CAP_NODES} more (yg impact --file ${editedFile} | less)`);
   }
   lines.push(`\nTotal to re-verify: ${summary.billedReviewerCalls} reviewer ${plural(summary.billedReviewerCalls, 'call')} — billed by yg check --approve.`);
   lines.push(`                    ${summary.freeDeterministic} deterministic ${plural(summary.freeDeterministic, 'pair')} — free.`);
@@ -537,34 +539,34 @@ export async function handleFlowImpact(
 
   const { indirectPaths, chains } = collectIndirectDependents(graph, sorted);
 
-  process.stdout.write(`Impact of changes in flow ${flow.name}:\n\n`);
-  process.stdout.write('Participants:\n');
+  writeOut(`Impact of changes in flow ${flow.name}:\n\n`);
+  writeOut('Participants:\n');
   if (sorted.length === 0) {
-    process.stdout.write('  (none)\n');
+    writeOut('  (none)\n');
   } else {
     for (const p of sorted) {
       const isDeclared = flow.nodes.includes(p);
       const suffix = isDeclared ? '' : ' (descendant)';
-      process.stdout.write(`  ${p}${suffix}\n`);
+      writeOut(`  ${p}${suffix}\n`);
     }
   }
   if (chains.length > 0) {
-    process.stdout.write(`\nIndirectly affected (structural dependents):\n`);
+    writeOut(`\nIndirectly affected (structural dependents):\n`);
     for (const chain of chains) {
-      process.stdout.write(`  ${chain}\n`);
+      writeOut(`  ${chain}\n`);
     }
   }
-  process.stdout.write(
+  writeOut(
     `\nFlow aspects: ${flowAspects.length > 0 ? flowAspects.join(', ') : '(none)'}\n`,
   );
   const declaredParticipants = flow.nodes.filter((n) => graph.nodes.has(n));
-  process.stdout.write(`\nBlast radius: ${sorted.length + indirectPaths.length} nodes\n`);
-  process.stdout.write(`  All ${declaredParticipants.length} ${plural(declaredParticipants.length, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`);
+  writeOut(`\nBlast radius: ${count(sorted.length + indirectPaths.length, 'node')}\n`);
+  writeOut(`  All ${declaredParticipants.length} ${plural(declaredParticipants.length, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`);
   const totalFlowAffected = sorted.length + indirectPaths.length;
   if (totalFlowAffected >= 10) {
-    process.stdout.write(`  High blast radius — review flow compliance in participants before modifying.\n`);
+    writeOut(`  High blast radius — review flow compliance in participants before modifying.\n`);
   }
-  process.stdout.write(
+  writeOut(
     `\nnext: review the participants above before editing the flow, then run yg check --approve to re-verify them.\n`,
   );
 }
@@ -642,19 +644,19 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
 
   const projectRoot = join(graph.rootPath, '..');
 
-  process.stdout.write(`\nType: ${typeId}\n`);
-  process.stdout.write(`Description: ${def.description}\n`);
-  if (def.enforce === 'strict') process.stdout.write(`enforce: strict\n`);
+  writeOut(`\nType: ${typeId}\n`);
+  writeOut(`Description: ${def.description}\n`);
+  if (def.enforce === 'strict') writeOut(`enforce: strict\n`);
   if (def.when) {
     const { stringify } = await import('yaml');
     const rendered = stringify(def.when, { lineWidth: 0 }).trimEnd();
-    process.stdout.write(`when:\n`);
+    writeOut(`when:\n`);
     for (const line of rendered.split('\n')) {
-      process.stdout.write(`  ${line}\n`);
+      writeOut(`  ${line}\n`);
     }
   }
   if (def.aspects && def.aspects.length > 0) {
-    process.stdout.write(`aspects: [${def.aspects.join(', ')}]\n`);
+    writeOut(`aspects: [${def.aspects.join(', ')}]\n`);
   }
 
   const nodesOfType: string[] = [];
@@ -663,9 +665,9 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
   }
   nodesOfType.sort();
 
-  process.stdout.write(`\nNodes of this type (${nodesOfType.length}):\n`);
+  writeOut(`\nNodes of this type (${nodesOfType.length}):\n`);
   for (const p of nodesOfType) {
-    process.stdout.write(`  ${p}\n`);
+    writeOut(`  ${p}\n`);
   }
 
   const sourceFiles: Array<{ path: string; node: string }> = [];
@@ -691,22 +693,22 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
     ...typeCoveredPaths.map((p) => ({ path: p, label: 'type-covered, no component' })),
   ].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
-  process.stdout.write(`\nSource files covered (${combinedFiles.length}):\n`);
+  writeOut(`\nSource files covered (${combinedFiles.length}):\n`);
   for (const f of combinedFiles.slice(0, 20)) {
-    process.stdout.write(`  ${f.path} (${f.label})\n`);
+    writeOut(`  ${f.path} (${f.label})\n`);
   }
   if (combinedFiles.length > 20) {
-    process.stdout.write(`  ... (${combinedFiles.length - 20} more)\n`);
+    writeOut(`  ... (${combinedFiles.length - 20} more)\n`);
   }
 
   if (typeCoveredPaths.length > 0) {
     const impact = await computeTypeVerdictImpact(graph, typeId, typeCoverage!, lock);
-    process.stdout.write(`\nFiles enforced by this type: ${impact.typeCoveredFiles}\n`);
-    process.stdout.write(
+    writeOut(`\nFiles enforced by this type: ${impact.typeCoveredFiles}\n`);
+    writeOut(
       `At stake: ${impact.detPairs} free ${plural(impact.detPairs, 'check')}, ${impact.llmPairs} ${plural(impact.llmPairs, 'review')} = ${impact.reviewerCalls} reviewer ${plural(impact.reviewerCalls, 'call')}\n`,
     );
     if (impact.greensAtStake > 0) {
-      process.stdout.write(`  ${impact.greensAtStake} currently-green ${plural(impact.greensAtStake, 'verdict')} at stake.\n`);
+      writeOut(`  ${impact.greensAtStake} currently-green ${plural(impact.greensAtStake, 'verdict')} at stake.\n`);
     }
   }
 
@@ -740,22 +742,22 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
       }
     }
     if (orphans.length === 0 && misplaced.length === 0) {
-      process.stdout.write(
+      writeOut(
         `\nStrict coverage gap (0 files): None — all files satisfying when are in ${typeId}-type nodes.\n`,
       );
     } else {
-      process.stdout.write(`\nStrict coverage gap:\n`);
-      process.stdout.write(`  Orphans (matching files not in any mapping): ${orphans.length}\n`);
-      for (const p of orphans.slice(0, 10)) process.stdout.write(`    ${p}\n`);
-      if (orphans.length > 10) process.stdout.write(`    ... (${orphans.length - 10} more)\n`);
-      process.stdout.write(`  Misplaced (in wrong-type node mapping): ${misplaced.length}\n`);
+      writeOut(`\nStrict coverage gap:\n`);
+      writeOut(`  Orphans (matching files not in any mapping): ${orphans.length}\n`);
+      for (const p of orphans.slice(0, 10)) writeOut(`    ${p}\n`);
+      if (orphans.length > 10) writeOut(`    ... (${orphans.length - 10} more)\n`);
+      writeOut(`  Misplaced (in wrong-type node mapping): ${misplaced.length}\n`);
       for (const m of misplaced.slice(0, 10)) {
-        process.stdout.write(`    ${m.file} → ${m.owner} (type: ${m.ownerType})\n`);
+        writeOut(`    ${m.file} → ${m.owner} (type: ${m.ownerType})\n`);
       }
-      if (misplaced.length > 10) process.stdout.write(`    ... (${misplaced.length - 10} more)\n`);
+      if (misplaced.length > 10) writeOut(`    ... (${misplaced.length - 10} more)\n`);
     }
   }
-  process.stdout.write(
+  writeOut(
     typeCoveredPaths.length > 0
       ? `\nnext: review the nodes and covered files of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`
       : `\nnext: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`,

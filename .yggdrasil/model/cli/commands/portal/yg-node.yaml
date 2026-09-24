@@ -3,6 +3,8 @@ type: command
 description: "Registers `yg portal` — the read-only local web portal (Heartwood) onto the graph and its verification state. The scaffold declares the full option surface (--static/--out/--port/--open/--no-write) and funnels errors through the standard abort helper. With --static it calls the extraction pipeline (extractPortalData) then the serializer (emitStatic) to write one self-contained offline page; without it, it starts the loopback read-only server (cli/portal/server) and keeps it running until interrupted."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/preamble
     type: calls
   - target: cli/utils

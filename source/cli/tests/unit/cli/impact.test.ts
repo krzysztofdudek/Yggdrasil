@@ -751,17 +751,25 @@ describe('summarizeImpact + renderImpactTotal', () => {
     expect(s.billedReviewerCalls).toBe(1);
     expect(s.freeDeterministic).toBe(1);
     expect(s.byNode.map((n) => n.nodePath).sort()).toEqual(['scenarios', 'specs']);
-    const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
+    const out = renderImpactTotal(s, 'apps/x/a.ts');
     expect(out).toContain('Total to re-verify:');
     expect(out).toContain('Total to re-verify: 1 reviewer call — billed');
     expect(out).toContain('1 deterministic');
     expect(out).not.toContain('reviewer requests × consensus');
   });
 
+  it('lists every invalidated component, never a terminal-only cut (the rows exist nowhere else)', () => {
+    const pairs = Array.from({ length: 15 }, (_, i) => ({ aspectId: 'd', unitKey: `node:n${String(i).padStart(2, '0')}`, nodePath: `n${String(i).padStart(2, '0')}`, kind: 'deterministic', reasons: ['own'], mode: 'precise' }));
+    const s = summarizeImpact({ pairs, unresolved: [] } as any, makeGraphWithReviewer(), { version: 1, verdicts: {}, nodes: {} } as any);
+    const out = renderImpactTotal(s, 'apps/x/a.ts');
+    for (let i = 0; i < 15; i++) expect(out).toContain(`  n${String(i).padStart(2, '0')}  `);
+    expect(out).not.toContain('more (');
+  });
+
   it('renders an Unresolved line when a companion failed', () => {
     const set = { pairs: [], unresolved: [{ aspectId: 'c', unitKey: 'file:a', nodePath: 'scenarios', why: 'boom' }] } as any;
     const s = summarizeImpact(set, makeGraphWithReviewer(), { version: 1, verdicts: {}, nodes: {} } as any);
-    const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
+    const out = renderImpactTotal(s, 'apps/x/a.ts');
     expect(out).toContain('Unresolved');
     expect(out).toContain('scenarios');
   });

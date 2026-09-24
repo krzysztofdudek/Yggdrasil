@@ -19,6 +19,8 @@ description: >-
   adaptations and rule histories are carried across byte for byte. Registers
   no Commander subcommand.
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/pack-source
     type: calls
   - target: cli/preamble

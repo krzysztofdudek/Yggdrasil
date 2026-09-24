@@ -1,5 +1,4 @@
 import type { Command } from 'commander';
-import chalk from 'chalk';
 import path from 'node:path';
 
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -22,7 +21,7 @@ import {
 import { appendAspectLogEntry } from '../core/log/aspect-log.js';
 import type { AspectDef, Graph } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
-import { fail, failAndExit } from './output.js';
+import { fail, failAndExit, paint, writeOut } from './output.js';
 
 /**
  * `yg drill add` — take a file as it stood at a named commit into a rule's case
@@ -187,7 +186,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             plan.casePath,
             plan.content,
           );
-          process.stdout.write(
+          writeOut(
             `Added ${plan.caseLabel} from ${plan.filePath} at ${plan.commitSha.slice(0, 7)} (${plan.commitDay}).\n`,
           );
         }
@@ -252,8 +251,8 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
           return;
         }
 
-        process.stdout.write(
-          chalk.green(
+        writeOut(
+          paint.green(
             `The rule '${aspect.def.id}' behaves as expected on ${planned.length === 1 ? 'the new case' : 'both new cases'}. Recorded in the rule's log.\n`,
           ),
         );

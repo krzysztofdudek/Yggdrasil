@@ -24,3 +24,5 @@ The CLI now speaks one output grammar: every finding is a block headed error[lab
 A case the drill could not score is printed as a what line with a labelled why and next under it, and its JSON detail is that same text, instead of the engine's one finished sentence.
 ## [2026-09-24T10:25:47.966Z]
 An aggregate rule and a missing reviewer now name the command to run (the first rule the aggregate bundles, the config file to add a tier to) instead of generic advice.
+## [2026-09-24T13:50:53.993Z]
+Every byte this command prints now goes through the output layer: stdout and stderr through writeOut and writeErr, colour through paint, instead of process.stdout.write, process.stderr.write and a chalk import of its own. The repository now refuses a direct stream write, a console call or a chalk import outside that layer, so that where output goes, what guards it and when it is decorated are decided in one place and cannot drift command by command again, as they had across hundreds of write sites before the layer existed.

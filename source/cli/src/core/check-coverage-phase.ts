@@ -179,7 +179,7 @@ export async function runCoveragePhase(args: {
           messageData: {
             what: `File '${toPosixPath(a.file)}' matches ${a.typeIds.length} classifying types: ${a.typeIds.join(', ')}.`,
             why: `Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.`,
-            next: `Two exits:\n  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.\nEither exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.`,
+            next: `Two exits:\n1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.\nEither exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.`,
           },
           unitKey: fileUnit(toPosixPath(a.file)),
         });

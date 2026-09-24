@@ -6,4 +6,5 @@ aspects:
   - events-reader-boundary
   - instrument-import-fence
   - rules-artifact-names-single-source
+  - output-through-layer
 relations: []

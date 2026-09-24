@@ -5,7 +5,7 @@ import { DEFAULT_PORT_NAME } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
-import { renderTrace } from '../../formatters/predicate-trace.js';
+import { renderTraceInline } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { expandMappingPaths } from '../../io/hash.js';
 import { resolveGraphExclusionSet, filterExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
@@ -134,7 +134,7 @@ export function checkArchitectureParentCycles(graph: Graph): ValidationIssue[] {
     ? recordedCycles[0].join(' → ')
     : trapped.join(' ↔ ');
   const msgData: IssueMessage = {
-    what: `Cycle in parents: declarations:\n  ${cycleStr}\nTrapped types: ${trapped.join(', ')}`,
+    what: `Cycle in parents: declarations: ${cycleStr}\nTrapped types: ${trapped.join(', ')}`,
     why: `Every type in the cycle can only reach other cycle members — no rootable type is reachable. Nodes of these types can never be instantiated.`,
     next: `Break the cycle: add a rootable parent (one with no parents:), remove one parents: declaration, or add a third type as alternative parent.`,
   };
@@ -175,12 +175,12 @@ export function checkTypeWithoutWhenWithMapping(graph: Graph): ValidationIssue[]
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
 
-    const preview = mapping.slice(0, 3).map((m) => `  - ${toPosixPath(m)}`).join('\n');
-    const ellipsis = mapping.length > 3 ? `\n  ... (${mapping.length - 3} more)` : '';
+    const preview = mapping.slice(0, 3).map((m) => toPosixPath(m)).join(', ');
+    const ellipsis = mapping.length > 3 ? ` … +${mapping.length - 3} more` : '';
     const msgData: IssueMessage = {
-      what: `Node '${nodePath}' has type '${node.meta.type}' (no \`when\` — organizational type) but mapping is not empty:\n  mapping:\n${preview}${ellipsis}`,
+      what: `Node '${nodePath}' has type '${node.meta.type}' (no \`when\` — organizational type) but its mapping is not empty: ${preview}${ellipsis}`,
       why: `Types without \`when\` are organizational (parent-only). Nodes of such types cannot have mapped files.`,
-      next: `Add a \`when\` predicate to type '${node.meta.type}' in yg-architecture.yaml, move the file(s) to a node whose type has \`when\`, or empty this node's mapping.`,
+      next: `Add a \`when\` predicate to type '${node.meta.type}' in yg-architecture.yaml, move what it maps to a node whose type has \`when\`, or empty this node's mapping.`,
     };
     issues.push({
       severity: 'error',
@@ -289,9 +289,9 @@ export async function checkTypeWhenMismatch(
 
       if (!result.result) {
         const msgData: IssueMessage = {
-          what: `File '${relPath}' is in mapping of node '${nodePath}' (type: ${node.meta.type}) but does not satisfy '${node.meta.type}'.when:\n${renderTrace(result.trace, '  ')}`,
+          what: `File '${relPath}' is in mapping of node '${nodePath}' (type: ${node.meta.type}) but does not satisfy '${node.meta.type}'.when: ${renderTraceInline(result.trace)}`,
           why: `When a node is declared as type '${node.meta.type}', every file in its mapping must satisfy the type's when predicate. This ensures type-default aspects apply to relevant code only.`,
-          next: `Options:\n  1. Move file to a node of a different type that fits\n     (run: yg type-suggest --file ${relPath})\n  2. Refactor the file so it satisfies ${node.meta.type}.when\n  3. Broaden '${node.meta.type}'.when in yg-architecture.yaml`,
+          next: `Options:\n1. Move the file to a node of a different type that fits (yg type-suggest --file ${relPath} names one).\n2. Refactor the file so it satisfies ${node.meta.type}.when.\n3. Broaden '${node.meta.type}'.when in yg-architecture.yaml`,
         };
         issues.push({
           severity: 'error',

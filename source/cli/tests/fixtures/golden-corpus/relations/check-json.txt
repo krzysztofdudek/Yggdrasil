@@ -1,0 +1,171 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 4,
+    "aspects": 1,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "1 blocking finding and 1 warning."
+  },
+  "coverage": {
+    "files": 7,
+    "covered": 3,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 1,
+    "warnings": 1,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 3,
+      "refused": 0,
+      "unverified": 0,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 3,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "e6b55c7770244b3d09304c5b520f13030b60fc1fe9a8751ea35a34631cd07ea5",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "6d4a3e3e28642cc7cf180dcf1e366f0c2e39055eab29d2c3df2afb21108551f6",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "node": "app/svc-03",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "5a3632f242bddf5a08b459d6caa722700726a78f3b9a8cc0fe53a48b77054774",
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "relation-undeclared-dependency",
+      "severity": "error",
+      "what": "Node 'app/svc-01' has undeclared dependencies on other nodes:\nsrc/svc-01/index.ts:2 → app/svc-02\nsrc/svc-01/index.ts:3 → app/svc-03",
+      "why": "A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.",
+      "next": "Declare the missing relations in .yggdrasil/model/app/svc-01/yg-node.yaml (or remove the dependency if it is not legitimate):\napp/svc-02: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.\napp/svc-03: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.",
+      "node": "app/svc-01",
+      "edges": [
+        {
+          "file": "src/svc-01/index.ts",
+          "line": 2,
+          "target": "app/svc-02"
+        },
+        {
+          "file": "src/svc-01/index.ts",
+          "line": 3,
+          "target": "app/svc-03"
+        }
+      ],
+      "label": "relation-undeclared-dependency"
+    },
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "4 coverage-visible files outside any required coverage root.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "label": "uncovered"
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "edit .yggdrasil/model/app/svc-01/yg-node.yaml",
+  "groups": [
+    {
+      "code": "relation-undeclared-dependency",
+      "label": "relation-undeclared-dependency",
+      "aspect": null,
+      "severity": "error",
+      "subject": "Node 'app/svc-01' has undeclared dependencies on other nodes:",
+      "why": "A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.",
+      "next": "Declare the missing relations in .yggdrasil/model/app/svc-01/yg-node.yaml (or remove the dependency if it is not legitimate):\napp/svc-02: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.\napp/svc-03: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.",
+      "members": [
+        0
+      ]
+    },
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "subject": "4 files belong to no node — not under coverage.required, so they never block",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "members": [
+        1
+      ]
+    }
+  ],
+  "next": {
+    "command": null,
+    "text": "edit .yggdrasil/model/app/svc-01/yg-node.yaml",
+    "target": {
+      "node": "app/svc-01",
+      "file": ".yggdrasil/model/app/svc-01/yg-node.yaml"
+    },
+    "cost": {
+      "free": 0,
+      "reviewerPairs": 0
+    },
+    "remaining": {
+      "needsFix": 1,
+      "fillable": 0
+    },
+    "then": null
+  },
+  "banner": null
+}
+--- stderr

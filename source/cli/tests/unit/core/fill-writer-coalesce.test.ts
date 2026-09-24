@@ -133,7 +133,7 @@ describe('fill verdict writer — a failed write poisons nothing', () => {
     const err = await writer.drain().then(() => null, (e: unknown) => e);
     expect(err).toBeInstanceOf(LockEnvironmentError);
     expect((err as InstanceType<typeof LockEnvironmentError>).code).toBe('lock-write-failed');
-    expect((err as InstanceType<typeof LockEnvironmentError>).messageData.what).toMatch(/1 verdict\(s\) from this run were not saved/);
+    expect((err as InstanceType<typeof LockEnvironmentError>).messageData.what).toMatch(/1 verdict from this run was not saved/);
     expect(emitted).toHaveLength(0);
     await writer.close();
   });

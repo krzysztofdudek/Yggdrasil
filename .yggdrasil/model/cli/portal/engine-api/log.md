@@ -139,3 +139,7 @@ The security fixes (read-only commands no longer run repository companion hooks,
 The waiver inventory prints each warning as a block of the one output grammar — warning[code] with a labelled why and fix — instead of a counted Warnings heading over unlabelled lines, so a warning about a marker reads the way every other finding does.
 ## [2026-09-24T10:06:01.619Z]
 A reasonless yg-suppress marker names its file and line, and the reason it needs is to be approved by the user — asked for, in the one sign-off phrasing — rather than stated as if already given.
+## [2026-09-24T13:51:19.645Z]
+The suppression report's total counts markers and files with count() and colours through the output layer's paint instead of importing chalk, and the wildcard fix asks for 'aspect ids' rather than 'id(s)'. The repository now refuses a chalk import and a hand-rolled plural outside the output layer, so colour and counts are decided in one place.
+## [2026-09-24T13:53:09.598Z]
+The suppression inventory formatter takes its colour as a highlight function from the command that prints it, instead of importing the output layer's paint: this facade may not grow a relation to the command layer without passing its reviewed relation ceiling, and deciding the words while the caller decides the decoration is the split the output layer asks for anyway. Its counts come from the counting utility this node already calls.

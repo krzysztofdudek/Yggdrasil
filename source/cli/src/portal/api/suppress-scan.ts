@@ -286,7 +286,7 @@ export async function runSuppressionsScan(
         const msg = buildIssueMessage({
           what: `Wildcard suppression "*" at ${file}:${m.line} silences ALL aspects.`,
           why: 'A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.',
-          next: `Replace "*" with the specific aspect id(s) you intend to suppress.`,
+          next: `Replace "*" with the specific aspect ids you intend to suppress.`,
         });
         warnings.push(msg);
         // No single aspect this warning is "about" — it is about the marker

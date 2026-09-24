@@ -11,7 +11,7 @@ import { walkRepoFiles, isCoverageExcludedPath, findNestedProjectRoots, NO_COVER
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { classifyFile } from '../type-classifier.js';
-import { renderTrace } from '../../formatters/predicate-trace.js';
+import { renderTraceInline } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 
@@ -78,7 +78,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
           ...issueMsg({
             what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but is excluded from graph coverage.`,
             why: `An exclusion cuts everything it matches, including a node's own explicit mapping entry — this file is never enforced while excluded, no matter how deliberately the mapping names it. It is excluded because ${cause}.`,
-            next: `Either:\n  1. Remove the file from the mapping (it is never enforced while excluded).\n  2. If it should be enforced, ${undoExclusion}.`,
+            next: `Either:\n1. Remove the file from the mapping (it is never enforced while excluded).\n2. If it should be enforced, ${undoExclusion}.`,
           }),
         });
         continue;
@@ -94,7 +94,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
         ...issueMsg({
           what: `File '${toPosixPath(norm)}' is in mapping of node '${nodePath}' but is excluded by .gitignore.`,
           why: `Mappings cannot contain .gitignored files — strict backward scan skips them, creating a gap where agent-created files matching a strict type's when could evade enforcement.`,
-          next: `Either:\n  1. Remove the file from .gitignore (if it should be tracked code).\n  2. Remove the file from the mapping (if it's a generated artifact).`,
+          next: `Either:\n1. Remove the file from .gitignore (if it should be tracked code).\n2. Remove the file from the mapping (if it's a generated artifact).`,
         }),
       });
     }
@@ -177,7 +177,7 @@ export async function checkStrictBackwardCoverage(
         break;
       }
 
-      if (result.result) matchingTypes.push({ typeId, trace: renderTrace(result.trace, '  ') });
+      if (result.result) matchingTypes.push({ typeId, trace: renderTraceInline(result.trace) });
     }
 
     if (fileSkipped) continue;
@@ -204,7 +204,7 @@ export async function checkStrictBackwardCoverage(
             code: 'strict-overlap-conflict',
             rule: 'strict-overlap-conflict',
             ...issueMsg({
-              what: `Two types with enforce: strict have overlapping when predicates:\n  '${sorted[i]}'.when matches\n  '${sorted[j]}'.when matches\nExample matching file: '${relPath}'`,
+              what: `Two types with enforce: strict have overlapping when predicates: both '${sorted[i]}'.when and '${sorted[j]}'.when match '${relPath}'.`,
               why: `Both types declare enforce: strict — each demands that any matching file be owned by a node of its type. With the one-owner rule, satisfying both simultaneously is impossible.`,
               next: `Narrow one of the when predicates so they cannot both match the same file.\nRun: yg impact --type ${sorted[i]}\nRun: yg impact --type ${sorted[j]}`,
             }),
@@ -273,7 +273,7 @@ export async function checkStrictBackwardCoverage(
         ...issueMsg({
           what: `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut is in mapping of node '${owner.nodePath}' (type: ${owner.nodeType}).`,
           why: `Type '${typeId}' has enforce: strict — every file satisfying its when must be owned by a node of type '${typeId}'. Current owner has wrong type.`,
-          next: `Options:\n  1. Move mapping entry to a ${typeId}-type node.\n  2. Refactor file so it no longer matches ${typeId}.when.\n  3. Change '${owner.nodePath}' type to '${typeId}' if conceptually correct.`,
+          next: `Options:\n1. Move the mapping entry to a ${typeId}-type node.\n2. Refactor the file so it no longer matches ${typeId}.when.\n3. Change '${owner.nodePath}' type to '${typeId}' if conceptually correct.`,
         }),
       });
     }
@@ -323,7 +323,7 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
           rule: 'file-duplicate-mapping',
           nodePath: candidate.nodePath,
           ...issueMsg({
-            what: `File '${current.mappingPath}' appears in mappings of multiple nodes:\n  ${current.nodePath}\n  ${candidate.nodePath}`,
+            what: `File '${current.mappingPath}' appears in the mappings of more than one node: ${current.nodePath} and ${candidate.nodePath}.`,
             why: `Each source file must have exactly one owner node. Duplicate mappings lead to ambiguous classification and conflicting aspect attribution.`,
             next: `Remove the file from one of the mappings. Decide which node logically owns the file based on its primary role. The other node should reference it via relations if needed.`,
           }),
@@ -405,7 +405,7 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
         code: 'overlapping-mapping',
         rule: 'overlapping-mapping',
         ...issueMsg({
-          what: `File '${relPath}' is owned by multiple non-hierarchical nodes:\n${leaves.map((n) => '  ' + n).join('\n')}`,
+          what: `File '${relPath}' is owned by multiple non-hierarchical nodes: ${leaves.join(', ')}.`,
           why: `Each source file must have exactly one owner node. A glob mapping in one node resolves to a file also claimed by another node.`,
           next: `Narrow the glob, or remove the file from one node's mapping and model the dependency via a relation.`,
         }),
@@ -560,7 +560,7 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
           ...issueMsg({
             what: `Mapping (${mappingPaths.join(', ')}) resolves only to excluded files; none are left for this node to enforce.`,
             why: `Every file this mapping resolved to is excluded from the graph — inside a separate project's own boundary, or matching a coverage.excluded root — so this node's rules have nothing left to apply to.`,
-            next: `Either:\n  1. Remove this mapping (nothing here belongs to this node).\n  2. Point the mapping at files this project actually owns and does not exclude.`,
+            next: `Either:\n1. Remove this mapping (nothing here belongs to this node).\n2. Point the mapping at files this project actually owns and does not exclude.`,
           }),
           nodePath,
         });

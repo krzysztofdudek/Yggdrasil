@@ -302,3 +302,7 @@ A refusal's why is now the rule's own intent — the first sentence of its descr
 The suggested next step no longer restates a finding's code (Fix yaml-invalid in app): a structural or completeness finding leads with its own next step, and its coverage rider is a lowercase then: line, the grammar every report now uses.
 ## [2026-09-24T13:49:35.225Z]
 next: now names the configuration fix first under every code a configuration that did not load is reported by, then an unknown top-level key, then the architecture and component files, because everything else in the report may be a symptom of the configuration falling back to its defaults.
+## [2026-09-24T13:51:11.545Z]
+Counts are written with count() and plural() from utils/count.ts, never a hand-rolled plural (word(s)) or a noun with its plural spliced on, because the repository now refuses both across the shipped source: the same fact read '1 node(s)' here and '1 nodes' there, and an agent parsing the text met a different spelling from every module. The per-language outlier cohort line and the minimum-cohort sentence use it too.
+## [2026-09-24T14:41:08.412Z]
+The output guards (every write through the output layer, counted nouns through one helper, no layout whitespace in messages) met the unknown-config-key handling in this component at merge. The merged code keeps both: unknown keys are still reported and ranked, and the init upgrade now prints them through the output layer like every other notice.

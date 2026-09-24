@@ -100,13 +100,13 @@ export async function fillLlmPair(
           why: 'An over-limit prompt risks context-window truncation and a false verdict. The gate blocks the pair and writes NOTHING — no reviewer call is made.',
           next:
             `Remedies, in safety order:\n` +
-            `  1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
-            `  2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
-            `  3. Split the node so its mapped files divide across smaller nodes.\n` +
+            `1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
+            `2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
+            `3. Split the node so its mapped files divide across smaller nodes.\n` +
             // Same words as formatters/lock-issue-messages.ts raiseCapRemedy (this
             // node may not import the formatters): raising the cap re-verifies
             // nothing; moving tiers re-reviews the aspect's pairs.
-            `  4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
+            `4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
             `Or move the aspect to a tier with a higher limit — that re-reviews every pair of the aspect, because the tier name is part of each pair's hash.\n` +
             `Then re-run: yg check --approve`,
         },

@@ -74,3 +74,5 @@ Two gaps let the gate stay green over something it exists to catch. A reference 
 The review-date finding tells the reader to propose a new date or a demotion and ask the user to approve it, in the one sign-off phrasing every command now uses, instead of a sentence that also forbade what it proposed.
 ## [2026-09-24T10:05:57.695Z]
 An empty references list names the rule file to edit in its next step.
+## [2026-09-24T13:51:13.095Z]
+The port-name fixes name the node or the nodes a port is declared on instead of 'node(s)', because the repository now refuses a hand-rolled plural across the shipped source.

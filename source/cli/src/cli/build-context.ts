@@ -43,7 +43,7 @@ import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail, plural } from './output.js';
+import { fail, plural, writeOut, count } from './output.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
@@ -394,7 +394,7 @@ async function resolveAttentionLine(graph: Graph, repoRelPosixPath: string): Pro
     // A type-covered file (no owning node) is compared against its matched TYPE's
     // other files, never a node's — the cohort noun must say which.
     const cohort = kind === 'type' ? "this file's matched type" : 'this node';
-    return `This file is structurally unusual among ${cohort}'s other ${lang} files — worth a closer read; no action required.`;
+    return `This file is structurally unusual next to the rest of ${cohort}'s ${lang} code — worth a closer read; no action required.`;
   } catch (err) {
     debugWrite(`[build-context] attention note skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);
     return undefined;
@@ -417,7 +417,7 @@ export function registerBuildCommand(program: Command): void {
       const asJson = options.json === true;
       /** Emit one machine document, or nothing at all in the text view. */
       const emitJson = (doc: ContextJsonDocument): void => {
-        if (asJson) process.stdout.write(formatContextJson(doc));
+        if (asJson) writeOut(formatContextJson(doc));
       };
       try {
         if (!options.node && !options.file) {
@@ -478,7 +478,7 @@ export function registerBuildCommand(program: Command): void {
                 next: 'No action needed.',
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
-              else process.stdout.write(`${excludedMsg}\n`);
+              else writeOut(`${excludedMsg}\n`);
               process.exit(0);
             }
             if (isExcludedFromGraph(result.file, exclusionSet)) {
@@ -497,7 +497,7 @@ export function registerBuildCommand(program: Command): void {
                 next: 'No action needed.',
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
-              else process.stdout.write(`${excludedMsg}\n`);
+              else writeOut(`${excludedMsg}\n`);
               process.exit(0);
             }
             // A typed answer, not "not covered by any node": classifies ONLY
@@ -544,8 +544,8 @@ export function registerBuildCommand(program: Command): void {
                   const doc = buildTypeCoveredContextJson(graph, displayFile, typeMatch.typeId, block, edges);
                   emitJson(attention !== undefined ? { ...doc, attention } : doc);
                 } else {
-                  process.stdout.write(formatFileContext(data));
-                  if (attention !== undefined) process.stdout.write(`\n${attention}\n`);
+                  writeOut(formatFileContext(data));
+                  if (attention !== undefined) writeOut(`\n${attention}\n`);
                 }
                 process.exit(0);
               }
@@ -555,7 +555,7 @@ export function registerBuildCommand(program: Command): void {
             if (candidates.length > 0) {
               let candidatesList = '';
               for (const c of candidates) {
-                candidatesList += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
+                candidatesList += `  - ${c.nodePath} (${count(c.fileCount, 'file')} in same dir)\n`;
               }
               uncoveredWhy = `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`;
               fail({
@@ -580,7 +580,7 @@ export function registerBuildCommand(program: Command): void {
           // Suppressed under --json: stdout carries exactly one machine document
           // there, and a bare owner line ahead of it would make the stream
           // unparseable for the caller the flag exists for.
-          if (!asJson) process.stdout.write(`${displayFile} -> ${result.nodePath}\n`);
+          if (!asJson) writeOut(`${displayFile} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
           resolvedFilePath = toPosixPath(result.file);
         } else {
@@ -629,8 +629,8 @@ export function registerBuildCommand(program: Command): void {
             emitJson(attention !== undefined ? { ...doc, attention } : doc);
           } else {
             const data = buildFileContextData(graph, resolvedFilePath, nodePath);
-            process.stdout.write(formatFileContext(data));
-            if (attention !== undefined) process.stdout.write(`\n${attention}\n`);
+            writeOut(formatFileContext(data));
+            if (attention !== undefined) writeOut(`\n${attention}\n`);
           }
         } else if (asJson) {
           emitJson(buildNodeContextJson(graph, nodePath));
@@ -641,7 +641,7 @@ export function registerBuildCommand(program: Command): void {
           // actually review: a file claimed by a descendant node is NOT listed here.
           data.sourceFiles = await computeNodeMappedFiles(graph, nodePath);
           await attachLockObservability(graph, nodePath, data);
-          process.stdout.write(formatNodeContext(data));
+          writeOut(formatNodeContext(data));
         }
       } catch (error) {
         debugWrite(`[build-context] context assembly failed: ${error instanceof Error ? error.message : String(error)}`);

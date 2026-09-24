@@ -21,7 +21,7 @@ import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, formatA
 import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
-import { fail, notice, warn } from './output.js';
+import { fail, notice, warn, writeErr, writeOut } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
@@ -220,7 +220,7 @@ export function registerCheckCommand(program: Command): void {
         // the list handed to it, never walks the filesystem or shells out to git itself.
         if (opts.attentionDump) {
           const dump = await runAttentionDump(graph, repoFiles);
-          process.stdout.write(dump);
+          writeOut(dump);
           await exitAfterFlush(0);
           return;
         }
@@ -589,11 +589,11 @@ export function registerCheckCommand(program: Command): void {
               // stream it lands on is decided here.
               onEvent: isDryRun
                 ? asJson
-                  ? textFillSink((s: string) => { process.stderr.write(s); })
-                  : textFillSink((s: string) => { process.stdout.write(s); })
+                  ? textFillSink((s: string) => { writeErr(s); })
+                  : textFillSink((s: string) => { writeOut(s); })
                 : isQuiet
                   ? () => {}
-                  : textFillSink((s: string) => { process.stderr.write(s); }),
+                  : textFillSink((s: string) => { writeErr(s); }),
               isTTY: !isQuiet && (process.stderr.isTTY ?? false),
               now: Date.now,
               // Width for the single rewritten progress line, so it stays one
@@ -627,12 +627,12 @@ export function registerCheckCommand(program: Command): void {
               // is part of the preview: the log entries it owes first.
               const owed = fill.checkResult.issues.filter((i) => i.code === 'log-entry-missing' && i.severity === 'error');
               if (owed.length > 0) {
-                process.stdout.write(`\n${formatOwed(owed)}\n`);
+                writeOut(`\n${formatOwed(owed)}\n`);
               }
               await exitAfterFlush(0);
               return;
             }
-            process.stdout.write(
+            writeOut(
               asJson
                 ? formatCheckJson({ ...enrichCheckJson(buildCheckJson(fill.checkResult), fill.checkResult), ...(fill.dryRunBudget ? { dryRunBudget: fill.dryRunBudget } : {}) })
                 // `undefined` for the emoji gate keeps formatOutput's own
@@ -678,9 +678,9 @@ export function registerCheckCommand(program: Command): void {
                   changeScope: changeScope,
                 });
                 await appendReasonlessSuppressWarnings(read, graph, projectRoot, repoFiles);
-                process.stdout.write(formatCheckJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
+                writeOut(formatCheckJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
               } else {
-                process.stdout.write(formatAbort(abort));
+                writeOut(formatAbort(abort));
               }
               await exitAfterFlush(1);
               return;
@@ -715,7 +715,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
-        process.stdout.write(asJson ? formatCheckJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
+        writeOut(asJson ? formatCheckJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
         // independent of the chosen view — a truncated --top/--summary render must

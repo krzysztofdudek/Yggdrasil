@@ -6,6 +6,8 @@ description: "Prints the agent operating manual fresh from the installed CLI —
   gate."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/templates
     type: calls
   - target: cli/knowledge-authoring

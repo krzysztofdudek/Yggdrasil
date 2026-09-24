@@ -23,6 +23,8 @@ export interface ServerOptions {
   port: number;
   /** false in --no-write / view-only mode: POST /approve is rejected 409. */
   writeEnabled: boolean;
+  /** Where the full reason for a request that failed inside the server goes (see RouterConfig). */
+  onInternalError?: (line: string) => void;
 }
 
 export interface ServerHandle {
@@ -43,6 +45,7 @@ export function startServer(opts: ServerOptions): Promise<ServerHandle> {
     projectRoot: opts.projectRoot,
     writeEnabled: opts.writeEnabled,
     dataSource: createPortalDataSource(opts.projectRoot, opts.writeEnabled),
+    ...(opts.onInternalError !== undefined ? { onInternalError: opts.onInternalError } : {}),
   };
   const server: Server = createServer((req, res) => {
     void handleRequest(req, res, config);

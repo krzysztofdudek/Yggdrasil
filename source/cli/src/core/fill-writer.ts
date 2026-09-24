@@ -33,6 +33,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
 
 /** Extra, disposition-specific fields recorded on one verdict-events line. */
 export interface VerdictEventExtra {
@@ -258,7 +259,7 @@ export function createVerdictWriter(params: {
   const writeFailure = (unsaved: number): LockEnvironmentError => {
     const detail = lastError instanceof Error ? lastError.message : String(lastError);
     return new LockEnvironmentError('lock-write-failed', {
-      what: `The verdict lock could not be written: ${detail}${unsaved > 0 ? ` — ${unsaved} verdict(s) from this run were not saved.` : ''}`,
+      what: `The verdict lock could not be written: ${detail}${unsaved > 0 ? ` — ${count(unsaved, 'verdict')} from this run ${unsaved === 1 ? 'was' : 'were'} not saved.` : ''}`,
       why: 'The file system refused the write even after retrying — a permission on .yggdrasil/, a full disk, or a lock file held open by another program. This is a problem in the environment, not in the code or the lock\'s content; every verdict written before the failure is kept.',
       next: 'Fix the cause above (check write permission on .yggdrasil/ and free disk space), then re-run: yg check --approve — the verdicts that were not saved are filled again.',
     });
@@ -353,7 +354,7 @@ export function createVerdictWriter(params: {
     try {
       if (timer !== null) { clearTimeout(timer); timer = null; }
       if (!(await persistUpTo(gen))) {
-        debugWrite(`[fill] final lock flush failed on close; ${pending.length} verdict(s) not saved`);
+        debugWrite(`[fill] final lock flush failed on close; ${count(pending.length, 'verdict')} not saved`);
       }
     } catch (e) {
       debugWrite(`[fill] final lock flush threw on close: ${e instanceof Error ? e.message : String(e)}`);

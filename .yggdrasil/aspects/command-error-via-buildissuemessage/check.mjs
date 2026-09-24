@@ -46,9 +46,9 @@ const FALLBACK_WINDOW = 400;
 // comments, are not output.
 const LEGACY_LABEL = /(?:^|\n|\\n)[ \t]*(?:Why|Fix|Next|Then|Error|Notice|Warning|Next \(this group\)): /;
 
-// A count written with a hand-rolled plural — `${n} pair(s)` — instead of the
-// output layer's count()/plural(), which make the noun agree with the number.
-const HAND_PLURAL = /\$\{[^}]+\}(?:[ \t]+[\w-]+)*[ \t]+[\w-]+\(s\)/;
+// Hand-rolled plurals and hand-built counts are refused by the
+// output-through-layer rule, over the whole shipped source tree rather than
+// the command files alone.
 
 /** Every string literal and template string in a file. */
 function stringNodes(root) {
@@ -76,10 +76,6 @@ export function check(ctx) {
             str,
             'a line in the old grammar (a capitalised `Why:` / `Fix:` / `Next:` / `Then:` / `Error:` / `Notice:` / `Warning:` label) — output goes through the output layer (fail / notice / warn / block / field / next / then / note) or buildIssueMessage, whose labels are lowercase',
           ),
-        );
-      } else if (str.type === 'template_string' && HAND_PLURAL.test(text)) {
-        violations.push(
-          report(file, str, 'a count with a hand-rolled plural (`${n} pair(s)`) — use count() or plural() from the output layer, so the noun agrees with the number'),
         );
       }
     }

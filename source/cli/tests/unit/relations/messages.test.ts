@@ -125,10 +125,9 @@ describe('relationRefusedMessage', () => {
     ]);
     const m = relationRefusedMessage(graph, 'a', [viol('src/a/foo.ts', 1, 'b')]);
     // service → repository allows only `uses`.
-    expect(m.next).toContain('allowed relation type(s) [uses]');
-    expect(m.next).toContain('relations:');
-    expect(m.next).toContain('- target: b');
-    expect(m.next).toContain('type: uses');
+    expect(m.next).toContain('allowed relation type [uses]');
+    expect(m.next).toContain('under relations:');
+    expect(m.next).toContain('- { target: b, type: uses }');
   });
 
   it('emits the dead-end wording when no relation type is allowed between the node types', () => {
@@ -141,7 +140,7 @@ describe('relationRefusedMessage', () => {
     expect(m.next).toContain('.yggdrasil/yg-architecture.yaml');
     expect(m.next).toContain('ask the user to approve an architecture change');
     // No stanza for a dead-end.
-    expect(m.next).not.toContain('- target: g');
+    expect(m.next).not.toContain('target: g');
   });
 
   it('falls back to (unknown type) wording when a target node is not in the graph', () => {
@@ -151,7 +150,7 @@ describe('relationRefusedMessage', () => {
     const graph = makeGraph([['a', 'service']]);
     const m = relationRefusedMessage(graph, 'a', [viol('src/a/foo.ts', 2, 'ghost')]);
     expect(m.next).toContain('no relation type is allowed from service to (unknown type)');
-    expect(m.next).not.toContain('- target: ghost');
+    expect(m.next).not.toContain('target: ghost');
   });
 
   it('deduplicates repeated targets into a single stanza but keeps all sites', () => {
@@ -166,8 +165,8 @@ describe('relationRefusedMessage', () => {
     expect(m.what).toContain('src/a/foo.ts:1 → b');
     expect(m.what).toContain('src/a/bar.ts:4 → b');
     // Only one stanza block for target b (allowed: uses, calls).
-    expect(m.next.match(/- target: b/g)?.length).toBe(1);
-    expect(m.next).toContain('allowed relation type(s) [uses, calls]');
+    expect(m.next.match(/target: b,/g)?.length).toBe(1);
+    expect(m.next).toContain('allowed relation types [uses, calls]');
   });
 });
 
@@ -283,8 +282,8 @@ describe('relationRefusedMessage — architecture with no node types yet', () =>
     g.architecture = { node_types: {} };
     const msg = relationRefusedMessage(g, 'users', [viol('src/users/index.js', 1, 'payments')]);
     expect(msg.next).not.toContain('no relation type is allowed');
-    expect(msg.next).toContain('allowed relation type(s) [uses, calls, extends, implements, emits, listens]');
-    expect(msg.next).toContain('  - target: payments\n    type: uses');
+    expect(msg.next).toContain('allowed relation types [uses, calls, extends, implements, emits, listens]');
+    expect(msg.next).toContain('- { target: payments, type: uses }');
   });
 });
 

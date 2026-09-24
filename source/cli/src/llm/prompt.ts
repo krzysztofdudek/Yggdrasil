@@ -183,7 +183,7 @@ ${escapeXmlText(r.content, { attribute: false })}
   const sortedCompanions = [...(companions ?? [])].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const companionsBlock = sortedCompanions.length === 0 ? '' : `
 
-These are the subject's resolved paired file(s) — read-only context, not the unit under judgment:
+These are the subject's resolved paired files — read-only context, not the unit under judgment:
 <companions>
 ${sortedCompanions.map(c => {
   const labelAttr = c.label ? ` label="${escapeXmlText(c.label, { attribute: true })}"` : '';

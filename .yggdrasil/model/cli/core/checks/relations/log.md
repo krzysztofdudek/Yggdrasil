@@ -26,3 +26,9 @@ A structural cycle was reported as a depth-first path that stopped at the first 
 Cycle, fan-out and event-pairing findings now name the node file to edit in their next step instead of generic advice, so a reader goes straight to the relation that needs changing.
 ## [2026-09-24T09:20:21.454Z]
 A missing description names the exact file to add it to, and every node, flow or relation target a finding quotes is printed with forward slashes.
+## [2026-09-24T13:51:14.176Z]
+A dependency cycle counts its nodes with count(). Counts are written with count() and plural() from utils/count.ts, never a hand-rolled plural (word(s)) or a noun with its plural spliced on, because the repository now refuses both across the shipped source: the same fact read '1 node(s)' here and '1 nodes' there, and an agent parsing the text met a different spelling from every module.
+## [2026-09-24T14:08:17.841Z]
+A dependency cycle prints its node paths in POSIX form in what and next, as every other message of this module does, while the members carried on the issue stay graph keys, because yg context matches them against the graph's own node keys. A flow naming a missing node now points at that flow's own yg-flow.yaml and at the node file to create, both of which the check knows, instead of a bare file name.
+## [2026-09-24T14:12:03.631Z]
+The high fan-out fix names the node file with its path in POSIX form, as every other message of this module does, so a Windows checkout never prints a backslash path.

@@ -34,6 +34,14 @@ export interface RouterConfig {
    * extracts on its own.
    */
   dataSource?: PortalDataSource;
+  /**
+   * Where the full reason for a 500 goes: the terminal of whoever runs the
+   * portal. The command that starts the server supplies it (through the CLI
+   * output layer); the server never writes to a stream itself. Absent (a test
+   * driving the router directly), the reason is dropped and only the generic
+   * 500 body is sent.
+   */
+  onInternalError?: (line: string) => void;
 }
 
 /** The PortalData a /render or /data request answers with. */
@@ -266,7 +274,7 @@ export async function handleRequest(
     // and return a generic message to the client. The `yg check` guidance points the operator
     // there for the real cause.
     const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
-    process.stderr.write(`[portal] request handler error (${method} ${pathname}): ${detail}\n`);
+    config.onInternalError?.(`[portal] request handler error (${method} ${pathname}): ${detail}\n`);
     sendJson(res, 500, {
       error: 'internal',
       message: 'The portal hit an internal error. Check the terminal running the portal for details.',

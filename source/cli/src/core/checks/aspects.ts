@@ -402,7 +402,7 @@ export function checkWhenReferences(graph: Graph): ValidationIssue[] {
             ...issueMsg({
               what: `Port '${port}' in when at ${ctx}/${relType}.consumes_port is not declared on any node.`,
               why: 'The predicate references a port that no node defines, so it can never match.',
-              next: `Fix the port name, or declare it under ports: on the node(s) this relation targets.`,
+              next: `Fix the port name, or declare it under ports: on the node this relation targets.`,
             }),
           });
         }
@@ -429,7 +429,7 @@ export function checkWhenReferences(graph: Graph): ValidationIssue[] {
       ...issueMsg({
         what: `Port '${portName}' in when at ${ctx}/has_port is not declared on any node.`,
         why: `has_port is matched literally against a node's own declared ports:, so a name no node declares is false for every node — the predicate can never be satisfied. If that is a typo, the rule it gates silently never applies.`,
-        next: `Fix the port name if it is a typo, or declare the port under ports: on the node(s) this should match. Leave it as is if the never-match is deliberate, or if the port is planned but not declared yet — this warning never blocks yg check.`,
+        next: `Fix the port name if it is a typo, or declare the port under ports: on the nodes this should match. Leave it as is if the never-match is deliberate, or if the port is planned but not declared yet — this warning never blocks yg check.`,
       }),
     });
   };

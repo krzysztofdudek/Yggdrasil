@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
@@ -30,7 +29,7 @@ import {
   type ExistingViolations,
   type ProposalProvenance,
 } from './adopt-transaction.js';
-import { fail } from './output.js';
+import { fail, paint, writeErr, writeOut } from './output.js';
 
 /**
  * `yg adopt <proposal-dir>` — the acceptance transaction.
@@ -228,10 +227,10 @@ export function registerAdoptCommand(program: Command): void {
           const codes = [...new Set(blocking.map((i) => i.code ?? 'unknown'))].sort();
           const detail = blocking
             .slice(0, 10)
-            .map((i) => `  ${i.code ?? ''} ${i.nodePath ?? ''} ${buildIssueMessage(i.messageData).split('\n')[0]}`)
+            .map((i) => `${i.code ?? ''} ${i.nodePath ?? ''} ${buildIssueMessage(i.messageData).split('\n')[0]}`)
             .join('\n');
           fail({
-            what: `The proposed graph does not hold together — ${count(blocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${blocking.length > 10 ? `\n  ... and ${blocking.length - 10} more` : ''}`,
+            what: `The proposed graph does not hold together — ${count(blocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${blocking.length > 10 ? `\n... and ${blocking.length - 10} more` : ''}`,
             why: 'These are the same problems that block every check, and they are about the graph itself rather than about any code. Accepting it would hand this repository a gate that is red before a single line is written, so nothing was moved.',
             next: 'Fix them where the proposal is generated and produce it again, then run yg adopt on the new one.',
           });
@@ -254,7 +253,7 @@ export function registerAdoptCommand(program: Command): void {
         // ── A preview writes nothing at all ────────────────────────────────
         if (dryRun) {
           const lines = [
-            chalk.green(`yg adopt: would accept  ${proposalDir} → ${GRAPH_DIR}/`),
+            paint.green(`yg adopt: would accept  ${proposalDir} → ${GRAPH_DIR}/`),
             '',
             ...graphRows(proposed, provenance, violations),
             row('Baseline', 'every rule that runs locally would be recorded now, at no cost and with no key'),
@@ -266,7 +265,7 @@ export function registerAdoptCommand(program: Command): void {
           lines.push('', hasExisting && opts.replace !== true
             ? 'Nothing was written. This repository already has a graph: re-run with --replace and without --dry-run to accept over it.'
             : 'Nothing was written. Re-run without --dry-run to accept.', '');
-          process.stdout.write(lines.join('\n'));
+          writeOut(lines.join('\n'));
           await exitAfterFlush(0);
           return;
         }
@@ -284,10 +283,10 @@ export function registerAdoptCommand(program: Command): void {
             const codes = [...new Set(stillBlocking.map((i) => i.code ?? 'unknown'))].sort();
             const detail = stillBlocking
               .slice(0, 10)
-              .map((i) => `  ${i.code ?? ''} ${i.nodePath ?? ''} ${buildIssueMessage(i.messageData).split('\n')[0]}`)
+              .map((i) => `${i.code ?? ''} ${i.nodePath ?? ''} ${buildIssueMessage(i.messageData).split('\n')[0]}`)
               .join('\n');
             fail({
-              what: `In this repository the proposed graph does not hold together — ${count(stillBlocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${stillBlocking.length > 10 ? `\n  ... and ${stillBlocking.length - 10} more` : ''}`,
+              what: `In this repository the proposed graph does not hold together — ${count(stillBlocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${stillBlocking.length > 10 ? `\n... and ${stillBlocking.length - 10} more` : ''}`,
               why: 'The graph reads correctly on its own but does not fit the code it was handed: these problems are about files it names and cannot find, or references it cannot resolve here. A gate in that state refuses every run for a reason no rule owns. Nothing was kept — the repository is exactly as it was.',
               next: 'Regenerate the proposal against this repository at its current state, then run yg adopt on the new one.',
             });
@@ -348,7 +347,7 @@ export function registerAdoptCommand(program: Command): void {
             now: Date.now,
             // Whatever the baseline run has to say about this graph goes to the
             // error stream, so the summary on stdout stays one clean report.
-            emitIssue: (m) => { process.stderr.write(`${buildIssueMessage(m)}\n`); },
+            emitIssue: (m) => { writeErr(`${buildIssueMessage(m)}\n`); },
           });
           const result = fill.checkResult;
           // A refusal IS a recorded verdict — it is cached and re-rendered like
@@ -376,7 +375,7 @@ export function registerAdoptCommand(program: Command): void {
         }
 
         const summary = [
-          chalk.green(`yg adopt: accepted  ${proposalDir} → ${GRAPH_DIR}/`),
+          paint.green(`yg adopt: accepted  ${proposalDir} → ${GRAPH_DIR}/`),
           '',
           ...graphRows(graph, provenance, violations),
           row('Baseline', recorded),
@@ -386,7 +385,7 @@ export function registerAdoptCommand(program: Command): void {
           summary.push(row('Previous graph', `kept at ${path.basename(transaction.movedAsideTo)}/ — delete it once you are satisfied`));
         }
         summary.push('', 'next: yg check', '');
-        process.stdout.write(summary.join('\n'));
+        writeOut(summary.join('\n'));
         await exitAfterFlush(0);
       } catch (error) {
         debugWrite(`[adopt] acceptance failed: ${error instanceof Error ? error.message : String(error)}`);

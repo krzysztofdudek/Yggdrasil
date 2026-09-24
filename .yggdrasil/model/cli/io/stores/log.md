@@ -184,3 +184,5 @@ The security fixes (read-only commands no longer run repository companion hooks,
 The events line gains two fields for auditing the reviewer: an approval's own reason, kept locally only (the committed stream strips every reason, as before), and on diagnostic lines a hash of the exact prompt judged, so an analysis can group votes by the input they were cast on. The vote tally is documented as counting verdict votes only, because provider-error votes are no longer part of a consensus.
 ## [2026-09-24T07:24:05.973Z]
 A skipped symlinked log is reported with a lowercase warning: label, the one grammar every command speaks.
+## [2026-09-24T13:51:18.323Z]
+The search index no longer writes to stderr about a log it could not take whole (over 1 MiB, a symlink, unreadable): it hands each case to its caller as a what/why/next message through an onWarning callback, and the command renders it as a warning in the one output grammar. The repository now refuses a direct stream write outside the output layer, and a persistence module writing finished prose to a stream was exactly what the layer exists to end.

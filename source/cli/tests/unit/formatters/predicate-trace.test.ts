@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderTrace } from '../../../src/formatters/predicate-trace.js';
+import { renderTrace, renderTraceInline } from '../../../src/formatters/predicate-trace.js';
 import type { PredicateTrace } from '../../../src/model/file-when.js';
 
 describe('renderTrace', () => {
@@ -78,5 +78,22 @@ describe('renderTrace', () => {
     expect(out).toContain('all_of:');
     expect(out).toContain('not:');
     expect(out).toContain('*.test.ts');
+  });
+});
+
+describe('renderTraceInline', () => {
+  it('says the whole tree on one line, for a message the renderer lays out', () => {
+    const t: PredicateTrace = {
+      kind: 'all_of',
+      result: false,
+      children: [
+        { kind: 'atom-path', pattern: 'src/**', result: true },
+        { kind: 'not', result: false, child: { kind: 'atom-content', pattern: 'foo', result: true, detail: 'line 3' } },
+        { kind: 'any_of', result: true, children: [{ kind: 'exempt', result: true, reason: 'generated' }] },
+      ],
+    };
+    const out = renderTraceInline(t);
+    expect(out).toBe('✗ all_of [✓ path matches "src/**", ✗ not [✓ content matches "foo" (line 3)], ✓ any_of [✓ exempt: generated]]');
+    expect(out).not.toContain('\n');
   });
 });

@@ -14,6 +14,7 @@ import type { Graph } from '../model/graph.js';
 import type { Violation } from './verifier.js';
 import { allowedRelationTypes, RELATION_TYPES } from './allowed-types.js';
 import type { TypeGateFinding } from './type-gate.js';
+import { plural } from '../utils/count.js';
 
 /** The node-type of a graph node, or undefined if the node is unknown. */
 function typeOf(graph: Graph, nodeId: string): string | undefined {
@@ -69,10 +70,8 @@ export function relationRefusedMessage(
       );
     } else {
       blocks.push(
-        `${target}: allowed relation type(s) [${allowed.join(', ')}]. Add to ${nodeFile}:\n` +
-          `relations:\n` +
-          `  - target: ${target}\n` +
-          `    type: ${allowed[0]}`,
+        `${target}: allowed relation ${plural(allowed.length, 'type')} [${allowed.join(', ')}]. ` +
+          `Add - { target: ${target}, type: ${allowed[0]} } under relations: in ${nodeFile}.`,
       );
     }
   }
@@ -80,7 +79,7 @@ export function relationRefusedMessage(
   return {
     what: `Node '${nodeId}' has undeclared dependencies on other nodes:\n${bySite}`.trimEnd(),
     why: 'A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.',
-    next: `Declare the missing relation(s) in ${nodeFile} (or remove the dependency if it is not legitimate):\n${blocks.join('\n')}`,
+    next: `Declare the missing ${plural(blocks.length, 'relation')} in ${nodeFile} (or remove the dependency if it is not legitimate):\n${blocks.join('\n')}`,
   };
 }
 
@@ -105,10 +104,10 @@ export function relationUnverifiedMessage(nodeId: string): IssueMessage {
 export function typeGateForbiddenMessage(finding: TypeGateFinding): IssueMessage {
   const sample = finding.edges.slice(0, 5);
   const rest = finding.edges.length - sample.length;
-  const sampleText = sample.map((e) => `  ${e.fromFile} -> ${e.toFile}`).join('\n');
+  const sampleText = sample.map((e) => `${e.fromFile} -> ${e.toFile}`).join('\n');
   return {
     what: `${finding.edges.length} import${finding.edges.length === 1 ? '' : 's'} from type '${finding.fromType}' to type '${finding.toType}' — no relation type is allowed between them:\n${sampleText}${rest > 0 ? `\n... and ${rest} more` : ''}`,
     why: `The architecture's relation allow-list governs every dependency between classified files, not just ones an explicit node declared — an unsanctioned import erodes the same boundary a declared relation protects.`,
-    next: `Cheapest first:\n  1. Allow it: add a relations entry for '${finding.fromType}' -> '${finding.toType}' in yg-architecture.yaml (clears this whole group).\n  2. Graduate the target: create an explicit node for the imported file(s) with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n  3. Remove the dependency.`,
+    next: `Cheapest first:\n1. Allow it: add a relations entry for '${finding.fromType}' -> '${finding.toType}' in yg-architecture.yaml (clears this whole group).\n2. Graduate the target: create an explicit node for the imported code with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n3. Remove the dependency.`,
   };
 }

@@ -166,9 +166,14 @@ describe('buildIndex', () => {
     const { symlink } = await import('node:fs/promises');
     await symlink(target, logPath);
     const graph = await loadGraph(projectRoot);
-    const docs = await buildIndex(graph);
+    const warnings: Array<{ what: string; why: string; next: string }> = [];
+    const docs = await buildIndex(graph, undefined, (m) => { warnings.push(m); });
     const node = docs.find((d) => d.kind === 'node' && d.id === 'node:billing/cancel');
     expect(node!.body).not.toContain('symlinked content');
+    // The warning is handed to the caller as data, never written to a stream here.
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].what).toBe('Skipping the symlinked log.md at .yggdrasil/model/billing/cancel/log.md.');
+    expect(warnings[0].next).not.toBe('');
   });
 
   it('indexes a node without its log body (empty, not a crash) when log.md exists but is unreadable (non-ENOENT)', async () => {

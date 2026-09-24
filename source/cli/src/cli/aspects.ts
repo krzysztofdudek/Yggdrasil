@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
@@ -56,7 +55,7 @@ import {
   type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
-import { fail } from './output.js';
+import { fail, paint, writeOut, count, next } from './output.js';
 
 interface AspectUsage {
   architecture: number;
@@ -433,11 +432,11 @@ export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInp
     }
 
     if (u.total === 0 && u.typeCovered === 0) {
-      lines.push(chalk.yellow(`  Used by: 0 nodes — orphaned`));
+      lines.push(paint.yellow(`  Used by: 0 nodes — orphaned`));
     } else if (u.total === 0) {
       // No component uses it, but files enforced by its architecture type
       // alone do — live law, never orphaned just because no node declares it.
-      lines.push(`  Used by: 0 nodes, ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}`);
+      lines.push(`  Used by: 0 nodes, ${count(u.typeCovered, 'type-covered file')}`);
     } else {
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
@@ -447,8 +446,8 @@ export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInp
       if (u.implied) parts.push(`implied: ${u.implied}`);
       if (u.flow) parts.push(`flow: ${u.flow}`);
       if (u.typeCovered) parts.push(`type-covered: ${u.typeCovered}`);
-      const fileSuffix = u.typeCovered > 0 ? ` + ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}` : '';
-      lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'}${fileSuffix} (${parts.join(', ')})`);
+      const fileSuffix = u.typeCovered > 0 ? ` + ${count(u.typeCovered, 'type-covered file')}` : '';
+      lines.push(`  Used by: ${count(u.total, 'node')}${fileSuffix} (${parts.join(', ')})`);
     }
 
     if (aspect.implies && aspect.implies.length > 0) {
@@ -984,12 +983,13 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
 
   if (health.hasUnverified) {
     lines.push('');
-    lines.push(`"${UNVERIFIED}" = not yet checked; run \`yg check --approve\` to resolve.`);
+    lines.push(`note: "${UNVERIFIED}" = not yet checked`);
+    lines.push(next('yg check --approve'));
   }
   if (health.wildcardMarkers > 0) {
     lines.push('');
     lines.push(
-      `Note: ${health.wildcardMarkers} wildcard suppress marker${health.wildcardMarkers === 1 ? '' : 's'} ${health.wildcardMarkers === 1 ? 'applies' : 'apply'} to every aspect and ${health.wildcardMarkers === 1 ? 'is' : 'are'} not counted per-aspect above.`,
+      `note: ${count(health.wildcardMarkers, 'wildcard suppress marker')} ${health.wildcardMarkers === 1 ? 'applies' : 'apply'} to every aspect and ${health.wildcardMarkers === 1 ? 'is' : 'are'} not counted per-aspect above.`,
     );
   }
 
@@ -1230,11 +1230,11 @@ export function registerAspectsCommand(program: Command): void {
         if (options.json === true && options.health === true) {
           // Its own document, never folded into yg-aspects/1: the inventory keeps
           // its meaning, and the health projection keeps its own name.
-          process.stdout.write(formatAspectsHealthJson(aspectsHealthDocument(await buildAspectsHealth(graph, Date.now()))));
+          writeOut(formatAspectsHealthJson(aspectsHealthDocument(await buildAspectsHealth(graph, Date.now()))));
         } else if (options.json === true) {
           const projectRoot = path.dirname(graph.rootPath);
           const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
-          process.stdout.write(
+          writeOut(
             formatAspectsJson(await buildAspectsJson(graph, projectRoot, typeCoverage, options.reach === true)),
           );
         } else if (options.health) {
@@ -1242,10 +1242,10 @@ export function registerAspectsCommand(program: Command): void {
           // here at the command boundary (an observability timestamp — it records
           // how long ago each rule was created, not what any verdict is) and
           // threaded down so the pure renderers never read the clock themselves.
-          process.stdout.write(formatAspectsHealthOutput(await buildAspectsHealth(graph, Date.now())));
+          writeOut(formatAspectsHealthOutput(await buildAspectsHealth(graph, Date.now())));
         } else {
           const typeCoverage = await computeTypeCoverageForAspects(graph, path.dirname(graph.rootPath));
-          process.stdout.write(formatAspectsOutput(graph, typeCoverage));
+          writeOut(formatAspectsOutput(graph, typeCoverage));
         }
       } catch (error) {
         abortOnUnexpectedError(error, 'listing aspects');

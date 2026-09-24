@@ -186,7 +186,7 @@ function parseStringArray(raw: unknown, field: string, filename: string): string
     throw new ConfigParseError({
       what: `${filename}: ${field} must be a list of strings (got ${JSON.stringify(raw)}).`,
       why: 'Coverage roots are repo-relative path prefixes; a non-list value cannot be matched against files.',
-      next: `Set ${field} to a YAML list, e.g.\n  ${field.split('.').pop()}:\n    - services/`,
+      next: `Set ${field} to a YAML list, e.g. ${field.split('.').pop()}: [services/]`,
     }, 'config-invalid');
   }
   return raw as string[];
