@@ -1,0 +1,25 @@
+Upstream pull request tree-sitter/tree-sitter-typescript#365 (import() type members with type arguments),
+head commit 92634edfbf75963f8b47c6740e9e89ee289ae3df, restricted to common/define-grammar.js.
+Applied by the grammar build (scripts/grammars.mjs) in the order the typescript/tsx pins list;
+the generated parser is pinned by sha256 in src/utils/language-registry.ts.
+
+diff --git a/common/define-grammar.js b/common/define-grammar.js
+index efb0b76..a3a41c0 100644
+--- a/common/define-grammar.js
++++ b/common/define-grammar.js
+@@ -78,6 +78,7 @@ module.exports = function defineGrammar(dialect) {
+ 
+       // This appears to be necessary to parse a parenthesized class expression
+       [$.class],
++      [$._type_query_member_expression_in_type_annotation],
+ 
+       [$.nested_identifier, $.nested_type_identifier, $.primary_expression],
+       [$.nested_identifier, $.nested_type_identifier],
+@@ -702,6 +703,7 @@ module.exports = function defineGrammar(dialect) {
+           $.private_property_identifier,
+           alias($.identifier, $.property_identifier),
+         )),
++        optional($.type_arguments),
+       ),
+       _type_query_call_expression_in_type_annotation: $ => seq(
+         field('function', choice(

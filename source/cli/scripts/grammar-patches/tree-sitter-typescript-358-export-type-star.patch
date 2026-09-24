@@ -1,0 +1,23 @@
+Upstream pull request tree-sitter/tree-sitter-typescript#358 (parse export type *),
+head commit 8a43a912d4a941767829a00ff0be80318762a4f1, restricted to common/define-grammar.js.
+Applied by the grammar build (scripts/grammars.mjs) in the order the typescript/tsx pins list;
+the generated parser is pinned by sha256 in src/utils/language-registry.ts.
+
+diff --git a/common/define-grammar.js b/common/define-grammar.js
+index efb0b76..22e68d4 100644
+--- a/common/define-grammar.js
++++ b/common/define-grammar.js
+@@ -322,8 +322,11 @@ module.exports = function defineGrammar(dialect) {
+         seq(
+           'export',
+           'type',
+-          $.export_clause,
+-          optional($._from_clause),
++          choice(
++            seq('*', $._from_clause),
++            seq($.namespace_export, $._from_clause),
++            seq($.export_clause, optional($._from_clause)),
++          ),
+           $._semicolon,
+         ),
+         seq('export', '=', $.expression, $._semicolon),

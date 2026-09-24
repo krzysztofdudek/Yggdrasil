@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // A2 — pack-and-smoke: prove the PUBLISHED tarball actually works, especially that
-// the WASM grammars resolve from the package itself (NOT the dev `node_modules`
-// fallback, which is absent in a real install — tree-sitter-* are devDeps). This is
-// the only thing that exercises the production `dist/grammars` path; the unit/e2e
-// tests run from source and always hit the node_modules fallback.
+// the WASM grammars resolve from the package itself (the grammar packages the build
+// takes some of them from are devDeps, absent in a real install). This is the only
+// thing that exercises the installed layout; the unit/e2e tests run from source and
+// load the same pinned grammars from source/cli/dist/grammars.
 //
 // Steps: npm pack → extract to a clean temp dir → install PROD deps only → assert
 // every exports/bin path resolves → run a PARSE-requiring command (which loads a

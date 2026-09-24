@@ -1,5 +1,5 @@
 name: Language Registry
-description: The single source of truth mapping a source-file extension to its tree-sitter grammar (the wasm filename and npm package) and to the AST comment node-type names and delimiters that comment-based deterministic rules and the yg-suppress scanner depend on. Covers TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, and JSON. Pure data plus extension-lookup helpers — no I/O, no imports.
+description: "The single source of truth mapping a source-file extension to its tree-sitter grammar (the wasm filename and the grammar pin: repository, commit, version, tree-sitter CLI, ABI, where the build takes it from, and the sha256 of the shipped wasm and node-types.json) and to the AST comment node-type names and delimiters that comment-based deterministic rules and the yg-suppress scanner depend on. Covers TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, JSON, Kotlin, YAML and TOML. Pure data plus extension-lookup helpers — no I/O, no imports."
 type: utility
 mapping:
   - source/cli/src/utils/language-registry.ts

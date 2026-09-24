@@ -9,12 +9,27 @@ describe('language registry', () => {
     ]);
   });
 
-  it('each entry id matches its key and has a wasmFile + wasmPackage', () => {
+  it('each entry id matches its key and has a wasmFile + a complete grammar pin', () => {
     for (const [key, def] of Object.entries(LANGUAGES)) {
       expect(def.id).toBe(key);
       expect(def.wasmFile).toMatch(/\.wasm$/);
-      expect(def.wasmPackage.length).toBeGreaterThan(0);
+      const pin = def.grammar;
+      expect(pin.repo).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+      expect(pin.commit).toMatch(/^[0-9a-f]{40}$/);
+      expect(pin.version.length).toBeGreaterThan(0);
+      expect(pin.cli.length).toBeGreaterThan(0);
+      expect([13, 14, 15]).toContain(pin.abi);
+      expect(pin.wasmSha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(pin.nodeTypesSha256).toMatch(/^[0-9a-f]{64}$/);
+      // A grammar this repository builds names the exact CLI, never a range.
+      if (pin.source.kind === 'source') expect(pin.cli).toMatch(/^\d+\.\d+\.\d+$/);
+      if (pin.source.kind === 'github-release') expect(pin.source.wasmUrl).toMatch(/^https:\/\/github\.com\/.+\/releases\/download\//);
     }
+  });
+
+  it('no two languages ship the same wasm file name', () => {
+    const names = Object.values(LANGUAGES).map((d) => d.wasmFile);
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it('extension map is consistent with each LANGUAGES entry', () => {
@@ -61,25 +76,25 @@ describe('language registry', () => {
 });
 
 describe('getGrammarForExtension', () => {
-  it('maps .ts to the typescript grammar + package', () => {
-    expect(getGrammarForExtension('.ts')).toEqual({ wasmFile: 'tree-sitter-typescript.wasm', wasmPackage: 'tree-sitter-typescript' });
+  it('maps .ts to the typescript grammar', () => {
+    expect(getGrammarForExtension('.ts')).toEqual({ wasmFile: 'tree-sitter-typescript.wasm' });
   });
-  it('maps .tsx to the tsx wasm but the typescript package', () => {
-    expect(getGrammarForExtension('.tsx')).toEqual({ wasmFile: 'tree-sitter-tsx.wasm', wasmPackage: 'tree-sitter-typescript' });
+  it('maps .tsx to the tsx wasm', () => {
+    expect(getGrammarForExtension('.tsx')).toEqual({ wasmFile: 'tree-sitter-tsx.wasm' });
   });
   it('maps .js/.mjs/.cjs/.jsx to the javascript grammar', () => {
     for (const ext of ['.js', '.mjs', '.cjs', '.jsx']) {
-      expect(getGrammarForExtension(ext)).toEqual({ wasmFile: 'tree-sitter-javascript.wasm', wasmPackage: 'tree-sitter-javascript' });
+      expect(getGrammarForExtension(ext)).toEqual({ wasmFile: 'tree-sitter-javascript.wasm' });
     }
   });
   it('is case-insensitive (.TS resolves like .ts)', () => {
     expect(getGrammarForExtension('.TS')?.wasmFile).toBe('tree-sitter-typescript.wasm');
   });
   it('maps .py to the python grammar', () => {
-    expect(getGrammarForExtension('.py')).toEqual({ wasmFile: 'tree-sitter-python.wasm', wasmPackage: 'tree-sitter-python' });
+    expect(getGrammarForExtension('.py')).toEqual({ wasmFile: 'tree-sitter-python.wasm' });
   });
   it('maps .rs to the rust grammar', () => {
-    expect(getGrammarForExtension('.rs')).toEqual({ wasmFile: 'tree-sitter-rust.wasm', wasmPackage: 'tree-sitter-rust' });
+    expect(getGrammarForExtension('.rs')).toEqual({ wasmFile: 'tree-sitter-rust.wasm' });
   });
   it('returns null for a still-unregistered extension', () => {
     expect(getGrammarForExtension('.swift')).toBeNull();

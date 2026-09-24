@@ -2,20 +2,22 @@ import { Parser, Language, Tree } from 'web-tree-sitter';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { getGrammarForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 
-const _require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Candidate grammar dirs, in order. The published package bundles entry files FLAT
 // (dist/bin.js, dist/ast.js …), so the WASM at dist/grammars/ is `__dirname/grammars`.
-// `../grammars` covers a legacy dist/ast/ subdir layout and the src/ast/ dev tree.
+// `../grammars` covers a legacy dist/ast/ subdir layout. `../../dist/grammars` is the
+// source tree (src/ast/ → source/cli/dist/grammars): tests and dev runs load the very
+// grammars the build pinned and verified, never an npm package that may be a different
+// version (several grammars ship from a GitHub release or a source build, not npm).
 const GRAMMAR_DIRS = [
   path.resolve(__dirname, 'grammars'),
   path.resolve(__dirname, '..', 'grammars'),
+  path.resolve(__dirname, '..', '..', 'dist', 'grammars'),
 ];
 
 // Both the one-time WASM runtime init and each grammar load are memoized as
@@ -52,7 +54,7 @@ export function grammarWasmHash(extension: string): string {
   if (!info) {
     throw new Error(`no grammar for extension '${extension}'`);
   }
-  const wasmPath = resolveWasm(info.wasmFile, info.wasmPackage);
+  const wasmPath = resolveWasm(info.wasmFile);
   const hash = createHash('sha256').update(readFileSync(wasmPath)).digest('hex');
   wasmHashCache.set(extension, hash);
   return hash;
@@ -66,24 +68,15 @@ function init(): Promise<void> {
   return initPromise;
 }
 
-function resolveWasm(filename: string, pkg: string): string {
-  // Published package: the WASM ships under dist/grammars/.
+function resolveWasm(filename: string): string {
   for (const dir of GRAMMAR_DIRS) {
     const p = path.join(dir, filename);
     if (existsSync(p)) return p;
   }
-  // Dev fallback: resolve from the installed grammar package. This is a devDep, so it
-  // is ABSENT in a published install — the dist/grammars path above must succeed there.
-  // Wrapped so an absent devDep yields a clean error, not a raw 'Cannot find module'.
-  try {
-    const pkgDir = path.dirname(_require.resolve(`${pkg}/package.json`));
-    for (const candidate of [path.join(pkgDir, filename), path.join(pkgDir, 'bindings/node', filename)]) {
-      if (existsSync(candidate)) return candidate;
-    }
-  } catch {
-    /* devDep not installed (published package) — fall through to the error below */
-  }
-  throw new Error(`Could not find WASM grammar ${filename} in dist/grammars/ or in the ${pkg} package.`);
+  throw new Error(
+    `Could not find WASM grammar ${filename} in dist/grammars/. ` +
+      `In a source checkout, run \`npm run build\` in source/cli: the build writes the pinned grammars there.`,
+  );
 }
 
 export async function getParser(extension: string): Promise<Parser> {
@@ -95,7 +88,7 @@ export async function getParser(extension: string): Promise<Parser> {
   const cacheKey = info.wasmFile;
   let langP = langCache.get(cacheKey);
   if (langP === undefined) {
-    const wasmPath = resolveWasm(info.wasmFile, info.wasmPackage);
+    const wasmPath = resolveWasm(info.wasmFile);
     langP = Language.load(wasmPath);
     langCache.set(cacheKey, langP);
     // Evict a failed load so the next caller retries instead of inheriting it.

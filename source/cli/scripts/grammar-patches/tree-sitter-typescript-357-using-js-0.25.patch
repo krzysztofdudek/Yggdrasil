@@ -1,0 +1,80 @@
+Upstream pull request tree-sitter/tree-sitter-typescript#357 (bump tree-sitter-javascript to 0.25),
+head commit 6f7fa0e3ef0e95f26c46ad32f970a77f851f40de, restricted to common/define-grammar.js.
+Applied by the grammar build (scripts/grammars.mjs) in the order the typescript/tsx pins list;
+the generated parser is pinned by sha256 in src/utils/language-registry.ts.
+
+diff --git a/common/define-grammar.js b/common/define-grammar.js
+index efb0b76..6eeb2f8 100644
+--- a/common/define-grammar.js
++++ b/common/define-grammar.js
+@@ -196,7 +196,6 @@ module.exports = function defineGrammar(dialect) {
+       )),
+ 
+       assignment_expression: $ => prec.right('assign', seq(
+-        optional('using'),
+         field('left', choice($.parenthesized_expression, $._lhs_expression)),
+         '=',
+         field('right', $.expression),
+@@ -410,13 +409,11 @@ module.exports = function defineGrammar(dialect) {
+         field('arguments', $.arguments),
+       )),
+ 
++      // Simplified from upstream's restricted choices to allow any expression,
++      // supporting patterns like @(super.decorate) and complex decorator expressions.
+       decorator_parenthesized_expression: $ => seq(
+         '(',
+-        choice(
+-          $.identifier,
+-          alias($.decorator_member_expression, $.member_expression),
+-          alias($.decorator_call_expression, $.call_expression),
+-        ),
++        $.expression,
+         ')',
+       ),
+ 
+@@ -1102,9 +1099,7 @@ module.exports = function defineGrammar(dialect) {
+  * Creates a rule to match one or more of the rules separated by a comma
+  *
+  * @param {RuleOrLiteral} rule
+- *
+- * @return {SeqRule}
+- *
++ * @returns {SeqRule}
+  */
+ function commaSep1(rule) {
+   return sepBy1(',', rule);
+@@ -1114,9 +1109,7 @@ function commaSep1(rule) {
+  * Creates a rule to optionally match one or more of the rules separated by a comma
+  *
+  * @param {RuleOrLiteral} rule
+- *
+- * @return {SeqRule}
+- *
++ * @returns {SeqRule}
+  */
+ function commaSep(rule) {
+   return sepBy(',', rule);
+@@ -1126,10 +1119,8 @@ function commaSep(rule) {
+  * Creates a rule to optionally match one or more of the rules separated by a separator
+  *
+  * @param {RuleOrLiteral} sep
+- *
+  * @param {RuleOrLiteral} rule
+- *
+- * @return {ChoiceRule}
++ * @returns {ChoiceRule}
+  */
+ function sepBy(sep, rule) {
+   return optional(sepBy1(sep, rule));
+@@ -1139,10 +1130,8 @@ function sepBy(sep, rule) {
+  * Creates a rule to match one or more of the rules separated by a separator
+  *
+  * @param {RuleOrLiteral} sep
+- *
+  * @param {RuleOrLiteral} rule
+- *
+- * @return {SeqRule}
++ * @returns {SeqRule}
+  */
+ function sepBy1(sep, rule) {
+   return seq(rule, repeat(seq(sep, rule)));

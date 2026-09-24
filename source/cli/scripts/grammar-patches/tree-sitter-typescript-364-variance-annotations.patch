@@ -1,0 +1,17 @@
+Upstream pull request tree-sitter/tree-sitter-typescript#364 (variance annotations on type parameters),
+head commit 465aa162d077093dc5ad4f46a9463bde6274425e, restricted to common/define-grammar.js.
+Applied by the grammar build (scripts/grammars.mjs) in the order the typescript/tsx pins list;
+the generated parser is pinned by sha256 in src/utils/language-registry.ts.
+
+diff --git a/common/define-grammar.js b/common/define-grammar.js
+index efb0b76..fe08885 100644
+--- a/common/define-grammar.js
++++ b/common/define-grammar.js
+@@ -1004,6 +1004,7 @@ module.exports = function defineGrammar(dialect) {
+ 
+       type_parameter: $ => seq(
+         optional('const'),
++        optional(choice('in', seq(optional('in'), 'out'))),
+         field('name', $._type_identifier),
+         field('constraint', optional($.constraint)),
+         field('value', optional($.default_type)),
