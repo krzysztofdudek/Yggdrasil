@@ -384,7 +384,9 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
 
       const approved = await runAsync(['check', '--approve'], dir);
       expect(approved.status).toBe(0);
-      expect(approved.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill progress at all.
+      expect(approved.all).not.toMatch(/^fill /m);
+
 
       const p = findPair(checkJson(dir), ASPECT, UNIT_PATH);
       expect(p.filled).toEqual(filledAfterApprove);

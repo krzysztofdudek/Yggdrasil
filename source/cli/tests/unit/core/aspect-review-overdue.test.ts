@@ -48,7 +48,7 @@ describe('checkReviewOverdue', () => {
       'A review_by date is a standing request to re-examine whether this rule still earns its place — the date has passed, so the rule is running unreviewed.',
     );
     expect(issue.messageData!.next).toBe(
-      'Ask the user to renew or retire this rule — propose a new review_by date or a demotion; never change the date without their approval.',
+      'Propose a new review_by date or a demotion, and ask the user to approve it first — never change the date yourself.',
     );
   });
 

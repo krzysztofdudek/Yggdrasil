@@ -84,19 +84,15 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       const check1 = run(['check'], dir);
       expect(check1.status).toBe(1);
       expect(check1.all).toContain('prompt-too-large');
-      // prompt-too-large is NOT a FULL_WHAT code, so the per-issue `what`
-      // ("Assembled reviewer prompt for aspect '<id>' on <unit> is N chars, over
-      // the '<tier>' tier limit of 50.") — including the char/limit numbers — is
-      // gone in the grouped read-only view. Assert the group label, the aspect
-      // segment, the now-visible why, and the offending node line instead.
-      expect(check1.all).toContain("aspect 'has-doc-comment'");
+      // The block's member line per node carries the per-pair `what` — the aspect,
+      // the unit and the char/limit numbers — beside the shared why.
+      expect(check1.all).toContain('error[prompt-too-large] 2 pairs in 2 nodes');
+      expect(check1.all).toMatch(/at: {3}services\/orders +Assembled reviewer prompt for aspect 'has-doc-comment' on node:services\/orders is \d+ chars, over the 'standard' tier limit of 50\./);
       expect(check1.all).toContain('An over-limit prompt risks context-window truncation and a false verdict.');
-      expect(check1.all).toContain('- services/orders');
       // GATE PRECEDENCE: the pair shows prompt-too-large, NOT a duplicate
-      // unverified. With the per-issue `what` gone, the surviving unverified
-      // discriminator is that has-doc-comment never appears under an
-      // `unverified (not yet reviewed)` group header.
-      expect(check1.all).not.toMatch(/unverified \(not yet reviewed\)[^\n]*aspect 'has-doc-comment'/);
+      // unverified: has-doc-comment is never a member of an unverified block.
+      expect(check1.all).not.toMatch(/^error\[unverified\][^]*?has-doc-comment @ /m);
+      expect(check1.all).not.toMatch(/has-doc-comment {2}\d+ pairs? · /);
 
       // FILL skips the over-limit pairs → ZERO reviewer calls. Deterministic pairs still fill.
       const fill1 = await runAsync(['check', '--approve'], dir);
@@ -120,10 +116,10 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       expect(check2.all).toContain('prompt-too-large');
       // The verdict survived in the lock — lowering the limit did NOT invalidate it.
       expect(readLock(dir).verdicts['has-doc-comment']['node:services/orders'].verdict).toBe('approved');
-      // And it is NOT rendered as unverified. The per-issue `what` is gone in the
-      // grouped view, so the surviving discriminator is that has-doc-comment
-      // never appears under an `unverified (not yet reviewed)` group header.
-      expect(check2.all).not.toMatch(/unverified \(not yet reviewed\)[^\n]*aspect 'has-doc-comment'/);
+      // And it is NOT rendered as unverified: has-doc-comment is never a member
+      // of an unverified block.
+      expect(check2.all).not.toMatch(/^error\[unverified\][^]*?has-doc-comment @ /m);
+      expect(check2.all).not.toMatch(/has-doc-comment {2}\d+ pairs? · /);
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -157,22 +153,22 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       writeFileSync(detPath(dir), JSON.stringify({ version: lock.version, verdicts: lock.verdicts, nodes: {} }, null, 2) + '\n', 'utf-8');
       writeFileSync(logsPath(dir), JSON.stringify({ version: lock.version, verdicts: {}, nodes: lock.nodes }, null, 2) + '\n', 'utf-8');
 
-      // The missing pairs surface as unverified. The per-issue `what`
-      // ("No valid verdict for aspect '<id>' on <unit>.") is gone in the grouped
-      // view for the non-FULL_WHAT unverified code; assert the gloss + aspect
-      // segment + the offending node line instead.
+      // The missing pairs surface as unverified: the block names its cause in the
+      // subject and lists the missing pair as `<aspect> @ <unit>`.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(check.all).toContain("aspect 'no-todo-comments'");
-      expect(check.all).toContain('- services/payments');
+      expect(check.all).toMatch(/^error\[unverified\] 1 pair (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)$/m);
+      expect(check.all).toContain('  at:   no-todo-comments @ services/payments\n');
 
       // --approve re-verifies ONLY the missing pairs → green. No hand-merge.
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
       expect(run(['check'], dir).status).toBe(0);
-      // The kept (orders) entries were never re-verified — they carried forward.
-      expect(refill.all).not.toContain('node:services/orders — approved');
+      // The kept (orders) entries were never re-verified — they carried forward:
+      // the fill judged exactly payments' two missing pairs.
+      expect(refill.all).toMatch(/^fill {2}2 pairs · 2 script \(free\) · 0 reviewer calls$/m);
+      expect(refill.all).toMatch(/^fill {2}done in .* — 2 approved · 0 refused · 0 failed/m);
+
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

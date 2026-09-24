@@ -641,13 +641,14 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covere
       // type `leaf`, live on the real node `owned` AND the two componentless
       // files matching the same type — a real refusal on a.ts, no reviewer call.
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(fill.all).toContain('[det] refuses-on-a on file:src/leaf/a.ts — refused');
+      expect(fill.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(fill.stdout).toContain('error[refused] refuses-on-a — 1 violation in src/leaf/a.ts');
 
       // `yg check` itself still fails on that refusal — the ground truth
       // `--health` must agree with.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.stdout).toContain("src/leaf/a.ts  Violations:");
+      expect(check.stdout).toMatch(/^ {2}at: +src\/leaf\/a\.ts {2}src\/leaf\/a\.ts:\d+ {2}/m);
 
       const health = run(['aspects', '--health'], dir);
       expect(health.status).toBe(0); // informational, never blocks

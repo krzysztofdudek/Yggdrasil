@@ -84,8 +84,9 @@ describe('typeSuggestCommand', () => {
     const output = await captureOutput(() =>
       typeSuggestCommand('.yggdrasil/model/foo/yg-node.yaml', root),
     );
-    expect(output).toMatch(/inside .yggdrasil\//);
-    expect(output).toMatch(/auto-exempt/);
+    expect(output).toContain('This path is inside .yggdrasil/ — auto-exempt from classification.');
+    expect(output).toMatch(/ {2}why: {2}.*never classified/);
+    expect(output).toContain('next: No action needed.');
   });
 
   it('handles non-existent files with path-only evaluation', async () => {

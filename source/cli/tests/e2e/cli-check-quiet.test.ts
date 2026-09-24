@@ -64,8 +64,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
 
       // STDOUT must contain the final report.
       // On a clean fill the output starts with "yg check: PASS".
-      // On a fill with errors/warnings it shows "Errors (N)" or "Warnings (N)".
-      expect(result.stdout).toMatch(/(?:yg check: PASS|Errors|Warnings)/);
+      // On a fill with errors/warnings it shows error[…] or warning[…] blocks.
+      expect(result.stdout).toMatch(/(?:yg check: PASS|^error\[|^warning\[)/m);
 
       // Exit code must reflect the actual check result — NOT forced to 0.
       // (Fixture is clean after fill, so we expect 0 here.)
@@ -105,12 +105,12 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       const result = run(['check', '--approve', '--dry-run', '--quiet'], dir);
 
       // The budget breakdown reaches STDOUT (the dry-run path's deliverable).
-      // The dry-run-specific UPPER BOUND budget line is emitted via the `write`
+      // The dry-run-specific upper-bound budget note is emitted via the `write`
       // sink — which --quiet must NOT swallow when --dry-run is also set.
       expect(result.stdout).not.toBe('');
-      expect(result.stdout).toContain('is an UPPER BOUND');
+      expect(result.stdout).toContain('reviewer calls is an upper bound');
       // The per-pair budget breakdown also lands on stdout.
-      expect(result.stdout).toMatch(/Filling \d+ unverified pairs/);
+      expect(result.stdout).toMatch(/^fill {2}\d+ pairs · /m);
 
       // --quiet still keeps stderr free of progress.
       expect(result.stderr).toBe('');
@@ -133,11 +133,11 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       const result = run(['check', '--approve', '--dry-run', '--json', '--quiet'], dir);
 
       // The budget breakdown reaches STDERR (stdout is the JSON document's).
-      expect(result.stderr).toContain('is an UPPER BOUND');
-      expect(result.stderr).toMatch(/Filling \d+ unverified pairs/);
+      expect(result.stderr).toContain('reviewer calls is an upper bound');
+      expect(result.stderr).toMatch(/^fill {2}\d+ pairs · /m);
 
       // STDOUT stays a clean, parseable JSON document — no preview text mixed in.
-      expect(result.stdout).not.toContain('UPPER BOUND');
+      expect(result.stdout).not.toContain('upper bound');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
 
       // --dry-run always exits 0 (it is a cost preview, never a verdict).
@@ -154,8 +154,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview already belongs on stderr so stdout carries the document alone.
       const result = run(['check', '--approve', '--dry-run', '--json'], dir);
 
-      expect(result.stderr).toContain('is an UPPER BOUND');
-      expect(result.stdout).not.toContain('UPPER BOUND');
+      expect(result.stderr).toContain('reviewer calls is an upper bound');
+      expect(result.stdout).not.toContain('upper bound');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
       expect(result.status).toBe(0);
     } finally {
@@ -170,8 +170,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview on stdout, where it has always been.
       const result = run(['check', '--approve', '--dry-run'], dir);
 
-      expect(result.stdout).toContain('is an UPPER BOUND');
-      expect(result.stdout).toMatch(/Filling \d+ unverified pairs/);
+      expect(result.stdout).toContain('reviewer calls is an upper bound');
+      expect(result.stdout).toMatch(/^fill {2}\d+ pairs · /m);
       expect(result.status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -191,7 +191,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       expect(result.stderr).toBe('');
 
       // STDOUT has the summary report.
-      expect(result.stdout).toMatch(/(?:yg check: PASS|Errors|Warnings)/);
+      expect(result.stdout).toMatch(/(?:yg check: PASS|^error\[|^warning\[)/m);
 
       // Everything is verified, so exit 0.
       expect(result.status).toBe(0);

@@ -47,7 +47,7 @@ describe('groupIssues', () => {
       iss({ code: 'aspect-violation-enforced', aspectId: 'x', nodePath: 'a' }),
     ]);
     expect(g.perMemberReason).toBe(true);
-    expect(g.label).toBe('enforced');
+    expect(g.label).toBe('refused');
   });
 
   // The type-relation gate's `what` carries its sample-edges list on lines
@@ -238,9 +238,9 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
     // Structural beats coverage; the alphabetically-first structural wins the slot.
     expect(topGroup.code).toBe('event-unpaired');
     // The `Next:` line names EXACTLY that rule.
-    expect(next!.startsWith('Fix event-unpaired ')).toBe(true);
-    // Invariant: the group bare `--top` renders is the group `Next:` names.
-    expect(next!.includes(topGroup.code)).toBe(true);
+    // The next step is that rule's own fix, never its code restated.
+    expect(next!.startsWith(topGroup.members[0].messageData.next.split('\n')[0])).toBe(true);
+    expect(next!.startsWith('Fix event-unpaired ')).toBe(false);
     // Coverage did NOT win the top slot (the old alphabetical-across-all bug).
     expect(topGroup.code).not.toBe('unmapped-files');
   });
@@ -255,8 +255,7 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
     // OLD: alphabetical-across-all put unmapped-files first (u<w) → `--top` showed
     // coverage while `Next:` pointed at the structural error. NEW: structural < coverage.
     expect(topGroup.code).toBe('when-predicate-invalid');
-    expect(next!.startsWith('Fix when-predicate-invalid ')).toBe(true);
-    expect(next!.includes(topGroup.code)).toBe(true);
+    expect(next!.startsWith(topGroup.members[0].messageData.next.split('\n')[0])).toBe(true);
   });
 
   it('other-error only (mapping-path-missing): Next is no longer null and names the group bare --top renders', () => {
@@ -294,7 +293,9 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
       },
     } as CheckIssue];
     const next = computeSuggestedNext(errors);
-    expect(next).toContain('Fix file-unreadable in src/leaf/a.ts');
+    // The finding's own step leads — never 'Fix file-unreadable in …'.
+    expect(next).toContain('Fix permissions.');
+    expect(next).not.toContain('Fix file-unreadable');
     expect(next).not.toContain('.yggdrasil');
   });
 
@@ -306,7 +307,9 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
       messageData: { what: 'two rules share an id', why: 'y', next: 'fix it' },
     } as CheckIssue];
     const next = computeSuggestedNext(errors);
-    expect(next).toContain('Fix duplicate-aspect-id in .yggdrasil');
+    expect(next!.startsWith('fix it\n')).toBe(true);
+    // With no next of its own it would name the graph directory; the repo-level issue's own step leads.
+    expect(next).not.toContain('Fix duplicate-aspect-id');
   });
 });
 
@@ -395,7 +398,7 @@ describe('render code sets — the -outside twins', () => {
     // severity section they happened to sit in — the marker every other
     // outside-changes finding carries has to be here too.
     expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
-    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped (outside changes)');
+    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped-outside');
     expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
   });
 });
@@ -403,8 +406,8 @@ describe('render code sets — the -outside twins', () => {
 /**
  * Before this fix, EVERY warning shared one rank and fell back to alphabetical
  * label order — including a `-outside` twin, whose label is exactly its base
- * code's label plus " (outside changes)". A twin mirroring an early-alphabet
- * base code (e.g. `aspect-violation-enforced` → "enforced") then sorted AHEAD
+ * code's label plus "-outside". A twin mirroring an early-alphabet
+ * base code (e.g. `aspect-violation-enforced` → "refused") then sorted AHEAD
  * of an unrelated genuine warning whose own label happens to sort later,
  * purely by accident of which word its mirrored finding used — inherited debt
  * outranking a warning the change actually caused. issuePriorityRank now
@@ -422,7 +425,7 @@ describe('issuePriorityRank — -outside twins sort last among warnings', () => 
     const twin = iss({ severity: 'warning', code: 'unverified-outside', nodePath: 'a' });
     // A code no aspect ever produces — chosen only so its label (which falls
     // through getIssueLabel to the raw code) sorts AFTER the twin's label
-    // ('unverified (outside changes)') under a pure alphabetical tie-break.
+    // ('unverified-outside') under a pure alphabetical tie-break.
     const ordinary = iss({ severity: 'warning', code: 'zzz-unrelated-warning', nodePath: 'b' });
     expect(getIssueLabel(twin) < getIssueLabel(ordinary)).toBe(true);
     // Label-only ordering (the pre-fix behavior) would render the twin FIRST —
@@ -444,23 +447,25 @@ describe('issuePriorityRank — -outside twins sort last among warnings', () => 
  * identifier reaches a person's screen.
  */
 describe('getIssueLabel — outside twins', () => {
-  it('borrows the mirrored label and adds the one phrase that says whose business it is', () => {
-    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced' }))).toBe('enforced');
-    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced-outside' }))).toBe('enforced (outside changes)');
-    expect(getIssueLabel(iss({ code: 'unverified-outside' }))).toBe('unverified (outside changes)');
-    expect(getIssueLabel(iss({ code: 'log-conflict-outside' }))).toBe('log-conflict (outside changes)');
+  it('borrows the mirrored label and adds the one suffix that says whose business it is', () => {
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced' }))).toBe('refused');
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced-outside' }))).toBe('refused-outside');
+    expect(getIssueLabel(iss({ code: 'unverified-outside' }))).toBe('unverified-outside');
+    expect(getIssueLabel(iss({ code: 'log-conflict-outside' }))).toBe('log-conflict-outside');
   });
 
-  it('never renders a twin as its raw code — every one of them, not a sample', () => {
+  it('derives every twin label from its mirror\'s label — every one of them, not a sample', () => {
+    // A twin that fell through to a default would read as its raw code even
+    // where its mirror has a registry label of its own (`refused`, `unmapped`).
     for (const code of OUTSIDE_CODES) {
-      expect(getIssueLabel(iss({ code }))).not.toBe(code);
-      expect(getIssueLabel(iss({ code }))).toContain('(outside changes)');
+      const base = code.slice(0, -'-outside'.length);
+      expect(getIssueLabel(iss({ code }))).toBe(`${getIssueLabel(iss({ code: base }))}-outside`);
     }
   });
 
   it('leaves every other code exactly as it was', () => {
     for (const code of ['unverified', 'aspect-violation-enforced', 'unmapped-files', 'lock-invalid']) {
-      expect(getIssueLabel(iss({ code }))).not.toContain('outside changes');
+      expect(getIssueLabel(iss({ code }))).not.toContain('outside');
     }
   });
 });

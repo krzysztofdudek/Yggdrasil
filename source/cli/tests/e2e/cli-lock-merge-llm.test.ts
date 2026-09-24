@@ -11,10 +11,11 @@
 //       (zero delta) and stays byte-identical; final check PASSES.
 //   (5) Piped REFUSED-list non-truncation. The existing flush e2e
 //       (cli-check-output-flush) covers only the COLD `unverified` block path.
-//       This seeds >200 CACHED enforced refusals (their blocks carry the longer
-//       cached-marker / three-exit text) and asserts, through a pipe, that the
-//       `Errors (N)` header count equals the number of rendered refusal blocks —
-//       the exitAfterFlush drain survives the refusal-shaped output too.
+//       This seeds >200 CACHED enforced refusals (their block carries the longer
+//       four-exit text) and asserts, through a pipe, that the error count on the
+//       `yg check: FAIL` verdict line equals the number of rendered refusal
+//       member lines — the exitAfterFlush drain survives the refusal-shaped
+//       output too.
 //
 // HERMETIC: fresh tmp graph per test, rmSync'd in finally. No fixed ports.
 // =============================================================================
@@ -95,11 +96,10 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       // The missing LLM pair surfaces as unverified on a plain check.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('unverified (not yet reviewed)');
-      expect(check.all).toContain("aspect 'has-doc-comment'");
-      expect(check.all).toContain('- services/payments');
-      // The kept orders pair stayed valid — it is NOT listed in the unverified group.
-      expect(check.all).not.toContain('- services/orders');
+      expect(check.all).toContain('error[unverified] 1 pair with no verdict yet');
+      expect(check.all).toMatch(/^ {2}at: +has-doc-comment @ services\/payments$/m);
+      // The kept orders pair stayed valid — it is NOT listed in the unverified block.
+      expect(check.all).not.toContain('has-doc-comment @ services/orders');
 
       // --approve re-reviews ONLY the missing pair → green. No hand-merge.
       const callsBefore = mock.chatCount();
@@ -109,7 +109,7 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       // STRONG OBSERVABLE: exactly ONE new reviewer call — the single missing
       // payments pair. The kept orders pair was NOT re-dispatched.
       expect(mock.chatCount() - callsBefore).toBe(1);
-      expect(refill.all).not.toContain('[llm] has-doc-comment on node:services/orders');
+      expect(refill.all).toMatch(/^fill {2}done in .* · 1 reviewer call\b/m);
 
       // The kept (orders) entry carried forward byte-identical (no re-review).
       const lockAfter = readLock(dir);
@@ -129,13 +129,13 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
   //   Build a many-node graph, each node with one enforced LLM aspect; seed the
   //   lock with a real `--approve` against an always-refuse mock so every pair is
   //   a VALID cached refusal. Then pipe plain `yg check` (spawnSync captures via
-  //   a pipe — the exact truncation trigger) and assert the `Errors (N)` header
-  //   count equals the number of rendered `enforced` refusal blocks, with N>200.
+  //   a pipe — the exact truncation trigger) and assert the verdict line's error
+  //   count equals the number of rendered refusal member lines, with N>200.
   //   This exercises the exitAfterFlush drain for the refusal block shape (longer
-  //   cached-marker / three-exit text), not just the cold `unverified` shape.
+  //   four-exit text), not just the cold `unverified` shape.
   // ===========================================================================
 
-  it('(5) >200 cached enforced refusals survive a pipe: Errors(N) header == rendered enforced blocks, N>200', async () => {
+  it('(5) >200 cached enforced refusals survive a pipe: verdict-line error count == rendered refusal lines, N>200', async () => {
     const NODE_COUNT = 210; // > 200 enforced refusal blocks.
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-mergellm-refusals-'));
     const ygRoot = path.join(dir, '.yggdrasil');
@@ -204,34 +204,31 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       // eslint-disable-next-line no-control-regex
       const stripped = stdout.replace(/\x1b\[[0-9;]*m/g, '');
 
-      // 1. Declared N from the "Errors (N):" header. The grouped redesign may
-      //    append " in M groups"; here all refusals share one (code, aspect)
-      //    group so M == 1 and the header stays "Errors (N):", but tolerate the
-      //    suffix to stay robust. N is still the true ISSUE count.
-      const headerMatch = stripped.match(/Errors \((\d+)\)( in \d+ groups)?:/);
-      expect(headerMatch, 'Expected "Errors (N)" header in output').not.toBeNull();
+      // 1. Declared N from the verdict line (`yg check: FAIL  N errors …`). N is
+      //    the true ISSUE count: one refused pair per node.
+      const headerMatch = stripped.match(/^yg check: FAIL {2}(\d+) errors?\b/m);
+      expect(headerMatch, 'Expected "yg check: FAIL  N errors" verdict line in output').not.toBeNull();
       const headerCount = parseInt(headerMatch![1], 10);
 
       // 2. N well above 200 — a large list that would truncate under the pre-fix
       //    process.exit() behaviour.
       expect(headerCount).toBeGreaterThan(200);
 
-      // 3. Count rendered enforced refusal MEMBER lines. The refusals now render
-      //    as ONE grouped enforced block ("  enforced  N pairs  M nodes  aspect
-      //    '...'") whose members are listed one-per-line as "            - <node>
-      //    Reviewer reason: ...". Count those member bullet lines — that is the
-      //    set of refusals that actually survived the pipe.
-      const renderedCount = (stripped.match(/^ {12}- svc\d{3}/gm) ?? []).length;
+      // 3. Count rendered refusal MEMBER lines. The refusals render as ONE
+      //    `error[refused]` block whose members are listed one-per-line as
+      //    "<node>  <reviewer reason>" (the first after `  at:   `). Count those
+      //    member lines — that is the set of refusals that actually survived the pipe.
+      const renderedCount = (stripped.match(/^(?: {2}at: {3}| {8})svc\d{3} {2}/gm) ?? []).length;
 
       // 4. Core assertion: every refusal the header declares is rendered — the
       //    refusal list survived the pipe (flush invariant).
       expect(renderedCount).toBe(headerCount);
-      // And it really is the cached enforced-refusal shape: the grouped block
-      // is labelled `enforced`, carries the cached-refusal rationale, and every
-      // member line shows the retained reviewer reason (FULL_WHAT detail).
-      expect(stripped).toContain("enforced  210 pairs  210 nodes  aspect 'must-have-header'");
-      expect(stripped).toContain('A refused verdict for unchanged inputs is final and cached');
-      expect(stripped).toContain('Reviewer reason: seeded refusal reason for the pipe-survival test');
+      // And it really is the cached enforced-refusal shape: the block is a
+      // blocking `error[refused]`, its fix carries the cached-refusal rationale,
+      // and every member line shows the retained reviewer reason.
+      expect(stripped).toContain('error[refused] must-have-header — refused on 210 nodes');
+      expect(stripped).toContain('the verdict is recorded for this exact code, so re-running the reviewer changes nothing');
+      expect((stripped.match(/^(?: {2}at: {3}| {8})svc\d{3} +seeded refusal reason for the pipe-survival test$/gm) ?? []).length).toBe(headerCount);
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);

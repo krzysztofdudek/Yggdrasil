@@ -276,10 +276,11 @@ describe.skipIf(!distExists)(
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
         expect(refused.all).toContain('no-banned-word');
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/sub/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/sub/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/sub/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/sub\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -311,10 +312,11 @@ describe.skipIf(!distExists)(
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
         expect(refused.all).toContain('no-banned-word');
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/sub/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/sub/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/sub/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/sub\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -403,10 +405,11 @@ describe.skipIf(!distExists)(
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
         expect(refused.all).toContain('no-banned-word');
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -423,10 +426,11 @@ describe.skipIf(!distExists)(
         plantBanned(dir, 'src/root-leaf.ts');
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -443,10 +447,11 @@ describe.skipIf(!distExists)(
         plantBanned(dir, 'src/root-leaf.ts');
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -588,13 +593,15 @@ describe.skipIf(!distExists)(
 
         const fill = run(['check', '--approve'], dir);
         expect(fill.status).toBe(1);
-        // Fill-time line names the refused deterministic pair on the emitter leaf.
-        expect(fill.all).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(fill.all).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the emitter leaf.
+        expect(fill.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(fill.all).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(fill.all).toMatch(/^ {2}at: +root\/leaf {2}/m);
         // The listener is gated out — no no-banned-word pair is dispatched or
-        // refused for it.
-        expect(fill.all).not.toContain('[det] no-banned-word on node:root/peer');
+        // refused for it: the refusal block names the emitter only.
+        expect(fill.all).not.toMatch(/^ {2}at: +root\/peer {2}/m);
+        expect(fill.all).not.toContain('violation in root/peer');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -723,10 +730,11 @@ describe.skipIf(!distExists)(
         plantBanned(dir, 'src/root-leaf.ts');
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.all).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.all).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.all).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.all).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -851,10 +859,11 @@ describe.skipIf(!distExists)(
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
         expect(refused.stdout).toContain('no-banned-word');
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.stderr).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.stdout).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.stdout).toMatch(/^ {2}at: +root\/leaf {2}/m);
         // The implier itself (no BANNED rule of its own) is satisfied — its fill
         // pair is approved, only the implied aspect refused.
       } finally {
@@ -874,12 +883,12 @@ describe.skipIf(!distExists)(
         const fill = run(['check', '--approve'], own);
         // Advisory → recorded but NON-blocking → fill exits 0.
         expect(fill.status).toBe(0);
-        expect(fill.all).toContain('no-banned-word');
-        expect(fill.all).toContain('advisory');
+        expect(fill.all).toContain('warning[refused] no-banned-word');
+        expect(fill.all).not.toContain('error[refused]');
 
         const check = run(['check'], own);
         expect(check.status).toBe(0);
-        expect(check.all).toContain('advisory');
+        expect(check.all).toContain('warning[refused] no-banned-word');
       } finally {
         rmSync(own, { recursive: true, force: true });
       }
@@ -898,10 +907,11 @@ describe.skipIf(!distExists)(
         const refused = run(['check', '--approve'], strict);
         expect(refused.status).toBe(1);
         expect(refused.stdout).toContain('no-banned-word');
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.stderr).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.stdout).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.stdout).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(strict, { recursive: true, force: true });
       }
@@ -958,10 +968,11 @@ describe.skipIf(!distExists)(
         plantBanned(dir, 'src/root-leaf.ts');
         const refused = run(['check', '--approve'], dir);
         expect(refused.status).toBe(1);
-        // Fill-time line names the refused deterministic pair on the leaf node.
-        expect(refused.stderr).toContain('[det] no-banned-word on node:root/leaf — refused');
-        // The grouped error body lists the node under the enforced group.
-        expect(refused.stdout).toContain('- root/leaf');
+        // The fill's closing line counts the refusal; the report's refusal block names the aspect and the leaf node.
+        expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+        expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in root/leaf');
+        // The block's member line names the node and the violating file.
+        expect(refused.stdout).toMatch(/^ {2}at: +root\/leaf {2}/m);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

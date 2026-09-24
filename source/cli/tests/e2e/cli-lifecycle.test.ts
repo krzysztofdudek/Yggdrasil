@@ -271,7 +271,7 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
   it('yg log add for nonexistent node returns exit 1', () => {
     const { status, stderr } = run(['log', 'add', '--node', 'nonexistent/node', '--reason', 'test']);
     expect(status).toBe(1);
-    expect(stderr).toContain('Node not found');
+    expect(stderr).toContain("error[node-not-found]: node 'nonexistent/node' is not in the graph");
   });
 
   it('yg log add with --reason-file appends entry from file', () => {
@@ -312,7 +312,7 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
   it('yg log read for nonexistent node returns exit 1', () => {
     const { status, stderr } = run(['log', 'read', '--node', 'nonexistent/node']);
     expect(status).toBe(1);
-    expect(stderr).toContain('Node not found');
+    expect(stderr).toContain("error[node-not-found]: node 'nonexistent/node' is not in the graph");
   });
 
   it('yg log merge-resolve without --node returns exit 1', () => {

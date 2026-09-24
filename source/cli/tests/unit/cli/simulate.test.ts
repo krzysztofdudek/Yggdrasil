@@ -393,7 +393,7 @@ describe('yg simulate — report rendering', () => {
     expect(plain).not.toContain('filtered sample');
     expect(plain).toContain(`Caveat: the old rule gate already refused code that never landed, so ${WALD_LABEL}`);
     expect(WALD_LABEL).toBe(
-      'history is censored by the old regime — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.',
+      'history is censored by the rule as it stood — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.',
     );
   });
 

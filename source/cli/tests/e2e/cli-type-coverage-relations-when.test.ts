@@ -94,9 +94,11 @@ describe.skipIf(!distExists)('CLI E2E — a relations: atom answered from a real
       // import satisfies the atom), and must NOT expect never-imports-leaf
       // there (the negated atom is not satisfied) — the read path's own pair
       // computation, independent of whatever the approval path later writes.
-      const before = run(['check'], dir);
-      expect(before.all).toMatch(/^ {12}- src\/consumer\/c\.ts {2}aspect 'needs-leaf-dependency'$/m);
-      expect(before.all).not.toMatch(/^ {12}- src\/consumer\/c\.ts {2}aspect 'never-imports-leaf'$/m);
+      // The uncapped --details view lists every unverified pair as
+      // `<aspect> @ <unit>` on its own member line.
+      const before = run(['check', '--details'], dir);
+      expect(before.all).toMatch(/^(?: {2}at: {3}| {8})needs-leaf-dependency @ src\/consumer\/c\.ts$/m);
+      expect(before.all).not.toMatch(/never-imports-leaf @ src\/consumer\/c\.ts$/m);
 
       // The approval path must fill exactly the pair the read path expected.
       run(['check', '--approve', '--only-deterministic'], dir);
@@ -107,8 +109,8 @@ describe.skipIf(!distExists)('CLI E2E — a relations: atom answered from a real
       // AFTER filling: a fresh read-only check must now consider that exact
       // pair verified — no lingering disagreement between what the approval
       // path wrote and what a later read expects.
-      const after = run(['check'], dir);
-      expect(after.all).not.toMatch(/src\/consumer\/c\.ts {2}aspect 'needs-leaf-dependency'/);
+      const after = run(['check', '--details'], dir);
+      expect(after.all).not.toMatch(/needs-leaf-dependency @ src\/consumer\/c\.ts$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

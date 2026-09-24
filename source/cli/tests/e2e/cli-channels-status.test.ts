@@ -238,31 +238,25 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // / "not blocking: ...") is replaced by the fill's non-blocking warning.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      expect(fill.stdout).toContain('advisory');
-      expect(fill.stdout).toContain('services/orders');
-      expect(fill.stdout).toContain('no-banned-word');
-      // The advisory violation renders under the Warnings section as an
-      // `advisory` group (the grouped renderer drops the old per-issue
-      // "(advisory — not blocking)" suffix; non-blocking is shown by the
-      // Warnings section + PASS verdict). A second warning group
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
+      // The advisory violation renders as a warning[refused] block (non-blocking
+      // is shown by the warning severity + PASS verdict). A second warning
       // (`rules-digest-stale`) is always present too — this fixture never ran
       // `yg init`, so it carries no AGENTS.md/CLAUDE.md/.clinerules digest
       // artifacts, and the committed-digest staleness gate flags that on every
       // `yg check`/`yg check --approve` here. It is unrelated to the aspect
       // under test, so we assert its presence explicitly rather than let it
       // silently inflate the count.
-      expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
-      expect(fill.stdout).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain('yg check: PASS  2 warnings');
+      expect(fill.stdout).not.toContain('error[');
       expect(fill.stdout).toContain('rules-digest-stale');
 
       // `yg check` renders it as a non-blocking warning and PASSES.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (2 warnings)');
-      expect(check.stdout).toContain('advisory');
-      expect(check.stdout).toContain('services/orders');
-      expect(check.stdout).toContain('no-banned-word');
+      expect(check.stdout).toContain('yg check: PASS  2 warnings');
+      expect(check.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -333,26 +327,20 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // Advisory via CH4 does NOT block the fill — exit 0, recorded-not-blocking.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      expect(fill.stdout).toContain('advisory');
-      expect(fill.stdout).toContain('services/orders');
-      expect(fill.stdout).toContain('no-banned-word');
-      // The advisory violation renders under the Warnings section as an
-      // `advisory` group (the grouped renderer drops the old per-issue
-      // "(advisory — not blocking)" suffix; non-blocking is shown by the
-      // Warnings section + PASS verdict). A second warning group
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
+      // The advisory violation renders as a warning[refused] block (non-blocking
+      // is shown by the warning severity + PASS verdict). A second warning
       // (`rules-digest-stale`) is always present too — see the comment on the
       // CH3 case above.
-      expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
-      expect(fill.stdout).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain('yg check: PASS  2 warnings');
+      expect(fill.stdout).not.toContain('error[');
       expect(fill.stdout).toContain('rules-digest-stale');
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (2 warnings)');
-      expect(check.stdout).toContain('advisory');
-      expect(check.stdout).toContain('services/orders');
-      expect(check.stdout).toContain('no-banned-word');
+      expect(check.stdout).toContain('yg check: PASS  2 warnings');
+      expect(check.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -443,18 +431,15 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       plantBannedToken(dir);
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time line names the refused deterministic pair on the node.
-      expect(fill.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(fill.stdout).toContain("enforced  1 pair  1 node  aspect 'no-banned-word'");
-      expect(fill.stdout).toContain('- services/orders');
+      // The fill's closing line counts the refusal.
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // The enforced refusal is an error block naming the node.
+      expect(fill.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
 
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
       expect(check.stdout).toContain('FAIL');
-      expect(check.stdout).toContain('enforced');
-      expect(check.stdout).toContain('services/orders');
-      expect(check.stdout).toContain('no-banned-word');
+      expect(check.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

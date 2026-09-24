@@ -153,10 +153,11 @@ async function run(){
   addLine('','');
   await typeCmd('yg check --approve','<span class="pp">▶</span> ');
   await wait(400);
-  addLine('  <span class="green">[det]</span> no-direct-db    <span class="green">approved</span>  <span class="dim">(no cost)</span>','success');
+  addLine('  <span class="dim">fill  3 pairs · 1 script (free) · 2 reviewer calls (consensus included)</span>','');
   await wait(300);
-  addLine('  <span class="red">[llm]</span> requires-audit  <span class="red bold">refused</span>','error');
-  addLine('    <span class="output">charge() mutates state but never calls emitAudit().</span>','');
+  addLine('  <span class="dim">fill  done in 21s — 2 approved · 1 refused · 0 failed · 2 reviewer calls</span>','');
+  addLine('  <span class="red bold">error[refused]</span> <span class="output">requires-audit — refused on payments/service</span>','error');
+  addLine('    <span class="dim">at:</span>   <span class="output">payments/service  charge() mutates state but never calls emitAudit().</span>','');
   await wait(1800);
 
   addLine('','');
@@ -164,7 +165,7 @@ async function run(){
   await wait(700);
   addLine('  <span class="dim">src/payments/charge.ts</span>  <span class="ye">modified</span>','');
   await wait(500);
-  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 nodes · 2/2 files · 3 aspects · 0 flows</span>','success');
+  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 node · 2/2 files covered · 3 pairs verified (1 script · 2 reviewer)</span>','success');
   await wait(1600);
 
   // ========== THE SESSION BOUNDARY ==========
@@ -192,7 +193,7 @@ async function run(){
   addLine('','');
   await typeCmd('yg check   <span class="dim"># the gate — no LLM, no keys</span>','<span class="pp">▶</span> ');
   await wait(400);
-  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 nodes · 3/3 files · 3 aspects · 0 flows</span>','success');
+  addLine('  <span class="green bold">yg check: PASS</span>  <span class="output">1 node · 3/3 files covered · 3 pairs verified (1 script · 2 reviewer)</span>','success');
   await wait(2000);
 
   // ========== PUNCHLINE ==========

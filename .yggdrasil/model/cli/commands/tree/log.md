@@ -36,3 +36,5 @@ Command errors now go through the shared CLI output layer (fail, or failAndExit 
 yg tree printed every description whole, so a graph with long descriptions produced hundreds of kilobytes with spilled lines that no longer started with a path, while the agent protocol sends agents to it for orientation. Each node is now one line — the first sentence of its description — with --long for the whole text and --json for the yg-tree/1 document, and the type-covered summary no longer calls the type tier a lattice.
 ## [2026-09-24T01:23:17.344Z]
 Node names, types and descriptions are repository text, and a description carrying a terminal control sequence (a screen clear, a clipboard write) was obeyed by the terminal when the tree was listed. Each listing line now shows such characters in caret notation instead, so a hostile or accidental escape in a graph file can only be read, never executed by the terminal.
+## [2026-09-24T08:37:59.561Z]
+An empty graph now says so and names its next step on a labelled next: line instead of a parenthetical hint, the one way every command points at what to do.

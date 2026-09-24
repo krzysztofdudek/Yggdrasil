@@ -392,7 +392,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-01"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -408,7 +408,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-02"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -424,7 +424,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-03"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -440,7 +440,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-04"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -456,7 +456,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-05"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -472,7 +472,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-06"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -488,7 +488,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-07"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -504,7 +504,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-08"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -520,7 +520,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-09"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -536,7 +536,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-10"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -552,7 +552,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-11"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -568,7 +568,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-12"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -584,7 +584,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-13"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -600,7 +600,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-14"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -616,7 +616,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-15"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -632,7 +632,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-16"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -648,7 +648,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-17"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -664,7 +664,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-18"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -680,7 +680,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-19"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -696,7 +696,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-20"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -712,7 +712,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-21"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -728,7 +728,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-22"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -744,7 +744,7 @@ exit: 1
         "kind": "node",
         "path": "app/svc-23"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -760,14 +760,14 @@ exit: 1
         "kind": "node",
         "path": "app/svc-24"
       },
-      "label": "deterministic-not-run"
+      "label": "unverified"
     },
     {
       "code": "log-entry-missing",
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-01' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-01 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-01",
       "label": "log-entry-missing"
     },
@@ -776,7 +776,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-02' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-02 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-02 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-02",
       "label": "log-entry-missing"
     },
@@ -785,7 +785,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-03' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-03 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-03 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-03",
       "label": "log-entry-missing"
     },
@@ -794,7 +794,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-04' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-04 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-04 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-04",
       "label": "log-entry-missing"
     },
@@ -803,7 +803,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-05' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-05 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-05 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-05",
       "label": "log-entry-missing"
     },
@@ -812,7 +812,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-06' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-06 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-06 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-06",
       "label": "log-entry-missing"
     },
@@ -821,7 +821,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-07' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-07 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-07 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-07",
       "label": "log-entry-missing"
     },
@@ -830,7 +830,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-08' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-08 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-08 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-08",
       "label": "log-entry-missing"
     },
@@ -839,7 +839,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-09' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-09 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-09 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-09",
       "label": "log-entry-missing"
     },
@@ -848,7 +848,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-10' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-10 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-10 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-10",
       "label": "log-entry-missing"
     },
@@ -857,7 +857,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-11' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-11 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-11 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-11",
       "label": "log-entry-missing"
     },
@@ -866,7 +866,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-12' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-12 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-12 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-12",
       "label": "log-entry-missing"
     },
@@ -875,7 +875,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-13' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-13 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-13 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-13",
       "label": "log-entry-missing"
     },
@@ -884,7 +884,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-14' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-14 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-14 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-14",
       "label": "log-entry-missing"
     },
@@ -893,7 +893,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-15' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-15 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-15 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-15",
       "label": "log-entry-missing"
     },
@@ -902,7 +902,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-16' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-16 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-16 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-16",
       "label": "log-entry-missing"
     },
@@ -911,7 +911,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-17' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-17 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-17 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-17",
       "label": "log-entry-missing"
     },
@@ -920,7 +920,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-18' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-18 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-18 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-18",
       "label": "log-entry-missing"
     },
@@ -929,7 +929,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-19' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-19 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-19 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-19",
       "label": "log-entry-missing"
     },
@@ -938,7 +938,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-20' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-20 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-20 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-20",
       "label": "log-entry-missing"
     },
@@ -947,7 +947,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-21' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-21 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-21 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-21",
       "label": "log-entry-missing"
     },
@@ -956,7 +956,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-22' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-22 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-22 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-22",
       "label": "log-entry-missing"
     },
@@ -965,7 +965,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-23' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-23 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-23 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-23",
       "label": "log-entry-missing"
     },
@@ -974,7 +974,7 @@ exit: 1
       "severity": "error",
       "what": "No fresh log entry for node 'app/svc-24' — its source changed but no justification entry exists.",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": "yg log add --node app/svc-24 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+      "next": "yg log add --node app/svc-24 --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "node": "app/svc-24",
       "label": "log-entry-missing"
     },
@@ -995,15 +995,16 @@ exit: 1
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one",
+  "suggestedNext": "yg log add --node app/svc-01 --reason '<why this change was made>'",
   "groups": [
     {
       "code": "log-entry-missing",
       "label": "log-entry-missing",
       "aspect": null,
       "severity": "error",
+      "subject": "24 nodes changed with no log entry",
       "why": "Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.",
-      "next": null,
+      "next": "yg log add --node <node> --reason '<why this change was made>'\nThen re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.",
       "members": [
         24,
         25,
@@ -1033,9 +1034,11 @@ exit: 1
     },
     {
       "code": "unverified",
-      "label": "deterministic-not-run",
+      "label": "unverified",
       "aspect": null,
       "severity": "error",
+      "subject": "24 pairs whose script check has not run on this checkout — free to run",
+      "cause": "deterministic-not-run",
       "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
       "next": "yg check --approve --only-deterministic",
       "members": [
@@ -1070,6 +1073,7 @@ exit: 1
       "label": "uncovered",
       "aspect": null,
       "severity": "warning",
+      "subject": "4 files belong to no node — not under coverage.required, so they never block",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "members": [
@@ -1077,6 +1081,22 @@ exit: 1
       ]
     }
   ],
+  "next": {
+    "command": null,
+    "text": "yg log add --node app/svc-01 --reason '<why this change was made>'",
+    "target": {
+      "node": "app/svc-01"
+    },
+    "cost": {
+      "free": 0,
+      "reviewerPairs": 0
+    },
+    "remaining": {
+      "needsFix": 24,
+      "fillable": 0
+    },
+    "then": "yg check --approve --only-deterministic"
+  },
   "banner": null,
   "aborted": {
     "stage": "log-gate",
@@ -1086,7 +1106,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-01' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-01 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-01"
       },
       {
@@ -1094,7 +1114,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-02' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-02 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-02 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-02"
       },
       {
@@ -1102,7 +1122,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-03' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-03 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-03 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-03"
       },
       {
@@ -1110,7 +1130,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-04' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-04 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-04 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-04"
       },
       {
@@ -1118,7 +1138,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-05' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-05 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-05 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-05"
       },
       {
@@ -1126,7 +1146,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-06' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-06 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-06 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-06"
       },
       {
@@ -1134,7 +1154,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-07' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-07 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-07 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-07"
       },
       {
@@ -1142,7 +1162,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-08' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-08 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-08 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-08"
       },
       {
@@ -1150,7 +1170,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-09' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-09 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-09 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-09"
       },
       {
@@ -1158,7 +1178,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-10' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-10 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-10 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-10"
       },
       {
@@ -1166,7 +1186,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-11' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-11 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-11 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-11"
       },
       {
@@ -1174,7 +1194,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-12' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-12 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-12 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-12"
       },
       {
@@ -1182,7 +1202,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-13' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-13 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-13 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-13"
       },
       {
@@ -1190,7 +1210,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-14' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-14 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-14 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-14"
       },
       {
@@ -1198,7 +1218,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-15' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-15 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-15 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-15"
       },
       {
@@ -1206,7 +1226,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-16' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-16 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-16 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-16"
       },
       {
@@ -1214,7 +1234,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-17' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-17 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-17 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-17"
       },
       {
@@ -1222,7 +1242,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-18' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-18 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-18 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-18"
       },
       {
@@ -1230,7 +1250,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-19' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-19 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-19 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-19"
       },
       {
@@ -1238,7 +1258,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-20' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-20 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-20 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-20"
       },
       {
@@ -1246,7 +1266,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-21' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-21 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-21 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-21"
       },
       {
@@ -1254,7 +1274,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-22' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-22 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-22 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-22"
       },
       {
@@ -1262,7 +1282,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-23' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-23 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-23 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-23"
       },
       {
@@ -1270,7 +1290,7 @@ exit: 1
         "severity": "error",
         "what": "No log entry for node 'app/svc-24' — mandatory before its first verdicts are recorded.",
         "why": "Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.",
-        "next": "yg log add --node app/svc-24 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one",
+        "next": "yg log add --node app/svc-24 --reason '<why this change was made>'\nThen re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.",
         "node": "app/svc-24"
       }
     ]

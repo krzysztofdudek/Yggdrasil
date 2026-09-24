@@ -102,39 +102,34 @@ const flowYaml = (dir: string) =>
   path.join(dir, '.yggdrasil', 'flows', 'order-processing', 'yg-flow.yaml');
 
 /**
- * The set of nodes named in any `unverified (not yet reviewed)` group block, for
- * set assertions. The Phase-1 grouped `yg check` body collapses every pair of a
- * given (code, aspectId) into one group header, then lists its member nodes as
- * `- <node>` bullets — so a node's unverified membership is read from the bullets
- * inside `unverified` group blocks (the old per-issue `unverified  <node>` line is
- * gone). Bullets are contiguous and trailing within a group; a blank line ends the
- * group's node list.
+ * The unverified pairs a `yg check --details` report lists. The uncapped
+ * --details view renders every unverified pair as its own member line,
+ * `<aspect> @ <unit>`, under an `error[unverified]` / `warning[unverified]`
+ * block (the capped default view folds many pairs of one rule into a count
+ * line), so a node's unverified membership is read from those member lines.
  */
-// Since Phase 1.6, all unverified pairs collapse into ONE group keyed by code
-// only. Each body line carries "- <node>  aspect '<id>'" so extracting by
-// node or by aspect is a single-pass scan over body lines.
-
-function unverifiedNodes(all: string): Set<string> {
-  const out = new Set<string>();
-  // Body lines look like "            - services/orders  aspect 'X'" or
-  // for nodes without aspect annotation "            - services/orders".
+function unverifiedPairs(all: string): Array<{ aspect: string; node: string }> {
+  const out: Array<{ aspect: string; node: string }> = [];
+  let inUnverified = false;
   for (const line of all.split('\n')) {
-    const m = line.match(/^\s+-\s+(services\/[a-z-]+)(?:\s+aspect '[^']+')?$/);
-    if (m) out.add(m[1]);
+    const head = line.match(/^(?:error|warning)\[([^\]]+)\]/);
+    if (head) { inUnverified = head[1].startsWith('unverified'); continue; }
+    if (!line.startsWith(' ')) { inUnverified = false; continue; }
+    if (!inUnverified) continue;
+    const m = line.match(/^\s+(?:at:\s+)?(\S+) @ (\S+)\s*$/);
+    if (m) out.push({ aspect: m[1], node: m[2] });
   }
   return out;
 }
 
-/** The member nodes of a specific aspect's `unverified` body lines.
- *  Since Phase 1.6 the aspect appears on each body line (not the header). */
+/** The set of nodes with at least one unverified pair. */
+function unverifiedNodes(all: string): Set<string> {
+  return new Set(unverifiedPairs(all).map((p) => p.node));
+}
+
+/** The nodes on which a specific aspect is unverified. */
 function unverifiedNodesForAspect(all: string, aspectId: string): string[] {
-  const nodes: string[] = [];
-  const pattern = new RegExp(`^\\s+-\\s+(\\S+)\\s+aspect '${aspectId}'\\s*$`);
-  for (const line of all.split('\n')) {
-    const m = line.match(pattern);
-    if (m) nodes.push(m[1]);
-  }
-  return nodes;
+  return unverifiedPairs(all).filter((p) => p.aspect === aspectId).map((p) => p.node);
 }
 
 describe.skipIf(!distExists)('CLI E2E — invalidation across every input channel', () => {
@@ -150,23 +145,22 @@ describe.skipIf(!distExists)('CLI E2E — invalidation across every input channe
       // Trivial no-op change to the aspect's implementation.
       appendFileSync(aspectCheckMjs(dir, 'no-todo-comments'), '\n// trivial no-op comment\n');
 
-      const drifted = run(['check'], dir);
+      const drifted = run(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
       // EXACT set: no-todo-comments on BOTH nodes is unverified — and nothing else.
       // The other aspect (requires-named-export) was NOT touched, so it stays valid.
-      // The grouped view collapses both pairs into ONE no-todo-comments group with
-      // a `- <node>` bullet each; the per-issue `what` is gone for the
-      // non-FULL_WHAT unverified code. Read membership from that group's bullets.
+      // The --details view lists each unverified pair as "<aspect> @ <node>".
       expect(unverifiedNodesForAspect(drifted.all, 'no-todo-comments').sort()).toEqual([
         'services/orders',
         'services/payments',
       ]);
-      expect(drifted.all).not.toContain("aspect 'requires-named-export'");
+      expect(unverifiedNodesForAspect(drifted.all, 'requires-named-export')).toEqual([]);
+      expect(drifted.all).not.toContain('requires-named-export @');
 
       // A deterministic re-fill re-runs only the invalidated pairs (zero cost).
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 2 unverified pairs across 2 nodes');
+      expect(refill.all).toContain('fill  2 pairs · 2 script (free) · 0 reviewer calls');
 
       expect(run(['check'], dir).status).toBe(0);
     } finally {
@@ -226,25 +220,24 @@ describe.skipIf(!distExists)('CLI E2E — invalidation across every input channe
       // Edit the reference file — the LLM aspect's pairs lose their valid verdict.
       appendFileSync(guidance, '\nAdditional guidance appended.\n');
 
-      const drifted = await runAsync(['check'], dir);
+      const drifted = await runAsync(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
       // EXACT set: only has-doc-comment, on BOTH nodes — the deterministic
-      // aspects' verdicts are untouched (their inputs did not change). The grouped
-      // view collapses both pairs into ONE has-doc-comment group with a `- <node>`
-      // bullet each; the per-issue `what` is gone for the non-FULL_WHAT unverified
-      // code. Read membership from that group's bullets.
+      // aspects' verdicts are untouched (their inputs did not change). The
+      // --details view lists each unverified pair as "<aspect> @ <node>".
       expect(unverifiedNodesForAspect(drifted.all, 'has-doc-comment').sort()).toEqual([
         'services/orders',
         'services/payments',
       ]);
-      expect(drifted.all).not.toContain("aspect 'no-todo-comments'");
-      expect(drifted.all).not.toContain("aspect 'requires-named-export'");
+      expect(unverifiedPairs(drifted.all).map((p) => p.aspect)).toEqual(['has-doc-comment', 'has-doc-comment']);
+      expect(drifted.all).not.toContain('no-todo-comments @');
+      expect(drifted.all).not.toContain('requires-named-export @');
 
       // A re-fill re-runs only the two invalidated LLM pairs — the deterministic
       // verdicts carry forward, so only the reviewer is called again.
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 2 unverified pairs across 2 nodes');
+      expect(refill.all).toContain('fill  2 pairs · 0 script (free) · 2 reviewer calls');
       expect(mock.chatCount()).toBeGreaterThan(callsAfterFill);
       expect((await runAsync(['check'], dir)).status).toBe(0);
     } finally {
@@ -358,16 +351,16 @@ describe.skipIf(!distExists)('CLI E2E — invalidation across every input channe
 
       appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '\n// benign source edit\n');
 
-      const drifted = run(['check'], dir);
+      const drifted = run(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
       // EXACT node set: only services/orders is unverified.
       expect(unverifiedNodes(drifted.all)).toEqual(new Set(['services/orders']));
-      expect(drifted.all).not.toContain('node:services/payments');
+      expect(drifted.all).not.toContain('@ services/payments');
 
       // A re-fill re-runs only orders' pairs.
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 2 unverified pairs across 1 nodes');
+      expect(refill.all).toContain('fill  2 pairs · 2 script (free) · 0 reviewer calls');
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });

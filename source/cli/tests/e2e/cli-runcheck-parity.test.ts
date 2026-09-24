@@ -240,8 +240,8 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — member classification (fixture: r
       // The node owns exactly one file, and every violation is reported against
       // it — never against the seam file (src/core/check.ts), which belongs to
       // another node and cannot be held responsible for this node's refusal.
-      const fileHeaders = out.split('\n').filter((l) => /^\S.*\.ts$/.test(l));
-      expect(fileHeaders).toEqual(['src/callers/complete.ts']);
+      const files = [...new Set(out.split('\n').map((l) => /^(?: {2}at: {3}| {8})(\S+\.ts):\d+ {2}/.exec(l)?.[1]).filter((f): f is string => f !== undefined))];
+      expect(files).toEqual(['src/callers/complete.ts']);
       // …and each carries the full what / why / next structure.
       expect(out).toContain('WHY:');
       expect(out).toContain('NEXT:');

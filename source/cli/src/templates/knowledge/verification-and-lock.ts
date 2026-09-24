@@ -382,8 +382,9 @@ type-level classifier could not decide a type for this run (reported
 ambiguous). Every entry in that family keeps its stored result untouched.
 \`--approve\` and \`--dry-run\` (a preview, computed over a disposable copy — it
 writes nothing) both print a summary whenever something is actually pruned:
-a count split into billed (LLM) vs free (deterministic), with the reason
-listed per entry; nothing prints when nothing was pruned.
+\`fill  pruned 3 stale verdicts (1 reviewer · 2 script)\`, then one
+\`  <aspect> @ <unit> — <reason>\` line per entry; nothing prints when nothing
+was pruned.
 
 ## Merge conflict in a committed lock file
 

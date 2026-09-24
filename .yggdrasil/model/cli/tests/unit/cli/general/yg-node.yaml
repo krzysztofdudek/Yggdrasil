@@ -43,6 +43,7 @@ max_direct_relations:
     silencing a genuine future over-connection.
 relations:
   [
+    { target: cli/output, type: uses },
     { target: cli/commands/build-context, type: uses },
     { target: cli/commands/check, type: uses },
     { target: cli/det-concurrency, type: uses },

@@ -13,13 +13,13 @@ function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-/** Count rendered issue BLOCKS in stripped stdout: lines that begin a block
- *  ("  <label>  <node>  …" or "  <label> (<n>)") but are NOT Why:/Fix:
- *  continuation lines. */
+/** Count rendered finding BLOCKS in stripped stdout: each block opens with a
+ *  `error[<label>] <subject>` / `warning[<label>] <subject>` heading at column
+ *  0; its at:/why:/fix: lines are indented continuations. */
 function countBlocks(stdout: string): number {
   return stripAnsi(stdout)
     .split('\n')
-    .filter((l) => /^ {2}\S/.test(l) && !/^ {2}(Why:|Fix:)/.test(l))
+    .filter((l) => /^(error|warning)\[[^\]]+\] /.test(l))
     .length;
 }
 
@@ -110,16 +110,15 @@ describe('check command', () => {
   });
 
   describe('output content — clean fixture (unverified pairs)', () => {
-    it('prints the check header with node and aspect counts', async () => {
+    it('prints the check header with node and file-coverage counts', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check'], {
           cwd,
           encoding: 'utf-8',
         });
-        // Header format: "yg check: PASS|FAIL  N nodes · M aspects · …"
+        // Header format: "yg check: PASS|FAIL  <counts>   N nodes · X/Y files covered[ · …]"
         expect(result.stdout).toMatch(/yg check: (PASS|FAIL)/);
-        expect(result.stdout).toContain('nodes');
-        expect(result.stdout).toContain('aspects');
+        expect(stripAnsi(result.stdout)).toMatch(/^yg check: FAIL {2}4 errors · 1 warning {3}9 nodes · 5\/5 files covered$/m);
       });
     });
 
@@ -195,10 +194,10 @@ describe('check command', () => {
   });
 
   describe('--approve flag dispatch', () => {
-    it('dispatches to the fill path and prints "Filling" on stderr (not stdout)', async () => {
+    it('dispatches to the fill path and prints the `fill  …` progress on stderr (not stdout)', async () => {
       // --approve should invoke runFill (not just runCheck). The fixture has
-      // LLM aspects with an unreachable reviewer, so fill prints a "Filling N
-      // unverified pairs…" line before attempting the reviewer calls.
+      // LLM aspects with an unreachable reviewer, so fill prints a "fill  N
+      // pairs · …" line before attempting the reviewer calls.
       // Progress goes to STDERR so STDOUT carries only the final check report.
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--approve'], {
@@ -206,8 +205,8 @@ describe('check command', () => {
           encoding: 'utf-8',
           timeout: 20000,
         });
-        expect(result.stderr).toContain('Filling');
-        expect(result.stdout).not.toContain('Filling');
+        expect(result.stderr).toMatch(/^fill {2}3 pairs · 0 script \(free\) · 3 reviewer calls \(consensus included\)$/m);
+        expect(result.stdout).not.toMatch(/^fill {2}/m);
       });
     });
 
@@ -258,12 +257,13 @@ describe('check command', () => {
 
         expect(result.status).toBe(0);
         // Pre-dispatch budget header.
-        expect(result.stdout).toContain('Filling');
-        expect(result.stdout).toContain('reviewer calls (consensus included)');
-        // Per-node / per-aspect breakdown: each LLM pair labelled with its call count.
-        expect(result.stdout).toMatch(/\[llm\] .+ reviewer calls?/);
+        expect(result.stdout).toContain('fill  dry run — a cost preview; nothing is filled or written');
+        expect(result.stdout).toContain('fill  3 pairs · 0 script (free) · 3 reviewer calls');
+        // Per-node / per-aspect breakdown: each billed pair labelled with its call count.
+        expect(result.stdout).toMatch(/^ {2}requires-audit @ orders\/order-service — 1 reviewer call$/m);
+        expect(result.stdout.match(/^ {2}\S+ @ \S+ — \d+ reviewer calls?$/gm)).toHaveLength(3);
         // The honest upper-bound caveat.
-        expect(result.stdout).toContain('UPPER BOUND');
+        expect(result.stdout).toContain('note: 3 reviewer calls is an upper bound');
         // The preview is the deliverable: no report of the unchanged tree under
         // it (whose FAIL header over an exit-0 preview read as the preview failing).
         expect(result.stdout).not.toMatch(/yg check: (PASS|FAIL)/);
@@ -329,13 +329,13 @@ describe('check command', () => {
 
         expect(result.status).toBe(0);
         // The preview ran (budget header present)…
-        expect(result.stdout).toContain('Filling');
+        expect(result.stdout).toContain('fill  dry run — a cost preview');
         // …the FILL gate hard-stop did NOT fire (no abort, no aggregate block)…
         expect(result.stdout).not.toContain('log-entry-required');
         expect(result.stdout).not.toContain('need a fresh log entry before --approve');
         // …yet the read-only check report surfaces the requirement (informational),
         // confirming the preview reports state without blocking on it.
-        expect(result.stdout).toContain('No fresh log entry');
+        expect(result.stdout).toContain('error[log-entry-missing] 3 nodes changed with no log entry');
 
         // Still no writes.
         const after = await readCommittedLockBytes(cwd);
@@ -345,63 +345,77 @@ describe('check command', () => {
   });
 
   describe('--top / --summary read-only triage views', () => {
-    // The sample-project (cold lock) yields exactly Errors (4): three
+    // The sample-project (cold lock) yields exactly 4 errors: three
     // unverified pairs + one mapping-path-missing structural error.
 
-    it('--top 1 → exit 1, true Errors(4) header, exactly one block, and a Next line', async () => {
+    it('--top 1 → exit 1, true 4-errors header, exactly one block, and a next: line', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--top', '1'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // Header preserves the TRUE total even though only one block prints.
-        expect(out).toContain('Errors (4):');
+        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        expect(out).toContain('view: top 1');
         expect(countBlocks(out)).toBe(1);
-        expect(out).toMatch(/\nNext: /);
+        expect(out).toContain('… +2 more blocks  (yg check)');
+        expect(out).toMatch(/\nnext: /);
       });
     });
 
-    it('--summary → exit 1, counts only (no Why:/Fix: blocks), true header', async () => {
+    it('--summary → exit 1, counts only (no why:/fix: blocks), true header', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--summary'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
-        expect(out).toContain('Errors (4):');
-        // Per-node aggregate rows, no per-issue detail.
-        expect(out).toMatch(/unverified \(\d+ deterministic-free, \d+ LLM\)/);
-        expect(out).not.toContain('Why:');
-        expect(out).not.toContain('Fix:');
-        // The non-pair mapping-path-missing error lands in the "other" bucket.
-        expect(out).toMatch(/users\/missing-service\s+.*other/);
+        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        // One count line per severity, with the unverified script/reviewer split; no per-issue detail.
+        expect(out).toMatch(/^errors {4}mapping-path-missing 1 · unverified 3 \(3 reviewer\)$/m);
+        expect(out).toMatch(/^warnings {2}rules-digest-stale 1$/m);
+        expect(countBlocks(out)).toBe(0);
+        expect(out).not.toContain('why:');
+        expect(out).not.toContain('fix:');
+        // Per-node rows live under `--summary nodes`: the non-pair
+        // mapping-path-missing error sits on its own node's row.
+        const byNode = spawnSync('node', [BIN_PATH, 'check', '--summary', 'nodes'], { cwd, encoding: 'utf-8' });
+        expect(byNode.status).toBe(1);
+        const nodesOut = stripAnsi(byNode.stdout);
+        expect(nodesOut).toMatch(/^users\/missing-service\s+mapping-path-missing 1$/m);
+        expect(nodesOut).toMatch(/^orders\/order-service\s+unverified 2$/m);
+        expect(countBlocks(nodesOut)).toBe(0);
       });
     });
 
-    it('bare --top → exactly ONE group block (the single suggested-next group), exit 1', async () => {
+    it('bare --top → exactly ONE block (the first by tier, the one next: draws from), exit 1', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--top'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // TRUE aggregate header always shown.
-        expect(out).toContain('Errors (4):');
-        // Bare --top = --top 1: the single suggested-next group renders.
+        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        // Bare --top = --top 1: the single first block renders.
         expect(countBlocks(out)).toBe(1);
-        // The rendered group is the one the Next: line draws from (unverified
-        // outranks mapping-path-missing in the priority cascade).
-        expect(out).toContain('unverified');
-        expect(out).not.toContain('mapping-path-missing');
-        expect(out).toMatch(/\nNext: /);
+        // The rendered block is the one the next: line draws from — blocks
+        // order by tier, so the code/graph fix (mapping-path-missing, T1)
+        // outranks the pending fill (unverified, T3), which follows as then:.
+        expect(out).toContain('error[mapping-path-missing]');
+        expect(out).not.toContain('error[unverified]');
+        // A bare `yg-node.yaml` in the fix is the finding's own node's file, which
+        // the CLI knows: the step names it by its place in the repository.
+        expect(out).toMatch(/next: edit \.yggdrasil\/model\/[^ ]+\/yg-node\.yaml {2}\(mapping-path-missing\)/);
+        expect(out).toContain('then: yg check --approve  (3 reviewer pairs · paid)');
       });
     });
 
-    it('--top 99 → all 2 groups shown (4 total errors), no crash, exit 1', async () => {
+    it('--top 99 → all 2 blocks shown (4 total errors), no crash, exit 1', async () => {
       await withFixtureCopy(async (cwd) => {
         await writeAlignedDigestFiles(cwd);
         const result = spawnSync('node', [BIN_PATH, 'check', '--top', '99'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // True aggregate: 4 errors (3 unverified + 1 mapping-path-missing).
-        expect(out).toContain('Errors (4):');
-        // --top N renders N highest-priority GROUPS, not N individual issues.
-        // The fixture collapses into 2 groups: unverified and mapping-path-missing.
+        expect(out).toContain('yg check: FAIL  4 errors   ');
+        // --top N renders N highest-priority BLOCKS, not N individual issues.
+        // The fixture collapses into 2 blocks: mapping-path-missing and unverified.
         expect(countBlocks(out)).toBe(2);
       });
     });
@@ -478,7 +492,7 @@ describe('check command', () => {
     });
   });
 
-  describe('auto_approve config — banner and PASS (auto-filled) marker (task 3.4)', () => {
+  describe('auto_approve config — banner and PASS · auto-filled marker (task 3.4)', () => {
     // A CI runner exports CI=true, which the spawned CLI inherits and which keeps
     // a config-driven `full` read-only. These cases test the local path.
     const savedCi = process.env.CI;
@@ -531,7 +545,7 @@ describe('check command', () => {
       }
     }
 
-    it('auto_approve:full bare `yg check` prints banner to stderr and PASS (auto-filled) header', async () => {
+    it('auto_approve:full bare `yg check` prints banner to stderr and a PASS · auto-filled header', async () => {
       await withAutoApproveFixture('full', async (cwd) => {
         const result = spawnSync('node', [BIN_PATH, 'check'], {
           cwd,
@@ -546,8 +560,8 @@ describe('check command', () => {
         // the plain read. (Regression: the fill stage once dropped the gate's
         // injected snapshot, so the same repo printed one fewer warning under a
         // fill than under `yg check`.)
-        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled, 1 warning)');
-        expect(stripAnsi(result.stdout)).toContain('rules-digest-stale');
+        expect(stripAnsi(result.stdout)).toMatch(/^yg check: PASS {2}1 warning · auto-filled\b/m);
+        expect(stripAnsi(result.stdout)).toContain('warning[rules-digest-stale]');
         // Banner must NOT appear in stdout.
         expect(result.stdout).not.toContain("auto-approve: full");
       });
@@ -564,8 +578,8 @@ describe('check command', () => {
         expect(result.stderr).not.toContain("auto-approve: full");
         // Header still marks the auto-fill, and the committed-digest gate's
         // warning reaches the deterministic fill path too (see above).
-        expect(stripAnsi(result.stdout)).toContain('PASS (auto-filled, 1 warning)');
-        expect(stripAnsi(result.stdout)).toContain('rules-digest-stale');
+        expect(stripAnsi(result.stdout)).toMatch(/^yg check: PASS {2}1 warning · auto-filled\b/m);
+        expect(stripAnsi(result.stdout)).toContain('warning[rules-digest-stale]');
       });
     });
 

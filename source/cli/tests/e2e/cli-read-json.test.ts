@@ -79,7 +79,9 @@ describe.skipIf(!existsSync(BIN_PATH))('read commands in JSON, errors as yg-erro
     const doc = JSON.parse(r.stdout);
     expect(doc).toMatchObject({ schema: 'yg-error/1', code: 'node-not-found' });
     expect(doc.what).toContain("'nope'");
-    expect(r.stderr).toContain('Error: ');
+    expect(r.stderr).toContain("error[node-not-found]: ");
+    expect(r.stderr).toContain("'nope'");
+
     const uninit = realpathSync(mkdtempSync(path.join(tmpdir(), 'yg-read-json-empty-')));
     try {
       const u = run(['check', '--json'], uninit);

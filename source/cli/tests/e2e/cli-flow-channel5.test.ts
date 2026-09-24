@@ -226,11 +226,9 @@ describe.skipIf(!distExists)('CLI E2E — channel 5: flow aspects reach particip
       const refused = run(['check', '--approve'], dir);
       // The flow-attached enforced aspect rejects the descendant's TODO.
       expect(refused.status).toBe(1);
-      expect(refused.stderr).toContain('[det] no-todo-comments on node:services/orders/order-repo — refused');
-      // Rendered as an enforced cached refusal naming the descendant + aspect.
-      expect(refused.stdout).toContain('enforced');
-      expect(refused.stdout).toContain('services/orders/order-repo');
-      expect(refused.stdout).toContain('no-todo-comments');
+      expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders/order-repo');
+      // Rendered as a blocking (enforced) refusal naming the descendant + aspect.
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -244,9 +242,8 @@ describe.skipIf(!distExists)('CLI E2E — channel 5: flow aspects reach particip
       appendFileSync(paymentsFile(dir), '\n// TODO: fix\n');
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
-      expect(refused.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
-      expect(refused.stdout).toContain('enforced');
-      expect(refused.stdout).toContain('no-todo-comments');
+      expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -275,10 +272,10 @@ describe.skipIf(!distExists)('CLI E2E — channel 5: flow aspects reach particip
       appendFileSync(noTodoCheckMjs(dir), '\n// cascade-trigger: trivial no-op comment\n');
       const batch = run(['check', '--approve'], dir);
       expect(batch.status).toBe(1);
-      expect(batch.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
-      expect(batch.stdout).toContain('services/payments');
-      expect(batch.stdout).toContain('no-todo-comments');
+      expect(batch.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(batch.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
       // Orders re-approves clean in the same invocation (isolation).
+      expect(batch.stdout).not.toContain('violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

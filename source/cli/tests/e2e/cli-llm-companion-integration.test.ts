@@ -234,15 +234,14 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
 
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // The gate fires as a prompt-too-large group naming the aspect. Setting the
+      // The gate fires as a prompt-too-large block naming the aspect. Setting the
       // limit (1500) below the companion-bearing prompt is what trips it — proving
-      // companion content counts toward the §4 gate. The per-unit char/limit numbers
-      // are no longer rendered in the grouped check body (they live in the FILL-time
-      // message; no fill ran here), so we assert the group label + aspect + the
-      // member node line + the why, which carry the same actionable intent.
-      expect(after.all).toContain(`prompt-too-large`);
-      expect(after.all).toContain(`aspect 'scenario-matches-test'`);
-      expect(after.all).toContain('- scenarios');
+      // companion content counts toward the §4 gate. Each member line names the
+      // node, the aspect, the unit and the size against the 1500 limit.
+      expect(after.all).toContain('error[prompt-too-large] 3 pairs in scenarios');
+      expect(after.all).toMatch(
+        /^ {2}at: +scenarios {2}Assembled reviewer prompt for aspect 'scenario-matches-test' on file:references\/e2e-test-scenarios\/\w+\.md is \d+ chars, over the 'standard' tier limit of 1500\./m,
+      );
       expect(after.all).toContain('An over-limit prompt risks context-window truncation and a false verdict.');
       // No reviewer calls during the read-only check.
       expect(mock.chatCount() - callsAfterFill).toBe(0);
@@ -351,28 +350,22 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0); // advisory never blocks.
-      expect(check.all).toContain('Warnings');
-      // Rendered as an advisory refusal warning group (the `advisory` label), not an
-      // error block. The refusal is a FULL_WHAT code, so the reviewer reason is
-      // retained on the member node line. (The grouped renderer carries NO
-      // "(advisory — not blocking)" suffix — that is per-issue-renderer only.)
-      expect(check.all).toContain('advisory');
-      expect(check.all).toContain(`aspect 'scenario-matches-test'`);
-      expect(check.all).toContain('Reviewer reason: scenario drifted from spec');
-      expect(check.all).not.toContain('Errors (');
+      // Rendered as an advisory refusal warning block (warning[refused]), not an
+      // error block. The reviewer reason is retained on the member node line.
+      expect(check.all).toContain('warning[refused] scenario-matches-test — refused on scenarios');
+      expect(check.all).toMatch(/^ {2}at: +scenarios {2}scenario drifted from spec$/m);
+      expect(check.all).not.toContain('error[');
 
       // Now make the pairs UNVERIFIED by editing companion.mjs (companionHash). An
       // advisory unverified pair must STILL be a warning, never an error.
       appendFileSync(path.join(aspectDir(dir, 'scenario-matches-test'), 'companion.mjs'), '\n// hook revision\n');
       const after = run(['check'], dir);
       expect(after.status).toBe(0); // advisory unverified does not block.
-      expect(after.all).toContain('Warnings');
-      // The per-unit `what` ("No valid verdict … on file:…") is no longer rendered;
-      // an unverified advisory pair surfaces as the glossed unverified group for the
+      // An unverified advisory pair surfaces as an unverified block for the
       // aspect, still a warning (never an error).
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain(`aspect 'scenario-matches-test'`);
-      expect(after.all).not.toContain('Errors (');
+      expect(after.all).toContain('warning[unverified] 3 pairs whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node · reviewer$/m);
+      expect(after.all).not.toContain('error[');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -420,7 +413,8 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
       const reFill = await runAsync(['check', '--approve'], dir);
       expect(reFill.status).toBe(0);
       expect(mock.chatCount()).toBe(3); // nothing to re-verify.
-      expect(reFill.all).toContain('0 reviewer calls made');
+      // A fill with nothing to do prints no fill line at all.
+      expect(reFill.all).not.toMatch(/^fill /m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

@@ -158,15 +158,11 @@ describe.skipIf(!distExists)('CLI E2E — scope (LLM-side): per:file / content-a
       appendFileSync(path.join(base, 'a.ts'), 'export const aa = 2;\n');
       const afterEdit = run(['check'], dir);
       expect(afterEdit.status).toBe(1);
-      // Editing a.ts invalidates EXACTLY one per:file pair → the unverified group
-      // shows 1 pair for has-doc-comment. The per-unit subject path (the old
-      // "...on file:src/services/orders/a.ts." what) is no longer rendered in the
-      // grouped view; the 1-pair count + the chatCount delta (1) below prove only
-      // a.ts's pair re-billed, with b.ts/c.ts untouched.
-      expect(afterEdit.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(afterEdit.all).toContain('1 pair  ');
-      expect(afterEdit.all).toContain("aspect 'has-doc-comment'");
-      expect(afterEdit.all).toContain('- services/orders');
+      // Editing a.ts invalidates EXACTLY one per:file pair → the unverified block
+      // holds 1 pair for has-doc-comment and names a.ts as its unit; the chatCount
+      // delta (1) below proves only a.ts's pair re-billed, with b.ts/c.ts untouched.
+      expect(afterEdit.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expect(afterEdit.all).toMatch(/^ {2}at: +has-doc-comment @ src\/services\/orders\/a\.ts$/m);
 
       // RE-FILL: exactly ONE additional reviewer call — only a.ts's pair.
       const callsBefore = mock.chatCount();
@@ -271,12 +267,9 @@ describe.skipIf(!distExists)('CLI E2E — scope (LLM-side): per:file / content-a
       const afterMark = run(['check'], dir);
       expect(afterMark.status).toBe(1);
       // Adding the marker grows the subject set → the per:node pair's input hash
-      // changes → it goes unverified. The per-unit `what` ("...on node:services/
-      // orders.") is no longer rendered; the unverified group names the aspect and
-      // the node member line instead.
-      expect(afterMark.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(afterMark.all).toContain("aspect 'marker-rule'");
-      expect(afterMark.all).toContain('- services/orders');
+      // changes → it goes unverified; the block names the aspect and the node.
+      expect(afterMark.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expect(afterMark.all).toMatch(/^ {2}at: +marker-rule @ services\/orders$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

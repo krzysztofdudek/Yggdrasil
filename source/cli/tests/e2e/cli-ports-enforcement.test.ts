@@ -127,10 +127,10 @@ describe.skipIf(!distExists)('CLI E2E — port channel-6 enforcement / relation 
       // error attributed to the consumer node and the port-sourced aspect.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // The grouped enforced refusal names the port-sourced aspect in its header
-      // and lists the consumer node it refuses on.
-      expect(check.all).toMatch(/enforced\s+1 pair\s+1 node\s+aspect 'audit-required'/);
-      expect(check.all).toContain('- services/orders');
+      // The blocking refusal block names the port-sourced aspect and the consumer
+      // node it refuses on; its member line names the consumer's own file.
+      expect(check.all).toContain('error[refused] audit-required — 1 violation in services/orders');
+      expect(check.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+ {2}audit trail missing/m);
 
       // The violation is reported against the consumer's OWN source file —
       // proving the port contract enforces across the node boundary. The
@@ -152,7 +152,8 @@ describe.skipIf(!distExists)('CLI E2E — port channel-6 enforcement / relation 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       // The consumer's charge-port pair fills clean (approved, no refusal).
-      expect(fill.all).not.toContain('refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 0 refused · 0 failed/m);
+      expect(fill.all).not.toContain('[refused]');
       const { status, all } = run(['check'], dir);
       expect(status).toBe(0);
       expect(all).toContain('PASS');
@@ -378,7 +379,7 @@ mapping:
       expect(all).toContain('relation-target-forbidden');
       // The shared WHY enumerates the allowed targets; the declaring node is listed.
       expect(all).toContain("Allowed targets for 'extends' from type 'derived': [base]");
-      expect(all).toContain('- derived');
+      expect(all).toMatch(/^ {2}at: +derived$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -408,7 +409,7 @@ mapping:
       expect(all).toContain('relation-target-forbidden');
       // The shared WHY enumerates the allowed targets; the declaring node is listed.
       expect(all).toContain("Allowed targets for 'implements' from type 'derived': [iface]");
-      expect(all).toContain('- derived');
+      expect(all).toMatch(/^ {2}at: +derived$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

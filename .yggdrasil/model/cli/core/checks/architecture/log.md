@@ -40,3 +40,5 @@ The helper that says whether any graph file failed to load lives with the shared
 The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.
 ## [2026-09-23T22:37:54.855Z]
 The graph-governance work met the release work already merged in this component: the reserved default port name comes from the one model constant, while the shared helper that withholds absence-based findings on an incompletely loaded graph stays in use. The two changes are independent and both survive.
+## [2026-09-24T08:38:00.005Z]
+A node type not defined yet now suggests yg type-suggest on the node's own first mapped path instead of a <path> placeholder the check could fill itself, and its human sign-off reads ask the user to approve it first, the one phrasing every command uses.

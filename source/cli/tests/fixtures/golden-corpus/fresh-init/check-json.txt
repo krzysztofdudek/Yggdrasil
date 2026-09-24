@@ -55,13 +55,14 @@ exit: 0
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+  "suggestedNext": "yg type-suggest --file src/app.ts",
   "groups": [
     {
       "code": "uncovered-advisory",
       "label": "uncovered",
       "aspect": null,
       "severity": "warning",
+      "subject": "1 file belongs to no node — not under coverage.required, so it never blocks",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
       "members": [
@@ -69,6 +70,25 @@ exit: 0
       ]
     }
   ],
+  "next": {
+    "command": [
+      "yg",
+      "type-suggest",
+      "--file",
+      "src/app.ts"
+    ],
+    "text": "yg type-suggest --file src/app.ts",
+    "target": {},
+    "cost": {
+      "free": 0,
+      "reviewerPairs": 0
+    },
+    "remaining": {
+      "needsFix": 0,
+      "fillable": 0
+    },
+    "then": null
+  },
   "banner": null
 }
 --- stderr

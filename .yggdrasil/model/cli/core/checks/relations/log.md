@@ -22,3 +22,7 @@ A missing-description finding on an aspect or a flow named the offending aspect 
 The broken-relation message is plain sentences — no layout whitespace for the renderer to fight — with the sibling list capped, the fix naming the node's own yg-node.yaml, and no suggestion that is merely the target's parent. A flow naming a component whose yg-node.yaml did not parse now says the component failed to load and sends the reader to that file, instead of calling it non-existent and suggesting a new node.
 ## [2026-09-24T01:25:05.629Z]
 A structural cycle was reported as a depth-first path that stopped at the first back edge and carried the walk's non-cycle prefix, so a large tangle surfaced as fragments naming components that were never in the cycle and was fixed one path at a time. Cycles are now found as strongly connected components, each reported once with its members and one real cycle through them, and the members travel on the finding so a consumer can tell which components a cycle actually touches.
+## [2026-09-24T08:38:00.457Z]
+Cycle, fan-out and event-pairing findings now name the node file to edit in their next step instead of generic advice, so a reader goes straight to the relation that needs changing.
+## [2026-09-24T09:20:21.454Z]
+A missing description names the exact file to add it to, and every node, flow or relation target a finding quotes is printed with forward slashes.

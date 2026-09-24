@@ -115,7 +115,7 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       expect(stdout).toContain('grain/src/no-todo-comments  1');
       expect(stdout).toContain("measured against 'main'");
       expect(stdout).toContain('Baseline');
-      expect(stdout).toContain('Next: yg check');
+      expect(stdout).toContain('next: yg check');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

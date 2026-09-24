@@ -14,7 +14,7 @@ import { DEFAULT_MAX_PROMPT_CHARS } from '../../src/llm/prompt.js';
 // exercised directly, mirroring this suite's own spectral-headroom.test.ts
 // precedent for a plain-ESM script at the repo root.
 // @ts-expect-error — plain ESM script at the repo root, no type declarations.
-import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement, readAspectFacts, computeTierMargins, parseHeaderVerifiedLlmCount, assertMeasurementComplete } from '../../../../scripts/prompt-headroom.mjs';
+import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement, readAspectFacts, computeTierMargins, readVerifiedLlmCount, assertMeasurementComplete, parseCheckDocument } from '../../../../scripts/prompt-headroom.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -201,59 +201,84 @@ describe('prompt-headroom — installInterruptRestore restores on every catchabl
   });
 });
 
-describe('prompt-headroom — parsePromptTooLargeEntries stays anchored to the stable issue code, not just the prose sentence', () => {
-  function detailsOutput(lines: string[]): string {
-    return ['yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 0 draft', '', 'Errors (1):', ...lines].join('\n');
-  }
+/** A minimal `yg check --json` document: the fields this script reads, plus the schema tag. */
+function checkDocument(issues: Array<{ code: string; what: string }>, verifiedLlm = 0): Record<string, unknown> {
+  return {
+    schema: 'yg-check/1',
+    totals: { errors: issues.length, warnings: 0, verified: { deterministic: 0, llm: verifiedLlm } },
+    issues: issues.map((i) => ({ severity: 'error', why: '', next: null, label: i.code, ...i })),
+  };
+}
 
+function tooLarge(what: string): { code: string; what: string } {
+  return { code: 'prompt-too-large', what };
+}
+
+describe('prompt-headroom — parseCheckDocument refuses anything but one whole yg-check/1 document', () => {
+  it('parses a real yg-check/1 document', () => {
+    const doc = checkDocument([]);
+    expect(parseCheckDocument(JSON.stringify(doc))).toEqual(doc);
+  });
+
+  it('throws on a cut-off document — the shape a killed or truncated child run leaves behind', () => {
+    const text = JSON.stringify(checkDocument([tooLarge("Assembled reviewer prompt for aspect 'a' on file:a.ts is 100 chars, over the 'standard' tier limit of 1.")]));
+    expect(() => parseCheckDocument(text.slice(0, text.length - 20))).toThrow(/incomplete/);
+  });
+
+  it('throws on the old text report instead of reading it as an empty document', () => {
+    expect(() => parseCheckDocument('yg check: FAIL  1 error   1 nodes · 1/1 files covered\n')).toThrow(/JSON/);
+  });
+
+  it('throws on a document of another schema', () => {
+    expect(() => parseCheckDocument(JSON.stringify({ schema: 'yg-error/1', issues: [] }))).toThrow(/yg-check\/1/);
+  });
+});
+
+describe('prompt-headroom — parsePromptTooLargeEntries stays anchored to the stable issue code, not just the prose sentence', () => {
   it('parses a normal, unreworded sentence into one entry', () => {
-    const stdout = detailsOutput([
-      "  prompt-too-large  cli/example  Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1.",
+    const doc = checkDocument([
+      tooLarge("Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1."),
     ]);
-    const entries = parsePromptTooLargeEntries(stdout);
+    const entries = parsePromptTooLargeEntries(doc);
     expect(entries).toEqual([{ aspectId: 'some-aspect', unitKey: 'node:cli/example', chars: 500, tierName: 'standard' }]);
   });
 
   it('parses one entry per pair across several tiers and units', () => {
-    const stdout = detailsOutput([
-      "  prompt-too-large  cli/a  Assembled reviewer prompt for aspect 'aspect-a' on node:cli/a is 100 chars, over the 'standard' tier limit of 1.",
-      "  prompt-too-large  cli/b  Assembled reviewer prompt for aspect 'aspect-b' on file:src/b.ts is 200 chars, over the 'big' tier limit of 1.",
+    const doc = checkDocument([
+      tooLarge("Assembled reviewer prompt for aspect 'aspect-a' on node:cli/a is 100 chars, over the 'standard' tier limit of 1."),
+      tooLarge("Assembled reviewer prompt for aspect 'aspect-b' on file:src/b.ts is 200 chars, over the 'big' tier limit of 1."),
     ]);
-    expect(parsePromptTooLargeEntries(stdout)).toHaveLength(2);
+    expect(parsePromptTooLargeEntries(doc)).toHaveLength(2);
   });
 
   it('returns no entries on a graph with no prompt-too-large issues at all', () => {
-    const stdout = 'yg check: PASS  1 nodes · 1/1 files · 1 aspects · 0 flows';
-    expect(parsePromptTooLargeEntries(stdout)).toEqual([]);
+    const doc = checkDocument([{ code: 'unverified', what: "No verdict yet for aspect 'a' on node:cli/a." }]);
+    expect(parsePromptTooLargeEntries(doc)).toEqual([]);
   });
 
   it('throws instead of silently under-reporting when the engine\'s sentence wording no longer matches this parser', () => {
     // The stable 'prompt-too-large' code is untouched — only the free-form sentence
     // text changed ("Assembled" -> "The assembled", "chars" -> "characters"), the
-    // shape an ordinary what/why/next wording edit takes. The prose regex below can
-    // no longer match this line at all, so entries.length would silently read 0 while
+    // shape an ordinary what/why/next wording edit takes. The prose regex can no
+    // longer match this `what` at all, so entries.length would silently read 0 while
     // one issue still carries the code — exactly the disagreement this function must
     // catch rather than let through as "nothing to measure."
-    const stdout = detailsOutput([
-      "  prompt-too-large  cli/example  The assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 characters, over the 'standard' tier limit of 1.",
+    const doc = checkDocument([
+      tooLarge("The assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 characters, over the 'standard' tier limit of 1."),
     ]);
-    expect(() => parsePromptTooLargeEntries(stdout)).toThrow(/parsed 0 .* but 1 issue/);
+    expect(() => parsePromptTooLargeEntries(doc)).toThrow(/parsed 0 .* but 1 issue/);
   });
 
   it('throws when the prose regex somehow over-matches relative to the coded count too (both directions checked, not only under-count)', () => {
-    // Constructed disagreement in the other direction: a sentence-shaped line the
-    // prose regex matches, but with no 'prompt-too-large' code line preceding it
-    // (the code-labeled count is 0, the prose-parsed count is 1). This can only
-    // happen if the two ever drift apart for any reason, which is exactly the
-    // condition this function exists to refuse rather than silently resolve by
-    // picking one side.
-    const stdout = [
-      'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 0 draft',
-      '',
-      'Errors (1):',
-      "  some-other-code  cli/example  Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1.",
-    ].join('\n');
-    expect(() => parsePromptTooLargeEntries(stdout)).toThrow(/parsed 1 .* but 0 issue/);
+    // Constructed disagreement in the other direction: a sentence the prose regex
+    // matches, but carried by an issue with some other code (the coded count is 0,
+    // the prose-parsed count is 1). This can only happen if the two ever drift apart
+    // for any reason, which is exactly the condition this function exists to refuse
+    // rather than silently resolve by picking one side.
+    const doc = checkDocument([
+      { code: 'some-other-code', what: "Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1." },
+    ]);
+    expect(() => parsePromptTooLargeEntries(doc)).toThrow(/parsed 1 .* but 0 issue/);
   });
 });
 
@@ -285,41 +310,38 @@ describe("prompt-headroom — computeTierMargins never reports a margin for a ti
   });
 });
 
-describe("prompt-headroom — parseHeaderVerifiedLlmCount reads the independent LLM-verified count off the run's own header line", () => {
-  it('reads the LLM count out of the header\'s "N verified (D deterministic, L LLM)" segment', () => {
-    const stdout = 'yg check: PASS  411 nodes · 1316/1316 files · 68 aspects · 18 flows · 4772 verified (3743 deterministic, 1029 LLM)\n';
-    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(1029);
+describe("prompt-headroom — readVerifiedLlmCount reads the independent LLM-verified count off the run's own totals", () => {
+  it('reads totals.verified.llm', () => {
+    expect(readVerifiedLlmCount(checkDocument([], 1029))).toBe(1029);
   });
 
-  it('reads zero when the header carries no verified segment at all (a run with nothing yet verified)', () => {
-    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows\n';
-    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(0);
+  it('reads zero when the run verified nothing yet', () => {
+    expect(readVerifiedLlmCount(checkDocument([], 0))).toBe(0);
   });
 
-  it('is not fooled by the UNVERIFIED summary segment, which shares the substring "verified ("', () => {
-    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 5 unverified (3 deterministic-free, 2 LLM)\n';
-    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(0);
+  it('throws rather than reading zero when the count is missing — a count it cannot read is not one it may assume', () => {
+    expect(() => readVerifiedLlmCount({ schema: 'yg-check/1', issues: [], totals: {} })).toThrow(/totals\.verified\.llm/);
   });
 });
 
-describe('prompt-headroom — assertMeasurementComplete refuses to trust a run whose measured count falls short of its own header', () => {
-  it('throws when the parsed pair count is LESS than the header\'s own LLM-verified count — the shape a truncated or killed child run takes', () => {
-    const stdout = [
-      'yg check: FAIL  411 nodes · 1316/1316 files · 68 aspects · 18 flows · 4772 verified (3743 deterministic, 1029 LLM)',
-      '',
-      'Errors (2):',
-      "  prompt-too-large  cli/a  Assembled reviewer prompt for aspect 'a' on file:a.ts is 100 chars, over the 'standard' tier limit of 1.",
-      "  prompt-too-large  cli/b  Assembled reviewer prompt for aspect 'b' on file:b.ts is 200 chars, over the 'standard' tier limit of 1.",
-    ].join('\n');
-    const entries = parsePromptTooLargeEntries(stdout);
+describe('prompt-headroom — assertMeasurementComplete refuses to trust a run whose measured count falls short of its own totals', () => {
+  it('throws when the parsed pair count is LESS than the run\'s own LLM-verified count — the shape an incomplete run takes', () => {
+    const doc = checkDocument(
+      [
+        tooLarge("Assembled reviewer prompt for aspect 'a' on file:a.ts is 100 chars, over the 'standard' tier limit of 1."),
+        tooLarge("Assembled reviewer prompt for aspect 'b' on file:b.ts is 200 chars, over the 'standard' tier limit of 1."),
+      ],
+      1029,
+    );
+    const entries = parsePromptTooLargeEntries(doc);
     expect(entries).toHaveLength(2);
-    expect(() => assertMeasurementComplete(entries, stdout)).toThrow(/1029/);
+    expect(() => assertMeasurementComplete(entries, doc)).toThrow(/1029/);
   });
 
-  it("does not throw when the measured count meets or exceeds the header's own LLM-verified count", () => {
-    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)\n';
+  it("does not throw when the measured count meets or exceeds the run's own LLM-verified count", () => {
+    const doc = checkDocument([], 1);
     const entries = [{ aspectId: 'a', unitKey: 'file:a.ts', chars: 100, tierName: 'standard' }];
-    expect(() => assertMeasurementComplete(entries, stdout)).not.toThrow();
+    expect(() => assertMeasurementComplete(entries, doc)).not.toThrow();
   });
 });
 
@@ -444,7 +466,7 @@ describe('prompt-headroom — classifyZeroMeasurement tells a genuinely LLM-free
 // headroom.mjs` against a real scratch project on disk.
 //
 // The scratch project's own `source/cli/dist/bin.js` is a small real Node
-// program that stands in for a slow, multi-second `yg check --details`: it
+// program that stands in for a slow, multi-second `yg check --json`: it
 // sleeps before exiting. The property under test belongs entirely to this
 // script's own signal-handling wrapper around WHATEVER child it spawns — it
 // is indifferent to what that child computes — and a stand-in with a fixed,

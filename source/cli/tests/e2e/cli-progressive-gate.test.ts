@@ -45,22 +45,30 @@ function run(args: string[], cwd: string): { status: number | null; stdout: stri
 /** The header line — the first line of every report, in every view. */
 const headerOf = (stdout: string): string => stdout.split('\n')[0];
 
-/** Everything the report prints under Errors, up to the warnings subheader. */
-function errorSection(stdout: string): string {
-  const from = stdout.indexOf('Errors (');
-  if (from < 0) return '';
-  const to = stdout.indexOf('Warnings (');
-  return to < 0 ? stdout.slice(from) : stdout.slice(from, to);
+/** Every finding block of one severity (`error[…]` / `warning[…]`), in report order. */
+function blocksOf(stdout: string, severity: 'error' | 'warning'): string {
+  return stdout.split('\n\n').filter((b) => b.startsWith(`${severity}[`)).join('\n\n');
 }
 
-/** Everything the report prints under Warnings. */
-function warningSection(stdout: string): string {
-  const from = stdout.indexOf('Warnings (');
-  return from < 0 ? '' : stdout.slice(from);
+/** The one finding block whose heading starts with `prefix` ('' when there is none). */
+function blockStarting(stdout: string, prefix: string): string {
+  return (stdout.split('\n\n').find((b) => b.startsWith(prefix)) ?? '').trimEnd();
+
 }
 
-/** The violation line each component's TODO produces, as the report prints it. */
-const TODO_IN = (dir: string): string => `src/${dir}/${dir}.ts:1: TODO comment found`;
+/** The inherited unverified twin's heading and member, as every triage view prints it. */
+const UNVERIFIED_TWIN = 'warning[unverified-outside] 1 pair whose script check has not run on this checkout — free to run — outside your changes\n'
+  + '  at:   no-todo-comments @ beta\n'
+  + '  why:  Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.';
+
+/** Every error block the report prints. */
+const errorSection = (stdout: string): string => blocksOf(stdout, 'error');
+
+/** Every warning block the report prints. */
+const warningSection = (stdout: string): string => blocksOf(stdout, 'warning');
+
+/** The violation member line each component's TODO produces, as the report prints it. */
+const TODO_IN = (dir: string): string => `${dir}  src/${dir}/${dir}.ts:1  TODO comment found`;
 
 /** The local, gitignored file a deterministic recording run writes its verdicts to. */
 function recordedVerdicts(dir: string): string {
@@ -163,10 +171,10 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     // Named and counted, never hidden: the inherited refusal keeps its full
     // violation text, one warning among the run's warnings.
     expect(warningSection(stdout)).toContain(TODO_IN('beta'));
-    expect(stdout).toContain('Warnings (2)');
-    // It also reads as the SAME kind of finding it would have been, with one
-    // phrase saying whose business it is — never as a raw internal code.
-    expect(warningSection(stdout)).toContain('enforced (outside changes)');
+    expect(headerOf(stdout)).toContain('2 warnings');
+    // It also reads as the SAME kind of finding it would have been (a refusal),
+    // with one suffix saying whose business it is — never as a raw internal code.
+    expect(warningSection(stdout)).toContain('warning[refused-outside]');
     expect(stdout).not.toContain('aspect-violation-enforced-outside');
     expect(errorSection(stdout)).toBe('');
     // The header names what the change was measured against and how much of it
@@ -174,22 +182,23 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     expect(headerOf(stdout)).toContain('1 obligation outside your changes vs main (1 changed input)');
     // And the single next step is the audit, never a repo-wide review of debt
     // this change did not cause.
-    expect(stdout).toContain("1 obligation outside your changes — run 'yg check --full' for the complete audit");
+    expect(stdout).toContain('next: yg check --full  (1 obligation outside your changes)');
     // The classifier leaves messageData untouched, so a twin's own `next` still
     // names its mirror's remedy verbatim — here, the deterministic refusal's
-    // "Fix the listed violations" text. Printing it would mislead: this
+    // "Change the code at these lines" fix. Printing it would mislead: this
     // finding is a warning specifically because the change did not reach it,
     // and the run's own next step above already names the honest one. The
     // renderer suppresses the line rather than repeat it — the SAME block, in
-    // full, minus only that one line.
-    const twinBlock = warningSection(stdout);
-    expect(twinBlock).toContain(
-      "enforced (outside changes)  1 pair  1 node  aspect 'no-todo-comments'\n"
-      + '            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.\n'
-      + '            - beta  Violations:\n',
+    // full, minus only its fix: line.
+    const twinBlock = warningSection(stdout).split('\n\n').find((b) => b.startsWith('warning[refused-outside]')) ?? '';
+    expect(twinBlock).toBe(
+      'warning[refused-outside] no-todo-comments — 1 violation in beta — outside your changes\n'
+      + '  at:   beta  src/beta/beta.ts:1  TODO comment found — remove it or track the work in the issue tracker.\n'
+      + '  why:  Source files must not contain TODO comments — track work in the issue tracker, not the code.',
     );
     expect(twinBlock).toContain(TODO_IN('beta'));
-    expect(twinBlock).not.toContain('Fix the listed violations');
+    expect(twinBlock).not.toContain('fix:');
+    expect(twinBlock).not.toContain('Change the code at these lines');
   });
 
   // Among warnings, an inherited (`-outside`) finding sorts last regardless of
@@ -197,8 +206,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
   // alphabetical order. Proved with NO extra fixture setup: every fixture here
   // ships with no installed agent-rules digest, so `rules-digest-stale` is a
   // genuine, unrelated warning present on every run, and its label
-  // ('rules-digest-stale', 'r') sorts AFTER the twin's own label ('enforced
-  // (outside changes)', 'e') — so a pure alphabetical tie-break (the pre-fix
+  // ('rules-digest-stale', 'ru') sorts AFTER the twin's own label
+  // ('refused-outside', 're') — so a pure alphabetical tie-break (the pre-fix
   // behavior) would have rendered the inherited debt FIRST, ahead of a warning
   // this run is genuinely responsible for.
   it('sorts a genuine warning ahead of an inherited twin even when the twin\'s own label would sort first', () => {
@@ -210,7 +219,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
 
     const warnings = warningSection(stdout);
     const genuineAt = warnings.indexOf('rules-digest-stale');
-    const twinAt = warnings.indexOf('enforced (outside changes)');
+    const twinAt = warnings.indexOf('warning[refused-outside]');
+
     expect(genuineAt).toBeGreaterThan(-1);
     expect(twinAt).toBeGreaterThan(-1);
     expect(genuineAt).toBeLessThan(twinAt);
@@ -233,30 +243,32 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       return fixture;
     }
 
-    it('default view: glosses the twin like its mirror and omits its Fix: line', () => {
+    it('default view: glosses the twin like its mirror and omits its fix: line', () => {
       const fixture = scoped('unverified-outside-full');
       const { status, stdout } = run(['check'], fixture.dir);
 
       // alpha's own pair is genuinely unverified AND touched — still blocks.
       expect(status).toBe(1);
-      expect(errorSection(stdout)).toContain('Fix: yg check --approve');
+      expect(errorSection(stdout)).toContain('fix:  yg check --approve');
       // beta's pair is the SAME kind of finding, glossed the same way, marked
-      // as outside the change — and with no Fix: line repeating a command
+      // as outside the change — and with no fix: line repeating a command
       // that would, for this one finding, review the whole project.
-      expect(warningSection(stdout)).toContain(
-        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pair  1 node\n'
-        + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
-        + "            - beta  aspect 'no-todo-comments'\n",
-      );
+      expect(blockStarting(stdout, 'warning[unverified-outside]')).toBe(UNVERIFIED_TWIN);
     });
 
     it('--summary gives the inherited pair its own bucket, never "other"', () => {
       const fixture = scoped('unverified-outside-summary');
       const { stdout } = run(['check', '--summary'], fixture.dir);
 
-      expect(stdout).toMatch(/\balpha\s+1 unverified \(1 deterministic-free, 0 LLM\), 0 refused\n/);
-      expect(stdout).toMatch(/\bbeta\s+0 unverified \(0 deterministic-free, 0 LLM\), 0 refused, 1 outside changes\n/);
-      expect(stdout).not.toMatch(/\bbeta\s+.*\bother\b/);
+      expect(stdout).toMatch(/^errors {4}unverified 1 \(1 script\)$/m);
+      expect(stdout).toMatch(/^warnings {2}.*\bunverified-outside 1 \(1 script\)$/m);
+      expect(stdout).not.toMatch(/\bother\b/);
+
+      // Per node, too: alpha carries its own pair, beta only the inherited one.
+      const byNode = run(['check', '--summary', 'nodes'], fixture.dir).stdout;
+      expect(byNode).toMatch(/^alpha\s+unverified 1$/m);
+      expect(byNode).toMatch(/^beta\s+unverified-outside 1$/m);
+      expect(byNode).not.toMatch(/^beta\s+.*\bother\b/m);
     });
 
     it('--aspect reprints the progressive segment the plain header carries, and keeps both pairs visible', () => {
@@ -264,27 +276,25 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       const { stdout } = run(['check', '--aspect', 'no-todo-comments'], fixture.dir);
 
       const headerLine = headerOf(stdout);
-      expect(headerLine).toContain("aspect 'no-todo-comments'");
+      expect(headerLine).toContain('view: aspect no-todo-comments');
       // Same computation the plain header uses — not a second, aspect-scoped
       // tally: one changed input (alpha), one obligation outside it (beta).
       expect(headerLine).toContain('1 obligation outside your changes vs main (1 changed input)');
-      // Both pairs are visible: alpha's own blocking pair keeps its Fix line…
-      expect(errorSection(stdout)).toContain('Fix: yg check --approve');
+      // Both pairs are visible: alpha's own blocking pair keeps its fix line…
+      expect(errorSection(stdout)).toContain('no-todo-comments @ alpha');
+      expect(errorSection(stdout)).toContain('fix:  yg check --approve');
       // …beta's inherited pair reads the same way minus that line.
-      expect(warningSection(stdout)).toContain(
-        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pair  1 node\n'
-        + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
-        + "            - beta  aspect 'no-todo-comments'\n",
-      );
+      expect(blockStarting(stdout, 'warning[unverified-outside]')).toBe(UNVERIFIED_TWIN);
     });
 
     it('--top surfaces the same outside disclosure as the default view', () => {
       const fixture = scoped('unverified-outside-top');
       const { stdout } = run(['check', '--top', '5'], fixture.dir);
 
-      expect(warningSection(stdout)).toContain('unverified (deterministic check not run on this checkout — free) (outside changes)');
-      expect(warningSection(stdout)).toContain("- beta  aspect 'no-todo-comments'");
-      expect(warningSection(stdout)).not.toContain('Fix: yg check --approve');
+      const twin = blockStarting(stdout, 'warning[unverified-outside]');
+      expect(twin).toContain('1 pair whose script check has not run on this checkout — free to run — outside your changes');
+      expect(twin).toContain('no-todo-comments @ beta');
+      expect(twin).not.toContain('fix:');
     });
   });
 
@@ -334,7 +344,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       expect(headerOf(stdout)).toContain('0 obligations outside your changes vs main');
       // …and the run explains that reading rather than leaving it to be guessed:
       // what happened, why, and — truthfully — that there is nothing to fix.
-      expect(stderr).toContain('Notice:');
+      expect(stderr).toContain('note: ');
       expect(stderr).toContain('reaches the whole project');
       expect(stderr).toContain('.yggdrasil/yg-architecture.yaml');
       expect(stderr).toContain('Nothing to fix');
@@ -356,7 +366,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       const { status, stderr } = run(['check'], fixture.dir);
 
       expect(status).toBe(1);
-      expect(stderr).toContain('Notice:');
+      expect(stderr).toContain('note: ');
       expect(stderr).toContain('.yggdrasil/yg-config.yaml');
       expect(stderr).toContain('which files must be covered');
       expect(stderr).not.toContain('yg-architecture.yaml');
@@ -505,7 +515,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       expect(stderr).not.toContain('WHOLE project');
       // Free work is priced for the whole project because it costs nothing;
       // there is no reviewer-backed rule here, so the bill is zero either way.
-      expect(stdout).toContain('0 reviewer calls (consensus included)');
+      expect(stdout).toContain('fill  dry run — a cost preview; nothing is filled or written');
+      expect(stdout).toMatch(/^fill {2}\d+ pairs? · \d+ script \(free\) · 0 reviewer calls$/m);
     });
 
     it('says so, and gates everything, when the change could not be measured', () => {
@@ -532,7 +543,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       expect(errorSection(stdout)).toContain(TODO_IN('beta'));
       expect(headerOf(stdout)).not.toContain('outside your changes');
       // Fill progress goes to stderr; what must not be there is a notice.
-      expect(stderr).not.toContain('Notice:');
+      expect(stderr).not.toMatch(/^note: /m);
     });
 
     it('is the plain whole-project run on a project that never opted in', () => {
@@ -543,7 +554,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
 
       expect(status).toBe(1);
       expect(errorSection(stdout)).toContain(TODO_IN('beta'));
-      expect(stderr).not.toContain('Notice:');
+      expect(stderr).not.toMatch(/^note: /m);
     });
   });
 
@@ -690,7 +701,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       const { status, stdout } = run(['check'], fixture.dir);
 
       expect(status).toBe(0);
-      expect(warningSection(stdout)).toContain("No fresh log entry for node 'alpha'");
+      expect(blockStarting(stdout, 'warning[log-entry-missing-outside]')).toContain('  at:   alpha');
       // Three obligations inherited from the reference — the log entry, the
       // component's own unreviewed change, and beta's standing refusal — against
       // one changed file that reached none of them.
@@ -710,7 +721,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // Intended, not incidental: reaching a component re-gates everything it
       // answers for, its log included.
       expect(status).toBe(1);
-      expect(errorSection(stdout)).toContain("No fresh log entry for node 'alpha'");
+      expect(blockStarting(stdout, 'error[log-entry-missing]')).toContain('  at:   alpha');
+
       // Nothing is left outside — one declaration edit reached both components —
       // and the header says so rather than falling silent about the measurement.
       expect(headerOf(stdout)).toContain('0 obligations outside your changes vs main (1 changed input)');

@@ -19,32 +19,31 @@ import { mkdtempSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, expect } from './support/fixtures';
-import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot, runSuppressions } from './support/harness';
+import { runCheck, runCheckJson, type CheckJsonDoc, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot, runSuppressions } from './support/harness';
 import { copyFixtureTree } from '../support/fixture-copy.js';
 
 export const COVERS: string[] = [];
 
-/** Parse the integer aggregate `Errors (N)` the grouped `yg check` output prints, or 0. */
-function parseCheckErrors(out: string): number {
-  const m = out.match(/Errors\s*\((\d+)\)/);
-  return m ? parseInt(m[1], 10) : 0;
+/** The blocking-error total `yg check` reports (`totals.errors` of its JSON document). */
+function checkErrors(doc: CheckJsonDoc): number {
+  return doc.totals.errors;
+}
+
+/** The warning total `yg check` reports (`totals.warnings` of its JSON document). */
+function checkWarnings(doc: CheckJsonDoc): number {
+  return doc.totals.warnings;
 }
 
 /**
- * Parse the flag-on header's three honest terms: `N/M files (A node-owned, B
- * type-covered, C excluded)`. The one ground-truth source for what those three
- * words mean — `renderHeader` — is exercised here through the real CLI process,
- * never re-derived.
+ * The flag-on coverage split's three honest terms — node-owned, type-covered, excluded —
+ * out of the total, as `yg check` reports them (`coverage` of its JSON document; the text
+ * verdict line prints the same numbers as `N/M files covered (A node-owned · B
+ * type-covered · C excluded)`). Throws when the split is absent (a flag-off project).
  */
-function parseCheckTypeSplit(out: string): { nodeOwned: number; typeCovered: number; excluded: number; total: number } {
-  const m = out.match(/(\d+)\/(\d+) files \((\d+) node-owned, (\d+) type-covered, (\d+) excluded\)/);
-  if (!m) throw new Error(`could not find the type-level header split in:\n${out}`);
-  return { nodeOwned: parseInt(m[3], 10), typeCovered: parseInt(m[4], 10), excluded: parseInt(m[5], 10), total: parseInt(m[2], 10) };
-}
-
-function parseCheckWarnings(out: string): number {
-  const m = out.match(/Warnings\s*\((\d+)\)/);
-  return m ? parseInt(m[1], 10) : 0;
+function checkTypeSplit(doc: CheckJsonDoc): { nodeOwned: number; typeCovered: number; excluded: number; total: number } {
+  const c = doc.coverage;
+  if (c.nodeOwned === null || c.typeCovered === null || c.excluded === null) throw new Error(`yg check reports no type-level coverage split: ${JSON.stringify(c)}`);
+  return { nodeOwned: c.nodeOwned, typeCovered: c.typeCovered, excluded: c.excluded, total: c.files };
 }
 
 /** Parse `yg check`'s repo-wide "N file(s) matched by a type could not have its rules worked out" count, or 0. */
@@ -59,59 +58,23 @@ function parseCheckZeroEnforcementCount(out: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/** Coverage findings `yg check` reports as coverage blocks, never as rule groups (the portal's `worklistCoverage`). */
+const COVERAGE_CODES = new Set(['unmapped-files', 'uncovered-advisory', 'unmapped-files-outside', 'uncovered-advisory-outside']);
+
 /**
- * Every rule GROUP the grouped `yg check` output prints, each carrying the SEVERITY of the
- * section it was found under — so a page comparison can verify not just that a group exists,
- * but that it renders under the right severity. The labels/severities come from the CLI's own
- * rendering, never a hardcoded literal, so the next task cannot silently drift the page from
- * the command line without this failing.
- *
- * Section-aware: `yg check` prints two independent grouped sections, `Errors (N)` then
- * `Warnings (N)` (each possibly suffixed `in M groups` when M > 1, and possibly prefixed with
- * an emoji + wrapped in ANSI color codes when `chalk` detects color support in the spawned
- * child's own environment — real, observed, and NOT the same as the parent shell's own color
- * support: `spawnSync`'s child inherits enough of Playwright's own test-runner environment
- * that `chalk.level > 0` there even though the identical spawn from a plain interactive shell
- * stays uncolored). Each line is ANSI-stripped before every check below, so a leading escape
- * sequence can neither hide a section header from an ANCHORED match nor get mistaken for
- * group-header content. Anchored (not a bare substring test) so a line ELSEWHERE in the output
- * that merely happens to contain the words "Errors (" / "Warnings (" — inside a violation
- * message, say — can never re-open or mis-attribute a section; `^\S*\s*` allows for the
- * optional emoji glyph (itself non-whitespace) plus the space before the word, never more.
- * A line is only ever a candidate group header while inside one of those two sections; the
- * running `section` state is what makes the SAME issue code (e.g. `unverified`, split by the
- * pair's enforced/advisory status into two independent `groupIssues` calls upstream) parse as
- * two DISTINCT groups with different severities, instead of being flattened together the way a
- * severity-blind regex would.
- *
- * Three header shapes, because a group's subjects can be nodes, files, or neither:
- *   - NODE-scoped:            `<label>  <N> pairs  <M> nodes[  aspect '<id>']`
- *   - FILE-scoped (nodeless):
- *     `<label>  <N> pairs  <M> files[  aspect '<id>']`     (fileCount only)
- *     `<label>  <N> pairs  <M> nodes, <K> files[  aspect '<id>']` (mixed)
- *   - REPOSITORY-level — a finding that names no component at all (the committed agent-rules
- *     digest, an unreadable lock): a pair/node/file count there would describe a subject that
- *     does not exist, so the header prints the label alone. Matched narrowly (a lone
- *     kebab-case issue code) so the coverage blocks — also two-space-indented, but carrying a
- *     parenthesized file count (`unmapped (N)`) — are never swept in; those are asserted
- *     directly against `.cov-covblock`, never through this parser.
+ * Every rule GROUP `yg check` reports — one `error[<label>]` / `warning[<label>]` block each in
+ * the text report, one `groups[]` entry each in its JSON document — with its label, its cause
+ * (an unverified group names why its pairs have no verdict: `deterministic-not-run`, `stale`,
+ * …) and the SEVERITY it is reported under, so a page comparison can verify not just that a
+ * group exists but that it renders under the right severity. Read from the CLI's own report,
+ * never a hardcoded literal, so the page cannot silently drift from the command line without
+ * this failing. The SAME code (e.g. `unverified`, split by the pair's enforced/advisory status)
+ * comes back as two DISTINCT groups with different severities, never flattened together.
+ * Coverage blocks (`unmapped`, `uncovered`) are left out: the portal renders those as
+ * `.cov-covblock`, asserted directly, never as worklist rows.
  */
-function parseCheckRuleGroups(out: string): Array<{ label: string; severity: 'error' | 'warning' }> {
-  const groups: Array<{ label: string; severity: 'error' | 'warning' }> = [];
-  let section: 'error' | 'warning' | null = null;
-  // eslint-disable-next-line no-control-regex -- stripping a real ANSI escape sequence requires matching the ESC control byte itself.
-  const ANSI_RE = /\u001b\[[0-9;]*m/g;
-  for (const rawLine of out.split('\n')) {
-    const line = rawLine.replace(ANSI_RE, '');
-    if (/^\S*\s*Errors \(\d+\)/.test(line)) { section = 'error'; continue; }
-    if (/^\S*\s*Warnings \(\d+\)/.test(line)) { section = 'warning'; continue; }
-    if (section === null) continue;
-    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ (?:pairs|issues?)\s+(?:\d+ nodes(?:, \d+ files)?|\d+ files)(?:\s{2,}aspect '[^']*')?\s*$/);
-    if (scoped) { groups.push({ label: scoped[1], severity: section }); continue; }
-    const repoLevel = line.match(/^ {2}([a-z][a-z0-9-]*)\s*$/);
-    if (repoLevel) groups.push({ label: repoLevel[1], severity: section });
-  }
-  return groups;
+function checkRuleGroups(doc: CheckJsonDoc): Array<{ label: string; cause: string | undefined; severity: 'error' | 'warning'; why: string }> {
+  return doc.groups.filter((g) => !COVERAGE_CODES.has(g.code)).map((g) => ({ label: g.label, cause: g.cause, severity: g.severity, why: g.why }));
 }
 
 test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
@@ -120,8 +83,8 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     const url = staticPage(t, { fixture: 'portal-basic' });
 
     // What the CLI reports (the source of truth).
-    const check = runCheck(fixtureCwd);
-    const cliErrors = parseCheckErrors(check.out);
+    const { doc: check } = runCheckJson(fixtureCwd);
+    const cliErrors = checkErrors(check);
     expect(cliErrors).toBe(2); // 2 unverified pairs → 2 blocking errors (sanity-pin the fixture)
 
     // What the page RENDERS — read the Coverage ledger + the LIVE blocking-errors counter.
@@ -149,13 +112,12 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // non-blocking agent-rules-digest group (the fixture ships no agent-rules install, and the
     // page must say so exactly as the CLI does — a page that showed only the blocking group would
     // be reading greener than the command line).
-    const cliGroups = parseCheckRuleGroups(check.out);
-    const labels = cliGroups.map((g) => g.label);
-    expect(labels).toContain('unverified (deterministic check not run on this checkout — free)');
-    expect(labels).toContain('rules-digest-stale');
+    const cliGroups = checkRuleGroups(check);
+    const unverifiedGroup = cliGroups.find((g) => g.label === 'unverified' && g.cause === 'deterministic-not-run');
+    expect(unverifiedGroup, JSON.stringify(cliGroups)).toBeDefined();
+    expect(cliGroups.map((g) => g.label)).toContain('rules-digest-stale');
     // The two groups carry DIFFERENT severities — the blocking finding is an error, the
     // agent-rules gap is a warning — never folded together under one severity.
-    const unverifiedGroup = cliGroups.find((g) => g.label === 'unverified (deterministic check not run on this checkout — free)');
     const digestGroup = cliGroups.find((g) => g.label === 'rules-digest-stale');
     expect(unverifiedGroup?.severity).toBe('error');
     expect(digestGroup?.severity).toBe('warning');
@@ -165,9 +127,11 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     const firstRow = page.locator('.cov-worow').first();
     await expect(firstRow.locator('.cov-worow-meta')).toContainText('2 nodes');
     await expect(firstRow.locator('.cov-pill')).toContainText('error');
-    // The row id is the group label: an unverified pair is labelled by its cause —
-    // here a deterministic check that has not run on this fresh checkout.
-    await expect(page.locator('.cov-worow')).toContainText(['deterministic-not-run', 'rules-digest-stale']);
+    // The row id is the CLI's own group label (`unverified`, `rules-digest-stale`), and the
+    // unverified row carries the CLI's own why for its cause — here a deterministic check
+    // that has not run on this fresh checkout.
+    await expect(page.locator('.cov-worow')).toContainText(['unverified', 'rules-digest-stale']);
+    await expect(firstRow.locator('.cov-worow-id')).toContainText((unverifiedGroup as { why: string }).why);
   });
 
   test('after a real Approve the page follows the CLI to green (0 errors, all verified)', async ({ page, t }) => {
@@ -183,8 +147,7 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     expect(approveRes.ok()).toBeTruthy();
 
     // The CLI now reports clean on the same project.
-    const check = runCheck(project);
-    expect(parseCheckErrors(check.out)).toBe(0);
+    expect(checkErrors(runCheckJson(project).doc)).toBe(0);
 
     // The served page, re-fetched, follows the CLI to green: verified fraction is 2 / 2, no errors.
     await page.goto(baseUrl + '/#/view/coverage');
@@ -204,7 +167,7 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     approveDeterministic(project);
 
     const check = runCheck(project);
-    const split = parseCheckTypeSplit(check.out);
+    const split = checkTypeSplit(runCheckJson(project).doc);
     // Sanity-pin the fixture's own shape so a future edit to it cannot silently
     // invalidate what this test is actually proving.
     expect(split).toEqual({ nodeOwned: 1, typeCovered: 2, excluded: 1, total: 4 });
@@ -328,9 +291,9 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
   test('repo: rendered blocking-errors + warnings == yg check on this repo', async ({ page, repoPage }) => {
     // The rich real-repo graph: parity must hold there too, at whatever the live numbers are.
     const repoRoot = (await import('node:path')).join((await import('./support/harness')).CLI_ROOT, '..', '..');
-    const check = runCheck(repoRoot);
-    const cliErrors = parseCheckErrors(check.out);
-    const cliWarnings = parseCheckWarnings(check.out);
+    const { doc: check } = runCheckJson(repoRoot);
+    const cliErrors = checkErrors(check);
+    const cliWarnings = checkWarnings(check);
 
     await page.goto(repoPage + '#/view/coverage');
     const liveErrText = (await page.locator('.cov-livewrap .cov-live', { hasText: 'blocking errors' }).textContent()) ?? '';
@@ -368,38 +331,45 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
 
   test('portal-mixed: worklist splits severities and badges match the CLI sections', async ({ page, t }) => {
     const url = staticPage(t, { fixture: 'portal-mixed' });
-    const check = runCheck(fixtureRoot('portal-mixed'));
+    const { doc: check } = runCheckJson(fixtureRoot('portal-mixed'));
 
     // Sanity-pin the fixture's own known shape (a FIXTURE, not the repo — this state never
     // gets wiped): the enforced aspect's 2 pairs are errors; the advisory aspect's 2 pairs
     // PLUS the ever-present rules-digest-stale warning make 3 warnings.
-    const cliErrors = parseCheckErrors(check.out);
-    const cliWarnings = parseCheckWarnings(check.out);
+    const cliErrors = checkErrors(check);
+    const cliWarnings = checkWarnings(check);
     expect(cliErrors).toBe(2);
     expect(cliWarnings).toBe(3);
 
-    const cliGroups = parseCheckRuleGroups(check.out);
+    const cliGroups = checkRuleGroups(check);
     const errorGroups = cliGroups.filter((g) => g.severity === 'error');
     const warningGroups = cliGroups.filter((g) => g.severity === 'warning');
     // The regression this fixture locks: the SAME issue code ('unverified') fires on BOTH
     // severities at once — one node×aspect pair enforced, one advisory — and must render as
     // two SEPARATE groups, never folded into one (the round's central defect).
     expect(errorGroups).toHaveLength(1);
-    expect(errorGroups[0].label).toBe('unverified (deterministic check not run on this checkout — free)');
-    expect(warningGroups.map((g) => g.label)).toContain('unverified (deterministic check not run on this checkout — free)');
+    expect(errorGroups[0]).toMatchObject({ label: 'unverified', cause: 'deterministic-not-run' });
+    expect(warningGroups).toContainEqual(expect.objectContaining({ label: 'unverified', cause: 'deterministic-not-run', severity: 'warning' }));
+    const warningUnverified = warningGroups.find((g) => g.label === 'unverified') as { why: string };
+
+    // The CLI's own block order on this fixture: the error, then the advisory unverified
+    // group, then the digest warning. The worklist must follow the same order.
+    expect(cliGroups.map((g) => `${g.severity}[${g.label}]`)).toEqual(['error[unverified]', 'warning[unverified]', 'warning[rules-digest-stale]']);
 
     await page.goto(url + '#/view/coverage');
     await expect(page.locator('.cov-worow')).toHaveCount(cliGroups.length);
     // The error group leads (errors always sort before warnings in the worklist).
     await expect(page.locator('.cov-worow').nth(0).locator('.cov-pill')).toContainText('error');
-    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText('deterministic-not-run');
+    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText('unverified');
+    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText(errorGroups[0].why);
     // The FIRST warning group is the SAME 'unverified' code, now advisory severity — proof the
     // page renders it as its own distinct row, not merged with the error row above. Checking
     // the pill alone would not prove this: 'rules-digest-stale' is ALSO a warning-severity
     // group on this fixture, so a pill-only check would still pass if the two warning rows'
     // order ever swapped. Asserting the row's own id/label closes that gap.
     await expect(page.locator('.cov-worow').nth(1).locator('.cov-pill')).toContainText('warning');
-    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText('deterministic-not-run');
+    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText('unverified');
+    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText(warningUnverified.why);
 
     // The overview's plain-language split sentence agrees with the CLI's own counts.
     await page.goto(url + '#/view/overview');
@@ -409,8 +379,8 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
 
   test('portal-coverage-only: a coverage-only red build with an EMPTY worklist never reads "All clear"', async ({ page, t }) => {
     const url = staticPage(t, { fixture: 'portal-coverage-only' });
-    const check = runCheck(fixtureRoot('portal-coverage-only'));
-    expect(parseCheckErrors(check.out)).toBeGreaterThan(0);
+    const { doc: check } = runCheckJson(fixtureRoot('portal-coverage-only'));
+    expect(checkErrors(check)).toBeGreaterThan(0);
     // This fixture carries its own agent-rules install (AGENTS.md / CLAUDE.md /
     // .clinerules/yggdrasil.md — the CLI's own `yg init --upgrade`, excluded from
     // coverage in the fixture's own config so they never become a SECOND unmapped
@@ -418,9 +388,10 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // genuinely EMPTY — the coverage gap (unmapped-files) is a `worklistCoverage`
     // block, never a `worklist` group — while the build stays red on the unmapped
     // file alone. Sanity-pin: no rule groups, exactly one coverage block, one error.
-    expect(parseCheckWarnings(check.out)).toBe(0);
-    const cliGroups = parseCheckRuleGroups(check.out);
+    expect(checkWarnings(check)).toBe(0);
+    const cliGroups = checkRuleGroups(check);
     expect(cliGroups).toHaveLength(0);
+    expect(check.groups.filter((g) => g.code === 'unmapped-files')).toHaveLength(1);
 
     await page.goto(url + '#/view/coverage');
     // THE lock: the pre-round calm gate was `worklist.length === 0`, which this exact

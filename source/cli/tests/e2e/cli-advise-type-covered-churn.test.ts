@@ -145,7 +145,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(stdout).toContain('3');
       expect(stdout).toMatch(/create an explicit node/i);
       // A suggestion, never an automatic action — requires the user's sign-off.
-      expect(stdout).toMatch(/requires their approval|requires.*approval/i);
+      expect(stdout).toMatch(/ask them to approve it first|ask the user to approve it first/i);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

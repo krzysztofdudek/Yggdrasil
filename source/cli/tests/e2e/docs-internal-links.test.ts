@@ -55,7 +55,7 @@ describe.skipIf(!distExists)('docs-internal-links — e2e over real .md fixtures
     const { stdout, status } = checkLinks([a, b]);
     expect(stdout).toContain('refused');
     expect(stdout).toContain('/this-page-does-not-exist');
-    expect(stdout).toMatch(/L3/); // the broken link is on line 3
+    expect(stdout).toMatch(/:3 {2}/); // the broken link is on line 3
     expect(status).not.toBe(0);
   });
 

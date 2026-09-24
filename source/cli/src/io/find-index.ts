@@ -56,7 +56,7 @@ export async function buildIndex(graph: Graph, typeCoverage?: TypeCoveredIndexEn
         }
         body = truncated;
       } else if (st.isSymbolicLink()) {
-        process.stderr.write(`Warning: skipping symlinked log.md at ${path.relative(projectRoot, logPath)}\n`);
+        process.stderr.write(`warning: skipping symlinked log.md at ${path.relative(projectRoot, logPath)}\n`);
       /* v8 ignore next 2 -- hardlink (nlink>1, !symlink): skip silently; not testable without root */
       } else {
         /* skip hardlink */

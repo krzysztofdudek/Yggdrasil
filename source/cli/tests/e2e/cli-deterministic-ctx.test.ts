@@ -396,11 +396,11 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(fill.status).toBe(1);
       // The fill records the refusal and the check renderer surfaces the enforced
       // refusal as a blocking error naming the aspect.
-      expect(fill.all).toContain('[det] graph-name-match on node:services/orders — refused');
-      // Grouped view: an enforced refusal group names the aspect; the per-member
-      // `Violations:` tail (FULL_WHAT detail) is retained and names the node.
-      expect(fill.all).toContain("enforced  1 pair  1 node  aspect 'graph-name-match'");
-      expect(fill.all).toContain('- services/orders  Violations:');
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // The enforced refusal is an error block naming the aspect; its member line
+      // names the node, the file:line and the check's own violation message.
+      expect(fill.all).toContain('error[refused] graph-name-match — 1 violation in services/orders');
+      expect(fill.all).toContain("  at:   services/orders  src/services/orders.ts:1  Service must export a create* function (node 'services/orders').");
       // The graph-aware check's violation message is preserved in the lock reason.
       expect(lockVerdict(dir, 'graph-name-match', 'services/orders')?.verdict).toBe('refused');
       expect(lockVerdict(dir, 'graph-name-match', 'services/orders')?.reason).toContain(
@@ -796,7 +796,9 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(1);
       expect(lockVerdict(dir, 'reach-or-refuse', 'services/orders')?.verdict).toBe('refused');
-      expect(refill.all).toContain('[det] reach-or-refuse on node:services/orders — refused');
+      expect(refill.all).toContain('error[refused] reach-or-refuse — 1 violation in services/orders');
+      expect(refill.all).toContain("  at:   services/orders  src/services/orders.ts:1  Cannot reach 'services/payments'.");
+
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

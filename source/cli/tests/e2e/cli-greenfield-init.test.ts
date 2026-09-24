@@ -255,18 +255,16 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       // `unverified` with guidance pointing at the fill.
       const before = run(['check'], dir);
       expect(before.status).toBe(1);
-      expect(before.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(before.stdout).toContain('widgets/widget');
-      // Grouped view: the unverified pair surfaces as a group for the aspect with
-      // the node listed and the fill command as the fix.
-      expect(before.stdout).toContain("aspect 'no-todo-comments'");
-      expect(before.stdout).toContain('- widgets/widget');
-      expect(before.stdout).toContain('yg check --approve');
+      expect(before.stdout).toContain('error[unverified] 1 pair whose script check has not run on this checkout');
+      // The unverified block lists the pair (`<aspect> @ <node>`) and names the
+      // fill command as the fix.
+      expect(before.stdout).toMatch(/^ {2}at: +no-todo-comments @ widgets\/widget$/m);
+      expect(before.stdout).toContain('  fix:  yg check --approve --only-deterministic');
 
       // (b) Fill -> exit 0, the deterministic verdict recorded into the lock.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
+      // Fill-time progress (`fill  …` lines) goes to STDERR; final report to STDOUT.
       expect(fill.stdout).toContain('yg check: PASS');
       // The deterministic verdict lands in the gitignored det file of the 5.1.0
       // triad, and the merged lock (readLock) carries it as an `approved` verdict.
@@ -294,14 +292,13 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       // Re-fill: the deterministic check now refuses the enforced aspect.
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR; grouped report to STDOUT.
-      expect(refused.stderr).toContain('[det] no-todo-comments on node:widgets/widget — refused');
-      // Grouped view: an enforced refusal group for the aspect; the per-member
-      // `Violations:` tail (FULL_WHAT detail) is retained and names the TODO site.
-      expect(refused.stdout).toContain("enforced  1 pair  1 node  aspect 'no-todo-comments'");
-      expect(refused.stdout).toContain('A deterministic check recorded these violations');
-      expect(refused.stdout).toContain('- widgets/widget  Violations:');
-      expect(refused.stdout).toContain('TODO found.');
+      // Fill-time progress (`fill  …` lines) goes to STDERR; the report to STDOUT.
+      expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in widgets/widget');
+      // The refusal block's member line names the node, the TODO site and the
+      // violation message; its fix says how to record the new verdict.
+      expect(refused.stdout).toMatch(/^ {2}at: +widgets\/widget {2}src\/widgets\/widget\.ts:\d+ {2}TODO found\./m);
+      expect(refused.stdout).toContain('Change the code at these lines, then run yg check --approve --only-deterministic');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -425,8 +422,10 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
       expect(check.stdout).toContain('PASS');
-      // The files init itself wrote are excluded plumbing, never uncovered to-dos.
-      expect(check.stdout).toContain('4 excluded');
+      // The files init itself wrote are excluded plumbing, never uncovered to-dos:
+      // they count as covered, and the JSON report names them as excluded.
+      expect(check.stdout).toContain('4/4 files covered');
+      expect(JSON.parse(run(['check', '--json'], dir).stdout).coverage.excluded).toBe(4);
       expect(check.stdout).not.toContain('uncovered');
     } finally {
       rmSync(dir, { recursive: true, force: true });

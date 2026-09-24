@@ -1,27 +1,27 @@
 // =============================================================================
 // E2E coverage for the Phase-1 grouped `yg check` default output.
 //
-// Phase 1 replaced the per-issue block wall with a GROUPED default view: each
-// failing rule renders ONE group block keyed by (code, aspectId) —
-//   <glossLabel(label)>  <P> pairs  <M> nodes[  aspect '<id>']
-//   <shared why>
-//   Fix: <shared next>
-//   - <node>            (one affected node per line)
-// — and the Errors/Warnings sub-header gains " in M groups" when M > 1. The
-// `Next:` line carries a residual parenthetical when --approve cannot clear
-// every error (unverified pairs fill, but refused/relation errors remain).
+// Phase 1 replaced the per-issue block wall with a GROUPED default view, and
+// the one-grammar change (issue 191) gave it its current shape: each failing
+// rule renders ONE block —
+//   error[<label>] <subject>
+//     at:   <one line per rule: `<aspect>  <P> pairs · <M> nodes · <kind>`,
+//            or `<aspect> @ <unit>` for a single pair>
+//     why:  <shared why, once>
+//     fix:  <shared fix, once>
+// — `--details` lists every pair as `<aspect> @ <unit>`. When --approve cannot
+// clear every error, `next:` names the code/graph fix first and `then:` names
+// the fill; the JSON `next.remaining` carries the needs-fix / fillable split.
 //
-// Phase 1.6 change: `unverified` issues group by CODE ONLY (not (code,aspectId)).
-// The group header drops the `aspect '<id>'` segment; instead each member body
-// line appends `  aspect '<id>'` so the agent sees which aspect is unverified
-// on each node without a near-identical group block per aspect.
+// `unverified` issues group by CODE (and cause), not (code, aspectId): two
+// aspects unverified on one node share one block, one `at:` line per rule.
 //
 // These tests spawn the REAL built binary (dist/bin.js) against a hermetic
 // fixture built in code (mirroring cli-check-output-flush.test.ts), then assert
 // the grouped grammar on PIPED stdout (non-TTY → node lists never truncate).
 //
-// Implementation under test: src/cli/check.ts (renderErrorSection / renderGroup)
-// and src/cli/group-issues.ts (groupIssues).
+// Implementation under test: src/cli/check-render-groups.ts (blocks) and
+// src/cli/check-render-views.ts (the next:/then: step).
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -62,7 +62,7 @@ function strip(s: string): string {
  * a single `unverified` group spanning all nodes. `withRelationError` optionally
  * adds a second node whose source imports an undeclared peer node, producing one
  * extra `relation-undeclared-dependency` error → a SECOND group + the partial
- * `Next:` residual.
+ * `next:`/`then:` residual.
  */
 function buildGroupedFixture(opts: {
   nodeNames: string[];
@@ -171,42 +171,42 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
 
       // Single group (one (code, aspectId) → no " in M groups" segment): the true
       // total is the number of pairs (one per node), NOT a group count.
-      expect(out).toMatch(new RegExp(`^Errors \\(${nodes.length}\\):$`, 'm'));
-      // Defensive: a single group must NOT carry the " in M groups" segment.
-      expect(out).not.toMatch(/Errors \(\d+\) in \d+ groups:/);
+      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length} errors · `, 'm'));
+      // No section sub-headers in the one grammar.
+      expect(out).not.toMatch(/^Errors \(/m);
 
       // Exactly ONE group block for the unverified code: glossed label + "<P> pairs"
       // + "<M> nodes" — NO aspect segment in the header (unverified groups by code only).
-      const groupHeaders = out.match(
-        /^ {2}unverified \(not yet reviewed\) {2}(\d+) pairs {2}(\d+) nodes$/gm,
-      ) ?? [];
+      const groupHeaders = out.match(/^error\[unverified\] .*$/gm) ?? [];
       expect(groupHeaders.length).toBe(1);
-      // The header reports P = node count pairs over M = node count nodes.
-      expect(groupHeaders[0]).toContain(`${nodes.length} pairs`);
-      expect(groupHeaders[0]).toContain(`${nodes.length} nodes`);
-      // The header must NOT carry an aspect segment (aspect on body lines instead).
-      expect(out).not.toMatch(/^ {2}unverified \(not yet reviewed\).*aspect 'shared'/m);
+      // The heading reports P = node count pairs.
+      expect(groupHeaders[0]).toBe(`error[unverified] ${nodes.length} pairs with no verdict yet`);
+      // The capped view names the rule once, with P pairs over M nodes.
+      expect(out).toMatch(new RegExp(`^  at:   shared  ${nodes.length} pairs · ${nodes.length} nodes · reviewer$`, 'm'));
 
-      // Shared why + Fix lines render once for the whole group (NOT once per node).
-      expect(out).toContain('The lock holds no entry for this pair');
-      expect(out).toMatch(/^ {12}Fix: yg check --approve( {2}\(.*\))?$/m);
+      // Shared why + fix lines render once for the whole group (NOT once per node).
+      expect(out.match(/The lock holds no entry for this pair/g)?.length).toBe(1);
+      expect(out).toMatch(new RegExp(`^  fix:  yg check --approve  \\(${nodes.length} reviewer pairs · paid\\)$`, 'm'));
 
-      // Every affected node is listed as "            - <node>  aspect 'shared'".
+      // Every affected node is listed by --details as "shared @ <node>".
+      const details = strip(run(['check', '--details'], dir).stdout);
       for (const n of nodes) {
-        expect(out).toMatch(new RegExp(`^ {12}- ${n}  aspect 'shared'$`, 'm'));
+        expect(details).toMatch(new RegExp(`^ +(at: +)?shared @ ${n}$`, 'm'));
       }
-      const nodeBullets = (out.match(/^ {12}- \w+ {2}aspect 'shared'$/gm) ?? []).length;
+      const nodeBullets = (details.match(/^ +(at: +)?shared @ \w+$/gm) ?? []).length;
       expect(nodeBullets).toBe(nodes.length);
 
-      // A clean Next (no residual) — the only errors are unverified, which
-      // --approve clears entirely.
-      expect(out).toMatch(/^Next: yg check --approve$/m);
+      // A clean step (no residual) — the only errors are unverified, which
+      // --approve clears entirely: the lone block's fix IS the step, so no
+      // separate next:/then: residual is printed.
+      expect(out).not.toMatch(/^then: /m);
+      expect(out).not.toMatch(/need a code or graph fix/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('mixed errors (unverified group + relation error) render "Errors (N) in M groups:" and the partial Next residual', () => {
+  it('mixed errors (unverified group + relation error) render one block per rule and a next:/then: residual', () => {
     const nodes = ['alpha', 'beta'];
     const dir = buildGroupedFixture({ nodeNames: nodes, withRelationError: true });
     try {
@@ -218,49 +218,37 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // Two distinct groups: the `shared` unverified group (over alpha, beta, dep,
       // importer = 4 unverified pairs) and the relation-undeclared-dependency
       // group (1 error). Total N = 5 errors in M = 2 groups.
-      const header = out.match(/^Errors \((\d+)\) in (\d+) groups:$/m);
-      expect(header, 'Expected grouped "Errors (N) in M groups:" sub-header').not.toBeNull();
-      const totalErrors = parseInt(header![1], 10);
-      const groupCount = parseInt(header![2], 10);
-      expect(groupCount).toBe(2);
-      // 4 unverified pairs (one per node) + 1 relation error = 5.
-      expect(totalErrors).toBe(nodes.length + 2 + 1);
+      // 4 unverified pairs (one per node) + 1 relation error = 5 errors, in two blocks.
+      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length + 2 + 1} errors · `, 'm'));
+      expect((out.match(/^error\[/gm) ?? []).length).toBe(2);
 
-      // ONE group block for the shared unverified code, spanning all 4 nodes.
-      // Header has NO aspect segment (unverified groups by code only since Phase 1.6).
-      const unverifiedHeaders = out.match(
-        /^ {2}unverified \(not yet reviewed\) {2}(\d+) pairs {2}(\d+) nodes$/gm,
-      ) ?? [];
+      // ONE block for the shared unverified code, spanning all 4 nodes.
+      const unverifiedHeaders = out.match(/^error\[unverified\] .*$/gm) ?? [];
       expect(unverifiedHeaders.length).toBe(1);
-      expect(unverifiedHeaders[0]).toContain(`${nodes.length + 2} pairs`);
-      expect(unverifiedHeaders[0]).toContain(`${nodes.length + 2} nodes`);
-      // The aspect appears on each body line, not in the header.
-      expect(out).not.toMatch(/^ {2}unverified \(not yet reviewed\).*aspect 'shared'/m);
+      expect(unverifiedHeaders[0]).toBe(`error[unverified] ${nodes.length + 2} pairs with no verdict yet`);
+      expect(out).toMatch(new RegExp(`^  at:   shared  ${nodes.length + 2} pairs · ${nodes.length + 2} nodes · reviewer$`, 'm'));
 
-      // ONE relation-undeclared-dependency group block. It carries no aspect
-      // segment (built-in check, not an aspect) and DOES retain the per-node
-      // detail (FULL_WHAT code): the importer's undeclared edge to dep.
-      const relationHeaders = out.match(/^ {2}relation-undeclared-dependency {2}(\d+) issues? {2}(\d+) nodes?$/gm) ?? [];
+      // ONE relation-undeclared-dependency block. It is not a pair's verdict —
+      // no pair count — and it DOES retain the per-node detail: the importer's
+      // undeclared edge to dep.
+      const relationHeaders = out.match(/^error\[relation-undeclared-dependency\] .*$/gm) ?? [];
       expect(relationHeaders.length).toBe(1);
-      // Not a pair's verdict — counted as an issue.
-      expect(relationHeaders[0]).toContain('1 issue');
-      // The affected-node line keeps the file:line → target detail for relations.
-      expect(out).toMatch(/^ {12}- importer {2}src\/importer\.ts:\d+ → dep$/m);
+      expect(relationHeaders[0]).not.toMatch(/\bpairs?\b/);
+      expect(out).toMatch(/^ {2}at: {3}importer\n {10}src\/importer\.ts:\d+ → dep$/m);
 
-      // Each unverified node appears as "            - <node>  aspect 'shared'".
-      for (const n of [...nodes, 'dep']) {
-        expect(out).toMatch(new RegExp(`^ {12}- ${n}  aspect 'shared'$`, 'm'));
+      // Each unverified node appears in --details as "shared @ <node>",
+      // importer included (it also carries the relation error).
+      const details = strip(run(['check', '--details'], dir).stdout);
+      for (const n of [...nodes, 'dep', 'importer']) {
+        expect(details).toMatch(new RegExp(`^ +(at: +)?shared @ ${n}$`, 'm'));
       }
-      // 'importer' appears in the relation group with perMemberReason detail;
-      // it also has an unverified pair — assert the unverified bullet is there.
-      expect(out).toMatch(/^ {12}- importer {2}aspect 'shared'$/m);
 
-      // The partial Next residual: --approve fills the 4 unverified pairs but the
-      // 1 relation error remains (needs a code/graph fix). N = 4 filled, K = 1
-      // remaining → singular "error".
-      expect(out).toMatch(
-        /^Next: yg check --approve {2}\(fills 4 unverified; 1 error remain — need code\/graph fixes\)$/m,
-      );
+      // The partial residual: the relation error needs a code/graph fix first,
+      // then --approve fills the 4 unverified pairs.
+      expect(out).toMatch(/^next: edit \.yggdrasil\/model\/importer\/yg-node\.yaml {2}\(relation-undeclared-dependency\)$/m);
+      expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · paid\)$/m);
+      const doc = JSON.parse(run(['check', '--json'], dir).stdout) as { next: { remaining: { needsFix: number; fillable: number } } };
+      expect(doc.next.remaining).toEqual({ needsFix: 1, fillable: 4 });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -346,22 +334,19 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
 
       // Both pairs unverified → 2 errors, exit 1.
       expect(status).toBe(1);
-      expect(out).toMatch(/^Errors \(2\):$/m);
+      expect(out).toMatch(/^yg check: FAIL {2}2 errors · /m);
 
-      // ONE group block — no " in M groups" (single group).
-      expect(out).not.toMatch(/Errors \(\d+\) in \d+ groups:/);
+      // ONE block — the heading carries no aspect (unverified collapses by code).
+      const headers = out.match(/^error\[unverified\] .*$/gm) ?? [];
+      expect(headers).toEqual(['error[unverified] 2 pairs with no verdict yet']);
 
-      // Group header: no aspect segment (unverified collapses by code only).
-      expect(out).toMatch(/^ {2}unverified \(not yet reviewed\) {2}2 pairs {2}1 node$/m);
-      expect(out).not.toMatch(/^ {2}unverified \(not yet reviewed\).*aspect '/m);
-
-      // Body: two lines, one per (node, aspect) pair.
-      expect(out).toMatch(/^ {12}- mynode {2}aspect 'aspect-alpha'$/m);
-      expect(out).toMatch(/^ {12}- mynode {2}aspect 'aspect-beta'$/m);
+      // Members: two lines, one per (aspect, node) pair.
+      expect(out).toMatch(/^ {2}at: {3}aspect-alpha @ mynode$/m);
+      expect(out).toMatch(/^ {8}aspect-beta @ mynode$/m);
 
       // Shared why+fix rendered ONCE.
-      expect(out).toContain('The lock holds no entry for this pair');
-      const fixMatches = out.match(/Fix: yg check --approve/g) ?? [];
+      expect(out.match(/The lock holds no entry for this pair/g)?.length).toBe(1);
+      const fixMatches = out.match(/fix: {2}yg check --approve/g) ?? [];
       expect(fixMatches.length).toBe(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });

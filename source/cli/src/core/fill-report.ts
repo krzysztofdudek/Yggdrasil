@@ -12,7 +12,7 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import type { FillEventSink, FillUsageTotals } from '../model/fill-event.js';
+import type { FillEventSink, FillUsageTotals, FillProgressCounts } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
@@ -104,9 +104,9 @@ export function emitDetGateSkips(
     const posixSubject = toPosixPath(isFile ? key.slice('file:'.length) : key);
     const subject = isFile ? `file '${posixSubject}'` : `node '${posixSubject}'`;
     emitIssue({
-      what: `LLM fills for ${subject} skipped — an enforced deterministic check already refused it.`,
-      why: 'A free deterministic check rejects this unit, so paying the reviewer to read the same code would be wasted. Fix the deterministic violations first.',
-      next: `Fix the deterministic violations on '${posixSubject}', then re-run: ${retry}`,
+      what: `Reviewer pairs for ${subject} skipped — an enforced script rule already refuses it.`,
+      why: 'A free script rule rejects this unit, so paying the reviewer to read the same code would be wasted until the violations are fixed.',
+      next: `Fix the script-rule violations on '${posixSubject}', then re-run ${retry}`,
     });
   }
 }
@@ -141,6 +141,8 @@ export interface FillTotals {
   elapsedMs?: number;
   /** Reviewer usage the provider reported, for the closing line. */
   usage?: FillUsageTotals;
+  /** How every pair the run finished ended, for the closing line. */
+  outcomes?: FillProgressCounts;
 }
 
 /**
@@ -173,6 +175,7 @@ export function reportFillTotals(
       ...(totals.cachedRefusals !== undefined ? { cachedRefusals: totals.cachedRefusals } : {}),
       ...(totals.elapsedMs !== undefined ? { elapsedMs: totals.elapsedMs } : {}),
       ...(totals.usage !== undefined ? { usage: totals.usage } : {}),
+      ...(totals.outcomes !== undefined ? { outcomes: totals.outcomes } : {}),
     },
   });
   if (totals.infraFailures > 0) {
@@ -180,30 +183,30 @@ export function reportFillTotals(
     const tiers = [...new Set(totals.infraReport.map((r) => r.tier).filter(Boolean))].join(', ');
     const ids = [providers, tiers].filter((s) => s.length > 0).join(' / ');
     emitIssue({
-      what: `${totals.infraFailures} pairs failed on provider/config errors — re-running will not help until the connection/config is fixed${ids ? ` (${ids})` : ''}.`,
+      what: `${totals.infraFailures} ${totals.infraFailures === 1 ? 'pair' : 'pairs'} failed on provider/config errors — re-running will not help until the connection/config is fixed${ids ? ` (${ids})` : ''}.`,
       why: 'These pairs hit an infrastructure disposition (provider unreachable, tier unresolved, reference unreadable, an unparseable response, or a prompt-too-large gate). No verdict was written; the pairs stay unverified and the run ends red.',
-      next: `Fix the reviewer connection/configuration, then re-run: ${retry}. To unblock CI without a reviewer, set the affected aspect(s) to status: draft.`,
+      next: `Fix the reviewer connection or configuration, then re-run ${retry}. To unblock CI without a reviewer, set the affected rules to status: draft.`,
     });
   }
   if (totals.runtimeErrors > 0) {
     emitIssue({
-      what: `${totals.runtimeErrors} deterministic check(s) failed to run at fill time — left unverified (aspect-check-runtime-error).`,
+      what: `${totals.runtimeErrors} script ${totals.runtimeErrors === 1 ? 'check' : 'checks'} failed to run at fill time — left unverified (aspect-check-runtime-error).`,
       why: 'A check.mjs crashed, returned an invalid result, or observed a file that changed mid-run. No verdict was written.',
-      next: `Fix the failing check.mjs, then re-run: ${retry}.`,
+      next: `Fix the failing check.mjs, then re-run ${retry}.`,
     });
   }
   if (totals.malformedSuppressErrors > 0) {
     emitIssue({
-      what: `${totals.malformedSuppressErrors} pair(s) left unverified by a malformed yg-suppress marker (malformed-suppress-marker).`,
+      what: `${totals.malformedSuppressErrors} ${totals.malformedSuppressErrors === 1 ? 'pair' : 'pairs'} left unverified by a malformed yg-suppress marker (malformed-suppress-marker).`,
       why: 'A yg-suppress marker in a mapped source file is missing its required reason. This is a fault in the marker itself, not in the aspect being checked; no verdict was written.',
-      next: `Add a reason to the marker (or remove it), then re-run: ${retry}.`,
+      next: `Add a reason to the marker (or remove it), then re-run ${retry}.`,
     });
   }
   if (totals.companionRuntimeErrors > 0) {
     emitIssue({
-      what: `${totals.companionRuntimeErrors} companion resolution(s) failed to run at fill time — left unverified (aspect-companion-runtime-error).`,
+      what: `${totals.companionRuntimeErrors} companion ${totals.companionRuntimeErrors === 1 ? 'resolution' : 'resolutions'} failed to run at fill time — left unverified (aspect-companion-runtime-error).`,
       why: 'A companion.mjs crashed, returned an invalid result, or its observations changed mid-run. No verdict was written.',
-      next: `Fix the failing companion.mjs, then re-run: ${retry}.`,
+      next: `Fix the failing companion.mjs, then re-run ${retry}.`,
     });
   }
 }

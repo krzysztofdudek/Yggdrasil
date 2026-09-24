@@ -302,9 +302,11 @@ describe('context pipeline integration', () => {
           'node', [BIN_PATH, 'check'],
           { cwd: subDir, encoding: 'utf-8' },
         );
-        // Should find .yggdrasil/ by walking up and report nodes
+        // Should find .yggdrasil/ by walking up and report nodes and coverage
+        // on the verdict line.
+        expect(result.stdout).toMatch(/^yg check: (PASS|FAIL) /);
         expect(result.stdout).toContain('nodes');
-        expect(result.stdout).toContain('aspects');
+        expect(result.stdout).toContain('files covered');
       });
     });
 

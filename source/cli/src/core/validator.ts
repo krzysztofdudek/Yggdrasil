@@ -1,4 +1,4 @@
-// yg-suppress-disable(silent-missing-files) validator.ts reads no optional files or directories itself — every file/dir read is delegated to the loader and parsers, so the aspect is vacuously satisfied; the per-node reviewer evaluates the file in isolation and cannot observe it performs no optional reads.
+// yg-suppress-disable(silent-missing-files) validator.ts reads no optional files or directories itself — every file/dir read is delegated to the loader and parsers.
 import { checkReviewerCredentials } from './checks/credentials.js';
 import type { Graph } from '../model/graph.js';
 import type { ValidationResult, ValidationIssue } from '../model/validation.js';
@@ -279,7 +279,7 @@ export async function validate(
       const msgData = {
         what: `Node not found: ${normalizedScope}`,
         why: 'Validation scope references a node that does not exist in the graph.',
-        next: 'Check the node path and try again.',
+        next: `yg find "${normalizedScope}"`,
       };
       return {
         issues: [{ severity: 'error', code: 'invalid-scope', rule: 'invalid-scope', ...issueMsg(msgData), messageData: msgData }],

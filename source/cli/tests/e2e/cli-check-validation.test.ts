@@ -502,12 +502,13 @@ describe.skipIf(!distExists)('CLI E2E — yg check surfaces blocking validation 
     try {
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
-      // Grouped view: the duplicate mapping surfaces as a file-duplicate-mapping
-      // group. The per-issue `what` (the shared file path) is no longer in the
-      // default body; assert the group label, shared why, and the owning node line.
+      // The duplicate mapping surfaces as a file-duplicate-mapping block naming
+      // the shared file; assert the label, the shared why, and the owning node lines.
       expect(all).toContain('file-duplicate-mapping');
       expect(all).toContain('Each source file must have exactly one owner node.');
-      expect(all).toContain('- beta');
+      expect(all).toContain("error[file-duplicate-mapping] File 'src/shared.ts' appears in mappings of multiple nodes");
+      expect(all).toMatch(/^ +alpha$/m);
+      expect(all).toMatch(/^ +beta$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

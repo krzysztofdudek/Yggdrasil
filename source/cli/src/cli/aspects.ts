@@ -800,7 +800,7 @@ function buildFpNotes(
   }
   if (!hasBlocks) return { telemetry: null, byAspect: detail };
   const since = telemetrySince ?? 'the first recorded event';
-  const caveat = committedNote ? ` Shared LLM events included (${committedNote}).` : '';
+  const caveat = committedNote ? ` Shared reviewer events included (${committedNote}).` : '';
   return { telemetry: `Local telemetry since ${since}.${caveat}`, byAspect: detail };
 }
 

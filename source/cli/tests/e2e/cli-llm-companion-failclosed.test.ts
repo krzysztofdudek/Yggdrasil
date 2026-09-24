@@ -162,12 +162,12 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       // Infra-fail on the checkout pair → exit 1.
       expect(fill.status).toBe(1);
       // The §4 gate now resolves the companion LIVE during the --approve run's final
-      // report, so the throwing-hook failure surfaces as a blocking grouped
-      // aspect-companion-runtime-error whose shared why carries the hook's OWN error
-      // (the old generic "companion hook threw" what line is no longer rendered).
-      expect(fill.all).toContain('aspect-companion-runtime-error');
+      // report, so the throwing-hook failure surfaces as a blocking
+      // aspect-companion-runtime-error block whose subject and why carry the hook's
+      // OWN error, located at the node the companion was resolved for.
+      expect(fill.all).toContain('error[aspect-companion-runtime-error] ');
       expect(fill.all).toContain('boom: deliberate hook failure');
-      expect(fill.all).toContain('- scenarios');
+      expect(fill.all).toContain('  at:   scenarios\n');
 
       // The OTHER two pairs filled (reviewer billed for them, not the thrown one).
       const v = verdicts(dir, 'throwing-companion');
@@ -185,10 +185,11 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       // where the hook's own error surfaces).
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      expect(after.all).toContain("aspect 'throwing-companion'");
+      expect(after.all).toContain('error[unverified] 1 pair with no verdict yet');
+      expect(after.all).toContain('  at:   throwing-companion @ references/e2e-test-scenarios/checkout.md\n');
       expect(after.all).toContain('companion.mjs was not run');
       expect(after.all).not.toContain('boom: deliberate hook failure');
-      expect(after.all).toContain('- scenarios');
+
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -642,12 +643,10 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
 
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // Grouped view: an enforced refusal renders as an `enforced` group naming the
-      // aspect, with the reviewer reason retained on the member node line (refusals
-      // are a FULL_WHAT code, so the per-node detail survives).
-      expect(after.all).toContain('enforced');
-      expect(after.all).toContain("aspect 'scenario-matches-test'");
-      expect(after.all).toContain('Reviewer reason: rule violated and no honored suppress');
+      // An enforced refusal renders as an error[refused] block naming the aspect,
+      // with the reviewer reason retained on the member node line.
+      expect(after.all).toContain('error[refused] scenario-matches-test — refused on scenarios');
+      expect(after.all).toContain('  at:   scenarios  rule violated and no honored suppress');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -700,8 +699,9 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
         dir,
       );
       expect(r.status).not.toBe(0);
-      expect(r.all).toContain("--files cannot be used with LLM aspect 'scenario-matches-test'.");
-      expect(r.all).toContain('LLM reviews require graph context');
+      expect(r.all).toContain("error[command-error]: --files cannot be used with reviewer rule 'scenario-matches-test'.");
+      expect(r.all).toContain('  why:  Reviews require graph context');
+
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

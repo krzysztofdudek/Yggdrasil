@@ -182,3 +182,5 @@ Every walk of a mapped directory re-read the .gitignore of each directory on the
 The security fixes (read-only commands no longer run repository companion hooks, symlinked rule sources refused, committed credentials blocked, portal Host check on every route with a shared cached extraction) and the scale fixes (per-command walk cache, mapping index, linear deterministic fill, cycle-scoped context) met in this component at merge. Both merged cleanly at source level and the merged code carries both behaviours; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-24T02:06:38.682Z]
 The events line gains two fields for auditing the reviewer: an approval's own reason, kept locally only (the committed stream strips every reason, as before), and on diagnostic lines a hash of the exact prompt judged, so an analysis can group votes by the input they were cast on. The vote tally is documented as counting verdict votes only, because provider-error votes are no longer part of a consensus.
+## [2026-09-24T07:24:05.973Z]
+A skipped symlinked log is reported with a lowercase warning: label, the one grammar every command speaks.

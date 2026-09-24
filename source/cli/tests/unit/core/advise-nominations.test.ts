@@ -47,7 +47,7 @@ describe('buildNominations — live sources', () => {
     const overdue = noms.find((n) => n.id === 'overdue-review-by:requires-logging');
     expect(overdue).toBeDefined();
     expect(overdue!.evidenceHash).toMatch(HEX64);
-    expect(overdue!.next).toContain("Requires the user's approval");
+    expect(overdue!.next).toContain('ask the user to approve it first');
 
     // Same graph + same clock → identical evidence hash (deterministic).
     const again = buildNominations(graph, { todayUtc: TODAY });
@@ -120,7 +120,7 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
 /** The always-on incident reality-counter line (only N varies; singular at N=1). */
 const INC = (n: number) =>
   n === 0
-    ? '0 incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
+    ? 'no incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
     : `${n} incident${n === 1 ? '' : 's'} on record — the only evidence from outside the graph that a rule missed something; see .yggdrasil/incidents.md`;
 /** The wrong-rule miscalibration-evidence line (only K varies; singular at K=1). */
 const WRONG = (k: number) =>
@@ -245,7 +245,7 @@ describe('buildNominations — T0-local drill MISS', () => {
     expect(miss!.why).toContain('local diagnostic result since 2026-07-01T00:00:00.000Z');
     expect(miss!.why).toContain('expects a refusal but the current rule returned satisfied');
     expect(miss!.why).not.toContain('stale');
-    expect(miss!.next).toContain("Requires the user's approval");
+    expect(miss!.next).toContain('ask the user to approve it first');
   });
 
   it('renders a STALE MISS (ruleHash no longer matches) as a benign re-run note', async () => {
@@ -315,10 +315,10 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     expect(promo!.why).toContain('2 approved and 0 refused');
     expect(promo!.why).toContain('small-N');
     expect(promo!.why).toContain('local telemetry since 2026-07-01T00:00:00.000Z');
-    expect(promo!.next).toContain("Requires the user's approval");
+    expect(promo!.next).toContain('ask the user to approve it first');
   });
 
-  it('labels an LLM promotion "regime unknown" when the judge identity is missing', async () => {
+  it('labels an LLM promotion "reviewer unknown" when the judge identity is missing', async () => {
     const graph = await loadGraph(projectRoot);
     const noJudge: VerdictEvent = {
       v: 1,
@@ -332,7 +332,7 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: [noJudge] });
     const promo = noms.find((n) => n.id === 'promotion:requires-audit');
     expect(promo).toBeDefined();
-    expect(promo!.why).toContain('regime unknown');
+    expect(promo!.why).toContain('reviewer unknown');
   });
 
   it('does NOT nominate promotion when any refusal is on record', async () => {
@@ -360,7 +360,7 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     expect(sharpen!.classRank).toBe(70);
     expect(sharpen!.why).toContain('reviewed 5 times');
     expect(sharpen!.why).toContain('2 satisfied and 3 refused');
-    expect(sharpen!.next).toContain("Requires the user's approval");
+    expect(sharpen!.next).toContain('ask the user to approve it first');
   });
 
   // Issue 209 (M12): the ordinary fix loop — refused on the original code, the
@@ -447,7 +447,7 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     expect(hot!.why).toContain('no rule beyond drafts verifies any of them');
     expect(hot!.why).not.toContain('enforced');
     expect(hot!.next).toContain('propose an aspect or a coverage node');
-    expect(hot!.next).toContain('requires their approval');
+    expect(hot!.next).toContain('Ask the user to approve it first');
     expect(hot!.next).toContain(
       'Evidence: src/checkout/controller.ts (last 200 commits, from git history).',
     );
@@ -707,7 +707,7 @@ describe('buildNominations — T1 sharpen: regime label, recency, multi-unit tie
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
-  it('labels sharpen "regime unknown" when the judge identity is missing on a repeat vote', async () => {
+  it('labels sharpen "reviewer unknown" when the judge identity is missing on a repeat vote', async () => {
     const graph = await loadGraph(projectRoot);
     const events: VerdictEvent[] = [
       {
@@ -736,7 +736,7 @@ describe('buildNominations — T1 sharpen: regime label, recency, multi-unit tie
     const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: events });
     const sharpen = noms.find((n) => n.id === 'sharpen:requires-logging');
     expect(sharpen).toBeDefined();
-    expect(sharpen!.why).toContain('regime unknown');
+    expect(sharpen!.why).toContain('reviewer unknown');
   });
 
   it('keeps evidenceTs as the true max timestamp across out-of-order repeat votes', async () => {
@@ -870,7 +870,7 @@ describe('buildNominations — T1 decorative-rule (never violated, corroborated 
     expect(decorative!.why).toContain('caught 0 of 20 recorded checks');
     expect(decorative!.why).toContain('attach set is shrinking');
     expect(decorative!.next).toContain('demoting rule');
-    expect(decorative!.next).toContain("Requires the user's approval");
+    expect(decorative!.next).toContain('ask the user to approve it first');
     expect(decorative!.evidenceHash).toMatch(HEX64);
     // The other fixture aspect (requires-logging) has no telemetry at all here, so
     // it must NOT be nominated (label 'quiet', not 'decorative?').

@@ -1,20 +1,11 @@
 name: Group Issues
 type: command-support
-description: "Command-layer helper that collapses a flat CheckIssue list into
-  grouped IssueGroup records for the yg check grouped output view. Houses
-  the shared FULL_WHAT_CODES, getIssueLabel, and issuePriorityRank utilities
-  consumed by both the grouping logic and the check command renderer. Every
-  -outside twin code set (CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES,
-  COVERAGE_GROUP_EXCLUDED_CODES) is DERIVED from SCOPED_CODES rather than
-  hand-listed, and getIssueLabel borrows its mirror's label for a twin rather
-  than a second label rule. issuePriorityRank sub-ranks a -outside twin after
-  every ordinary warning (never merely tied and left to alphabetical label
-  order), so a run whose only warnings are inherited debt cannot bury a
-  genuine advisory finding beneath it in the grouped Warnings section or a
-  --top slice. issuePriorityRank puts a configuration, architecture or component file that did not load (config-invalid, architecture-invalid, yaml-invalid) ahead of everything, the lock next, because every other finding in such a run may be a symptom of it."
+description: "Command-layer helper that collapses a flat CheckIssue list into grouped IssueGroup records, used by the check report's block builder and by the portal worklist. Houses FULL_WHAT_CODES, getIssueLabel (the code registry's label for a finding — refused, unmapped, uncovered, unverified, a -outside twin's label with that suffix, else the code), issueTierRank and issuePriorityRank. An unverified finding groups by its cause, which decides its fix. Groups sort by tier first (the graph did not load, code and graph errors, gate prerequisites, pending) and by the fixed priority within it; a -outside twin sub-ranks after every ordinary warning, so inherited debt never buries a genuine warning. Every -outside twin code set (CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES) is derived from SCOPED_CODES rather than hand-listed."
 mapping:
   - source/cli/src/cli/group-issues.ts
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/check-codes
     type: calls
   - target: cli/core/check

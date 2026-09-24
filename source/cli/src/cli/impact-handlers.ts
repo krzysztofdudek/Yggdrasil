@@ -17,7 +17,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { fail } from './output.js';
+import { fail, plural } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -195,14 +195,14 @@ export async function handleAspectImpact(
   );
   process.stdout.write(`Implied by: ${impliedBy.length > 0 ? impliedBy.join(', ') : '(none)'}\n`);
   process.stdout.write(`Implies: ${implies.length > 0 ? implies.join(', ') : '(none)'}\n`);
-  process.stdout.write(`\nBlast radius: ${affected.length + indirectPaths.length} nodes, ${propagatingFlows.length} flows\n`);
+  process.stdout.write(`\nBlast radius: ${affected.length + indirectPaths.length} ${plural(affected.length + indirectPaths.length, 'node')}, ${propagatingFlows.length} ${plural(propagatingFlows.length, 'flow')}\n`);
   process.stdout.write(renderFillCost(cost, affected.length));
   const totalAffected = affected.length + indirectPaths.length;
   if (totalAffected >= 10) {
     process.stdout.write(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
   }
   process.stdout.write(
-    `\nNext: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.\n`,
+    `\nnext: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.\n`,
   );
 }
 
@@ -262,13 +262,13 @@ function renderFillCost(cost: FillCost, affectedNodes: number): string {
     : '';
   if (cost.kind === 'deterministic') {
     return (
-      `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)${fileNote}) would become unverified if this aspect changes — ` +
+      `  All ${affectedNodes} affected ${plural(affectedNodes, 'node')} (${cost.units} ${plural(cost.units, 'pair')}${fileNote}) would become unverified if this aspect changes — ` +
       `re-verified for free by yg check --approve (deterministic, no reviewer calls).\n`
     );
   }
   return (
-    `  All ${affectedNodes} affected node(s) (${cost.units} pair(s)${fileNote}) would become unverified if this aspect changes — ` +
-    `re-verified by yg check --approve at ${cost.reviewerCalls} reviewer call(s) (consensus included).\n`
+    `  All ${affectedNodes} affected ${plural(affectedNodes, 'node')} (${cost.units} ${plural(cost.units, 'pair')}${fileNote}) would become unverified if this aspect changes — ` +
+    `re-verified by yg check --approve at ${cost.reviewerCalls} reviewer ${plural(cost.reviewerCalls, 'call')} (consensus included).\n`
   );
 }
 
@@ -350,7 +350,7 @@ export function renderImpactTotal(summary: ImpactSummary, editedFile: string, op
   const shown = opts.isTTY && summary.byNode.length > CAP_NODES ? summary.byNode.slice(0, CAP_NODES) : summary.byNode;
   for (const n of shown) {
     const parts: string[] = [];
-    if (n.llmPairs > 0) parts.push(`${n.llmPairs} LLM = ${n.reviewerCalls} reviewer call(s)`);
+    if (n.llmPairs > 0) parts.push(`${n.llmPairs} reviewer = ${n.reviewerCalls} reviewer ${plural(n.reviewerCalls, 'call')}`);
     if (n.detPairs > 0) parts.push(`${n.detPairs} deterministic`);
     const why = n.reasons.map((r) => REASON_GLOSS[r]).join(', ');
     lines.push(`  ${n.nodePath}  ${parts.join(', ')}  (${why})`);
@@ -358,15 +358,15 @@ export function renderImpactTotal(summary: ImpactSummary, editedFile: string, op
   if (opts.isTTY && summary.byNode.length > CAP_NODES) {
     lines.push(`  ... and ${summary.byNode.length - CAP_NODES} more (yg impact --file ${editedFile} | less)`);
   }
-  lines.push(`\nTotal to re-verify: ${summary.billedReviewerCalls} reviewer call(s) — billed by yg check --approve.`);
-  lines.push(`                    ${summary.freeDeterministic} deterministic pair(s) — free.`);
-  lines.push(`                    ${summary.greensReRolled} currently-green verdict(s) re-rolled.`);
+  lines.push(`\nTotal to re-verify: ${summary.billedReviewerCalls} reviewer ${plural(summary.billedReviewerCalls, 'call')} — billed by yg check --approve.`);
+  lines.push(`                    ${summary.freeDeterministic} deterministic ${plural(summary.freeDeterministic, 'pair')} — free.`);
+  lines.push(`                    ${summary.greensReRolled} currently-green ${plural(summary.greensReRolled, 'verdict')} re-rolled.`);
   if (summary.fileLevelPairs > 0) {
     // Named explicitly: these pairs have no owning component, so no row above
     // lists them — without this line the totals would look larger than the
     // sum of the rows shown, with no explanation why.
     lines.push(
-      `                    (${summary.fileLevelPairs} of these pair(s) belong to a file enforced by its architecture type alone — no component row lists them above)`,
+      `                    (${summary.fileLevelPairs} of these ${plural(summary.fileLevelPairs, 'pair')} belong to a file enforced by its architecture type alone — no component row lists them above)`,
     );
   }
   if (summary.unresolved.length > 0) {
@@ -435,10 +435,10 @@ export async function computeNodeFillCost(
  */
 export function renderNodeFillCost(cost: NodeFillCost, subject: 'node' | 'file'): string {
   return (
-    `  Editing this ${subject} re-verifies: ${cost.llmPairs} LLM pair(s) = ` +
-    `${cost.reviewerCalls} reviewer call(s) (consensus included); ` +
+    `  Editing this ${subject} re-verifies: ${cost.llmPairs} reviewer ${plural(cost.llmPairs, 'pair')} = ` +
+    `${cost.reviewerCalls} reviewer ${plural(cost.reviewerCalls, 'call')} (consensus included); ` +
     `${cost.detPairs} deterministic = free; ` +
-    `${cost.greensReRolled} currently-green verdict(s) re-rolled.\n`
+    `${cost.greensReRolled} currently-green ${plural(cost.greensReRolled, 'verdict')} re-rolled.\n`
   );
 }
 
@@ -503,8 +503,8 @@ export function renderGraduationPreview(preview: GraduationPreview): string {
     return `\nGiving this file a component of its own re-checks nothing — it currently has no aspect pairs of its own.\n`;
   }
   const parts: string[] = [];
-  if (preview.detPairsReVerified > 0) parts.push(`${preview.detPairsReVerified} check(s)`);
-  if (preview.llmPairsReVerified > 0) parts.push(`${preview.llmPairsReVerified} review(s) ≈ ${preview.reviewerCalls} reviewer call(s)`);
+  if (preview.detPairsReVerified > 0) parts.push(`${preview.detPairsReVerified} ${plural(preview.detPairsReVerified, 'check')}`);
+  if (preview.llmPairsReVerified > 0) parts.push(`${preview.llmPairsReVerified} ${plural(preview.llmPairsReVerified, 'review')} ≈ ${preview.reviewerCalls} reviewer ${plural(preview.reviewerCalls, 'call')}`);
   return `\nGiving this file a component of its own re-checks ${parts.join(', ')} — the pair hash folds nodePath, so every pair on this file re-verifies once it gains one, whether or not the rule itself changed.\n`;
 }
 
@@ -559,13 +559,13 @@ export async function handleFlowImpact(
   );
   const declaredParticipants = flow.nodes.filter((n) => graph.nodes.has(n));
   process.stdout.write(`\nBlast radius: ${sorted.length + indirectPaths.length} nodes\n`);
-  process.stdout.write(`  All ${declaredParticipants.length} participant(s) would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`);
+  process.stdout.write(`  All ${declaredParticipants.length} ${plural(declaredParticipants.length, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`);
   const totalFlowAffected = sorted.length + indirectPaths.length;
   if (totalFlowAffected >= 10) {
     process.stdout.write(`  High blast radius — review flow compliance in participants before modifying.\n`);
   }
   process.stdout.write(
-    `\nNext: review the participants above before editing the flow, then run yg check --approve to re-verify them.\n`,
+    `\nnext: review the participants above before editing the flow, then run yg check --approve to re-verify them.\n`,
   );
 }
 
@@ -703,10 +703,10 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
     const impact = await computeTypeVerdictImpact(graph, typeId, typeCoverage!, lock);
     process.stdout.write(`\nFiles enforced by this type: ${impact.typeCoveredFiles}\n`);
     process.stdout.write(
-      `At stake: ${impact.detPairs} free check(s), ${impact.llmPairs} review(s) = ${impact.reviewerCalls} reviewer call(s)\n`,
+      `At stake: ${impact.detPairs} free ${plural(impact.detPairs, 'check')}, ${impact.llmPairs} ${plural(impact.llmPairs, 'review')} = ${impact.reviewerCalls} reviewer ${plural(impact.reviewerCalls, 'call')}\n`,
     );
     if (impact.greensAtStake > 0) {
-      process.stdout.write(`  ${impact.greensAtStake} currently-green verdict(s) at stake.\n`);
+      process.stdout.write(`  ${impact.greensAtStake} currently-green ${plural(impact.greensAtStake, 'verdict')} at stake.\n`);
     }
   }
 
@@ -757,7 +757,7 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
   }
   process.stdout.write(
     typeCoveredPaths.length > 0
-      ? `\nNext: review the nodes and covered files of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`
-      : `\nNext: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`,
+      ? `\nnext: review the nodes and covered files of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`
+      : `\nnext: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`,
   );
 }

@@ -61,7 +61,7 @@ describe('the never-channel family for type-covered files', () => {
       nowMs: Date.now(),
     });
     expect(result.ok).toBe(false);
-    expect(result.ok === false && result.error.what).toMatch(/not found/i);
+    expect(result.ok === false && result.error.what).toMatch(/not in the graph/i);
   });
 
   it('description-missing never fires for a type-covered file — the check iterates graph.nodes only, which a type-covered file never joins', async () => {

@@ -56,7 +56,8 @@ describe.skipIf(!distExists)('CLI E2E — closed output pipe', () => {
       expect(status).toBe(0);
       // The verdict landed: a plain check afterwards is green with nothing to fill.
       const after = spawnSync('node', [BIN_PATH, 'check', '--no-approve'], { cwd: dir, encoding: 'utf-8' });
-      expect(after.stdout).toContain('verified (');
+      expect(after.stdout).toMatch(/^yg check: PASS {2}.* · \d+ pairs? verified \(script\)$/m);
+      expect(after.stdout).not.toMatch(/^(error|warning)\[unverified\]/m);
       expect(after.status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });

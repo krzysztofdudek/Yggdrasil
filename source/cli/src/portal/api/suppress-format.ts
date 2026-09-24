@@ -59,13 +59,15 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
   lines.push(`Total: ${report.totalMarkers} marker${report.totalMarkers === 1 ? '' : 's'} across ${fileCount} file${fileCount === 1 ? '' : 's'}.`);
 
   // Warnings
-  if (report.warnings.length > 0) {
+  // Each warning as a block of the one grammar: `warning[<code>] <what>`,
+  // then its labelled why and its fix.
+  const records = report.warningRecords ?? report.warnings.map((message) => ({ code: '', message }));
+  for (const w of records) {
+    const [what, ...rest] = w.message.split('\n');
     lines.push('');
-    lines.push(chalk.yellow(`Warnings (${report.warnings.length}):`));
-    for (const w of report.warnings) {
-      // Indent each line of the warning message
-      const indented = w.split('\n').map(l => `  ${l}`).join('\n');
-      lines.push(chalk.yellow(indented));
+    lines.push(chalk.yellow(`warning${w.code !== '' ? `[${w.code}]` : ''} ${what}`));
+    for (const l of rest) {
+      lines.push(l.startsWith('next: ') ? `  fix:  ${l.slice('next: '.length)}` : l.startsWith('      ') ? `  ${l}` : l);
     }
   }
 

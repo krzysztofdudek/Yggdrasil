@@ -99,14 +99,14 @@ exit: 1
         "kind": "node",
         "path": "alpha"
       },
-      "label": "stale"
+      "label": "unverified"
     },
     {
       "code": "aspect-violation-enforced-outside",
       "severity": "warning",
       "what": "Aspect 'no-todo-comments' is refused on node:beta by a deterministic check.\nViolations:\nsrc/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker.",
-      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
-      "next": "Fix the listed violations, then: yg check --approve",
+      "why": "Source files must not contain TODO comments — track work in the issue tracker, not the code.",
+      "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo-comments",
       "node": "beta",
       "unit": "node:beta",
@@ -121,7 +121,7 @@ exit: 1
           "message": "TODO comment found — remove it or track the work in the issue tracker."
         }
       ],
-      "label": "enforced (outside changes)"
+      "label": "refused-outside"
     },
     {
       "code": "rules-digest-stale",
@@ -148,9 +148,11 @@ exit: 1
   "groups": [
     {
       "code": "unverified",
-      "label": "stale",
+      "label": "unverified",
       "aspect": null,
       "severity": "error",
+      "subject": "1 pair whose inputs changed since the verdict",
+      "cause": "stale",
       "why": "A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.",
       "next": "yg check --approve",
       "members": [
@@ -162,6 +164,7 @@ exit: 1
       "label": "rules-digest-stale",
       "aspect": null,
       "severity": "warning",
+      "subject": "Committed agent-rules digest is out of sync: AGENTS.md digest block is missing; .clinerules/yggdrasil.md is missing; CLAUDE.md @AGENTS.md import is missing",
       "why": "Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.",
       "next": "yg init --upgrade",
       "members": [
@@ -170,16 +173,37 @@ exit: 1
     },
     {
       "code": "aspect-violation-enforced-outside",
-      "label": "enforced (outside changes)",
+      "label": "refused-outside",
       "aspect": "no-todo-comments",
       "severity": "warning",
-      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
-      "next": "Fix the listed violations, then: yg check --approve",
+      "subject": "no-todo-comments — 1 violation in beta — outside your changes",
+      "why": "Source files must not contain TODO comments — track work in the issue tracker, not the code.",
+      "next": null,
       "members": [
         1
       ]
     }
   ],
+  "next": {
+    "command": [
+      "yg",
+      "check",
+      "--approve"
+    ],
+    "text": "yg check --approve",
+    "target": {
+      "node": "alpha"
+    },
+    "cost": {
+      "free": 1,
+      "reviewerPairs": 0
+    },
+    "remaining": {
+      "needsFix": 0,
+      "fillable": 1
+    },
+    "then": null
+  },
   "banner": null
 }
 --- stderr

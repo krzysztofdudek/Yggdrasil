@@ -2,6 +2,6 @@ $ yg owner --file nope.ts
 exit: 0
 --- stdout
 nope.ts -> no graph coverage (file not found)
-This path does not exist on disk and is not mapped by any graph node.
-Check the path for typos; once the file exists, add it to a node's mapping in yg-node.yaml.
+  why:  This path does not exist on disk and is not mapped by any graph node.
+next: Check the path for typos; once the file exists, add it to a node's mapping in yg-node.yaml.
 --- stderr

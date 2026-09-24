@@ -295,13 +295,15 @@ mapping:
       appendFileSync(ordersSrc(dir), '\n// NOLOG here\n');
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Per-pair fill verdicts: the implier (channel 6) holds; the implied
-      // aspect (channel 7) refuses — proving the implied aspect is enforced.
-      expect(fill.stderr).toContain('[det] diagnostic-logging on node:services/orders — refused');
-      // The grouped enforced refusal names the implied aspect in its header and
-      // lists the consumer node it refuses on.
-      expect(fill.stdout).toMatch(/enforced\s+1 pair\s+1 node\s+aspect 'diagnostic-logging'/);
-      expect(fill.stdout).toContain('- services/orders');
+      // Fill verdicts: the implier (channel 6) holds and the implied aspect
+      // (channel 7) refuses — the closing fill line counts one of each.
+      expect(fill.stderr).toMatch(/fill {2}done in \S+ — 1 approved · 1 refused · 0 failed/);
+      // The enforced refusal block (error[refused]) names the implied aspect in
+      // its subject — proving the implied aspect is enforced — and lists the
+      // consumer node it refuses on.
+      expect(fill.stdout).toContain("error[refused] diagnostic-logging — 1 violation in services/orders");
+      expect(fill.stdout).toMatch(/at: {3}services\/orders {2}src\/services\/orders\.ts:\d+ {2}NOLOG token found\./);
+      expect(fill.stdout).not.toContain('refused] audit-required');
 
       // The recorded Violation[] detail (file + message) surfaces through the
       // diagnostic runner — yg check renders only the one-line headline.
@@ -404,10 +406,11 @@ mapping:
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check`/`yg check --approve` here.
-      expect(fill.all).toContain('[det] diag-advisory on node:services/orders — refused');
-      expect(fill.all).toContain('PASS (2 warnings)');
-      expect(fill.all).toContain('advisory');
-      expect(fill.all).toContain('diag-advisory');
+      expect(fill.all).toMatch(/fill {2}done in \S+ — 1 approved · 1 refused · 0 failed/);
+      expect(fill.all).toContain('yg check: PASS  2 warnings');
+      // Advisory refusal: a warning-severity refused block, not an error.
+      expect(fill.all).toContain('warning[refused] diag-advisory — 1 violation in services/orders');
+      expect(fill.all).not.toContain('error[refused]');
       expect(fill.all).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -728,7 +731,7 @@ mapping:
       expect(all).toContain('structural-cycle');
       // The grouped block carries the shared cycle WHY and the break-the-cycle Fix.
       expect(all).toContain('Cycles prevent deterministic context assembly and cascade tracking.');
-      expect(all).toContain('Break the cycle: extract a shared interface, invert a dependency, or merge nodes.');
+      expect(all).toContain('— extract a shared interface, invert a dependency, or merge nodes.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

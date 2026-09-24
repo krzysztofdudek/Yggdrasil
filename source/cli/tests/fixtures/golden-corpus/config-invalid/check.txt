@@ -1,34 +1,30 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  4 nodes · 3/8 files (38%) · 1 aspect · 0 flows
+yg check: FAIL  5 errors   4 nodes · 3/8 files covered
 
-Partial result: yg-config.yaml did not load, so its defaults were used. The findings below were computed without it and may be symptoms of it — fix it first.
+partial: yg-config.yaml did not load, so its defaults were used — the findings below were computed without it and may be symptoms of it; fix it first.
 
-Errors (5) in 2 groups:
+error[config-invalid] yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:
+  at:   quality: [
+        ^
+  why:  Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.
+  fix:  Fix the syntax error in .yggdrasil/yg-config.yaml.
 
-  config-invalid
-            yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:
-            quality: [
-            ^
-            Why: Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.
-            Fix: Fix the syntax error in .yggdrasil/yg-config.yaml.
+error[unmapped] 5 files belong to no node
+  at:   .clinerules/yggdrasil.md
+        .gitattributes
+        AGENTS.md
+        CLAUDE.md
+        src/tools/gen.ts
+  why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
 
-  unverified (deterministic check not run on this checkout — free)  3 pairs  3 nodes
-            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
-            Fix: yg check --approve --only-deterministic  (3 script pairs, free)
-            - app/svc-01  aspect 'no-todo'
-            - app/svc-02  aspect 'no-todo'
-            - app/svc-03  aspect 'no-todo'
+error[unverified] 3 pairs whose script check has not run on this checkout — free to run
+  at:   no-todo  3 pairs · 3 nodes · script
+  why:  Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+  fix:  yg check --approve --only-deterministic  (3 script pairs · free)
 
-  unmapped (5)
-            .clinerules/yggdrasil.md
-            .gitattributes
-            AGENTS.md
-            CLAUDE.md
-            src/tools/gen.ts
-            Why: No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
-            Fix: Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
-
-Next: Fix the syntax error in .yggdrasil/yg-config.yaml.
+next: edit .yggdrasil/yg-config.yaml  (config-invalid — 2 errors need a code or graph fix)
+then: yg check --approve --only-deterministic  (3 script pairs · free)
 --- stderr

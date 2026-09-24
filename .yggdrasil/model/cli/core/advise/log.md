@@ -80,3 +80,7 @@ The environment-robustness fixes and the release work already merged met in this
 The incident counter no longer calls incidents 'the only external oracle', jargon a first-time reader could not decode; it says what they are: the only evidence from outside the graph that a rule missed something.
 ## [2026-09-24T01:18:19.258Z]
 The sharpen nomination claimed the reviewer judged the same input inconsistently, but it tallied every diagnostic vote per rule and unit regardless of what was judged. In a field trial the normal loop of refusing, fixing the code and passing produced that nomination, and acting on it would re-bill every pair of a rule that had judged consistently. Votes now count together only when they share the prompt hash and the same judge, and diagnostic lines written before the hash existed are ignored because they cannot say what they judged; a real split on one input still nominates.
+## [2026-09-24T07:23:57.080Z]
+Every human sign-off in the attention feed is phrased the same way — ask the user to approve it first — instead of three different wordings, one of which addressed the reader as 'your approval', which an agent reads as licence to approve itself; the incidents line says none in words, and a label that read 'regime unknown' now says which reviewer is unknown.
+## [2026-09-24T10:25:48.786Z]
+The churning type-covered file nomination names the file in its next step.

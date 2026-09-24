@@ -18,6 +18,7 @@ import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
+import { warn } from './output.js';
 
 /**
  * Core logic for `yg type-suggest --file <path>`.
@@ -46,8 +47,11 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
 
   if (repoRelPath.startsWith('.yggdrasil/')) {
     process.stdout.write(
-      `\nThis path is inside .yggdrasil/ — auto-exempt from classification.\n` +
-        `Type matching does not apply here.\n\n`,
+      `\n${buildIssueMessage({
+        what: `This path is inside .yggdrasil/ — auto-exempt from classification.`,
+        why: 'The graph\'s own directory is never classified. Type matching does not apply here.',
+        next: 'No action needed.',
+      })}\n\n`,
     );
     return;
   }
@@ -83,13 +87,11 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
 
   const gitignoreStack = await loadRootGitignoreStack(repoRoot);
   if (existsSync(absPath) && isIgnoredByStack(absPath, gitignoreStack)) {
-    process.stderr.write(
-      chalk.yellow(
-        `\nWarning: '${repoRelPath}' is matched by .gitignore.\n` +
-          `Classification will run, but a node mapping this file would fire\n` +
-          `file-mapping-gitignored. Proceeding with classification for context.\n\n`,
-      ),
-    );
+    warn({
+      what: `'${repoRelPath}' is matched by .gitignore.`,
+      why: 'Classification still runs, but a node mapping this file would fire file-mapping-gitignored.',
+      next: `Remove '${repoRelPath}' from .gitignore before mapping it, or leave it unmapped.`,
+    });
   }
 
   if (!existsSync(absPath)) {
@@ -106,7 +108,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
       process.stdout.write(`No type's path predicate matches this file path.\n`);
     }
     process.stdout.write(
-      `\nNEXT\n  Create the file, then re-run yg type-suggest for full validation.\n\n`,
+      `\nnext: create the file, then run yg type-suggest --file ${repoRelPath} again for the full check\n\n`,
     );
     return;
   }
@@ -127,10 +129,10 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     }
     printUnreadableTypes(result.unreadable);
     process.stdout.write(
-      `\nNEXT\n  Three options:\n` +
-        `  1. Move file under a path matching an existing type's when\n` +
-        `  2. Refactor file to satisfy a type's content predicate\n` +
-        `  3. Add a new type to yg-architecture.yaml that fits this file\n\n`,
+      `\nnext: one of three —\n` +
+        `  1. move the file under a path an existing type's when matches\n` +
+        `  2. change the file so it satisfies a type's content predicate\n` +
+        `  3. add a type that fits it to .yggdrasil/yg-architecture.yaml (an architecture change — ask the user to approve it first)\n\n`,
     );
     return;
   }
@@ -151,8 +153,11 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   }
   printUnreadableTypes(result.unreadable);
   process.stdout.write(
-    `\nNEXT\n  Architecture has overlapping when between types.\n` +
-      `  Check each type's description and aspects in yg-architecture.yaml.\n\n`,
+    `\n${buildIssueMessage({
+      what: 'The architecture has overlapping when predicates between these types.',
+      why: 'A file must match exactly one type, or its rules and its place in the graph are ambiguous.',
+      next: "compare each type's description and aspects in .yggdrasil/yg-architecture.yaml, and narrow one when",
+    })}\n\n`,
   );
 }
 

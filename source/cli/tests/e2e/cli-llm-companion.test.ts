@@ -174,16 +174,12 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
 
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // Grouped view: the unverified group fires for this aspect with EXACTLY one
-      // pair (only checkout's pair invalidated; the sibling specs are untouched and
-      // never enter the group). The per-unit `what` (`No valid verdict … on file:…`)
-      // is no longer rendered; the chatCount delta + byte-identical siblings below
-      // pin down WHICH pair re-billed.
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pair  ");
-      expect(after.all).toContain("aspect 'scenario-matches-test'");
-      expect(after.all).toContain('- scenarios');
-      expect(after.all).toContain('Fix: yg check --approve');
+      // The unverified block fires for this aspect with EXACTLY one pair (only
+      // checkout's pair invalidated; the sibling specs are untouched and never
+      // enter the block), and its member line names that pair.
+      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/checkout\.md$/m);
+      expect(after.all).toContain('  fix:  yg check --approve  (1 reviewer pair · paid)');
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -218,12 +214,10 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       // Only the login pair's subject hash changed → exactly one pair unverified.
-      // The grouped view no longer prints the per-unit subject path; the chatCount
-      // delta (1) below confirms only the login pair re-billed.
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pair  ");
-      expect(after.all).toContain("aspect 'scenario-matches-test'");
-      expect(after.all).toContain('- scenarios');
+      // The member line names the login pair; the chatCount delta (1) below
+      // confirms only it re-billed.
+      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/login\.md$/m);
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -251,12 +245,10 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
 
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // content.md edit invalidates ALL three file pairs → unverified group shows
-      // 3 pairs (the per-unit subject paths are no longer rendered; the 3-pair
-      // count is the surviving signal that every pair re-billed).
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("3 pairs");
-      expect(after.all).toContain("aspect 'scenario-matches-test'");
+      // content.md edit invalidates ALL three file pairs → the unverified block
+      // counts 3 pairs on the aspect's rule line.
+      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node · reviewer$/m);
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -287,10 +279,9 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
-      // (unverified group shows 3 pairs).
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("3 pairs");
-      expect(after.all).toContain("aspect 'scenario-matches-test'");
+      // (the unverified block counts 3 pairs on the aspect's rule line).
+      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node · reviewer$/m);
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -331,10 +322,9 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
-      // (unverified group shows 3 pairs for the empty-companion aspect).
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("3 pairs");
-      expect(after.all).toContain("aspect 'empty-companion'");
+      // (the unverified block counts 3 pairs for the empty-companion aspect).
+      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +empty-companion {2}3 pairs · 1 node · reviewer$/m);
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
       expect(mock.chatCount() - callsBefore).toBe(3);
@@ -418,13 +408,10 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       appendFileSync(specTs(dir, 'search.spec.ts'), '\n// edited\n');
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      // The single per:node unit invalidates → unverified group shows 1 pair for
-      // the per-node-companion aspect on the scenarios node (the per-unit
-      // `on node:scenarios.` detail is no longer rendered in the grouped view).
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pair  ");
-      expect(after.all).toContain("aspect 'per-node-companion'");
-      expect(after.all).toContain('- scenarios');
+      // The single per:node unit invalidates → the unverified block holds 1 pair,
+      // the per-node-companion aspect on the scenarios node.
+      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expect(after.all).toMatch(/^ {2}at: +per-node-companion @ scenarios$/m);
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
       expect(mock.chatCount() - callsBefore).toBe(1);
@@ -540,7 +527,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       expect(after.all).toContain('companion.mjs was not run');
-      expect(after.all).toContain('- scenarios');
+      expect(after.all).toMatch(/^ {2}at: +[\w-]+ @ references\/e2e-test-scenarios\/\w+\.md$|^ {2}at: +[\w-]+ {2}\d+ pairs · 1 node · reviewer$/m);
       const approve = run(['check', '--approve'], dir);
       expect(approve.status).toBe(1);
       expect(approve.all).toContain('aspect-companion-runtime-error');
@@ -584,10 +571,8 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // (1) below confirms only the missing pair re-reviewed.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(check.all).toContain("1 pair  ");
-      expect(check.all).toContain("aspect 'scenario-matches-test'");
-      expect(check.all).toContain('- scenarios');
+      expect(check.all).toMatch(/^error\[unverified\] 1 pair /m);
+      expect(check.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/checkout\.md$/m);
 
       const callsBefore = mock.chatCount();
       const refill = await runAsync(['check', '--approve'], dir);

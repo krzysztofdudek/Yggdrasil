@@ -80,6 +80,8 @@ export function llmRefusedMessage(params: {
   reason: string;
   /** Name of the judge, when the verdict was recorded outside the configured reviewer. */
   judge?: string;
+  /** What the rule is for, in a sentence — the first sentence of its description. */
+  intent?: string;
 }): IssueMessage {
   // A verdict recorded by someone other than the configured reviewer names them
   // in the same breath as the refusal. A reader deciding what to do about a
@@ -93,12 +95,12 @@ export function llmRefusedMessage(params: {
   const by = params.judge === undefined ? '' : `Judged by '${params.judge}' (external).\n`;
   return {
     what: `Aspect '${params.aspectId}' is refused on ${params.unitKey}. cached verdict — the reviewer did NOT re-run; inputs are identical to the refused review.\n${by}Reviewer reason: ${params.reason}`,
-    why: 'A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.',
+    why: params.intent ?? 'A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.',
     next:
-      `Four exits:\n` +
+      `Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:\n` +
       `  1. Fix the code so it satisfies aspect '${params.aspectId}', then: yg check --approve\n` +
       `  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check \`yg impact --aspect ${params.aspectId}\` first.\n` +
-      `  3. Propose a \`yg-suppress\` to the user for a deliberate exception (user must approve the reason).\n` +
+      `  3. Propose a \`yg-suppress\` to the user for a deliberate exception — ask the user to approve the reason.\n` +
       `  4. Not sure yet which it is: propose \`status: advisory\` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.`,
   };
 }
@@ -112,11 +114,13 @@ export function detRefusedMessage(params: {
   aspectId: string;
   unitKey: string;
   reason: string;
+  /** What the rule is for, in a sentence — the first sentence of its description. */
+  intent?: string;
 }): IssueMessage {
   return {
     what: `Aspect '${params.aspectId}' is refused on ${params.unitKey} by a deterministic check.\nViolations:\n${params.reason}`,
-    why: 'A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.',
-    next: 'Fix the listed violations, then: yg check --approve',
+    why: params.intent ?? 'A deterministic check recorded these violations; the same code reproduces the same verdict.',
+    next: 'Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.',
   };
 }
 

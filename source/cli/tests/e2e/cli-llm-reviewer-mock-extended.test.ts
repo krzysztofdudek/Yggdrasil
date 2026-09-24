@@ -102,8 +102,9 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via mock (exten
       const r = await runAsync(['check', '--approve'], dir);
       expect(r.status).toBe(0);
       expect(mock.chatCount()).toBe(2);
-      // The deterministic aspects fill locally — their fill lines are tagged [det]
-      // and never reach the reviewer.
+      // The deterministic aspects fill locally (the `fill` header counts them as
+      // free script pairs) and never reach the reviewer.
+      expect(r.stderr).toMatch(/^fill {2}\d+ pairs · \d+ script \(free\) · 2 reviewer calls \(consensus included\)$/m);
       // The reviewer calls are for the LLM aspect only.
       const prompts = mock.chatRequests.map((c) => c.prompt).join('\n');
       expect(prompts).toContain('has-doc-comment');
@@ -183,14 +184,20 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via mock (exten
       // verdicts (not an unverified pair).
       const fill = await runAsync(['check', '--approve'], dir);
       expect(fill.status).toBe(1); // refused enforced verdict
-      expect(fill.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      // The fill no longer prints a per-pair line; the refusals are counted on
+      // the closing line and named, per node, in the report's refused block.
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill.all).toMatch(/^error\[refused\] has-doc-comment — refused on 2 nodes$/m);
+      expect(fill.all).toMatch(/^ {2}at: {3}services\/orders +missing the file comment$/m);
       // yg check renders the stored refused enforced verdict as a blocking error
       // WITHOUT re-calling the reviewer.
       const before = mock.chatCount();
       const check = await runAsync(['check'], dir);
       expect(check.status).toBe(1);
       expect(check.all).toContain('has-doc-comment');
-      expect(check.all).toContain('enforced');
+      // An enforced refusal is an ERROR block (the label says refused, the
+      // severity says it blocks).
+      expect(check.all).toMatch(/^error\[refused\] has-doc-comment — refused on 2 nodes$/m);
       expect(mock.chatCount()).toBe(before); // check does not call the reviewer
     } finally {
       await mock.close();
@@ -208,19 +215,19 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via mock (exten
       // An advisory refusal does not block the fill (exit 0) but records the verdict.
       const fill = await runAsync(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill.all).toMatch(/^ {2}at: {3}services\/orders +advisory: no comment$/m);
       // yg check renders the advisory violations as non-blocking warnings (exit 0).
       const check = await runAsync(['check'], dir);
       expect(check.status).toBe(0);
       expect(check.all).toContain('has-doc-comment');
       expect(check.all.toLowerCase()).toContain('advisory');
-      // The advisory refusal is NON-BLOCKING: it renders under the Warnings section
-      // as an `advisory` group (exit 0). The grouped renderer no longer prints the
-      // per-issue "(advisory — not blocking)" suffix; non-blocking is shown by the
-      // Warnings section header + the retained reviewer reason on the member line.
-      expect(check.all).toMatch(/Warnings \(\d+\)( in \d+ groups)?:/);
-      expect(check.all).toContain('- services/orders  Reviewer reason: advisory: no comment');
-      expect(check.all).not.toMatch(/Errors \(\d+\)( in \d+ groups)?:/);
+      // The advisory refusal is NON-BLOCKING: it renders as a `warning[refused]`
+      // block (exit 0), and the reviewer's reason stays on the member line.
+      expect(check.all).toMatch(/^yg check: PASS {2}\d+ warnings /m);
+      expect(check.all).toMatch(/^warning\[refused\] has-doc-comment — refused on 2 nodes$/m);
+      expect(check.all).toMatch(/^ {2}at: {3}services\/orders +advisory: no comment$/m);
+      expect(check.all).not.toMatch(/^error\[/m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

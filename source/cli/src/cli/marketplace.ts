@@ -148,7 +148,7 @@ async function runMarketplaceInit(): Promise<void> {
       `  ${MARKETPLACE_FILENAME.padEnd(38)}what this repository publishes (nothing yet)\n` +
       `  ${`${PACKAGES_DIR}/`.padEnd(38)}one directory per package\n` +
       ciLine +
-      `\nNext: \`yg pack new <name>\` scaffolds a package, then \`yg marketplace check\`.\n\n`,
+      `\nnext: \`yg pack new <name>\` scaffolds a package, then \`yg marketplace check\`.\n\n`,
   );
 }
 

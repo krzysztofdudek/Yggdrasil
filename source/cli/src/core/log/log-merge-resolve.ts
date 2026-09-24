@@ -402,9 +402,9 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        what: `Node not found: ${nodePath}`,
-        why: 'Node must exist in the graph before its log can be merge-resolved.',
-        next: 'Check the --node argument, or create the node first.',
+        what: `node '${nodePath}' is not in the graph`,
+        why: 'A log belongs to a node, so the node must exist before its log can be merge-resolved.',
+        next: `yg find "${nodePath}"`,
       },
     };
   }

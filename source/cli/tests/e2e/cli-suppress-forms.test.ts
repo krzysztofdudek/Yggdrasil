@@ -263,8 +263,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(fill.all).not.toContain('refused');
+      // The closing fill line (STDERR) counts zero refusals; the report (STDOUT) has no refused block.
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
@@ -294,8 +295,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       writeFileSync(paymentsFile(dir), clean + deepTodo, 'utf-8');
       const noMarker = run(['check', '--approve'], dir);
       expect(noMarker.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR.
-      expect(noMarker.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
+      // The refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(noMarker.stdout).toContain('error[refused] no-todo-comments — ');
+      expect(noMarker.stdout).toContain('services/payments  src/services/payments.ts:');
 
       // (b) A SINGLE-LINE yg-suppress(...) on line 1 still refuses: the unified
       // resolver makes the single-line form cover only the line immediately below
@@ -311,8 +313,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       );
       const singleLineTop = run(['check', '--approve'], dir);
       expect(singleLineTop.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR.
-      expect(singleLineTop.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
+      // The refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(singleLineTop.stdout).toContain('error[refused] no-todo-comments — ');
+      expect(singleLineTop.stdout).toContain('services/payments  src/services/payments.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -351,8 +354,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       // BOTH aspects waived by the single wildcard marker — both pairs approve.
-      // Fill-time progress ([det] lines) go to STDERR; final report to STDOUT.
-      expect(fill.all).not.toContain('refused');
+      // The closing fill line (STDERR) counts zero refusals; the report (STDOUT) has no refused block.
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -378,9 +382,11 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] lines) go to STDERR.
-      expect(fill.stderr).toContain('[det] ban-foo on node:services/payments — refused');
-      expect(fill.stderr).toContain('[det] ban-bar on node:services/payments — refused');
+      // Each refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toContain('error[refused] ban-foo — ');
+      expect(fill.stdout).toContain('error[refused] ban-bar — ');
+      expect(fill.stderr).toMatch(/fill {2}done .* · 2 refused ·/);
+      expect(fill.stdout).toContain('services/payments  src/services/payments.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -409,8 +415,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR.
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
+      // The refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toContain('error[refused] no-todo-comments — ');
+      expect(fill.stdout).toContain('services/orders  src/services/orders.ts:');
       // The CLI does NOT warn that the suppress id is unknown — a wrong/typo'd
       // aspect-path is silently inert (nothing validates the id exists).
       expect(fill.all.toLowerCase()).not.toContain('unknown suppress');
@@ -441,8 +448,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(fill.all).not.toContain('refused');
+      // The closing fill line (STDERR) counts zero refusals; the report (STDOUT) has no refused block.
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -479,8 +487,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(fill.all).not.toContain('refused');
+      // The closing fill line (STDERR) counts zero refusals; the report (STDOUT) has no refused block.
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -504,8 +513,9 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       writeFileSync(ordersFile(dir), clean + '\nconst forbiddenTag = "FORBIDDENMARK";\n', 'utf-8');
       const noMarker = run(['check', '--approve'], dir);
       expect(noMarker.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR.
-      expect(noMarker.stderr).toContain('[det] graph-no-forbidden on node:services/orders — refused');
+      // The refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(noMarker.stdout).toContain('error[refused] graph-no-forbidden — ');
+      expect(noMarker.stdout).toContain('services/orders  src/services/orders.ts:');
 
       // (b) Wrong-id marker -> still refuses (suppress is matched by aspect id).
       writeFileSync(
@@ -517,7 +527,8 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       );
       const wrongId = run(['check', '--approve'], dir);
       expect(wrongId.status).toBe(1);
-      expect(wrongId.stderr).toContain('[det] graph-no-forbidden on node:services/orders — refused');
+      expect(wrongId.stdout).toContain('error[refused] graph-no-forbidden — ');
+      expect(wrongId.stdout).toContain('services/orders  src/services/orders.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -557,7 +568,8 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress syntactic forms + aspect-p
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       // ban-foo is waived by the named bracket; ban-bar is NOT (different id).
-      expect(fill.stderr).toContain('[det] ban-bar on node:services/payments — refused');
+      expect(fill.stdout).toContain('error[refused] ban-bar — ');
+      expect(fill.stdout).toContain('services/payments  src/services/payments.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -595,8 +607,9 @@ describe.skipIf(!distExists)('CLI E2E — anchored marker grammar (prose mention
 
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR.
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
+      // The refusal is reported as an error[refused] block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toContain('error[refused] no-todo-comments — ');
+      expect(fill.stdout).toContain('services/orders  src/services/orders.ts:');
 
       // Plain check stays red too — the prose mention waives nothing.
       expect(run(['check'], dir).status).toBe(1);
@@ -627,7 +640,8 @@ describe.skipIf(!distExists)('CLI E2E — anchored marker grammar (prose mention
 
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
 
       // The inventory lists exactly the ONE anchored marker: no phantom rows for
       // the prose mention, no warnings, exit 0.
@@ -688,7 +702,8 @@ describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + in
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
       // The bare (delimiter-less) line is NOT a marker → the secret line refuses.
       expect(fill.status).toBe(1);
-      expect(fill.stderr).toContain('[det] ban-secret on node:services/orders — refused');
+      expect(fill.stdout).toContain('error[refused] ban-secret — ');
+      expect(fill.stdout).toContain('services/orders  src/services/orders-notes.md:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -711,7 +726,8 @@ describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + in
       );
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -734,7 +750,8 @@ describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + in
       );
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      expect(fill.stderr).toMatch(/fill {2}done .* · 0 refused ·/);
+      expect(fill.all).not.toMatch(/\[refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -59,7 +59,7 @@ const NO_REASON_FALLBACK = 'no violation details recorded';
 export function emitPairIssue(
   vp: VerifiedPair,
   rtRows: TypeVisibilityReport['rows'],
-  ctx: { reviewerConfigured?: boolean } = {},
+  ctx: { reviewerConfigured?: boolean; ruleIntent?: (aspectId: string) => string | undefined } = {},
 ): CheckIssue[] {
   const { pair, state } = vp;
   const issues: CheckIssue[] = [];
@@ -70,10 +70,13 @@ export function emitPairIssue(
       break;
     case 'refused': {
       const reason = state.reason ?? NO_REASON_FALLBACK;
+      // The why of a refusal is what the rule is FOR — never the engine's
+      // caching, which the fix states where it matters.
+      const intent = ctx.ruleIntent?.(pair.aspectId);
       const md =
         pair.kind === 'llm'
-          ? llmRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason, judge: vp.judge?.name })
-          : detRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason });
+          ? llmRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason, judge: vp.judge?.name, ...(intent !== undefined ? { intent } : {}) })
+          : detRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason, ...(intent !== undefined ? { intent } : {}) });
       issues.push({
         severity: enforced ? 'error' : 'warning',
         code: enforced ? 'aspect-violation-enforced' : 'aspect-violation-advisory',

@@ -235,10 +235,12 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The fill's closing line counts the refused deterministic pair, and the
+      // report names the aspect and the child node in a blocking refusal block.
+      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line names the child node and the violating file.
+      expect(refused.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -268,10 +270,12 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The fill's closing line counts the refused deterministic pair, and the
+      // report names the aspect and the child node in a blocking refusal block.
+      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line names the child node and the violating file.
+      expect(refused.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -343,28 +347,26 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       // removed per-node approve banner; the new equivalent is the post-fill
       // passing check with the advisory warning attached).
       expect(fill.status).toBe(0);
-      expect(fill.all).toContain('advisory');
       expect(fill.all).toContain('no-banned-word');
-      // The advisory violation renders under the Warnings section as an
-      // `advisory` group (the old per-issue "(advisory — not blocking)" suffix
-      // is not emitted by the grouped renderer); the node is listed there. A
-      // second warning group (`rules-digest-stale`) is always present too —
+      // The advisory violation renders as a `warning[refused]` block (an
+      // advisory refusal never blocks); the node is listed there. A
+      // second warning block (`rules-digest-stale`) is always present too —
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check`/`yg check --approve` here. It is
       // unrelated to the aspect under test, so we assert its presence
       // explicitly rather than let it silently inflate the count.
-      expect(fill.all).toContain('Warnings (2) in 2 groups:');
-      expect(fill.all).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
-      expect(fill.all).toContain('- services/orders');
-      expect(fill.all).toContain('rules-digest-stale');
+      expect(fill.all).toMatch(/^yg check: PASS {2}2 warnings /m);
+      expect(fill.all).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
+      expect(fill.all).not.toContain('error[refused]');
+      expect(fill.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
+      expect(fill.all).toContain('warning[rules-digest-stale]');
 
       // `yg check` renders it as a non-blocking warning and PASSES.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.stdout).toContain('PASS (2 warnings)');
-      expect(check.all).toContain('advisory');
-      expect(check.all).toContain('no-banned-word');
+      expect(check.stdout).toContain('yg check: PASS  2 warnings');
+      expect(check.all).toContain('warning[refused] no-banned-word');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -394,16 +396,17 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       expect(fill.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(fill.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(fill.all).toContain('- services/orders');
+      // The fill's closing line counts the refused deterministic pair, and the
+      // report names the aspect and the child node in a blocking refusal block.
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line names the child node and the violating file.
+      expect(fill.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
 
       // And `yg check` renders it as a blocking error, not a warning.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('enforced');
-      expect(check.all).toContain('no-banned-word');
+      expect(check.all).toContain('error[refused] no-banned-word');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -433,10 +436,12 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       expect(fill.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(fill.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(fill.all).toContain('- services/orders');
+      // The fill's closing line counts the refused deterministic pair, and the
+      // report names the aspect and the child node in a blocking refusal block.
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line names the child node and the violating file.
+      expect(fill.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -455,11 +460,12 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
       expect(check.all).toContain('aspect-status-downgrade');
-      // The child node is named in the downgrade group, and the cascading
-      // ancestor source is listed as a group member; the shared why explains
+      // The child node is named in the downgrade block, and the cascading
+      // ancestor source is listed as a block member; the shared why explains
       // that an explicit attach-site status cannot relax a stricter cascade.
+      expect(check.all).toContain('error[aspect-status-downgrade]');
       expect(check.all).toContain('services/orders');
-      expect(check.all).toContain('- services');
+      expect(check.all).toMatch(/^ {2}at: +services {2}/m);
       expect(check.all).toContain(
         'An explicit attach-site status cannot relax (downgrade) what already cascades',
       );

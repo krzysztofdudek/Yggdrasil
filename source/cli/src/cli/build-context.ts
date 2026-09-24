@@ -43,7 +43,7 @@ import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail } from './output.js';
+import { fail, plural } from './output.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
@@ -584,7 +584,7 @@ export function registerBuildCommand(program: Command): void {
           nodePath = result.nodePath;
           resolvedFilePath = toPosixPath(result.file);
         } else {
-          nodePath = options.node!.trim().replace(/\/$/, '');
+          nodePath = toPosixPath(options.node!.trim().replace(/\/$/, ''));
         }
 
         const relevantNodes = collectRelevantNodePaths(graph, nodePath);
@@ -609,7 +609,7 @@ export function registerBuildCommand(program: Command): void {
           }
           let whyText = 'Context cannot be assembled when structural errors exist.';
           if (skippedErrors > 0) {
-            whyText += ` (${skippedErrors} unrelated error(s) in other nodes ignored.)`;
+            whyText += ` (${skippedErrors} unrelated ${plural(skippedErrors, 'error')} in other nodes ignored.)`;
           }
           fail({
             what: `build-context blocked by ${relevantErrors.length} error${relevantErrors.length === 1 ? '' : 's'} affecting this node's context.`,

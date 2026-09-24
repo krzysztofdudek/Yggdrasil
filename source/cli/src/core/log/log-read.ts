@@ -5,7 +5,7 @@ import { validateNodePath } from '../../utils/node-path-validator.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat } from '../log-format.js';
 import { readLogSafe } from '../../io/log-store.js';
-import { toPosix } from '../../utils/posix.js';
+import { toPosixPath } from '../../utils/posix.js';
 
 export interface LogReadInput {
   graph: Graph;
@@ -49,7 +49,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     };
   }
 
-  const nv = validateNodePath(toPosix(input.nodePath.trim()).replace(/\/$/, ''));
+  const nv = validateNodePath(toPosixPath(input.nodePath.trim().replace(/\/$/, '')));
   if (!nv.ok) {
     return {
       ok: false,
@@ -66,9 +66,9 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
-        what: `Node not found: ${nodePath}`,
-        why: 'Node must exist in the graph before its log can be read.',
-        next: 'Check the --node argument, or create the node first.',
+        what: `node '${nodePath}' is not in the graph`,
+        why: 'A log belongs to a node, so the node must exist before its log can be read.',
+        next: `yg find "${nodePath}"`,
       },
     };
   }

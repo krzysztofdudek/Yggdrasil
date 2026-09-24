@@ -61,7 +61,7 @@ import { fail } from './output.js';
  * UPPER bound. Naming the bias keeps a replay count from being read as ground truth.
  */
 export const WALD_LABEL =
-  'history is censored by the old regime — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.';
+  'history is censored by the rule as it stood — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.';
 
 /** The classified result of replaying the candidate at one commit. */
 export type CommitOutcome =
@@ -632,9 +632,9 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   const kind = detectCandidateKind(candidateDir);
   if (kind === 'llm' || kind === 'companion') {
     fail({
-      what: `Candidate '${candidateId}' is an ${kind === 'llm' ? 'LLM' : 'LLM companion'}-reviewed rule, which simulate cannot replay.`,
-      why: 'A replay must be deterministic and reproducible; an LLM verdict is a point-in-time testimony of a reviewer, not a value a rerun over history can reproduce.',
-      next: 'Supply a deterministic (check.mjs) candidate to replay here, or use `yg drill` to test an LLM rule\'s falsifiability against a case corpus.',
+      what: `Candidate '${candidateId}' is a ${kind === 'llm' ? 'reviewer' : 'reviewer-with-companion'} rule, which simulate cannot replay.`,
+      why: 'A replay must be deterministic and reproducible; a reviewer\'s verdict is point-in-time testimony, not a value a rerun over history can reproduce.',
+      next: 'Supply a deterministic (check.mjs) candidate to replay here, or use `yg drill` to test a reviewer rule\'s falsifiability against a case corpus.',
     });
     return 1;
   }

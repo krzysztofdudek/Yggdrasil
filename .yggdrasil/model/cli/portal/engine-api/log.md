@@ -135,3 +135,7 @@ The check that a file is a mapped source, used by the suppression audit on every
 The portal's check now states explicitly that it executes no repository code. The portal is read-only by design, so stale companion pairs are reported unverified with their size check left to the next approval instead of importing the repository's companion modules into the long-running server process.
 ## [2026-09-24T01:51:21.331Z]
 The security fixes (read-only commands no longer run repository companion hooks, symlinked rule sources refused, committed credentials blocked, portal Host check on every route with a shared cached extraction) and the scale fixes (per-command walk cache, mapping index, linear deterministic fill, cycle-scoped context) met in this component at merge. Both merged cleanly at source level and the merged code carries both behaviours; this entry records that the combination is what the verdicts now answer for.
+## [2026-09-24T08:10:13.696Z]
+The waiver inventory prints each warning as a block of the one output grammar — warning[code] with a labelled why and fix — instead of a counted Warnings heading over unlabelled lines, so a warning about a marker reads the way every other finding does.
+## [2026-09-24T10:06:01.619Z]
+A reasonless yg-suppress marker names its file and line, and the reason it needs is to be approved by the user — asked for, in the one sign-off phrasing — rather than stated as if already given.

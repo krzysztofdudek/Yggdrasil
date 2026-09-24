@@ -144,7 +144,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
 
       // BUDGET before the first case result line (proven strictly in the unit test;
       // here we confirm the ordering survives end-to-end over stdout).
-      const budgetIdx = r.stdout.indexOf('budgeting 2 reviewer call(s)');
+      const budgetIdx = r.stdout.indexOf('budgeting 2 reviewer calls');
       const firstCaseIdx = r.stdout.search(/\b(pass|MISS|FALSE-ALARM|unrun|unsupported)\b/);
       expect(budgetIdx).toBeGreaterThanOrEqual(0);
       expect(budgetIdx).toBeLessThan(firstCaseIdx);

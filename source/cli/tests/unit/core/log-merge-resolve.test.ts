@@ -289,7 +289,7 @@ describe('logMergeResolve (core, lock store)', () => {
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'nonexistent', repoRoot: projectRoot });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.what).toContain('Node not found');
+    if (!result.ok) expect(result.error.what).toContain('is not in the graph');
   });
 
   it('reports the plural "entries" form when MULTIPLE parent entries are missing', async () => {

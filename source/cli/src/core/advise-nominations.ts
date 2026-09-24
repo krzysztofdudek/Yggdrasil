@@ -434,13 +434,15 @@ function aspectIdFromIssue(issue: ValidationIssue): string | undefined {
 
 /**
  * Phrase the human action so it reads as a nomination that needs sign-off — the
- * check's own `next` plus an explicit note that acting requires the user's
- * approval (no advise decision is ever taken silently). Worded about the user
- * in the third person: the reader is as often an agent as the user, and "your
- * approval" addressed to an agent would read as licence to approve it itself.
+ * check's own `next`, then the one phrase every human sign-off in the CLI is
+ * written in: ask the user to approve it (no advise decision is ever taken
+ * silently). "You" in the CLI's output is always the operator — an agent as
+ * often as a person — so the sign-off names the user, and never says "your
+ * approval", which an agent would read as licence to approve it itself.
  */
 export function asApprovalNext(next: string): string {
-  return `${next} Requires the user's approval.`;
+  if (/ask the user to approve/i.test(next)) return next;
+  return `${next.replace(/\.\s*$/, '')} — ask the user to approve it first.`;
 }
 
 /** The rule-source filename that carries an aspect's current hash. */
@@ -569,7 +571,7 @@ function promotionNominations(graph: Graph, events: VerdictEvent[]): Nomination[
 
     const labels: string[] = [`local telemetry since ${quoteData(firstTs ?? lastTs)}`];
     if (approved < THIN_DATA_N) labels.push('small-N');
-    if (judgeMissing) labels.push('regime unknown');
+    if (judgeMissing) labels.push('reviewer unknown');
 
     const aspectQ = quoteData(aspect.id);
     out.push({
@@ -664,7 +666,7 @@ function sharpenNominations(events: VerdictEvent[]): Nomination[] {
   for (const t of worstPerAspect.values()) {
     const labels: string[] = [`local telemetry since ${quoteData(t.lastTs)}`];
     if (t.total < THIN_DATA_N) labels.push('small-N');
-    if (t.judgeMissing) labels.push('regime unknown');
+    if (t.judgeMissing) labels.push('reviewer unknown');
 
     const aspectQ = quoteData(t.aspectId);
     const unitQ = quoteData(t.unitKey);
@@ -811,7 +813,7 @@ function hotSpotNominations(
         `least protection.`,
       next:
         `Consider adding a rule or coverage here — propose an aspect or a coverage node to ` +
-        `the user (requires their approval). Evidence: ${evidence}.`,
+        `the user. Evidence: ${evidence}. Ask the user to approve it first.`,
       // Bind to churn + window + the file sample: a new commit (churn up), a widened
       // window, or a changed file set moves the hash, so a dismissed hot spot returns
       // when the evidence moves; a landed rule removes the item outright (it stops
@@ -977,8 +979,8 @@ function typeCoveredChurnNominations(
       what: `File '${fileQ}' (matched type '${typeQ}') is changing but has no node of its own.`,
       why,
       next:
-        `Create an explicit node for this file (or widen an existing one to cover it), so the type tier is no ` +
-        `longer carrying all of its enforcement — propose it to the user; this requires their approval.`,
+        `Create an explicit node for '${fileQ}' (or widen an existing one's mapping to cover it), so the type tier is no ` +
+        `longer carrying all of its enforcement — propose it to the user. Ask the user to approve it first.`,
       // Bind to churn + window + typeId + the partner set: a new commit, a widened
       // window, a re-bucketed type, or a changed cluster moves the hash, so a
       // dismissed item returns when the evidence moves; graduating the file (a
@@ -1238,7 +1240,7 @@ export function buildAttention(sources: AttentionSources): string[] {
   // starts it instead.
   lines.push(
     sources.incidentCount === 0
-      ? '0 incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
+      ? 'no incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
       : `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only evidence from outside the graph that a rule missed something; see .yggdrasil/incidents.md`,
   );
   // wrong-rule-tagged incidents are evidence the rules themselves may be

@@ -92,7 +92,7 @@ describe('E2E: disk-based coverage scan', () => {
 
         // unmapped.ts is on disk but has no node mapping → blocking error
         expect(status).toBe(1);
-        expect(out).toContain('unmapped (1)');
+        expect(out).toContain('error[unmapped] 1 file belongs to no node');
         expect(out).toContain('src/svc/unmapped.ts');
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -125,7 +125,7 @@ describe('E2E: disk-based coverage scan', () => {
         const { status, out } = run(['check'], dir);
 
         // unmapped.ts is on disk → reported as unmapped (error)
-        expect(out).toContain('unmapped (1)');
+        expect(out).toContain('error[unmapped] 1 file belongs to no node');
         expect(out).toContain('src/svc/unmapped.ts');
 
         // ghost.ts is NOT on disk → must NOT be reported, even though git tracks it

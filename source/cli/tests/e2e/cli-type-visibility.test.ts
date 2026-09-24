@@ -79,15 +79,16 @@ describe.skipIf(!distExists)('yg check — the coverage listing is asked for by 
       expect(withCoverage.stdout).toMatch(/2 files matched by a type have no rules that apply to them/);
 
       // What must NOT move: the verdict line (which carries every header
-      // count), the exit code, and the single Next: line.
+      // count), the exit code, and the single next: line.
       expect(verdictLine(plain.stdout)).toBe(verdictLine(withCoverage.stdout));
       expect(plain.status).toBe(withCoverage.status);
-      const nextOf = (out: string): string | undefined => out.split('\n').find((l) => l.startsWith('Next: '));
+      const nextOf = (out: string): string | undefined => out.split('\n').find((l) => l.startsWith('next: '));
+      expect(nextOf(plain.stdout)).toBeDefined();
       expect(nextOf(plain.stdout)).toBe(nextOf(withCoverage.stdout));
 
       // The plain report is not empty of content — it still carries what the
       // run found. Dropping the listing must not drop the findings with it.
-      expect(plain.stdout).toMatch(/Errors \(\d+\)|Warnings \(\d+\)|PASS/);
+      expect(plain.stdout).toMatch(/^(?:error|warning)\[[a-z-]+\] /m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -279,10 +280,10 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
     }
   });
 
-  // The type-coverage block's "1 cannot run" clause and the Errors section's
-  // `unverified` group used to disagree about the SAME pair in the SAME
-  // stdout: the block said the rule can never run, while the group's Fix
-  // line and the footer's Next: line both still said "yg check --approve" —
+  // The type-coverage block's "1 cannot run" clause and the `unverified`
+  // block used to disagree about the SAME pair in the SAME
+  // stdout: the block said the rule can never run, while the block's fix:
+  // line and the footer's next: line both still said "yg check --approve" —
   // an instruction an agent could follow forever without the count ever
   // moving. This pins that the run now agrees with itself: nowhere does it
   // point back at the command it just proved does nothing for this pair.
@@ -293,14 +294,20 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       expect(first.status).toBe(1);
       expect(first.stdout).toMatch(/Enforced: needs-node-context \(1, 1 cannot run/);
 
-      // Nowhere in this run's stdout does a Fix:/Next: line send the reader
-      // back to the exact command this same run just proved reproduces the
-      // identical result for src/crashy/a.ts.
-      expect(first.stdout).not.toContain('Fix: yg check --approve');
-      expect(first.stdout).not.toMatch(/Next: yg check --approve\b/);
-      // The real remedy — the one and only unverified pair left after this
-      // fill, so it also becomes the run's own top-level Next: line.
-      expect(first.stdout).toMatch(/Next: Give the file a component of its own/);
+      // Nowhere in this run's stdout does a fix:/next:/then: line send the
+      // reader back to the exact command this same run just proved reproduces
+      // the identical result for src/crashy/a.ts.
+      expect(first.stdout).not.toContain('fix:  yg check --approve');
+      expect(first.stdout).not.toMatch(/^(?:next|then): yg check --approve\b/m);
+      // The real remedy is the fix of the one unverified pair left after this
+      // fill (the run's own next: line is the first block's step — the
+      // architecture cycle, which outranks a pending verdict).
+      expect(first.stdout).toContain(
+        'error[unverified] 1 pair whose check.mjs failed to run\n'
+        + '  at:   needs-node-context @ src/crashy/a.ts\n',
+      );
+      expect(first.stdout).toMatch(/^ {2}fix: {2}Give the file a component of its own/m);
+
 
       // Never persisted, never stale: re-running is byte-identical — the
       // same honest, self-consistent report every time, not a promise that

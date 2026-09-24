@@ -110,3 +110,9 @@ The upgrade path reads the schema version through the one shared reader and refu
 The graph-governance work met the release work already merged in this command. The upgrade refuses a missing or non-string schema version with the same message a graph load gives, now taken from the loader's single diagnosis, and it keeps adding the log line-ending attribute and the run-lock ignore line, so the check itself never has to edit a tracked ignore file.
 ## [2026-09-23T23:00:37.502Z]
 Command errors now go through the shared CLI output layer (fail, or failAndExit where the command exits at once) instead of each command writing its own red Error: what/why/next line to stderr, and the commands that kept a private failWith or emitError copy of that line now use the shared one. One place now owns how a command error reads and where it goes, so wording and stream change once for every command. When the invocation answers in JSON, that layer also writes a yg-error/1 document (code, what, why, next) to stdout, because a machine reader used to get zero bytes on stdout for a failed command and had to parse English from stderr.
+## [2026-09-24T08:37:59.117Z]
+A migration warning after an upgrade is printed in the one output grammar — the warning, why it matters and the command to run next — instead of a bare bullet list under a capitalised heading, so the agent-facing upgrade path reads like every other diagnostic.
+## [2026-09-24T09:20:22.384Z]
+A migration warning in the interactive upgrade reads in the same labelled grammar as the non-interactive one, and the steps after a migration are next: and then: lines.
+## [2026-09-24T10:25:48.374Z]
+The steps after a migration are printed through the output layer's next and then helpers, the same lines every report ends with.

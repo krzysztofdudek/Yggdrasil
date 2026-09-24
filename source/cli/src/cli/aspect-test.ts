@@ -38,7 +38,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
-import { fail } from './output.js';
+import { fail, field } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -236,7 +236,7 @@ export function registerAspectTestCommand(program: Command): void {
     .description(
       'Run an aspect check without modifying the lock — against a graph node (--node), a file enforced by its architecture ' +
       'type alone (--file, no owning component), or ad-hoc files (--files, no graph attachment at all). ' +
-      'For LLM aspects, --dry-run prints the assembled prompt(s) without making any reviewer/LLM call. ' +
+      'For reviewer rules, --dry-run prints the assembled prompt(s) without making any reviewer call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
     .requiredOption('--aspect <id>', 'aspect id to run')
@@ -244,8 +244,8 @@ export function registerAspectTestCommand(program: Command): void {
     .option('--file <path>', 'source file enforced by its architecture type alone, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
     .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; NO graph attachment — see --file for a graph-attached, type-covered file)')
     .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
-    .option('--dry-run', 'for LLM aspects: print the assembled prompt(s) to stdout, make no reviewer/LLM call (companion hook runs live)')
-    .option('--repeat <n>', 'for LLM aspects: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
+    .option('--dry-run', 'for reviewer rules: print the assembled prompt(s) to stdout, make no reviewer call (companion hook runs live)')
+    .option('--repeat <n>', 'for reviewer rules: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
     .option('--tier <name>', 'run the same pairs under a named reviewer tier from the merged config (dry-fit before a model swap); diagnostic — no graph edits, no lock writes')
     .action(async (opts) => {
       const projectRoot = process.cwd();
@@ -297,7 +297,7 @@ export function registerAspectTestCommand(program: Command): void {
             fail({
                 what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
                 why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
-                next: `Pass --repeat 2 (or higher) with an LLM aspect and --node.`,
+                next: `Pass --repeat 2 (or higher) with an reviewer rule and --node.`,
               });
             process.exit(1);
             return;
@@ -314,8 +314,8 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFiles) {
             fail({
                 what: `--repeat cannot be combined with --files.`,
-                why: `--repeat measures reviewer self-consistency, which applies only to LLM aspects; --files runs a deterministic check that returns the same result every time.`,
-                next: `Use --repeat with an LLM aspect and --node <node-path>.`,
+                why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a deterministic check that returns the same result every time.`,
+                next: `Use --repeat with an reviewer rule and --node <node-path>.`,
               });
             process.exit(1);
             return;
@@ -323,8 +323,8 @@ export function registerAspectTestCommand(program: Command): void {
           if (aspect.reviewer.type !== 'llm') {
             fail({
                 what: `--repeat is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
-                why: `A deterministic check is exactly reproducible — repeating it measures nothing. --repeat measures how consistently an LLM reviewer judges the same prompt.`,
-                next: `Run --repeat against an LLM aspect (content.md), or use --check-determinism to re-run a deterministic aspect.`,
+                why: `A deterministic check is exactly reproducible — repeating it measures nothing. --repeat measures how consistently an reviewer judges the same prompt.`,
+                next: `Run --repeat against an reviewer rule (content.md), or use --check-determinism to re-run a deterministic aspect.`,
               });
             process.exit(1);
             return;
@@ -345,8 +345,8 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFiles) {
             fail({
                 what: `--tier cannot be combined with --files.`,
-                why: `--tier re-runs LLM pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a deterministic check with no tier.`,
-                next: `Use --tier with an LLM aspect and --node <node-path>.`,
+                why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a deterministic check with no tier.`,
+                next: `Use --tier with an reviewer rule and --node <node-path>.`,
               });
             process.exit(1);
             return;
@@ -354,8 +354,8 @@ export function registerAspectTestCommand(program: Command): void {
           if (aspect.reviewer.type !== 'llm') {
             fail({
                 what: `--tier is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
-                why: `A deterministic check runs locally with no reviewer tier — there is no tier to swap. --tier re-runs an LLM aspect under a named reviewer tier.`,
-                next: `Run --tier against an LLM aspect (content.md) with --node, or drop --tier for a deterministic aspect.`,
+                why: `A deterministic check runs locally with no reviewer tier — there is no tier to swap. --tier re-runs an reviewer rule under a named reviewer tier.`,
+                next: `Run --tier against an reviewer rule (content.md) with --node, or drop --tier for a deterministic aspect.`,
               });
             process.exit(1);
             return;
@@ -367,8 +367,8 @@ export function registerAspectTestCommand(program: Command): void {
           // --files is not supported for LLM aspects: they need graph context.
           if (hasFiles) {
             fail({
-                what: `--files cannot be used with LLM aspect '${opts.aspect}'.`,
-                why: `LLM reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
+                what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
+                why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
                 next: `Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.`,
               });
             process.exit(1);
@@ -376,9 +376,9 @@ export function registerAspectTestCommand(program: Command): void {
           }
           if (!hasNode && !hasFile) {
             fail({
-                what: `Neither --node nor --file was provided for LLM aspect '${opts.aspect}'.`,
+                what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
                 why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone), or --files (ad-hoc, deterministic only).`,
-                next: `Pass --node <node-path> or --file <path> to run an LLM aspect.`,
+                next: `Pass --node <node-path> or --file <path> to run an reviewer rule.`,
               });
             process.exit(1);
             return;
@@ -386,7 +386,7 @@ export function registerAspectTestCommand(program: Command): void {
 
           let target: AspectTestTarget;
           if (hasFile) {
-            const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
+            const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
             if (resolved.kind === 'refused') {
               fail(resolved.messageData);
               process.exit(1);
@@ -420,7 +420,7 @@ export function registerAspectTestCommand(program: Command): void {
         if (aspect.reviewer.type !== 'deterministic') {
           fail({
               what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
-              why: `yg aspect-test supports deterministic aspects (check.mjs) and LLM aspects (content.md).`,
+              why: `yg aspect-test supports deterministic aspects (check.mjs) and reviewer rules (content.md).`,
               next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
             });
           process.exit(1);
@@ -505,7 +505,7 @@ export function registerAspectTestCommand(program: Command): void {
         // component) — the structure runner uses the architecture-derived read
         // allowance (collectArchitectureReach) instead of a node mapping.
         if (hasFile) {
-          const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
+          const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
           if (resolved.kind === 'refused') {
             fail(resolved.messageData);
             process.exit(1);
@@ -764,6 +764,7 @@ async function resolveSuppressedRangesForTest(
 async function resolveAspectTestFileTarget(
   graph: import('../model/graph.js').Graph,
   rawPath: string,
+  aspectId: string,
 ): Promise<AspectTestFileTarget> {
   // File path normalization: resolve against the GRAPH's own root, never
   // process.cwd() directly — the caller's projectRoot is process.cwd(),
@@ -822,7 +823,7 @@ async function resolveAspectTestFileTarget(
       messageData: {
         what: `'${repoRelative}' has a component of its own: '${ownerResult.nodePath}'.`,
         why: `--file addresses a file enforced by its architecture type alone, with no owning component — this path already has one.`,
-        next: `Run: yg aspect-test --aspect <id> --node ${ownerResult.nodePath}`,
+        next: `yg aspect-test --aspect ${aspectId} --node ${ownerResult.nodePath}`,
       },
     };
   }
@@ -873,8 +874,8 @@ async function runLlmAspectTest(
   if (!reviewer) {
     fail({
         what: `No reviewer is configured for aspect '${aspect.id}'.`,
-        why: `LLM aspects need a reviewer tier in .yggdrasil/yg-config.yaml.`,
-        next: `Add a reviewer tier, then retry.`,
+        why: `reviewer rules need a reviewer tier in .yggdrasil/yg-config.yaml.`,
+        next: `Add a reviewer tier to .yggdrasil/yg-config.yaml (yg init --provider <name> --model <m>), then retry.`,
       });
     process.exit(1);
     return 1;
@@ -1140,8 +1141,8 @@ async function runLlmAspectTest(
             process.stdout.write(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
             if (overlap.common * 2 < overlap.union) {
               process.stdout.write(
-                `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next. ` +
-                  `Sharpen the rule (content.md) until it names what counts before editing code to a list that moves.\n`,
+                `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next.\n` +
+                  `next: sharpen the rule's content.md until it names what counts, before editing code to a list that moves\n`,
               );
             }
           }
@@ -1160,7 +1161,7 @@ async function runLlmAspectTest(
         fail({
             what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
             why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
-            next: `Check the reviewer configuration and retry.`,
+            next: `Check the tier's provider settings in .yggdrasil/yg-config.yaml, then run yg aspect-test --aspect ${aspect.id} again.`,
           });
         skippedCount++;
         continue;
@@ -1314,13 +1315,10 @@ function printAstViolations(violations: AstViolation[]): void {
     if (!byFile.has(v.file)) byFile.set(v.file, []);
     byFile.get(v.file)!.push(v);
   }
+  // The block template's at: field — each violation where it is, then what it says.
   const entries = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b));
-  for (const [file, vs] of entries) {
-    process.stdout.write(file + '\n');
-    for (const v of vs.sort((a, b) => a.line - b.line)) {
-      process.stdout.write(`  L${v.line}: ${v.message}\n`);
-    }
-  }
+  const rows = entries.flatMap(([file, vs]) => vs.sort((a, b) => a.line - b.line).map((v) => `${file}:${v.line}  ${v.message}`));
+  process.stdout.write(field('at', rows, false).join('\n') + '\n');
 }
 
 function printStructureViolations(violations: StructureViolation[]): void {
@@ -1330,9 +1328,7 @@ function printStructureViolations(violations: StructureViolation[]): void {
     if (typeof v.file === 'string') withFile.push(v);
     else withoutFile.push(v);
   }
-  for (const v of withoutFile) {
-    process.stdout.write(`<graph>: ${v.message}\n`);
-  }
+  const rows: string[] = withoutFile.map((v) => `<graph>  ${v.message}`);
   const byFile = new Map<string, StructureViolation[]>();
   for (const v of withFile) {
     if (!byFile.has(v.file!)) byFile.set(v.file!, []);
@@ -1340,11 +1336,10 @@ function printStructureViolations(violations: StructureViolation[]): void {
   }
   const entries = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b));
   for (const [file, vs] of entries) {
-    process.stdout.write(file + '\n');
-    // Line-less violations sort as 0 (first) and render as a bare indented
-    // message — no placeholder line number.
+    // Line-less violations sort as 0 (first) and name the file alone — no placeholder line number.
     for (const v of vs.sort((a, b) => (a.line ?? 0) - (b.line ?? 0))) {
-      process.stdout.write(typeof v.line === 'number' ? `  L${v.line}: ${v.message}\n` : `  ${v.message}\n`);
+      rows.push(typeof v.line === 'number' ? `${file}:${v.line}  ${v.message}` : `${file}  ${v.message}`);
     }
   }
+  process.stdout.write(field('at', rows, false).join('\n') + '\n');
 }

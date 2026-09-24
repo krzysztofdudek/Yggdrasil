@@ -32,3 +32,11 @@ An excluded path's message now names which of the two exclusion sources applies 
 Constructs a TypeClassCache and passes it into both classifyFile call sites, so this one-off diagnostic command benefits from the persistent on-disk classification cache across repeated invocations against the same file, the same way yg owner --file and yg context --file already do — instead of every invocation paying full classification cost regardless of whether the file or architecture changed since the last one.
 ## [2026-08-02T15:51:49.867Z]
 Gated construction of the persistent classification cache on coverage.type_level, matching every other command that touches it. It previously constructed the cache unconditionally, so a project that has never turned the tier on still got a cache directory, a full-file hash, and a JSON write the moment this command ran against a file — silently contradicting the documented guarantee that the tier off means no disk state from this cache at all.
+## [2026-09-24T07:23:38.942Z]
+The CLI now speaks one output grammar: every finding is a block headed error[label] or warning[label] with lowercase labelled at:, why: and fix: fields, every command error is error[code]: what with a labelled why and a next: step, and a report ends with one next: step and optionally a then: step. Scripts that parsed the old capitalised Why:, Fix: and Next: lines are sent to the JSON documents, which carry the same facts. This command's remaining capitalised Next: or Warning: lines are lowercase, its counts agree with their nouns, and its first-level text says reviewer rule where it said LLM aspect.
+## [2026-09-24T08:38:02.428Z]
+The type suggestion report ends in a labelled next: step for each outcome and reports a gitignored file as a warning through the output layer, instead of a capitalised NEXT heading and a hand-coloured warning line.
+## [2026-09-24T09:26:15.831Z]
+A path inside .yggdrasil/ keeps its familiar auto-exempt wording as the what of the labelled block, with the reason on the why line.
+## [2026-09-24T10:05:55.693Z]
+Overlapping types are reported as a labelled what, why and next block instead of a hand-laid sentence and a bare next line.

@@ -70,3 +70,7 @@ The graph-governance work met the release work already merged in this component:
 A status downgrade is reported once, at the site that declares it, naming how many nodes it reaches, instead of once per node: a type or flow attaching a rule below its default blamed every node it reached for a declaration made in one place, and repeated one fault as many times.
 ## [2026-09-24T01:23:18.906Z]
 Two gaps let the gate stay green over something it exists to catch. A reference path running through a symbolic link could pull a file from outside the repository into the reviewer prompt and resolve differently on every machine, so it is now refused by name. And nothing guarded reviewer credentials: a key in the committed configuration or a force-tracked secrets overlay passed silently, and a committed endpoint could quietly receive the key from the environment. The first two now block and the third warns, without ever repeating the key.
+## [2026-09-24T07:23:59.408Z]
+The review-date finding tells the reader to propose a new date or a demotion and ask the user to approve it, in the one sign-off phrasing every command now uses, instead of a sentence that also forbade what it proposed.
+## [2026-09-24T10:05:57.695Z]
+An empty references list names the rule file to edit in its next step.

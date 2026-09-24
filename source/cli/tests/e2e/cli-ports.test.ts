@@ -142,9 +142,9 @@ describe.skipIf(!distExists)('CLI E2E — ports / consumes channel-6 contract', 
       expect(status).toBe(1);
       expect(stdout).toContain('port-undefined');
       // The shared WHY echoes the provider's real (available) ports; the
-      // consumer carrying the bad consumes is listed in the group node list.
+      // consumer carrying the bad consumes is listed as the block's member.
       expect(stdout).toContain('Available ports: [charge]');
-      expect(stdout).toContain('- services/orders');
+      expect(stdout).toMatch(/^ {2}at: +services\/orders$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -35,7 +35,7 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const distExists = existsSync(BIN_PATH);
 
 const WALD_LABEL =
-  'history is censored by the old regime — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.';
+  'history is censored by the rule as it stood — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.';
 
 function run(
   args: string[],

@@ -40,30 +40,28 @@ yg check
 That first check is green, and honest about why:
 
 ```text
-yg check: PASS (1 warning)  0 nodes · 4/54 files (0 node-owned, 0 type-covered, 4 excluded) · 0 aspects · 0 flows
+yg check: PASS  1 warning   0 nodes · 4/54 files covered (4 excluded)
 
-Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
+warning[uncovered] 50 files belong to no node — not under coverage.required, so they never block
+  at:   package.json
+        src/f1.ts
+        src/f10.ts
+        src/f11.ts
+        src/f12.ts
+        src/f13.ts
+        src/f14.ts
+        src/f15.ts
+        src/f16.ts
+        src/f17.ts
+        src/f18.ts
+        src/f19.ts
+        … +38 more  (yg check --details)
+  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
-Nothing is required to be covered, so the 50 uncovered files this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.
+note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
-Warnings (1):
-
-  uncovered (50)
-            package.json
-            src/f1.ts
-            src/f10.ts
-            src/f11.ts
-            src/f12.ts
-            src/f13.ts
-            src/f14.ts
-            src/f15.ts
-            src/f16.ts
-            src/f17.ts
-            ... +40 (yg check --details)
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
-
-Next: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
+next: yg type-suggest --file package.json
 ```
 
 Nothing is enforced yet, because you have not said what matters yet. Nothing is pretending otherwise. That list is your to-do, not a finding.

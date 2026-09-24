@@ -37,9 +37,13 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
   it('yg --help shows usage', () => {
     const { stdout, status } = run(['--help']);
     expect(status).toBe(0);
-    expect(stdout).toContain('Usage: yg');
-    expect(stdout).toContain('Yggdrasil');
-    expect(stdout).toContain('Commands:');
+    // Grouped top-level help: a one-line identity, command groups, examples.
+    expect(stdout).toMatch(/^yg — /);
+    for (const group of ['Daily', 'Explore', 'Rules', 'Setup', 'Examples']) {
+      expect(stdout).toMatch(new RegExp(`^${group}$`, 'm'));
+    }
+    expect(stdout).toMatch(/^ {2}check\s+\S/m);
+    expect(stdout).toContain('yg <command> --help');
   });
 
   it('yg --version', () => {
@@ -84,7 +88,7 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
       expect(init.status).toBe(0);
       const { stdout, status } = run(['tree'], dir);
       expect(status).toBe(0);
-      expect(stdout).toContain('(no nodes yet');
+      expect(stdout).toContain('no nodes yet\nnext: yg knowledge read onboarding');
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
       expect(flows.stdout).toBe('(no flows defined)\n');

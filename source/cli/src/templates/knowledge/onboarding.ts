@@ -83,7 +83,8 @@ answer is "let me just show you". Match intent, not keywords.
 
 **Output discipline**
 12. The stamp is sacred, per command: \`yg check\` → quote the
-    \`yg check: PASS/FAIL …\` header line verbatim. \`yg aspect-test\` →
+    \`yg check: PASS/FAIL …\` verdict line verbatim, and its \`next:\` line
+    when it has one. \`yg aspect-test\` →
     quote the \`yg aspect-test: <verdict>\` stamp line verbatim
     (e.g. \`yg aspect-test: refused — 1 violation\` /
     \`yg aspect-test: satisfied — No violations.\`; LLM runs close with a
@@ -93,7 +94,8 @@ answer is "let me just show you". Match intent, not keywords.
     beneath the quote, same turn — never split a verdict from its meaning
     across turns.
 13. Quote ≤15 lines of output; describe the shape first ("873 lines, one
-    group repeated — here's the header and the fix line"), mark trims. For
+    block repeated — here's the verdict line, the block's fix: and the next:
+    line"), mark trims. For
     \`--dry-run\` prompt previews quote only the \`===\` header and the rule
     block, then say: "…and your files, in full."
 14. Pruned views, never dumps: the first map view is one node (theirs), one
@@ -102,7 +104,7 @@ answer is "let me just show you". Match intent, not keywords.
 15. Accessibility is calibration: if the user names a screen reader or asks
     for linear output — verdict-first in your words, one-sentence shape
     summary before any quote, lists instead of tables/trees, totals before
-    sections. (The \`yg check: PASS/FAIL\`-first header and \`yg context\`'s
+    sections. (The \`yg check: PASS/FAIL\`-first verdict line and \`yg context\`'s
     counted section headers are already good aloud; \`yg impact\` needs its
     closing summary read first — \`Total to re-verify:\` on \`--file\`,
     \`Blast radius:\` on the other selectors.)
@@ -272,7 +274,7 @@ own it, file it if it's a defect.
 \`yg impact\` (read the closing summary first: \`Total to re-verify:\` on
 \`--file\`, \`Blast radius:\` otherwise), \`yg check --approve --dry-run\`.
 The most common dry-run result on a green repo is the best evaluator stamp
-there is: "Filling 0 unverified pairs … 0 reviewer calls". State the
+there is: "fill  0 pairs · 0 script (free) · 0 reviewer calls". State the
 arithmetic once: deterministic = free forever; LLM pair = calls ×
 consensus; CLI providers add no separate bill. (Fill counts can slightly
 exceed error counts — advisory pairs fill too but only warn.)

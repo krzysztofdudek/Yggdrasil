@@ -215,6 +215,11 @@ export class ProgressTracker {
     emit({ type: 'status', counts: this._counts(), elapsedSeconds, currentPair: this.state.currentPair, columns: this.columns });
   }
 
+  /** How the pairs finished so far ended — the closing line's counts. */
+  counts(): { completed: number; total: number; approved: number; refused: number; infra: number } {
+    return this._counts();
+  }
+
   private _counts(): { completed: number; total: number; approved: number; refused: number; infra: number } {
     const { completed, total, approved, refused, infra } = this.state;
     return { completed, total, approved, refused, infra };

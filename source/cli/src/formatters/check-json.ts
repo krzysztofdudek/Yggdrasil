@@ -89,7 +89,7 @@ export interface CheckJsonIssue {
    * `deterministic-not-run` are pairs waiting for a fill.
    */
   cause?: string;
-  /** The heading a text report groups this finding under (`enforced`, `unmapped`, the code itself, …). */
+  /** The word a text report heads this finding with — `refused`, `unmapped`, `unverified`, or the code itself — the same word the text prints in `error[<label>]`. */
   label?: string;
   /** `unit` as a structured subject, the same shape as a pair's `unit`. */
   unitRef?: { kind: 'node' | 'file'; path: string };
@@ -126,11 +126,33 @@ export interface CheckJsonGroup {
   label: string;
   aspect: string | null;
   severity: 'error' | 'warning';
+  /** The block's heading sentence, as the text report prints it after `error[<label>]`. */
+  subject?: string;
+  /** For an unverified block: why its pairs have no verdict. */
+  cause?: string;
   /** The shared rationale, or null when the members' rationales differ. */
   why: string | null;
   /** The shared remedy, or null when the members' remedies differ. */
   next: string | null;
   members: number[];
+}
+
+/**
+ * The one step the run points at first, as data: the same step the text
+ * report's `next:` line prints (and `suggestedNext` carries as that line's
+ * text). `command` is set when the step is a runnable command, as argv.
+ */
+export interface CheckJsonNext {
+  command: string[] | null;
+  text: string;
+  /** What the step is about: the node or file it names, when it names one. */
+  target: { node?: string; file?: string };
+  /** What running it costs, when it is a fill: script pairs are free, reviewer pairs are paid. */
+  cost: { free: number; reviewerPairs: number };
+  /** Errors left once this step is done: those that need a code or graph fix, and pairs a fill can record. */
+  remaining: { needsFix: number; fillable: number };
+  /** The step after this one, as the text report's `then:` line prints it, or null. */
+  then: string | null;
 }
 
 /** Why a recording run stopped before recording anything, and what stopped it. */
@@ -208,6 +230,8 @@ export interface CheckJsonDocument {
   dryRunBudget?: { pairs: number; nodes: number; files: number; deterministic: number; reviewerCalls: number };
   /** The text report's groups, in its order (added by the command layer). */
   groups?: CheckJsonGroup[];
+  /** The step `suggestedNext` names, as data (added by the command layer); null on a run with nothing to do. */
+  next?: CheckJsonNext | null;
   /**
    * The text report's partial-result banner, or null: set when part of the graph
    * did not load as written, so every other number here describes a fallback.

@@ -1,172 +1,66 @@
 $ yg check --details
 exit: 1
 --- stdout
-yg check: FAIL  25 nodes · 24/29 files (83%) · 2 aspects · 0 flows · 16 verified (16 deterministic, 0 LLM)
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: details
 
-Errors (34):
+error[refused] no-todo — 8 violations in 8 nodes
+  at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-06  src/svc-06/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-09  src/svc-09/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-12  src/svc-12/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-15  src/svc-15/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-18  src/svc-18/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-21  src/svc-21/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-24  src/svc-24/index.ts:2  TODO marker left in shipped code — move it to the tracker
+  why:  Unfinished work belongs in the tracker, not in shipped code.
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
 
-  enforced  app/svc-03  Aspect 'no-todo' is refused on node:app/svc-03 by a deterministic check.
-            Violations:
-            src/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
+error[relation-broken] Relation target 'app/svc-99' does not exist
+  at:   app/svc-05
+  why:  This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).
+  fix:  Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
 
-  enforced  app/svc-06  Aspect 'no-todo' is refused on node:app/svc-06 by a deterministic check.
-            Violations:
-            src/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
+error[unmapped] 1 file belongs to no node
+  at:   src/tools/gen.ts
+  why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
 
-  enforced  app/svc-09  Aspect 'no-todo' is refused on node:app/svc-09 by a deterministic check.
-            Violations:
-            src/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
+error[unverified] 24 pairs with no verdict yet
+  at:   readable-names @ app/svc-01
+        readable-names @ app/svc-02
+        readable-names @ app/svc-03
+        readable-names @ app/svc-04
+        readable-names @ app/svc-05
+        readable-names @ app/svc-06
+        readable-names @ app/svc-07
+        readable-names @ app/svc-08
+        readable-names @ app/svc-09
+        readable-names @ app/svc-10
+        readable-names @ app/svc-11
+        readable-names @ app/svc-12
+        readable-names @ app/svc-13
+        readable-names @ app/svc-14
+        readable-names @ app/svc-15
+        readable-names @ app/svc-16
+        readable-names @ app/svc-17
+        readable-names @ app/svc-18
+        readable-names @ app/svc-19
+        readable-names @ app/svc-20
+        readable-names @ app/svc-21
+        readable-names @ app/svc-22
+        readable-names @ app/svc-23
+        readable-names @ app/svc-24
+  why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
+  fix:  yg check --approve  (24 reviewer pairs · paid)
 
-  enforced  app/svc-12  Aspect 'no-todo' is refused on node:app/svc-12 by a deterministic check.
-            Violations:
-            src/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
+warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
+  at:   .clinerules/yggdrasil.md
+        .gitattributes
+        AGENTS.md
+        CLAUDE.md
+  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
-  enforced  app/svc-15  Aspect 'no-todo' is refused on node:app/svc-15 by a deterministic check.
-            Violations:
-            src/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-
-  enforced  app/svc-18  Aspect 'no-todo' is refused on node:app/svc-18 by a deterministic check.
-            Violations:
-            src/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-
-  enforced  app/svc-21  Aspect 'no-todo' is refused on node:app/svc-21 by a deterministic check.
-            Violations:
-            src/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-
-  enforced  app/svc-24  Aspect 'no-todo' is refused on node:app/svc-24 by a deterministic check.
-            Violations:
-            src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            Why: A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-
-  unverified  app/svc-01  No verdict yet for aspect 'readable-names' on node:app/svc-01.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-02  No verdict yet for aspect 'readable-names' on node:app/svc-02.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-03  No verdict yet for aspect 'readable-names' on node:app/svc-03.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-04  No verdict yet for aspect 'readable-names' on node:app/svc-04.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-05  No verdict yet for aspect 'readable-names' on node:app/svc-05.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-06  No verdict yet for aspect 'readable-names' on node:app/svc-06.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-07  No verdict yet for aspect 'readable-names' on node:app/svc-07.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-08  No verdict yet for aspect 'readable-names' on node:app/svc-08.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-09  No verdict yet for aspect 'readable-names' on node:app/svc-09.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-10  No verdict yet for aspect 'readable-names' on node:app/svc-10.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-11  No verdict yet for aspect 'readable-names' on node:app/svc-11.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-12  No verdict yet for aspect 'readable-names' on node:app/svc-12.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-13  No verdict yet for aspect 'readable-names' on node:app/svc-13.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-14  No verdict yet for aspect 'readable-names' on node:app/svc-14.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-15  No verdict yet for aspect 'readable-names' on node:app/svc-15.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-16  No verdict yet for aspect 'readable-names' on node:app/svc-16.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-17  No verdict yet for aspect 'readable-names' on node:app/svc-17.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-18  No verdict yet for aspect 'readable-names' on node:app/svc-18.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-19  No verdict yet for aspect 'readable-names' on node:app/svc-19.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-20  No verdict yet for aspect 'readable-names' on node:app/svc-20.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-21  No verdict yet for aspect 'readable-names' on node:app/svc-21.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-22  No verdict yet for aspect 'readable-names' on node:app/svc-22.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-23  No verdict yet for aspect 'readable-names' on node:app/svc-23.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  unverified  app/svc-24  No verdict yet for aspect 'readable-names' on node:app/svc-24.
-            Why: The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
-
-  relation-broken  app/svc-05  Relation target 'app/svc-99' does not exist.
-            Why: This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).
-            Fix: Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
-
-  unmapped (1)
-            src/tools/gen.ts
-            Why: No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
-            Fix: Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
-
-Warnings (1):
-
-  uncovered (4)
-            .clinerules/yggdrasil.md
-            .gitattributes
-            AGENTS.md
-            CLAUDE.md
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
-
-Next: yg check --approve  (fills 24 unverified; 10 errors remain — need code/graph fixes)
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
 --- stderr

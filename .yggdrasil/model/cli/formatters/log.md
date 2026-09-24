@@ -46,3 +46,7 @@ Replaced the hand-inlined path-separator normalization with calls to a single sh
 The description counted seven machine forms including the removed external judge's package, while the node holds eight live schema constants and never listed the rule-log and advise documents. It now lists the eight forms that exist, and says the check document's judges field reports verdicts an older lock may still hold.
 ## [2026-09-24T06:15:40.324Z]
 Two machine forms joined the node: one drill run and the rule health view. Each is its own versioned document, because the consumer that reads them branches on the schema name and must not have to parse text whose wording belongs to the CLI; the health view is deliberately separate from the rule inventory so one schema name never means two things.
+## [2026-09-24T08:38:01.386Z]
+The context reports label the steps they recommend: a node's dependents, its impact command and the workflow after editing now end in next: and then: lines, and a file's report does the same, instead of prose starting with Run: or Strongly recommended. The machine forms are untouched.
+## [2026-09-24T10:25:49.186Z]
+The fill names what reviews the pairs it left alone on one labelled next: line after its closing line, instead of commands inside its sentences.

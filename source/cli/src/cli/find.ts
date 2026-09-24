@@ -99,7 +99,7 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
   if (results.length === 0) {
     process.stdout.write('No matches.\n');
     process.stdout.write(
-      '\nNext: run yg tree for the full graph, or re-query with sharper keywords.\n',
+      '\nnext: run yg tree for the full graph, or re-query with sharper keywords.\n',
     );
     return 0;
   }
@@ -156,12 +156,12 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
     if (topDoc.kind === 'node') {
       // Strip the leading `model/` so the path is a valid --node argument.
       const nodeArg = toPosixPath(topDoc.path).replace(/^model\//, '');
-      process.stdout.write(`Next: yg context --node ${nodeArg}\n`);
+      process.stdout.write(`next: yg context --node ${nodeArg}\n`);
     } else if (topDoc.kind === 'file') {
-      process.stdout.write(`Next: yg context --file ${toPosixPath(topDoc.path)}\n`);
+      process.stdout.write(`next: yg context --file ${toPosixPath(topDoc.path)}\n`);
     } else {
       process.stdout.write(
-        `Next: read .yggdrasil/${toPosixPath(topDoc.path)} — this is a rule, not an entry-point node (do not pass it to --node).\n`,
+        `next: read .yggdrasil/${toPosixPath(topDoc.path)} — this is a rule, not an entry-point node (do not pass it to --node).\n`,
       );
     }
   }

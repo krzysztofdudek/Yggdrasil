@@ -142,17 +142,18 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
 
       const cold = run(['check'], dir);
       expect(cold.status).toBe(1);
-      // The grouped view glosses the unverified label and names the aspect in
-      // the group header; the per-issue `what`
-      // ("No valid verdict for aspect '<id>' on <unit>.") is gone for the
-      // non-FULL_WHAT unverified code. Assert the gloss + aspect segment + both
-      // node lines: both deterministic-effective nodes report unverified for the
-      // enforced aspect (no entry exists for any pair yet).
-      expect(cold.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(cold.all).toContain("aspect 'no-todo-comments'");
-      expect(cold.all).toContain('- services/orders');
-      expect(cold.all).toContain('- services/payments');
-      expect(cold.all).toContain('Next: yg check --approve');
+      // The unverified block names the cause in its subject and the rule in its
+      // at: line; both deterministic-effective nodes report unverified for the
+      // enforced aspect (no entry exists for any pair yet) — counted in the
+      // default view, named per pair under --details.
+      expect(cold.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      expect(cold.all).toMatch(/at:\s+no-todo-comments {2}2 pairs · 2 nodes · script/);
+      // The capped default view counts the nodes; the uncapped --details view names each pair.
+      const coldDetails = run(['check', '--details'], dir);
+      expect(coldDetails.all).toContain('no-todo-comments @ services/orders');
+      expect(coldDetails.all).toContain('no-todo-comments @ services/payments');
+      // The block's fix points at the (free) fill command.
+      expect(cold.all).toMatch(/fix:\s+yg check --approve --only-deterministic/);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -262,7 +263,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       // The fill itself completes (det runs, nothing to retry), but the resulting
       // enforced refusal makes the post-fill check FAIL.
       expect(fill.status).toBe(1);
-      expect(fill.all).toContain('[det] no-todo-comments on node:services/orders — refused');
+      expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
 
       const parsed = readLock(dir);
 
@@ -480,14 +481,12 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
 
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // The tampered pair is re-flagged unverified, not accepted. The per-issue
-      // `what` ("No valid verdict for aspect '<id>' on <unit>.") is gone for the
-      // non-FULL_WHAT unverified code; assert the grouped gloss + aspect segment
-      // + the offending node line instead.
-      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(check.all).toContain("aspect 'no-todo-comments'");
-      expect(check.all).toContain('- services/orders');
-      expect(check.all).toContain('Next: yg check --approve');
+      // The tampered pair is re-flagged unverified, not accepted: the block's
+      // subject names the cause and its at: line names the pair.
+      expect(check.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      expect(check.all).toContain('no-todo-comments @ services/orders');
+      // The block's fix points at the fill command.
+      expect(check.all).toMatch(/fix:\s+yg check --approve/);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

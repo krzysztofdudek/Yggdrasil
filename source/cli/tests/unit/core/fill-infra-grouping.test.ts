@@ -637,6 +637,6 @@ describe('provider-unreachable already aggregated', () => {
       m.what.includes('unreachable') || m.what.includes('Reviewer provider'),
     );
     expect(providerMessages).toHaveLength(1);
-    expect(providerMessages[0].what).toContain('3 pair(s)');
+    expect(providerMessages[0].what).toContain('3 pairs left unverified');
   });
 });

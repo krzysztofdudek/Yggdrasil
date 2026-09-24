@@ -2,6 +2,6 @@ $ yg check
 exit: 1
 --- stdout
 --- stderr
-Error: No .yggdrasil/ directory found in the current project.
-Yggdrasil commands require an initialized graph at the project root.
-Run 'yg init' to bootstrap the graph, then re-run this command.
+error[graph-missing]: No .yggdrasil/ directory found in the current project.
+  why:  Yggdrasil commands require an initialized graph at the project root.
+next: Run 'yg init' to bootstrap the graph, then re-run this command.

@@ -114,20 +114,35 @@ function unitKey(u: { unit: { kind: string; path: string } }): string {
   return `${u.unit.kind}:${u.unit.path}`;
 }
 
-/** The header's own numbers, read back out of the text report. */
-function headerCounts(text: string): { errors: number; warnings: number; verified: number; det: number; llm: number; nodes: number } {
-  const nodes = /(\d+) nodes/.exec(text);
-  const verified = /(\d+) verified \((\d+) deterministic, (\d+) LLM\)/.exec(text);
-  const errors = /^Errors \((\d+)\)/m.exec(text);
-  const warnings = /^Warnings \((\d+)\)/m.exec(text);
+/**
+ * The header's own numbers, read back out of the text report's first line
+ * (`yg check: FAIL  2 errors · 1 warning   3 nodes · … · 16 pairs verified (12 script · 4 reviewer)`).
+ * A zero segment is never printed, and the verified count carries its
+ * script/reviewer split only when both kinds are present — `split` is null otherwise.
+ */
+function headerCounts(text: string): {
+  errors: number; warnings: number; verified: number; split: { det: number; llm: number } | null; nodes: number;
+} {
+  const line = text.split('\n')[0];
+  const nodes = /(\d+) nodes?\b/.exec(line);
+  const verified = /(\d+) pairs? verified(?: \((\d+) script · (\d+) reviewer\))?/.exec(line);
+  const errors = /(\d+) errors?\b/.exec(line);
+  const warnings = /(\d+) warnings?\b/.exec(line);
   return {
     errors: errors ? Number(errors[1]) : 0,
     warnings: warnings ? Number(warnings[1]) : 0,
     verified: verified ? Number(verified[1]) : 0,
-    det: verified ? Number(verified[2]) : 0,
-    llm: verified ? Number(verified[3]) : 0,
+    split: verified?.[2] !== undefined ? { det: Number(verified[2]), llm: Number(verified[3]) } : null,
     nodes: nodes ? Number(nodes[1]) : 0,
   };
+}
+
+/** The document's verified split agrees with the header: the total always, the split when printed. */
+function expectVerifiedMatches(verified: { deterministic: number; llm: number }, header: ReturnType<typeof headerCounts>): void {
+  expect(verified.deterministic + verified.llm).toBe(header.verified);
+  if (header.split) expect(verified).toEqual({ deterministic: header.split.det, llm: header.split.llm });
+  // No split printed means one kind alone (or nothing) was verified.
+  else expect(Math.min(verified.deterministic, verified.llm)).toBe(0);
 }
 
 describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
@@ -145,7 +160,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
       expect(doc.project.nodes).toBe(header.nodes);
       expect(doc.totals.errors).toBe(header.errors);
       expect(doc.totals.warnings).toBe(header.warnings);
-      expect(doc.totals.verified).toEqual({ deterministic: header.det, llm: header.llm });
+      expectVerifiedMatches(doc.totals.verified, header);
       expect(doc.exit.code).toBe(text.status);
       expect(doc.exit.status).toBe(text.status === 0 ? 'pass' : 'fail');
       expect(doc.exit.reason).toContain(String(header.errors));
@@ -227,8 +242,9 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
       expect(doc.dryRunBudget).toBeDefined();
       const b = doc.dryRunBudget!;
       // The human header still goes to stderr, and it states the same numbers.
+      expect(preview.stderr).toContain('fill  dry run — a cost preview; nothing is filled or written');
       expect(preview.stderr).toContain(
-        `Filling ${b.pairs} unverified pairs across ${b.nodes} nodes — ${b.deterministic} deterministic (no cost), ${b.reviewerCalls} reviewer calls`,
+        `fill  ${b.pairs} pairs · ${b.deterministic} script (free) · ${b.reviewerCalls} reviewer call`,
       );
       expect(b.pairs).toBeGreaterThan(0);
       // A document from a run that previewed nothing carries no budget.
@@ -483,10 +499,11 @@ describe.skipIf(!distExists)("CLI E2E — the documents on this repository's own
 
     const header = headerCounts(text.stdout);
     expect(doc.project.nodes).toBe(header.nodes);
-    expect(doc.totals.verified).toEqual({ deterministic: header.det, llm: header.llm });
+    expectVerifiedMatches(doc.totals.verified, header);
     expect(doc.totals.errors).toBe(header.errors);
     expect(doc.totals.warnings).toBe(header.warnings);
-    expect(doc.totals.verdicts.approved).toBe(header.det + header.llm);
+    expect(doc.totals.verdicts.approved).toBe(header.verified);
+
     expect(doc.pairs.length).toBeGreaterThan(1000);
     // Every pair names a rule that exists, and a subject.
     for (const p of doc.pairs.slice(0, 200)) {

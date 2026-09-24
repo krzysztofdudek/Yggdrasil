@@ -287,7 +287,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
   });
 
   // ── Deterministic: violations print correctly ────────────────────────────────
-  it('det --node violations: prints <graph>: and file-grouped L<line>, exits 1, footer present', async () => {
+  it('det --node violations: prints one at: line per violation (<graph> and <file>:<line>), exits 1, footer present', async () => {
     mockLoadGraph.mockResolvedValue(
       makeGraph({
         aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
@@ -304,8 +304,9 @@ describe('aspect-test command behavior (mocked runners)', () => {
     } as never);
     await runCommand(['--aspect', 'a', '--node', 'N']);
     expect(exitCode).toBe(1);
-    expect(stdout).toContain('<graph>: graph problem');
-    expect(stdout).toContain('L3: file problem');
+    const clean = stripAnsi(stdout);
+    expect(clean).toContain('  at:   <graph>  graph problem');
+    expect(clean).toContain('        src/a.ts:3  file problem');
     expect(stdout).toContain('diagnostic only — lock unchanged');
   });
 
@@ -448,7 +449,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'llm-a', '--files', 'src/a.ts']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('LLM');
+    expect(stderr).toContain('reviewer rule');
     expect(stderr).toContain('graph context');
   });
 
@@ -579,7 +580,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'llm-companion', '--files', 'src/a.ts']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('LLM');
+    expect(stderr).toContain('reviewer rule');
     expect(stderr).toContain('graph context');
     // Hook must NOT have been called (reject happens before any hook call).
     expect(mockRunCompanionHook).not.toHaveBeenCalled();
@@ -741,7 +742,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
   });
 
   // ── Line-less violations (fix8): no 'L?:' placeholder ───────────────────────
-  it('det --node line-less violation renders a bare indented message (no L?:) and sorts first', async () => {
+  it('det --node line-less violation renders as <file>  <message> (no :? placeholder) and sorts first', async () => {
     mockLoadGraph.mockResolvedValue(
       makeGraph({
         aspects: [{ id: 'a', reviewer: { type: 'deterministic' } }],
@@ -760,13 +761,14 @@ describe('aspect-test command behavior (mocked runners)', () => {
     await runCommand(['--aspect', 'a', '--node', 'N']);
     expect(exitCode).toBe(1);
     const clean = stripAnsi(stdout);
-    expect(clean).toContain('  no line at all');
-    expect(clean).toContain('  column but no line');
-    expect(clean).toContain('  L3: with line');
+    expect(clean).toMatch(/src\/a\.ts {2}no line at all/);
+    expect(clean).toMatch(/src\/a\.ts {2}column but no line/);
+    expect(clean).toContain('src/a.ts:3  with line');
     expect(clean).not.toContain('L?');
-    // Line-less violations sort as line 0 — they render BEFORE the L3 entry.
-    expect(clean.indexOf('no line at all')).toBeLessThan(clean.indexOf('L3: with line'));
-    expect(clean.indexOf('column but no line')).toBeLessThan(clean.indexOf('L3: with line'));
+    expect(clean).not.toContain(':?');
+    // Line-less violations sort as line 0 — they render BEFORE the :3 entry.
+    expect(clean.indexOf('no line at all')).toBeLessThan(clean.indexOf('src/a.ts:3  with line'));
+    expect(clean.indexOf('column but no line')).toBeLessThan(clean.indexOf('src/a.ts:3  with line'));
   });
 
   // ── Draft aspects (fix3): status never gates aspect-test ────────────────────

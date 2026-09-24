@@ -28,7 +28,7 @@ describe('formatFileContext', () => {
     expect(output).toContain('Source: required aspect for type \'library\'');
     expect(output).toContain('Dependencies consumed:');
     expect(output).toContain('cli/core/context — buildContext()');
-    expect(output).toContain('Node context: run yg context --node cli/core/validator');
+    expect(output).toContain('then: yg context --node cli/core/validator');
   });
 
   it('formats unmapped file with candidates', () => {

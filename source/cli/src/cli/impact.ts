@@ -32,7 +32,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
-import { fail } from './output.js';
+import { fail, plural } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -446,7 +446,7 @@ export function registerImpactCommand(program: Command): void {
 
           const allAffected = new Set([...allDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
           process.stdout.write(
-            `\nBlast radius: ${allAffected.size} nodes, ${flows.length} flows, ${aspectsInScope.length} aspects\n`,
+            `\nBlast radius: ${allAffected.size} ${plural(allAffected.size, 'node')}, ${flows.length} ${plural(flows.length, 'flow')}, ${aspectsInScope.length} ${plural(aspectsInScope.length, 'aspect')}\n`,
           );
           if (fileImpact) {
             process.stdout.write(renderImpactTotal(fileImpact.summary, fileImpact.repoRelative, { isTTY: process.stdout.isTTY ?? false }));
@@ -454,15 +454,15 @@ export function registerImpactCommand(program: Command): void {
             process.stdout.write(renderNodeFillCost(await computeNodeFillCost(graph, nodePath, lock), 'node'));
           }
           if (allAffected.size >= 10) {
-            process.stdout.write(`  High blast radius — review direct dependents before changing this node.\n`);
+            process.stdout.write(`  High blast radius.\nnext: review the direct dependents above before changing this node\n`);
           } else if (allAffected.size > 0) {
-            process.stdout.write(`  Review direct dependents before changing this node.\n`);
+            process.stdout.write(`next: review the direct dependents above before changing this node\n`);
           }
           process.stdout.write(
             '\n' + buildIssueMessage({
               what: `You are about to change node ${toPosixPath(nodePath)}.`,
               why: 'Dependents listed above may be affected by changes to this node.',
-              next: `Run yg context --node ${toPosixPath(nodePath)} for any dependent you are unsure about.`,
+              next: `yg context --node ${toPosixPath(nodePath)}  (for any dependent you are unsure about)`,
             }) + '\n',
           );
         } catch (error) {

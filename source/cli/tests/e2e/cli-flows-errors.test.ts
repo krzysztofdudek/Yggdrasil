@@ -301,7 +301,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       // default body; assert the group label + shared why/fix.
       expect(check.stdout).toContain('description-missing');
       expect(check.stdout).toContain('Description is used in context output');
-      expect(check.stdout).toContain('Add a description field to yg-flow.yaml.');
+      expect(check.stdout).toMatch(/Add a description field to \.yggdrasil\/flows\/[^ ]+\/yg-flow\.yaml\./);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -417,8 +417,11 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
       expect(check.stdout).toContain('PASS');
-      // Still exactly one flow — the stray file was not counted.
-      expect(check.stdout).toContain('1 flow');
+      // Still exactly one flow — the stray file was not counted. The verdict line
+      // no longer carries a flow count; the JSON document's project block does.
+      const checkJson = run(['check', '--json'], dir);
+      expect(checkJson.status).toBe(0);
+      expect(JSON.parse(checkJson.stdout).project.flows).toBe(1);
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
       const participantLines = flows.stdout
@@ -506,11 +509,12 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
 
       const batch = run(['check', '--approve'], dir);
       expect(batch.status).toBe(1);
-      // One node passed, one failed — failures do not abort the clean node.
-      expect(batch.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
-      // The refusal renders as an enforced finding naming the violating node.
-      expect(batch.stdout).toContain('enforced');
-      expect(batch.stdout).toContain('services/payments');
+      // One node passed, one failed — failures do not abort the clean node. The
+      // closing fill line counts both outcomes.
+      expect(batch.stderr).toMatch(/fill {2}done in \S+ — 2 approved · 1 refused · 0 failed/);
+      // The refusal renders as an enforced finding (error[refused]) naming the
+      // violating node.
+      expect(batch.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -531,14 +535,15 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       // The recorded enforced REFUSAL still blocks check (cached — same inputs).
       const afterBatch = run(['check'], dir);
       expect(afterBatch.status).toBe(1);
-      expect(afterBatch.stdout).toContain('enforced');
-      expect(afterBatch.stdout).toContain('services/payments');
+      expect(afterBatch.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
       // A second fill finds nothing to do — every pair already holds a valid
       // verdict (the refused verdict is cached against unchanged inputs).
       const second = run(['check', '--approve'], dir);
       expect(second.status).toBe(1);
-      // Fill progress (including "0 reviewer calls made" notice) goes to STDERR.
-      expect(second.stderr).toContain('0 reviewer calls made — nothing to fill; 1 recorded refusal still stands.');
+      // A fill with nothing to do prints no fill progress at all on STDERR…
+      expect(second.stderr).not.toContain('fill  ');
+      // …and the recorded refusal still stands on the report.
+      expect(second.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
 
       // Fixing the source changes the inputs → the pair goes unverified again →
       // the next fill re-runs the now-clean check and approves it.

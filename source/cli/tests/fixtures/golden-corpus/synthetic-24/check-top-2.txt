@@ -1,49 +1,27 @@
 $ yg check --top 2
 exit: 1
 --- stdout
-yg check: FAIL  25 nodes · 24/29 files (83%) · 2 aspects · 0 flows · 16 verified (16 deterministic, 0 LLM)
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: top 2
 
-Errors (34):
+error[refused] no-todo — 8 violations in 8 nodes
+  at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-06  src/svc-06/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-09  src/svc-09/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-12  src/svc-12/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-15  src/svc-15/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-18  src/svc-18/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-21  src/svc-21/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-24  src/svc-24/index.ts:2  TODO marker left in shipped code — move it to the tracker
+  why:  Unfinished work belongs in the tracker, not in shipped code.
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
 
-  unverified (not yet reviewed)  24 pairs  24 nodes
-            The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve  (24 reviewer pairs, paid)
-            - app/svc-01  aspect 'readable-names'
-            - app/svc-02  aspect 'readable-names'
-            - app/svc-03  aspect 'readable-names'
-            - app/svc-04  aspect 'readable-names'
-            - app/svc-05  aspect 'readable-names'
-            - app/svc-06  aspect 'readable-names'
-            - app/svc-07  aspect 'readable-names'
-            - app/svc-08  aspect 'readable-names'
-            - app/svc-09  aspect 'readable-names'
-            - app/svc-10  aspect 'readable-names'
-            - app/svc-11  aspect 'readable-names'
-            - app/svc-12  aspect 'readable-names'
-            ... and 12 more (yg check --aspect readable-names)
+error[relation-broken] Relation target 'app/svc-99' does not exist
+  at:   app/svc-05
+  why:  This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).
+  fix:  Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
 
-  enforced  8 pairs  8 nodes  aspect 'no-todo'
-            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-            - app/svc-03  Violations:
-              src/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-06  Violations:
-              src/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-09  Violations:
-              src/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-12  Violations:
-              src/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-15  Violations:
-              src/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-18  Violations:
-              src/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-21  Violations:
-              src/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker
-            - app/svc-24  Violations:
-              src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker
+… +3 more blocks  (yg check)
 
-Warnings (1):
-    (no warning groups within --top 2 — run yg check for the full list)
-
-Next: yg check --approve
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
 --- stderr

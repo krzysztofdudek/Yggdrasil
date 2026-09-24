@@ -61,7 +61,8 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       // First fill: the LLM aspect refuses on both nodes → exit 1, entries recorded refused.
       const fill1 = await runAsync(['check', '--approve'], dir);
       expect(fill1.status).toBe(1);
-      expect(fill1.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      expect(fill1.all).toMatch(/^fill {2}done in .* — 4 approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill1.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
       const callsAfterFirst = mock.chatCount();
       expect(callsAfterFirst).toBe(2); // consensus 1 × 2 LLM pairs
 
@@ -70,26 +71,23 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       expect(lock.verdicts['has-doc-comment']['node:services/orders'].verdict).toBe('refused');
       expect(lock.verdicts['has-doc-comment']['node:services/orders'].reason).toContain('missing doc comment');
 
-      // Plain check renders the cached refusal (exit 1, enforced). In the grouped
-      // view the `what` line-0 header ("Aspect '...' is refused on ... cached
-      // verdict — the reviewer did NOT re-run; ...") is dropped; the "cached/final"
-      // semantics now live in the shared why, and the retained FULL_WHAT tail is
-      // the "Reviewer reason: <reason>" line carried on the `- <node>` bullet.
+      // Plain check renders the cached refusal (exit 1, enforced) as an
+      // error[refused] block; the reviewer's reason sits on each node's member
+      // line, and the "cached/final" semantics live in the fix heading.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('enforced');
-      expect(check.all).toContain("aspect 'has-doc-comment'");
-      expect(check.all).toContain('A refused verdict for unchanged inputs is final and cached');
-      expect(check.all).toContain('Reviewer reason: missing doc comment');
-      // The three exits are present in the rendered Fix line.
-      expect(check.all).toContain('Four exits:');
+      expect(check.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
+      expect(check.all).toMatch(/^ {2}at: +services\/orders +missing doc comment$/m);
+      expect(check.all).toContain(
+        '  fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:',
+      );
       expect(check.all).toContain('yg impact --aspect has-doc-comment');
       expect(check.all).toContain('yg-suppress');
 
       // SECOND fill: ZERO new reviewer HTTP calls — the refusal is cached/final.
       const fill2 = await runAsync(['check', '--approve'], dir);
       expect(mock.chatCount() - callsAfterFirst).toBe(0);
-      expect(fill2.all).toContain('0 reviewer calls made');
+      expect(fill2.all).not.toMatch(/^fill .*\b[1-9]\d* reviewer calls?\b/m);
       expect(fill2.status).toBe(1); // still red — the refusal blocks.
     } finally {
       await mock.close();
@@ -98,15 +96,15 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
   }, 30000);
 
   // ===========================================================================
-  // Regression — the `Next:` footer must NOT truncate a multi-line "Three
-  // exits:" pointer to its bare heading. computeSuggestedNext hands the footer
-  // the refusal's full `next` (the heading plus the three numbered exits); the
-  // renderer used to print only line 1 ("Three exits:"), dead-ending the agent
-  // with a colon and nothing after it. This covers both the enforced (error)
-  // and advisory (warnings-only PASS) refusal footers — the same render path.
+  // Regression — a cached LLM refusal must never dead-end the agent on a bare
+  // heading: the exits (now four) render in full under the block's `fix:`, and
+  // the closing `next:` must not send the agent to re-run the reviewer over
+  // unchanged code (the refusal is cached, so that changes nothing). This covers
+  // both the enforced (error) and advisory (warnings-only PASS) refusal — the
+  // same render path.
   // ===========================================================================
 
-  it("(2b) an ENFORCED cached refusal renders the three exits under the Next footer, not a bare 'Three exits:' heading", async () => {
+  it("(2b) an ENFORCED cached refusal renders the four exits under its fix, and no dead-end next", async () => {
     const dir = copyFixture('footer-enforced');
     const mock = await startMockReviewer({ respond: () => ({ satisfied: false, reason: 'missing doc comment' }) });
     try {
@@ -114,19 +112,23 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       await runAsync(['check', '--approve'], dir); // cache the enforced refusal
       const check = run(['check'], dir); // plain read renders the cached refusal (exit 1)
       expect(check.status).toBe(1);
-      // The footer must carry the actual exits — not dead-end on the heading.
-      expect(check.all).toMatch(/Next: Four exits:\n\s+1\. Fix the code/);
+      // The block must carry the actual exits — not dead-end on the heading.
+      expect(check.all).toMatch(/fix: {2}Four exits — [^\n]*:\n\s+1\. Fix the code/);
       expect(check.all).toMatch(/\n\s+2\. Sharpen the aspect/);
       expect(check.all).toMatch(/\n\s+3\. Propose a `yg-suppress`/);
       // Issue 210 (m16): the fourth exit — advisory while deciding — is offered too.
       expect(check.all).toMatch(/\n\s+4\. Not sure yet which it is: propose `status: advisory`/);
+      // The closing next points at the code, never at a re-run of the reviewer
+      // over unchanged code — the cached refusal makes that a dead end.
+      expect(check.all).toMatch(/^next: change the code of \S+ so it satisfies has-doc-comment\b/m);
+      expect(check.all).not.toMatch(/^next: yg check --approve/m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30000);
 
-  it("(2c) an ADVISORY cached refusal (warnings-only PASS) renders the three exits under the Next footer, not a bare 'Three exits:' heading", async () => {
+  it("(2c) an ADVISORY cached refusal (warnings-only PASS) renders the four exits under its fix, and no dead-end next", async () => {
     const dir = copyFixture('footer-advisory');
     // Flip the LLM aspect to advisory: its refusal becomes a warning, so the run
     // is a warnings-only PASS whose suggestedNext falls back to this refusal's
@@ -139,9 +141,12 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       await runAsync(['check', '--approve'], dir); // cache the advisory refusal
       const check = run(['check'], dir); // warnings-only PASS (exit 0)
       expect(check.status).toBe(0);
-      expect(check.all).toContain('advisory');
-      // Even on a warnings-only PASS, the footer must carry the exits.
-      expect(check.all).toMatch(/Next: Four exits:\n\s+1\. Fix the code/);
+      expect(check.all).toContain('warning[refused] has-doc-comment');
+      // Even on a warnings-only PASS, the block must carry the exits.
+      expect(check.all).toMatch(/fix: {2}Four exits — [^\n]*:\n\s+1\. Fix the code/);
+      // ...and the closing next points at the code, never a re-run over unchanged code.
+      expect(check.all).toMatch(/^next: change the code of \S+ so it satisfies has-doc-comment\b/m);
+      expect(check.all).not.toMatch(/^next: yg check --approve/m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -166,20 +171,16 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       const fill = await runAsync(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       // orders' det check refused → its LLM fill is SKIPPED and reported.
-      expect(fill.all).toContain('[det] no-todo-comments on node:services/orders — refused');
-      expect(fill.all).toContain("LLM fills for node 'services/orders' skipped — an enforced deterministic check already refused it.");
-      // payments has NO det violation → its LLM fill ran. orders' did NOT.
-      expect(fill.all).not.toContain('[llm] has-doc-comment on node:services/orders');
+      expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
+      expect(fill.all).toContain("warning: Reviewer pairs for node 'services/orders' skipped — an enforced script rule already refuses it.");
+      // payments has NO det violation → its LLM fill ran (one call). orders' did NOT.
+      expect(fill.all).toMatch(/^fill {2}done in .* · 1 reviewer call · reviewer skipped on 1 unit a script rule refuses$/m);
       // Exactly ONE reviewer call (payments only). orders' LLM pair was never dispatched.
       expect(mock.chatCount()).toBe(1);
-      // orders' LLM pair stays unverified (never billed). The per-issue `what`
-      // ("No valid verdict for aspect '<id>' on <unit>.") is gone in the grouped
-      // view for the non-FULL_WHAT unverified code; assert the gloss + aspect
-      // segment + the offending node line instead.
+      // orders' LLM pair stays unverified (never billed); the block names the pair.
       const check = run(['check'], dir);
-      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(check.all).toContain("aspect 'has-doc-comment'");
-      expect(check.all).toContain('- services/orders');
+      expect(check.all).toContain('error[unverified] 1 pair with no verdict yet');
+      expect(check.all).toMatch(/^ {2}at: +has-doc-comment @ services\/orders$/m);
 
       // Fix the det violation → re-fill now runs the LLM for orders.
       const callsBefore = mock.chatCount();
@@ -220,7 +221,8 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
         const fill = await runAsync(['check', '--approve'], dir);
         expect(fill.status).toBe(1);
         // The infra summary class is printed.
-        expect(fill.all).toContain('pairs failed on provider/config errors');
+        expect(fill.all).toContain('warning: 1 pair failed on provider/config errors');
+        expect(fill.all).toContain('fill  not judged  has-doc-comment @ services/orders');
 
         // FAIL-CLOSED: the edited orders LLM pair must NOT have advanced to a green
         // verdict — its hash no longer matches the edited source (stale entry),
@@ -232,15 +234,12 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
         const ordersNow = lockNow.verdicts['has-doc-comment']['node:services/orders'];
         if (ordersNow) expect(ordersNow).toEqual(ordersEntryBefore);
 
-        // A plain read stays RED — the edited pair is unverified, no false-green.
-        // The per-issue `what` ("No valid verdict for aspect '<id>' on <unit>.")
-        // is gone in the grouped view for the non-FULL_WHAT unverified code;
-        // assert the gloss + aspect segment + the offending node line instead.
+        // A plain read stays RED — the edited pair is unverified, no false-green;
+        // the block names the pair.
         const check = run(['check'], dir);
         expect(check.status).toBe(1);
-        expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-        expect(check.all).toContain("aspect 'has-doc-comment'");
-        expect(check.all).toContain('- services/orders');
+        expect(check.all).toMatch(/^error\[unverified\] 1 pair /m);
+        expect(check.all).toMatch(/^ {2}at: +has-doc-comment @ services\/orders$/m);
       } finally {
         await infraMock.close();
       }

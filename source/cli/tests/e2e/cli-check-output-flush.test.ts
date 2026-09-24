@@ -5,23 +5,20 @@
 // then called process.exit(1) immediately. When stdout was a PIPE (exactly what
 // spawnSync produces), the kernel-side buffer drained asynchronously; process.exit()
 // terminated the process before the buffer was fully consumed, silently truncating
-// the rendered error list. The symptom: `Errors (N)` header reported e.g. 595 but
+// the rendered error list. The symptom: the error count reported e.g. 595 but
 // only 168 rendered lines reached the pipe consumer.
 //
 // Fix: exitAfterFlush() in src/cli/check.ts waits for process.stdout.writableLength
 // to drain before calling process.exit(). This guarantees the full report survives.
 //
 // This test creates a graph with many LLM-aspect nodes so that `yg check` (cold,
-// no lock) produces well over 200 unverified pairs in a single run. In the
-// Phase-1 GROUPED default output those pairs render as ONE group block per
-// distinct (code, aspectId) — here three aspect groups — and EACH pair surfaces
-// as a `- <node>` affected-node line inside its group. The flush invariant is that
-// EVERY one of those node lines (one per pair the header counts) survives the
-// pipe: the count of rendered `- <node>` lines must equal the N from the
-// "Errors (N) in M groups:" header AND N > 200. A regression of the truncation
-// bug would cause the rendered node-line count to be less than N, breaking the
-// assertion. (Piped stdout is NOT a TTY, so the per-group node-list cap never
-// truncates — every member node renders.)
+// no lock) produces well over 200 unverified pairs in a single run. The default
+// view folds them into ONE `error[unverified]` block with one member line per
+// rule; `yg check --details` lists every pair on its own `<aspect> @ <node>`
+// member line. The flush invariant is that EVERY one of those pair lines (one per
+// error the verdict line counts) survives the pipe: their count must equal the N
+// from the `yg check: FAIL  N errors` verdict line AND N > 200. A regression of
+// the truncation bug would cause the rendered count to be less than N.
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -162,7 +159,7 @@ function buildFlushFixture(): string {
 }
 
 describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush regression)', () => {
-  it('header count equals rendered affected-node line count and N > 200 through a pipe (grouped output)', () => {
+  it('verdict-line count equals rendered pair line count and N > 200 through a pipe', () => {
     // spawnSync captures stdout via a pipe internally — this is exactly the
     // scenario that triggered the truncation bug. If exitAfterFlush regresses,
     // the rendered count will be less than the header count.
@@ -181,63 +178,39 @@ describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush r
       // eslint-disable-next-line no-control-regex
       const stripped = stdout.replace(/\x1b\[[0-9;]*m/g, '');
 
-      // 1. Parse the declared N from the grouped "Errors (N) in M groups:" header.
-      //    The Phase-1 default view carries the optional " in M groups" segment
-      //    whenever there is more than one group; here the 3 aspects form 3 groups,
-      //    so the segment is present. Tolerate both shapes so a 1-group regression
-      //    still parses N rather than silently failing the match.
-      const headerMatch = stripped.match(/Errors \((\d+)\)(?: in (\d+) groups)?:/);
-      expect(headerMatch, 'Expected "Errors (N)[ in M groups]:" header in output').not.toBeNull();
+      // 1. Parse the declared N from the verdict line (`yg check: FAIL  N errors …`).
+      const headerMatch = stripped.match(/^yg check: FAIL {2}(\d+) errors?\b/m);
+      expect(headerMatch, 'Expected "yg check: FAIL  N errors" verdict line in output').not.toBeNull();
       const headerCount = parseInt(headerMatch![1], 10);
-      const groupCount = headerMatch![2] !== undefined ? parseInt(headerMatch![2], 10) : 1;
 
       // 2. N must be well above 200 — proves we are exercising a large list that
       //    would have been truncated under the pre-fix process.exit() behaviour.
       expect(headerCount).toBeGreaterThan(200);
+      // 75 nodes × 3 LLM aspects = 225 unverified pairs, cold — the verdict line says so.
+      expect(headerCount).toBe(225);
 
-      // 3. All three LLM aspects now collapse into ONE group (unverified groups by
-      //    CODE ONLY since Phase 1.6 — the group header carries no aspect segment;
-      //    instead each body-line shows "  aspect '<id>'"). So groupCount = 1.
-      expect(groupCount).toBe(1);
+      // 3. All three LLM aspects collapse into ONE unverified block (the cause —
+      //    no verdict yet — is in its subject, the aspects are its members).
+      const blocks = stripped.match(/^error\[[^\]]+\] .*$/gm) ?? [];
+      expect(blocks).toEqual([`error[unverified] ${headerCount} pairs with no verdict yet`]);
+      // No relation-undeclared block (no cross-node dependency in the fixture).
+      expect(stripped).not.toContain('relation-undeclared-dependency');
 
-      // 4. Exactly ONE unverified group header (no aspect segment in the header).
-      const groupHeaders = stripped.match(
-        /^ {2}unverified \(not yet reviewed\) {2}\d+ pairs {2}\d+ nodes$/gm,
-      ) ?? [];
-      expect(groupHeaders.length).toBe(1);
-
-      // 5. The single group header's "<P> pairs" count must equal the header N.
-      const pairSum = groupHeaders.reduce((acc, line) => {
-        const m = line.match(/(\d+) pairs/);
-        return acc + (m ? parseInt(m[1], 10) : 0);
-      }, 0);
+      // 4. The capped view lists one member line per rule, each counting its
+      //    pairs and nodes; the per-rule pair counts sum to the declared N.
+      const ruleLines = stripped.match(/^(?: {2}at: {3}| {8})must-have-\w+ {2}\d+ pairs · \d+ nodes · reviewer$/gm) ?? [];
+      expect(ruleLines.length).toBe(3);
+      const pairSum = ruleLines.reduce((acc, line) => acc + parseInt(line.match(/(\d+) pairs/)![1], 10), 0);
       expect(pairSum).toBe(headerCount);
 
-      // 6. Count rendered affected-node lines. Each unverified pair surfaces as a
-      //    "            - svcNNN  aspect '<id>'" bullet inside the group block
-      //    (12-space indent + "- " + node path + "  aspect '<id>'"). These
-      //    self-contained nodes have no cross-node dependency, so the live relation
-      //    pass adds no relation-undeclared block. The flush invariant: EVERY pair
-      //    the header declares is rendered as a bullet.
-      const nodeLineCount = (stripped.match(/^ {12}- svc\d{3} {2}aspect '[^']+'$/gm) ?? []).length;
-      // 75 nodes × 3 LLM aspects = 225 unverified pairs, cold — the header says so.
-      expect(headerCount).toBe(225);
-      // No relation-undeclared block (no cross-node dependency in the fixture).
-      expect(stripped.match(/^ {2}relation-undeclared-dependency {2}/gm)).toBeNull();
-
-      // 7. The grouped view caps a member list at 12 in EVERY sink — a pipe gets
-      //    the bounded report a terminal gets — and names the view that lists the
-      //    rest, with the true count of what it held back.
-      expect(nodeLineCount).toBe(12);
-      expect(stripped).toMatch(new RegExp(`^ {12}\\.\\.\\. and ${headerCount - 12} more \\(yg check --details\\)$`, 'm'));
-
-      // 8. The core flush assertion, on the view that enumerates every finding:
-      //    every error the header declares is rendered as one per-issue block.
-      //    Under the truncation bug the rendered count would fall short of it.
+      // 5. The core flush assertion, on the view that enumerates every finding:
+      //    --details lists every pair the verdict line declares on its own
+      //    `<aspect> @ <node>` member line. Under the truncation bug the rendered
+      //    count would fall short of it.
       const details = spawnSync('node', [BIN_PATH, 'check', '--details'], { cwd: dir, encoding: 'utf-8', maxBuffer: 32 * 1024 * 1024 });
       // eslint-disable-next-line no-control-regex
       const detailsStripped = (details.stdout ?? '').replace(/\x1b\[[0-9;]*m/g, '');
-      const issueLines = (detailsStripped.match(/^ {2}unverified {2}svc\d{3} {2}/gm) ?? []).length;
+      const issueLines = (detailsStripped.match(/^(?: {2}at: {3}| {8})must-have-\w+ @ svc\d{3}$/gm) ?? []).length;
       expect(issueLines).toBe(headerCount);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -252,11 +225,11 @@ describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush r
 // on stderr.
 //
 // This test creates a tiny fixture with ONE deterministic pair (a check.mjs
-// aspect) so that `yg check --approve` produces exactly one `[det] …` progress
-// line and a final `yg check:` report line. The assertion:
-//   - STDOUT does NOT contain the `[det]` / `Filling` progress lines.
+// aspect) so that `yg check --approve` produces `fill  …` progress lines and
+// a final `yg check:` report line. The assertion:
+//   - STDOUT does NOT contain the `fill  …` progress lines.
 //   - STDOUT DOES contain the `yg check:` final report header.
-//   - STDERR DOES contain the `[det]` / `Filling` progress lines.
+//   - STDERR DOES contain the `fill  …` progress lines.
 //   - STDERR does NOT contain the `yg check:` final report header.
 //
 // Dry-run (--approve --dry-run) is the exception: its write sink stays on
@@ -268,7 +241,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush r
 /**
  * Build a hermetic fixture with one node + one deterministic aspect (always
  * approves). The deterministic pair is unverified on cold lock, so
- * `yg check --approve` must fill it and emit exactly one `[det]` progress line.
+ * `yg check --approve` must fill it and emit its `fill  …` progress lines.
  */
 function buildStreamSplitFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-stream-split-'));
@@ -360,7 +333,7 @@ function buildStreamSplitFixture(): string {
 }
 
 describe.skipIf(!distExists)('CLI E2E — yg check --approve stream split (progress to stderr, report to stdout)', () => {
-  it('STDOUT contains only the final yg check: report; STDERR contains the [det] progress and Filling lines', () => {
+  it('STDOUT contains only the final yg check: report; STDERR contains the fill progress lines', () => {
     const dir = buildStreamSplitFixture();
     try {
       // spawnSync with encoding captures both stdout and stderr separately —
@@ -381,11 +354,11 @@ describe.skipIf(!distExists)('CLI E2E — yg check --approve stream split (progr
       expect(stdout).toMatch(/yg check: (PASS|FAIL)/);
 
       // STDOUT: progress lines must NOT appear.
-      expect(stdout).not.toMatch(/\[det\]/);
-      expect(stdout).not.toContain('Filling');
+      expect(stdout).not.toMatch(/^fill /m);
 
-      // STDERR: fill progress must be present.
-      expect(stderr).toContain('Filling');
+      // STDERR: fill progress must be present — the opening and the closing line.
+      expect(stderr).toMatch(/^fill {2}1 pair · 1 script \(free\) · 0 reviewer calls$/m);
+      expect(stderr).toMatch(/^fill {2}done in .* — 1 approved · 0 refused · 0 failed/m);
 
       // STDERR: the final report header must NOT appear (it lives on stdout).
       expect(stderr).not.toMatch(/yg check: (PASS|FAIL)/);

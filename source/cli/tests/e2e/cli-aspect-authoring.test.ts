@@ -302,11 +302,11 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(all).toContain('ret-nonarray');
       expect(all).toContain('aspect-check-runtime-error');
       expect(all).toContain('check.mjs returned object, expected Violation[].');
-      // The pair is left unverified: it surfaces as a grouped unverified block
-      // naming the cause (the check did not run). The aspect appears on the body
-      // line (not the header).
-      expect(all).toMatch(/unverified \(check\.mjs failed to run\)\s+1 pair\s+1 node$/m);
-      expect(all).toContain("- services/orders  aspect 'ret-nonarray'");
+      // The pair is left unverified: it surfaces as an unverified block naming
+      // the cause (the check did not run) in its subject; the member line names
+      // the pair (`<aspect> @ <node>`).
+      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
+      expect(all).toMatch(/^ {2}at: +ret-nonarray @ services\/orders$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -341,11 +341,11 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(all).toContain('thrower');
       expect(all).toContain('aspect-check-runtime-error');
       expect(all).toContain('boom in check');
-      // The pair is left unverified: it surfaces as a grouped unverified block
-      // naming the cause (the check did not run). The aspect appears on the body
-      // line (not the header).
-      expect(all).toMatch(/unverified \(check\.mjs failed to run\)\s+1 pair\s+1 node$/m);
-      expect(all).toContain("- services/orders  aspect 'thrower'");
+      // The pair is left unverified: it surfaces as an unverified block naming
+      // the cause (the check did not run) in its subject; the member line names
+      // the pair (`<aspect> @ <node>`).
+      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
+      expect(all).toMatch(/^ {2}at: +thrower @ services\/orders$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -528,18 +528,18 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       // The loader names the IMPORT-time cause (module could not be loaded), not a
       // call-time throw — distinguishing this from B3.
       expect(all).toContain('Failed to load check.mjs');
-      // The pair is left unverified (no verdict written): grouped unverified block
+      // The pair is left unverified (no verdict written): an unverified block
       // naming the node + aspect, exactly like the call-time B1/B3 fill failures.
-      expect(all).toMatch(/unverified \(check\.mjs failed to run\)\s+1 pair\s+1 node$/m);
-      expect(all).toContain("- services/orders  aspect 'import-broken'");
+      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
+      expect(all).toMatch(/^ {2}at: +import-broken @ services\/orders$/m);
 
       // NO false green: a later plain `yg check` never executes check.mjs — it
       // re-hashes the lock, finds NO entry for this pair (the failed fill wrote
       // nothing to the deterministic cache), and stays RED with the pair unverified.
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
-      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+1 pair\s+1 node$/m);
-      expect(after.all).toContain("- services/orders  aspect 'import-broken'");
+      expect(after.all).toMatch(/^error\[unverified\] 1 pair /m);
+      expect(after.all).toMatch(/^ {2}at: +import-broken @ services\/orders$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -725,7 +725,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(fill.status).toBe(0);
       expect(fill.stdout).toContain('yg check: PASS');
       // Neither the dormant implier nor the never-reached implied aspect is filled.
-      expect(fill.stdout).not.toContain('[det] draft-implier');
+      expect(fill.all).not.toContain('draft-implier @');
       expect(fill.stdout).not.toContain('no-banned-word');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -909,7 +909,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'has-doc-comment', '--files', 'src/services/orders.ts'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("--files cannot be used with LLM aspect 'has-doc-comment'.");
+      expect(all).toContain("error[command-error]: --files cannot be used with reviewer rule 'has-doc-comment'.");
       expect(all).toContain('Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.');
     } finally {
       rmSync(dir, { recursive: true, force: true });

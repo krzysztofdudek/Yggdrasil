@@ -2,17 +2,19 @@
 // E2E coverage for Phase-2 `yg check` view flags: --details, --aspect <id>,
 // --top N (group-based), and mutual-exclusion errors.
 //
-// Phase 2 added:
-//   --details        Ungrouped, one block per issue (reverses Phase-1 grouping).
-//   --aspect <id>    Drill into one rule: only that aspect's issues, "K of N errors" header.
-//   --top N (changed) N renders the N highest-priority GROUPS, not N individual issues.
+// Phase 2 added, in the one grammar (issue 191):
+//   --details        Uncapped: every pair listed as `<aspect> @ <unit>` in its block
+//                    (`view: details` on the verdict line).
+//   --aspect <id>    Drill into one rule: only that aspect's blocks; the verdict line
+//                    keeps the TRUE totals and ends `view: aspect <id>`.
+//   --top N          The first N blocks, then `… +K more blocks  (yg check)`.
 //   Mutual exclusion: --details cannot combine with --approve, --top, or --summary.
 //
 // These tests spawn the REAL built binary (dist/bin.js) against a hermetic
 // fixture built in code, then assert the specific grammar each flag produces.
 //
-// Implementation under test: src/cli/check.ts (renderOutput / renderDetailsSection)
-// and src/cli/group-issues.ts (groupIssues).
+// Implementation under test: src/cli/check-render-views.ts and
+// src/cli/check-render-groups.ts.
 // =============================================================================
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -46,38 +48,25 @@ function strip(s: string): string {
 }
 
 /**
- * Count rendered issue BLOCKS in stripped stdout.
- *
- * Grouped default view: each group is ONE block (header line starting with "  <label>").
- * --details view: each ISSUE is ONE block.
- *
- * A block-start line: indented 2 spaces, non-whitespace first char, not a Why:/Fix: continuation.
+ * Count rendered finding BLOCKS in stripped stdout: each block opens with an
+ * `error[<label>] ` or `warning[<label>] ` heading at column 0.
  */
 function countBlocks(stdout: string): number {
   return strip(stdout)
     .split('\n')
-    .filter((l) => /^ {2}\S/.test(l) && !/^ {2}(Why:|Fix:)/.test(l))
+    .filter((l) => /^(error|warning)\[[^\]]+\] /.test(l))
     .length;
 }
 
 /**
- * Assert no Errors(N):/Warnings(N): subheader dangles empty — every rendered
- * subheader must be followed (skipping blank lines) by CONTENT: a group block,
- * a summary row, or the 4-space-indented "(no ... groups within --top N ...)"
- * annotation. A subheader followed directly by another subheader, the Next:
- * line, or end of output is the dangling-header defect this pins against.
+ * A narrowed view never leaves an empty section behind: the one grammar has no
+ * `Errors (N):` / `Warnings (N):` sub-headers at all, and what the slice hides
+ * is announced by the `… +K more block(s)  (yg check)` footer.
  */
 function expectNoDanglingSectionHeader(stdout: string): void {
-  const lines = strip(stdout).split('\n');
-  lines.forEach((line, i) => {
-    if (/^(Errors|Warnings) \(\d+\):/.test(line)) {
-      const following = lines.slice(i + 1).find((l) => l.trim() !== '') ?? '';
-      expect(
-        /^(Errors|Warnings) \(\d+\):|^Next:|^$/.test(following),
-        `subheader "${line}" must not dangle empty (followed by "${following}")`,
-      ).toBe(false);
-    }
-  });
+  const out = strip(stdout);
+  expect(out).not.toMatch(/^(Errors|Warnings) \(\d+\)/m);
+  expect(out).toMatch(/^… \+\d+ more blocks? {2}\(yg check\)$/m);
 }
 
 /**
@@ -262,33 +251,36 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate: 5 errors total (3 aspect-one + 1 aspect-two + 1 mapping-path-missing).
-    expect(out).toMatch(/^Errors \(5\):$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · 1 warning .* {3}view: details$/m);
 
-    // --details renders ONE block per issue, not per group.
-    // Default grouped view collapses the 4 unverified pairs into 1 group → 2 total blocks.
-    // --details emits 5 error blocks (one per error) PLUS 1 warning block: this
-    // fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/.clinerules
-    // digest artifacts, and the committed-digest staleness gate (a warning, not
-    // an error — the `Errors (5)` assertion above is unaffected) always fires
-    // here. --details renders that warning as its own block too, for 6 total.
+    // --details keeps one block per rule-and-cause but lists EVERY pair: the
+    // default capped view summarises aspect-one as "3 pairs · 3 nodes".
+    // 2 error blocks (mapping-path-missing + unverified) PLUS 1 warning block:
+    // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
+    // .clinerules digest artifacts, and the committed-digest staleness gate (a
+    // warning, not an error — the `5 errors` count above is unaffected) always
+    // fires here.
     const blockCount = countBlocks(out);
-    expect(blockCount).toBe(6);
-    // Pin WHICH warning contributes the 6th block — so a future change that
+    expect(blockCount).toBe(3);
+    // Pin WHICH warning contributes the 3rd block — so a future change that
     // removes this gate and happens to add some other warning cannot satisfy
     // the count silently.
-    expect(out).toContain('rules-digest-stale');
+    expect(out).toContain('warning[rules-digest-stale]');
 
-    // Each unverified issue line includes the per-issue "unverified  <node>" pattern
-    // (not the grouped header with "N pairs  M nodes").
-    expect(out).toMatch(/^ {2}unverified {2}alpha {2}/m);
-    expect(out).toMatch(/^ {2}unverified {2}beta {2}/m);
-    expect(out).toMatch(/^ {2}unverified {2}gamma {2}/m);
+    // Each unverified pair is listed on its own member line "<aspect> @ <node>"
+    // (not the capped "<aspect>  N pairs · M nodes" summary line).
+    expect(out).toMatch(/^ +(at: +)?aspect-one @ alpha$/m);
+    expect(out).toMatch(/^ +(at: +)?aspect-one @ beta$/m);
+    expect(out).toMatch(/^ +(at: +)?aspect-one @ gamma$/m);
+    expect(out).toMatch(/^ +(at: +)?aspect-two @ alpha$/m);
 
-    // The mapping-path-missing issue renders individually.
-    expect(out).toMatch(/^ {2}mapping-path-missing {2}broken {2}/m);
+    // The mapping-path-missing issue renders as its own block, naming its node.
+    expect(out).toMatch(/^error\[mapping-path-missing\] Mapping path 'src\/does-not-exist\.ts' does not exist on disk\n {2}at: {3}broken$/m);
 
-    // NO grouped header ("N pairs  M nodes") in --details output.
-    expect(out).not.toMatch(/\d+ pairs {2}\d+ nodes/);
+    // NO capped summary line ("N pairs · M nodes") in --details output.
+    expect(out).not.toMatch(/\d+ pairs · \d+ nodes/);
+    // …while the default view does summarise it.
+    expect(strip(run(['check'], dir).stdout)).toMatch(/^ {2}at: {3}aspect-one {2}3 pairs · 3 nodes · reviewer$/m);
   });
 
   it('--aspect aspect-one: only that aspect\'s issues, K of N header, exit 1', () => {
@@ -297,22 +289,25 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
     expect(status).toBe(1);
 
-    // Header: "FAIL  (aspect 'aspect-one' — K of N errors)".
-    // K = 3 (alpha, beta, gamma for aspect-one); N = 5 (true total).
-    expect(out).toMatch(/\(aspect 'aspect-one' — 3 of 5 errors\)/);
+    // The verdict line keeps the TRUE total N = 5 and names the view; the one
+    // block shown carries K = 3 (alpha, beta, gamma for aspect-one).
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: aspect aspect-one$/m);
+    expect(countBlocks(out)).toBe(1);
+    expect(out).toMatch(/^error\[unverified\] 3 pairs with no verdict yet$/m);
 
     // Only aspect-one's issues are shown.
-    expect(out).toContain('alpha');
-    expect(out).toContain('beta');
-    expect(out).toContain('gamma');
+    expect(out).toContain('aspect-one @ alpha');
+    expect(out).toContain('aspect-one @ beta');
+    expect(out).toContain('aspect-one @ gamma');
 
-    // aspect-two issues (alpha only) must NOT appear as a separate group.
-    // mapping-path-missing (broken) must NOT appear.
-    expect(out).not.toContain('mapping-path-missing');
-    expect(out).not.toContain('broken');
+    // aspect-two issues (alpha only) must NOT appear.
+    // mapping-path-missing (broken) must NOT appear as a block.
+    expect(out).not.toContain('aspect-two');
+    expect(out).not.toMatch(/^error\[mapping-path-missing\]/m);
+    expect(out).not.toMatch(/^ {2}at: {3}broken$/m);
 
-    // The drill-in "Next (this group):" line is used instead of global "Next:".
-    expect(out).toMatch(/^Next \(this group\): yg check --approve$/m);
+    // The drilled block's own step fills exactly this rule's pairs.
+    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(3 reviewer pairs · paid\)$/m);
   });
 
   it('--aspect aspect-two: only that aspect\'s single issue, header shows K=1 of N=5, exit 1', () => {
@@ -322,18 +317,19 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // K = 1 (alpha only for aspect-two); N = 5 (true total).
-    expect(out).toMatch(/\(aspect 'aspect-two' — 1 of 5 errors\)/);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: aspect aspect-two$/m);
+    expect(out).toMatch(/^error\[unverified\] 1 pair with no verdict yet$/m);
 
     // Only alpha listed (it has aspect-two attached).
-    expect(out).toContain('alpha');
+    expect(out).toMatch(/^ {2}at: {3}aspect-two @ alpha$/m);
 
     // beta and gamma are NOT affected by aspect-two.
-    expect(out).not.toMatch(/^ {12}- beta/m);
-    expect(out).not.toMatch(/^ {12}- gamma/m);
+    expect(out).not.toMatch(/@ beta$/m);
+    expect(out).not.toMatch(/@ gamma$/m);
 
     // mapping-path-missing must NOT appear.
-    expect(out).not.toContain('broken');
-    expect(out).not.toContain('mapping-path-missing');
+    expect(out).not.toMatch(/^ {2}at: {3}broken$/m);
+    expect(out).not.toMatch(/^error\[mapping-path-missing\]/m);
   });
 
   it('--top 1: exactly ONE group block rendered, true total still visible, exit 1', () => {
@@ -343,14 +339,15 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate header is always shown: 5 errors.
-    expect(out).toMatch(/Errors \(5\)/);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: top 1$/m);
 
-    // --top 1 renders only 1 group block.
+    // --top 1 renders only 1 block, and says how many it hid.
     const blockCount = countBlocks(out);
     expect(blockCount).toBe(1);
+    expect(out).toMatch(/^… \+2 more blocks {2}\(yg check\)$/m);
 
-    // The Next: line is still present (--top is a narrowed view, not silent).
-    expect(out).toMatch(/^Next:/m);
+    // The next: line is still present (--top is a narrowed view, not silent).
+    expect(out).toMatch(/^next: /m);
 
     // No section header is left dangling with nothing beneath it.
     expectNoDanglingSectionHeader(stdout);
@@ -363,19 +360,20 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // GUARDRAIL: the narrowed view never hides the true aggregate counts.
-    expect(out).toMatch(/Errors \(5\)/);
-    expect(out).toMatch(/yg check: FAIL/);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · /m);
 
-    // Bare --top = --top 1: exactly ONE group block renders.
+    // Bare --top = --top 1: exactly ONE block renders.
     expect(countBlocks(out)).toBe(1);
 
-    // The rendered group is the one the Next: line draws from — unverified
-    // outranks the mapping-path-missing structural group in the priority cascade.
-    expect(out).toContain('unverified');
-    expect(out).not.toContain('mapping-path-missing');
+    // The rendered block is the one the next: line draws from — blocks are
+    // ordered by tier, so the mapping-path-missing graph error (a code/graph
+    // fix) outranks the unverified pairs (pending a fill).
+    expect(out).toMatch(/^error\[mapping-path-missing\] /m);
+    expect(out).not.toMatch(/^error\[unverified\]/m);
+    expect(out).toMatch(/^next: .* {2}\(mapping-path-missing\)$/m);
 
-    // The Next: line still prints — bare --top is a narrowed view, not silence.
-    expect(out).toMatch(/^Next:/m);
+    // The then: line still names the fill the hidden block needs.
+    expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · paid\)$/m);
 
     // Bare --top and --top 1 are the SAME view (n=1 semantics).
     const explicit = run(['check', '--top', '1'], dir);
@@ -392,11 +390,15 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True total still visible.
-    expect(out).toMatch(/Errors \(5\)/);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: top 2$/m);
 
-    // Both groups (unverified + mapping-path-missing) should render.
+    // Both error blocks (mapping-path-missing + unverified) render; only the
+    // rules-digest-stale warning is left behind the footer.
     const blockCount = countBlocks(out);
     expect(blockCount).toBe(2);
+    expect(out).toMatch(/^error\[mapping-path-missing\] /m);
+    expect(out).toMatch(/^error\[unverified\] /m);
+    expect(out).toMatch(/^… \+1 more block {2}\(yg check\)$/m);
 
     // No section header is left dangling with nothing beneath it.
     expectNoDanglingSectionHeader(stdout);
@@ -447,7 +449,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     const out = strip(stdout);
     expect(status).toBe(1);
     // Error names the unknown id and says it is unknown.
-    expect(err).toContain("Unknown aspect 'totally-bogus-aspect'");
+    expect(err).toContain("error[aspect-not-found]: Unknown aspect 'totally-bogus-aspect'");
     // It must NOT render the misleading drill-in "0 of N errors" FAIL.
     expect(out).not.toContain('0 of');
     expect(out).not.toContain("aspect 'totally-bogus-aspect'");
@@ -459,9 +461,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
  * Build a hermetic project whose cold-lock `yg check` produces BOTH an error
  * and a warning: one node with an ENFORCED aspect (unverified pair → error)
  * and an ADVISORY aspect (unverified pair → warning). The --top slice orders
- * error groups before warning groups, so `--top 1` chooses only the error
- * group — leaving the Warnings section with a true count > 0 but no chosen
- * groups. This is the empty-subheader annotation scenario.
+ * error blocks before warning blocks, so `--top 1` chooses only the error
+ * block — leaving warnings with a true count > 0 but no block shown. The
+ * verdict line keeps the true counts and the `… +K more blocks` footer names
+ * what the slice hid (formerly the empty-subheader annotation scenario).
  */
 function buildAnnotationFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-check-top-annotation-'));
@@ -556,55 +559,55 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('--top 1 with errors AND warnings: warning subheader annotated, never dangling, exit 1', () => {
+  it('--top 1 with errors AND warnings: hidden warnings counted and announced, never dangling, exit 1', () => {
     const { stdout, status } = run(['check', '--top', '1'], dir);
     const out = strip(stdout);
 
     expect(status).toBe(1);
 
     // GUARDRAIL: true aggregate counts for BOTH severities stay visible even
-    // though the slice renders no warning group. The true warning count is 2,
+    // though the slice renders no warning block. The true warning count is 2,
     // not 1: this fixture never ran `yg init`, so it carries no AGENTS.md/
     // CLAUDE.md/.clinerules digest artifacts, and the committed-digest
     // staleness gate (`rules-digest-stale`) always fires here alongside
     // `aspect-soft`'s unverified warning.
-    expect(out).toMatch(/Errors \(1\)/);
-    expect(out).toMatch(/Warnings \(2\)/);
-    // Pin WHICH warning contributes the 2nd count. `--top 1` annotates the
-    // whole warnings section away (no group body), so `rules-digest-stale`
-    // cannot appear literally in `out` above — cross-check the untruncated
-    // listing instead, so a future change that removes this gate and adds
-    // some other 2nd warning cannot satisfy `Warnings (2)` silently.
-    const untruncated = run(['check'], dir);
-    expect(strip(untruncated.stdout)).toContain('rules-digest-stale');
+    expect(out).toMatch(/^yg check: FAIL {2}1 error · 2 warnings {3}.*view: top 1$/m);
+    // Pin WHICH warning contributes the 2nd count. `--top 1` hides every
+    // warning block, so `rules-digest-stale` cannot appear in `out` above —
+    // cross-check the untruncated listing instead, so a future change that
+    // removes this gate and adds some other 2nd warning cannot satisfy the
+    // `2 warnings` count silently.
+    const untruncated = strip(run(['check'], dir).stdout);
+    expect(untruncated).toContain('warning[rules-digest-stale]');
+    expect(untruncated).toMatch(/^warning\[unverified\] 1 pair with no verdict yet\n {2}at: {3}aspect-soft @ solo$/m);
 
-    // Exactly ONE group block (the suggested-next error group).
+    // Exactly ONE block (the error block).
     expect(countBlocks(out)).toBe(1);
+    expect(out).toMatch(/^error\[unverified\] 1 pair with no verdict yet\n {2}at: {3}aspect-hard @ solo$/m);
+    expect(out).not.toMatch(/^warning\[/m);
 
-    // The Warnings section carries the annotation instead of a dangling header.
-    expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
-    // The Errors section has a body, so it is NOT annotated.
-    expect(out).not.toContain('(no error groups within --top 1');
+    // The two hidden warning blocks are announced by the footer, not dropped.
+    expect(out).toMatch(/^… \+2 more blocks {2}\(yg check\)$/m);
 
-    expect(out).toMatch(/^Next:/m);
+    // The one error block's fix IS the step, so it prints no separate next:.
+    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(1 reviewer pair · paid\)$/m);
     expectNoDanglingSectionHeader(stdout);
   });
 
-  it('bare --top behaves as --top 1: one group + annotated warning subheader, exit 1', () => {
+  it('bare --top behaves as --top 1: one block + the hidden-warnings footer, exit 1', () => {
     const { stdout, status } = run(['check', '--top'], dir);
     const out = strip(stdout);
 
     expect(status).toBe(1);
     // True warning count is 2 (aspect-soft + rules-digest-stale) — see the
     // comment on the --top 1 case above.
-    expect(out).toMatch(/Errors \(1\)/);
-    expect(out).toMatch(/Warnings \(2\)/);
+    expect(out).toMatch(/^yg check: FAIL {2}1 error · 2 warnings {3}/m);
     // Pin WHICH warning contributes the 2nd count — see the --top 1 case
     // above for why the cross-check is against the untruncated listing.
     const untruncated = run(['check'], dir);
-    expect(strip(untruncated.stdout)).toContain('rules-digest-stale');
+    expect(strip(untruncated.stdout)).toContain('warning[rules-digest-stale]');
     expect(countBlocks(out)).toBe(1);
-    expect(out).toContain('    (no warning groups within --top 1 — run yg check for the full list)');
+    expect(out).toMatch(/^… \+2 more blocks {2}\(yg check\)$/m);
     expectNoDanglingSectionHeader(stdout);
 
     // Bare --top and --top 1 are the SAME view (n=1 semantics).
@@ -614,8 +617,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
 });
 
 // =============================================================================
-// F3 regression: bare `--top`'s single group must be exactly the group the
-// `Next:` line names — on a repo whose top errors are UNRANKED structural codes.
+// F3 regression: bare `--top`'s single block must be exactly the rule the
+// `next:` line names — on a repo whose top errors are UNRANKED structural codes.
 //
 // Fixture (no aspects → no unverified pairs; the top errors are structural):
 //   - node `alpha` declares a relation to a non-existent target → relation-broken
@@ -627,9 +630,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
 // tie-breaks alphabetically (flow-node-broken < relation-broken). Under the OLD
 // comparators the two surfaces DIVERGED: bare `--top` rendered the flow-node-broken
 // group (alphabetical) while `Next:` named relation-broken (emission-order pick) —
-// and coverage (`unmapped-files`) could jump ahead of structural in `--top`. Both
+// and coverage (`unmapped`) could jump ahead of structural in `--top`. Both
 // surfaces now share ONE ordering (structural < coverage, alphabetical within), so
-// the group `--top` renders is exactly the rule `Next:` names.
+// the block `--top` renders is exactly the rule `next:` names (its label, in the
+// parenthesis after the step).
 // =============================================================================
 
 function buildStructuralCoverageFixture(): string {
@@ -702,7 +706,7 @@ function buildStructuralCoverageFixture(): string {
   return dir;
 }
 
-describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next names', () => {
+describe.skipIf(!distExists)('CLI E2E — F3: bare --top block === the rule next: names', () => {
   let dir: string;
 
   // ORDER-DEPENDENT, same contract as the blocks above: `setup:` populates `dir`
@@ -717,7 +721,7 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('the group bare --top renders is exactly the rule the Next: line names (structural + coverage mix)', () => {
+  it('the block bare --top renders is exactly the rule the next: line names (structural + coverage mix)', () => {
     const top = run(['check', '--top'], dir);
     const full = run(['check'], dir);
     // Red repo — both exit 1, TRUE aggregate preserved.
@@ -726,24 +730,25 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
 
     const topOut = strip(top.stdout);
     const fullOut = strip(full.stdout);
+    expect(topOut).toMatch(/^yg check: FAIL {2}3 errors · /m);
 
     // Sanity: BOTH structural codes AND coverage are present in the full wall.
     // flow-node-broken names a FLOW, not a node — it carries no node path, so
-    // its header is the bare label with no pair/node counts (those would be
-    // fabricated). relation-broken does name a node and keeps its counts —
-    // counted as issues, since it is not a pair's verdict.
-    expect(fullOut).toMatch(/^ {2}flow-node-broken$/m);
-    expect(fullOut).toMatch(/^ {2}relation-broken {2}\d+ issues? /m);
-    expect(fullOut).toMatch(/^ {2}unmapped \(/m);
+    // its block has no `at:` node line (one would be fabricated).
+    // relation-broken does name a node. Neither carries a pair count: they
+    // are issues, not a pair's verdict.
+    expect(fullOut).toMatch(/^error\[flow-node-broken\] Flow 'broken-flow' references non-existent node 'phantom'\n {2}why: {2}/m);
+    expect(fullOut).toMatch(/^error\[relation-broken\] Relation target 'ghost' does not exist\n {2}at: {3}alpha$/m);
+    expect(fullOut).toMatch(/^error\[unmapped\] 1 file belongs to no node$/m);
+    expect(fullOut).not.toMatch(/^error\[(flow-node-broken|relation-broken)\].*\bpairs?\b/m);
 
-    // The rule bare --top renders: the FIRST group header line's label token,
-    // whether or not that group's header carries node-scoped counts.
-    const topGroupMatch = topOut.match(/^ {2}(\S+)(?: {2}\d+ (?:pairs|issues?) {2}\d+ nodes.*)?$/m);
+    // The rule bare --top renders: the first block heading's label.
+    const topGroupMatch = topOut.match(/^error\[([^\]]+)\] /m);
     expect(topGroupMatch).not.toBeNull();
     const topGroupRule = topGroupMatch![1];
 
-    // The rule the Next: line names: `Next: Fix <code> in <node>`.
-    const nextMatch = fullOut.match(/^Next: Fix (\S+) /m);
+    // The rule the next: line names: `next: <step>  (<label>[ — …])`.
+    const nextMatch = fullOut.match(/^next: .* {2}\(([a-z-]+)(?: — [^)]*)?\)$/m);
     expect(nextMatch).not.toBeNull();
     const nextRule = nextMatch![1];
 
@@ -754,7 +759,7 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
     // OLD alphabetical-across-all coverage pick).
     expect(topGroupRule).toBe('flow-node-broken');
     expect(nextRule).not.toBe('relation-broken');
-    expect(topGroupRule).not.toBe('unmapped-files');
+    expect(topGroupRule).not.toBe('unmapped');
 
     // Bare --top renders exactly ONE group.
     expect(countBlocks(topOut)).toBe(1);

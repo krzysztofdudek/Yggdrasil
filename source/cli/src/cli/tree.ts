@@ -124,7 +124,7 @@ export function registerTreeCommand(program: Command): void {
         // An empty graph must still say it ran: a blank listing reads as a
         // failure. (--root always names an existing node, so it never lands here.)
         if (nodes.length === 0) {
-          process.stdout.write('(no nodes yet — to map existing code, see: yg knowledge read onboarding)\n');
+          process.stdout.write('no nodes yet\nnext: yg knowledge read onboarding  (how to map existing code)\n');
         }
 
         const summary = counts !== undefined ? typeCoveredSummaryLine(counts, scopedToRoot) : undefined;

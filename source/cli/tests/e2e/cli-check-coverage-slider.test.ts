@@ -1,6 +1,6 @@
 // =============================================================================
-// CLI E2E — the standing line `yg check` prints when NOTHING is required to be
-// covered, driven through the real built binary.
+// CLI E2E — what `yg check` says about uncovered files when NOTHING is
+// required to be covered, driven through the real built binary.
 //
 // With no path named under `coverage.required`, a file no component owns can
 // never fail a check — only ever be listed. That is the shipped default (a
@@ -8,9 +8,11 @@
 // invisible: the uncovered files are reported either way, and only their
 // severity differs. Severity is the one thing a reader cannot see from a list.
 //
-// The line is a statement of fact, not a finding: never counted, never
-// blocking, and absent the moment either half of the state stops being true —
-// a required root is named, or nothing is left uncovered.
+// The uncovered block's own heading states that fact (`… not under
+// coverage.required, so they never block`) and its fix names the setting that
+// changes it; the statement is gone the moment either half of the state stops
+// being true — a required root is named (the files turn into a blocking
+// `error[unmapped]` block), or nothing is left uncovered.
 // =============================================================================
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -36,7 +38,7 @@ function run(args: string[], cwd: string): { status: number | null; stdout: stri
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-const OPENING = 'Nothing is required to be covered';
+const OPENING = 'not under coverage.required, so';
 
 /**
  * A minimal real project: one component owning one file, and — unless
@@ -75,25 +77,27 @@ describe.skipIf(!distExists)('CLI E2E — nothing required to be covered', () =>
     const { status, stdout } = run(['check'], dir);
     expect(status).toBe(0); // uncovered files are warnings here, by definition
     expect(stdout).toContain(
-      `${OPENING}, so the 2 uncovered files this run lists can never fail a check — only ever be listed.`,
+      'warning[uncovered] 2 files belong to no node — not under coverage.required, so they never block',
     );
-    expect(stdout).toContain('Name a path under coverage.required in .yggdrasil/yg-config.yaml');
-    // A statement of fact, not a finding: the two warnings counted are the
-    // uncovered-files one it qualifies and the fixture's own missing digest —
-    // the line itself adds nothing to that total.
-    expect(stdout).toContain('Warnings (2)');
+    expect(stdout).toContain('add their root to coverage.required to make this an error');
+    // The two warnings counted are the uncovered-files block and the fixture's
+    // own missing digest — the statement adds nothing to that total.
+    expect(stdout).toContain('yg check: PASS  2 warnings');
   });
 
   it('agrees with itself about the count, in the singular too', () => {
     const dir = makeProject('one', { required: [], looseFiles: 1 });
     const { stdout } = run(['check'], dir);
-    expect(stdout).toContain(`${OPENING}, so the 1 uncovered file this run lists can never fail a check`);
+    expect(stdout).toContain(
+      'warning[uncovered] 1 file belongs to no node — not under coverage.required, so it never blocks',
+    );
   });
 
   it('says nothing once a root IS required', () => {
     const dir = makeProject('required', { required: ['src/'] });
     const { stdout } = run(['check'], dir);
     expect(stdout).toContain('yg check:');
+    expect(stdout).toContain('error[unmapped] 2 files belong to no node');
     expect(stdout).not.toContain(OPENING);
   });
 
@@ -104,9 +108,13 @@ describe.skipIf(!distExists)('CLI E2E — nothing required to be covered', () =>
     expect(stdout).not.toContain(OPENING);
   });
 
-  it('appears in the narrowed views too — it is not part of the issue wall they trim', () => {
+  it('the narrowed views keep the severity visible too', () => {
     const dir = makeProject('views', { required: [] });
-    expect(run(['check', '--summary'], dir).stdout).toContain(OPENING);
+    // --summary folds blocks into one line per severity: the uncovered files
+    // sit on the warnings line, never on an errors line.
+    const summary = run(['check', '--summary'], dir).stdout;
+    expect(summary).toMatch(/^warnings {2}.*uncovered 2/m);
+    expect(summary).not.toMatch(/^errors /m);
     expect(run(['check', '--details'], dir).stdout).toContain(OPENING);
   });
 });

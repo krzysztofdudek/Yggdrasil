@@ -49,7 +49,7 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       expect(yg(['init', '--no-reviewer'], dir).status).toBe(0);
       git(['add', '-A'], dir);
       const live = yg(['check'], dir).stdout.trimEnd();
-      const marker = 'yg check: PASS (1 warning)  0 nodes · 4/54 files';
+      const marker = 'yg check: PASS  1 warning   0 nodes · 4/54 files covered';
       expect(live).toContain(marker);
       expect(textBlockContaining(doc('README.md'), marker)).toBe(live);
       expect(textBlockContaining(doc('docs/getting-started.md'), marker)).toBe(live);
@@ -78,13 +78,17 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       git(['add', '-A'], dir);
       const live = yg(['check'], dir).stdout.trimEnd();
       const header = live.split('\n')[0];
-      expect(header).toMatch(/^yg check: FAIL {2}1 node · /);
+      expect(header).toMatch(/^yg check: FAIL {2}1 error {3}1 node · /);
+      // The one block's fix IS the step, so no separate next: line repeats it.
+      expect(live).toContain('  fix:  yg check --approve  (1 reviewer pair · paid)');
+      expect(live).not.toMatch(/^next:/m);
       const gs = doc('docs/getting-started.md');
       expect(textBlockContaining(gs, header)).toBe(live);
       // The same one-component project renders the same file counts on every page.
-      const counts = header.slice(header.indexOf('1 node · '), header.indexOf(' · 0 flows'));
+      const counts = header.slice(header.indexOf('1 node · '));
+      expect(counts).toBe('1 node · 5/5 files covered (1 node-owned · 4 excluded)');
       for (const page of ['docs/getting-started.md', 'docs/reviewers.md']) {
-        for (const line of doc(page).split('\n').filter((l) => /^yg check: (PASS|FAIL) {2}1 node · /.test(l))) {
+        for (const line of doc(page).split('\n').filter((l) => /^yg check: (PASS|FAIL) {2}.*1 node · /.test(l))) {
           expect(line, page).toContain(counts);
         }
       }
@@ -98,9 +102,13 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
     try {
       cpSync(path.join(REPO_ROOT, 'examples', 'failing'), dir, { recursive: true });
       const live = yg(['check'], dir).stdout;
-      const fix = live.slice(live.indexOf('            Fix: Four exits:'), live.indexOf('            - payments'));
-      const next = live.slice(live.indexOf('Next: Four exits:')).trimEnd();
-      expect(fix.length).toBeGreaterThan(0);
+      // The block's fix: (heading line plus its four numbered exits) and the report's next: line.
+      const fixAt = live.indexOf('  fix:  Four exits');
+      expect(fixAt, live).toBeGreaterThan(-1);
+      const fix = live.slice(fixAt, live.indexOf('\n\n', fixAt));
+      expect(fix.split('\n')).toHaveLength(5);
+      const next = live.slice(live.indexOf('\nnext: ') + 1).trimEnd();
+      expect(next).toMatch(/^next: \S/);
       for (const page of ['docs/reviewers.md', 'docs/getting-started.md']) {
         expect(doc(page), page).toContain(fix);
         expect(doc(page), page).toContain(next);
@@ -121,7 +129,15 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace(/^coverage:\n(?: {2}.*\n)+/m, ''));
       for (const f of ['AGENTS.md', 'CLAUDE.md', '.clinerules', '.gitattributes']) rmSync(path.join(dir, f), { recursive: true, force: true });
       const live = yg(['init', '--upgrade'], dir).stdout;
-      const stanza = live.slice(live.indexOf('coverage:\n  excluded:'), live.indexOf('\nOr, if you would rather'));
+      // The stanza sits under the notice's next: line, indented as a block; its
+      // own nesting (coverage: → excluded: → entries) must survive that indent.
+      const start = live.search(/coverage:\n( *) {2}excluded:\n/);
+      expect(start, live).toBeGreaterThan(-1);
+      const stanza = live.slice(live.lastIndexOf('\n', start) + 1, live.indexOf('Or, if you would rather', start));
+      const lines = stanza.split('\n');
+      const base = (l: string): number => l.length - l.trimStart().length;
+      expect(base(lines[1]) - base(lines[0]), stanza).toBe(2);
+      expect(base(lines[2]) - base(lines[1]), stanza).toBe(2);
       const entries = stanza.split('\n').filter((l) => l.trim().startsWith('- ')).map((l) => l.trim());
       expect(entries).toEqual(['- AGENTS.md', '- CLAUDE.md', '- .clinerules/yggdrasil.md', '- .gitattributes']);
       for (const page of ['docs/getting-started.md', 'docs/platforms.md', 'docs/configuration.md']) {

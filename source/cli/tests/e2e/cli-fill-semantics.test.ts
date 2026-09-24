@@ -117,10 +117,11 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
 
       // The skip is reported with the deterministic reason.
       expect(fill2.all).toContain(
-        "LLM fills for node 'services/orders' skipped — an enforced deterministic check already refused it.",
+        "Reviewer pairs for node 'services/orders' skipped — an enforced script rule already refuses it.",
       );
-      // Only payments' LLM pair was dispatched/recorded this run; orders' was not.
-      expect(fill2.all).not.toContain('[llm] has-doc-comment on node:services/orders');
+      // Only payments' LLM pair was dispatched/recorded this run; orders' was not:
+      // the closing fill line counts one approval and one reviewer call.
+      expect(fill2.all).toMatch(/fill {2}done in .* — 1 approved · 0 refused · 0 failed · 1 reviewer call\b/);
 
       // No LLM verdict entry exists for orders — the gate left it unverified.
       const lock2 = readLock(dir);
@@ -129,10 +130,10 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       // Plain check confirms orders' LLM pair is unverified (no false-green).
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // Grouped view: unverified groups by code only (no aspect in header).
-      expect(check.all).toMatch(/unverified \(not yet reviewed\)\s+1 pair\s+1 node$/m);
-      // The aspect appears on the body line instead.
-      expect(check.all).toContain("- services/orders  aspect 'has-doc-comment'");
+      // Grouped view: one unverified block whose subject names the cause.
+      expect(check.all).toContain('error[unverified] 1 pair with no verdict yet');
+      // The aspect and unit appear on the member line.
+      expect(check.all).toContain('  at:   has-doc-comment @ services/orders');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -248,8 +249,11 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       expect(lock.verdicts['has-doc-comment']['node:services/orders'].reason).toBe('sub-majority refusal');
       expect(lock.verdicts['has-doc-comment']['node:services/payments'].verdict).toBe('refused');
 
-      // The fill line reports the refusal for each pair.
-      expect(fill.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      // The fill reports the split-consensus refusal for each pair, counting the
+      // deciding votes: 2 of 3 refused (only 1 was satisfied).
+      expect(fill.all).toContain('fill  refused by 2 of 3 votes  has-doc-comment @ services/orders');
+      expect(fill.all).toContain('fill  refused by 2 of 3 votes  has-doc-comment @ services/payments');
+      expect(fill.all).toMatch(/fill {2}done in .* — 4 approved · 2 refused · 0 failed · 6 reviewer calls/);
 
       // Plain check renders the cached enforced refusal (exit 1) and does not
       // re-roll the reviewer.
@@ -258,9 +262,9 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       expect(check.status).toBe(1);
       // Grouped view: an enforced refusal group for the LLM aspect; the retained
       // per-member tail names orders with its reviewer reason.
-      expect(check.all).toContain("enforced  2 pairs  2 nodes  aspect 'has-doc-comment'");
-      expect(check.all).toContain('A refused verdict for unchanged inputs is final and cached');
-      expect(check.all).toContain('- services/orders  Reviewer reason: sub-majority refusal');
+      expect(check.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
+      expect(check.all).toContain('the verdict is recorded for this exact code, so re-running the reviewer changes nothing');
+      expect(check.all).toMatch(/ {2}at: {3}services\/orders +sub-majority refusal/);
       expect(mock.chatCount()).toBe(callsBefore); // check made no calls.
     } finally {
       await mock.close();
@@ -290,12 +294,12 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
 
       // Parse the previewed reviewer-call budget from the header — it must be > 0
       // (the fixture has effective enforced LLM pairs on the service nodes).
-      const m = preview.all.match(/—\s*\d+ deterministic \(no cost\),\s*(\d+) reviewer calls \(consensus included\)/);
+      const m = preview.all.match(/fill {2}\d+ pairs · \d+ script \(free\) · (\d+) reviewer calls/);
       expect(m).not.toBeNull();
       const budget = Number(m![1]);
       expect(budget).toBeGreaterThan(0);
       // The upper-bound caveat is present.
-      expect(preview.all).toContain('UPPER BOUND');
+      expect(preview.all).toContain(`note: ${budget} reviewer calls is an upper bound`);
 
       // Now the REAL fill. It bills at most the previewed budget.
       const real = await runAsync(['check', '--approve'], dir);
@@ -326,7 +330,7 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       // call is made.
       const preview = await runAsync(['check', '--approve', '--dry-run'], dir);
       expect(preview.status).toBe(0);
-      expect(preview.all).toMatch(/Filling 0 unverified pairs[\s\S]*?0 reviewer calls/);
+      expect(preview.all).toContain('fill  0 pairs · 0 script (free) · 0 reviewer calls');
       expect(mock.chatCount()).toBe(callsAfterFill); // no new calls.
     } finally {
       await mock.close();
@@ -349,7 +353,7 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       expect(preview.status).toBe(1); // the config gate aborts the preview.
       expect(preview.all).toContain("reviewer.default is 'nosuch'");
       // The retry names the command as it was run.
-      expect(preview.all).toContain('then re-run: yg check --approve --dry-run');
+      expect(preview.all).toContain('then: yg check --approve --dry-run');
       // FAIL-CLOSED: the gate aborts before the preview emits a budget — nothing
       // was written.
       expect(existsSync(nondetLockPath(dir))).toBe(false);

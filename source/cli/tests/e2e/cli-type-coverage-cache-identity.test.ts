@@ -88,9 +88,12 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       // src/alpha/a.ts (byte-identical) was classified first in the scan.
       expect(status).toBe(1);
       expect(out).toContain('yg check: FAIL');
-      expect(out).toContain('1/2 files (0 node-owned, 1 type-covered, 0 excluded)');
+      // One covered file, and it is the type-covered one: zero nodes own anything
+      // (a lone split term is not repeated in the header; the Type coverage
+      // section below names the type and its file).
+      expect(out).toContain('0 nodes · 1/2 files covered');
       expect(out).toContain("'alpha' — 1 file covered: src/alpha/a.ts");
-      expect(out).toContain('unmapped (1)');
+      expect(out).toContain('error[unmapped] 1 file belongs to no node');
       expect(out).toContain('src/beta/b.ts');
 
       // Structural proof, independent of the rendered text: two files, two
@@ -152,7 +155,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       expect(status).toBe(1);
       expect(out).toContain('yg check: FAIL');
       expect(out).toContain("'dos-script' — 1 file covered: src/a-windows.sh");
-      expect(out).toContain('unmapped (1)');
+      expect(out).toContain('error[unmapped] 1 file belongs to no node');
       expect(out).toContain('src/b-unix.sh');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -184,7 +187,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       // content hash across the edit and keep serving the CRLF-era verdict —
       // this is the bug this test pins.
       expect(second.out).not.toContain("'dos-script'");
-      expect(second.out).toContain('unmapped (1)');
+      expect(second.out).toContain('error[unmapped] 1 file belongs to no node');
       expect(second.out).toContain('src/script.sh');
     } finally {
       rmSync(dir, { recursive: true, force: true });

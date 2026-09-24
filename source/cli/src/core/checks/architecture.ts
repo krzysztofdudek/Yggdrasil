@@ -344,10 +344,11 @@ export function checkNodeTypesPending(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const [nodePath, node] of graph.nodes) {
     const maps = (node.meta.mapping ?? []).length > 0;
+    const firstMapped = maps ? toPosixPath(String((node.meta.mapping ?? [])[0])) : '';
     const msgData: IssueMessage = {
       what: `Node type '${node.meta.type}' is not defined — yg-architecture.yaml declares no node types yet.`,
       why: `While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error${maps ? ', and a type whose nodes map files must declare when:' : ''}.`,
-      next: `Define '${node.meta.type}' under node_types in yg-architecture.yaml${maps ? ' with a when: predicate matching its files' : ''} (an architecture change — confirm it first). yg type-suggest --file <path> can help design it.`,
+      next: `Define '${node.meta.type}' under node_types in yg-architecture.yaml${maps ? ' with a when: predicate matching its files' : ''} (an architecture change — ask the user to approve it first).${maps ? ` yg type-suggest --file ${firstMapped} can help design it.` : ''}`,
     };
     issues.push({
       severity: 'warning',

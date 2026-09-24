@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 
 describe('buildIssueMessage', () => {
-  it('joins what/why/next with single newlines', () => {
+  it('joins what / labelled why / labelled next with single newlines', () => {
     const result = buildIssueMessage({
       what: 'Source files changed since last approve.',
       why: 'Graph metadata may no longer describe the actual behavior.',
@@ -10,8 +10,8 @@ describe('buildIssueMessage', () => {
     });
     expect(result).toBe(
       'Source files changed since last approve.\n' +
-      'Graph metadata may no longer describe the actual behavior.\n' +
-      'Review changes, then: yg check --approve',
+      '  why:  Graph metadata may no longer describe the actual behavior.\n' +
+      'next: Review changes, then: yg check --approve',
     );
   });
 
@@ -21,6 +21,7 @@ describe('buildIssueMessage', () => {
       why: 'Source may no longer satisfy updated claims.',
       next: 'Load context: yg context --node cli/core\nVerify compliance, then approve.',
     });
-    expect(result).toContain('Cause: aspect X changed\nSource may no longer');
+    expect(result).toContain('Cause: aspect X changed\n  why:  Source may no longer');
+    expect(result).toContain('next: Load context: yg context --node cli/core\n      Verify compliance, then approve.');
   });
 });

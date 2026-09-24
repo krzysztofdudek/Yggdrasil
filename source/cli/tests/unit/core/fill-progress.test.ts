@@ -17,13 +17,25 @@ import type { LlmFillOutcome } from '../../../src/core/fill-shared.js';
 
 /**
  * Collect what the tracker says, as the text a person would read: each event
- * it emits is rendered by the same formatter the command layer uses. (The
+ * it emits is rendered by the same formatter the command layer uses, and an
+ * event that reads as nothing writes nothing (as textFillSink does). (The
  * tracker decides WHEN something is said; the formatter owns the words — the
  * assertions below pin both together, exactly as the terminal shows them.)
+ * `events` keeps the raw events, for the facts the tracker still reports that
+ * plain output no longer prints (a plain refusal, a milestone tally).
  */
-function collectLines(): { write: (e: FillEvent) => void; lines: string[] } {
+function collectLines(): { write: (e: FillEvent) => void; lines: string[]; events: FillEvent[] } {
   const lines: string[] = [];
-  return { write: (e: FillEvent) => { lines.push(renderFillEvent(e)); }, lines };
+  const events: FillEvent[] = [];
+  return {
+    write: (e: FillEvent) => {
+      events.push(e);
+      const text = renderFillEvent(e);
+      if (text !== '') lines.push(text);
+    },
+    lines,
+    events,
+  };
 }
 
 /** Returns a fake clock that starts at the given base time and can be advanced
@@ -54,19 +66,20 @@ describe('ProgressTracker — non-TTY mode', () => {
     expect(lines.length).toBe(0);
   });
 
-  it('refused verdict emits an immediate permanent line', () => {
+  // A plain refusal is reported as an event but prints no line of its own:
+  // the report below the fill lists it, and the closing line counts it.
+  it('refused verdict is reported as an event but prints no line of its own', () => {
     const clk = fakeClock(1000);
     // milestoneInterval: 100 so no milestone fires in this small test
     const tracker = new ProgressTracker(5, { isTTY: false, now: clk.now, milestoneInterval: 100 });
-    const { write, lines } = collectLines();
+    const { write, lines, events } = collectLines();
 
     tracker.onPairStart('det', 'no-todo', 'node:orders', write);
     tracker.onPairComplete('det', 'no-todo', 'node:orders', 'refused', write);
 
-    // 1 refused immediate line (no milestone at completion 1 with interval 100)
-    expect(lines.length).toBe(1);
-    expect(lines[0]).toContain('[det] no-todo on node:orders — refused');
-    expect(lines[0]).toMatch(/\n$/);
+    expect(events).toEqual([{ type: 'pair-outcome', lane: 'det', aspectId: 'no-todo', unitKey: 'node:orders', verdict: 'refused' }]);
+    expect(lines.length).toBe(0);
+    expect(tracker.counts().refused).toBe(1);
   });
 
   it('infra outcome emits an immediate permanent line', () => {
@@ -80,32 +93,33 @@ describe('ProgressTracker — non-TTY mode', () => {
 
     // 1 infra immediate line (no milestone at completion 1 with interval 100)
     expect(lines.length).toBe(1);
-    expect(lines[0]).toContain('[llm] doc-check on node:svc — infra');
+    expect(lines[0]).toBe('fill  not judged  doc-check @ svc\n');
   });
 
-  it('milestone line emitted when completed % milestoneInterval === 0', () => {
+  // The tracker still reports a milestone tally as an event; plain output no
+  // longer prints it (a fill is a start line and an end line).
+  it('milestone event emitted when completed % milestoneInterval === 0, printing nothing', () => {
     const clk = fakeClock(0);
     // milestoneInterval of 2 → milestone at 2, 4, 6...
     const tracker = new ProgressTracker(8, { isTTY: false, now: clk.now, milestoneInterval: 2 });
-    const { write, lines } = collectLines();
+    const { write, lines, events } = collectLines();
 
     // Complete 1 approved pair — no milestone (1 % 2 !== 0)
     tracker.onPairStart('det', 'a', 'node:x', write);
     tracker.onPairComplete('det', 'a', 'node:x', 'approved', write);
-    expect(lines.length).toBe(0);
+    expect(events.length).toBe(0);
 
     // Complete 2nd approved pair — milestone fires (2 % 2 === 0)
     tracker.onPairStart('det', 'b', 'node:x', write);
     tracker.onPairComplete('det', 'b', 'node:x', 'approved', write);
-    expect(lines.length).toBe(1);
-    expect(lines[0]).toMatch(/\.\.\. 2\/8 filled \(2 ok\)/);
-    expect(lines[0]).toMatch(/\n$/);
+    expect(events).toEqual([{ type: 'milestone', counts: { completed: 2, total: 8, approved: 2, refused: 0, infra: 0 } }]);
+    expect(lines.length).toBe(0);
   });
 
-  it('milestone line includes refused and infra counts when non-zero', () => {
+  it('milestone event carries refused and infra counts when non-zero; only the not-judged pair prints', () => {
     const clk = fakeClock(0);
     const tracker = new ProgressTracker(4, { isTTY: false, now: clk.now, milestoneInterval: 4 });
-    const { write, lines } = collectLines();
+    const { write, lines, events } = collectLines();
 
     tracker.onPairStart('det', 'a', 'node:x', write);
     tracker.onPairComplete('det', 'a', 'node:x', 'approved', write);
@@ -116,31 +130,27 @@ describe('ProgressTracker — non-TTY mode', () => {
     tracker.onPairStart('det', 'd', 'node:x', write);
     tracker.onPairComplete('det', 'd', 'node:x', 'approved', write); // milestone at 4
 
-    // 2 immediate lines (refused + infra) + 1 milestone
-    // Immediate lines start with "  [" (pair prefix); milestone lines start with "..."
-    const immediateLines = lines.filter(l => l.startsWith('  ['));
-    const milestoneLines = lines.filter(l => l.includes('filled'));
-    expect(immediateLines.length).toBe(2);
-    expect(milestoneLines.length).toBe(1);
-    expect(milestoneLines[0]).toContain('1 refused');
-    expect(milestoneLines[0]).toContain('1 infra');
-    expect(milestoneLines[0]).toContain('2 ok');
+    // 2 pair-outcome events (refused + infra) + 1 milestone; only the infra pair prints
+    expect(events.filter(e => e.type === 'pair-outcome').length).toBe(2);
+    const milestones = events.filter(e => e.type === 'milestone');
+    expect(milestones).toEqual([{ type: 'milestone', counts: { completed: 4, total: 4, approved: 2, refused: 1, infra: 1 } }]);
+    expect(lines).toEqual(['fill  not judged  c @ x\n']);
   });
 
   it('default milestoneInterval is 25% of total (min 1)', () => {
     const clk = fakeClock(0);
     // 8 total → 25% = 2 → interval of 2
     const tracker = new ProgressTracker(8, { isTTY: false, now: clk.now });
-    const { write, lines } = collectLines();
+    const { write, events } = collectLines();
 
     for (let i = 0; i < 8; i++) {
       tracker.onPairStart('det', `a${i}`, 'node:x', write);
       tracker.onPairComplete('det', `a${i}`, 'node:x', 'approved', write);
     }
 
-    // Should have emitted at 2, 4, 6, 8 → 4 milestone lines
-    const milestoneLines = lines.filter(l => l.includes('filled'));
-    expect(milestoneLines.length).toBe(4);
+    // Should have emitted at 2, 4, 6, 8 → 4 milestone events
+    const milestones = events.filter(e => e.type === 'milestone');
+    expect(milestones.length).toBe(4);
   });
 
   it('still-working line emitted via onTick when no completion for > stillWorkingIntervalMs', () => {
@@ -158,7 +168,7 @@ describe('ProgressTracker — non-TTY mode', () => {
     tracker.onTick(write);
 
     expect(lines.length).toBe(1);
-    expect(lines[0]).toMatch(/\.\.\. still working \(0\/5, waiting on slow-aspect on node:svc\)/);
+    expect(lines[0]).toBe('fill  still working — 0/5, waiting on slow-aspect @ svc\n');
     expect(lines[0]).toMatch(/\n$/);
   });
 
@@ -213,11 +223,11 @@ describe('ProgressTracker — non-TTY mode', () => {
     expect(lines.length).toBe(0);
   });
 
-  it('5 pairs (1 refused), no per-approval lines, refused gets immediate line, milestone present', () => {
+  it('5 pairs (1 refused), no per-approval lines, refused reported as an event, milestone present', () => {
     const clk = fakeClock(0);
     // Use milestoneInterval=5 so milestone fires only at the 5th completion
     const tracker = new ProgressTracker(5, { isTTY: false, now: clk.now, milestoneInterval: 5 });
-    const { write, lines } = collectLines();
+    const { write, lines, events } = collectLines();
 
     // 4 approved pairs (completions 1-4, no milestone yet)
     for (let i = 0; i < 4; i++) {
@@ -230,14 +240,12 @@ describe('ProgressTracker — non-TTY mode', () => {
     tracker.onPairStart('det', 'no-todo', 'node:orders', write);
     tracker.onPairComplete('det', 'no-todo', 'node:orders', 'refused', write);
 
-    // Should have: 1 immediate refused line + 1 milestone at completion 5
-    const refusedLines = lines.filter(l => l.includes('refused') && l.includes('[det]'));
-    const milestoneLines = lines.filter(l => l.includes('filled'));
-    expect(refusedLines.length).toBe(1);
-    expect(refusedLines[0]).toContain('[det] no-todo on node:orders — refused');
-    expect(milestoneLines.length).toBe(1);
-    expect(milestoneLines[0]).toContain('4 ok');
-    expect(milestoneLines[0]).toContain('1 refused');
+    // Should have: 1 refused pair-outcome event + 1 milestone at completion 5, and no printed line
+    expect(events).toEqual([
+      { type: 'pair-outcome', lane: 'det', aspectId: 'no-todo', unitKey: 'node:orders', verdict: 'refused' },
+      { type: 'milestone', counts: { completed: 5, total: 5, approved: 4, refused: 1, infra: 0 } },
+    ]);
+    expect(lines.length).toBe(0);
   });
 });
 
@@ -265,9 +273,9 @@ describe('ProgressTracker — TTY mode', () => {
     tracker.onPairStart('det', 'aspect-a', 'node:svc', write);
 
     const line = lines[lines.length - 1];
-    expect(line).toContain('filling');
+    expect(line).toContain('fill  ');
     expect(line).toContain('0/5');
-    expect(line).toContain('aspect-a on node:svc');
+    expect(line).toContain('aspect-a @ svc');
     // Cleared before rewriting: without this a shorter line leaves the tail of
     // the previous, longer one on screen.
     expect(line.startsWith('\r\x1b[2K')).toBe(true);
@@ -318,21 +326,25 @@ describe('ProgressTracker — TTY mode', () => {
     expect(permanentLines.length).toBe(0);
   });
 
-  it('refused pair in TTY mode: clears line, emits permanent line, then rewrites TTY line', () => {
+  // A plain refusal prints no permanent line (the report lists it); the
+  // rewritten TTY line counts it. A pair that could not be judged does print one.
+  it('refused pair in TTY mode: clears line, prints no permanent line, rewrites the TTY line with the refusal counted', () => {
     const clk = fakeClock(0);
     const tracker = new ProgressTracker(3, { isTTY: true, now: clk.now });
-    const { write, lines } = collectLines();
+    const { write, lines, events } = collectLines();
 
     tracker.onPairStart('det', 'no-todo', 'node:orders', write);
     tracker.onPairComplete('det', 'no-todo', 'node:orders', 'refused', write);
 
-    // Should have: [start TTY line] [clear line] [refused permanent line] [new TTY line]
+    // Events: [start status] [clear line] [refused outcome] [new status]
+    expect(events.map(e => e.type)).toEqual(['status', 'clear-line', 'pair-outcome', 'status']);
     const permanentLines = lines.filter(l => l.endsWith('\n'));
-    const ttyLines = lines.filter(l => l.endsWith('\r') && !l.match(/^\r\s+\r$/));
+    expect(permanentLines.length).toBe(0);
+    expect(lines[lines.length - 1]).toContain('1/3 · 1 refused');
 
-    expect(permanentLines.length).toBe(1);
-    expect(permanentLines[0]).toContain('[det] no-todo on node:orders — refused');
-    expect(ttyLines.length).toBeGreaterThanOrEqual(1);
+    tracker.onPairStart('llm', 'doc', 'node:svc', write);
+    tracker.onPairComplete('llm', 'doc', 'node:svc', 'infra', write);
+    expect(lines.filter(l => l.endsWith('\n'))).toEqual(['fill  not judged  doc @ svc\n']);
   });
 
   it('onTick in TTY mode rewrites the line (shows elapsed time)', () => {

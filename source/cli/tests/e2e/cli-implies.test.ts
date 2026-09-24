@@ -268,17 +268,16 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       const { status, stdout, stderr } = run(['check', '--approve'], dir);
       expect(status).toBe(1);
       expect(stdout).toContain('no-banned-word');
-      // The old per-issue WHAT line 0 ("... is refused on <unit> by a
-      // deterministic check") is now the group header; assert the grouped render
-      // — the enforced group naming the implied aspect and the refusing node line.
-      expect(stdout).toContain("aspect 'no-banned-word'");
-      expect(stdout).toContain('- services/orders');
+      // The refusal block names the implied aspect and the refusing node, and
+      // its member line carries the violation itself.
+      expect(stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(stdout).toContain('services/orders  src/services/orders.ts:16  BANNED token found.');
       // The implied aspect's pair refused while the implier itself
       // (no-todo-comments) was satisfied — its fill pair is approved. (The fill
       // summary no longer echoes individual violation messages such as "BANNED
       // token found." — that per-violation detail now lives in `yg aspect-test`.)
-      // Fill-time progress ([det] lines) go to STDERR; final report to STDOUT.
-      expect(stderr).toContain('[det] no-banned-word on node:services/orders — refused');
+      // Fill-time progress goes to STDERR; its closing line counts the refusal.
+      expect(stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -299,13 +298,13 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // The old per-issue WHAT line 0 ("Aspect '...' is refused on <unit> ...")
       // is now the group header; assert the grouped render — the enforced group
       // naming the 2-level-deep implied aspect and the refusing node line.
-      expect(stdout).toContain("aspect 'no-fixme'");
-      expect(stdout).toContain('- services/orders');
+      expect(stdout).toContain('error[refused] no-fixme — 1 violation in services/orders');
+      expect(stdout).toContain('services/orders  src/services/orders.ts:16  FIXME token found.');
       // The 2-level-deep implied aspect's pair refused. (Per-violation message
       // text "FIXME token found." moved to `yg aspect-test`; the fill summary
       // reports the pair-level refusal only.)
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(stderr).toContain('[det] no-fixme on node:services/orders — refused');
+      // Fill-time progress goes to STDERR; its closing line counts the refusal.
+      expect(stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -327,8 +326,7 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // The old per-issue WHAT line 0 ("... is refused on <unit> ...") is now the
       // group header; assert the grouped render — the enforced group naming the
       // implied aspect and the refusing node line — proving the chain was wired.
-      expect(wired.stdout).toContain("aspect 'no-banned-word'");
-      expect(wired.stdout).toContain('- services/orders');
+      expect(wired.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
 
       // Sever the chain at level 1: no-todo-comments no longer implies anything.
       setImplies(noTodoYamlPath(dir), NO_TODO_BASE, []);
@@ -348,7 +346,7 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       const cleared = run(['check', '--approve'], dir);
       expect(cleared.status).toBe(0);
       expect(cleared.stdout).toContain('yg check: PASS');
-      expect(cleared.all).not.toContain('is refused');
+      expect(cleared.all).not.toContain('[refused]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -382,9 +380,8 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // group header; assert the grouped render — the ENFORCED group (not advisory)
       // naming the implied aspect and the refusing node line, proving the implied
       // aspect kept enforced status and blocked.
-      expect(fill.stdout).toContain('enforced');
-      expect(fill.stdout).toContain("aspect 'no-banned-word'");
-      expect(fill.stdout).toContain('- services/orders');
+      expect(fill.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(fill.stdout).not.toContain('warning[refused]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -444,15 +441,13 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // The old per-issue "(advisory — not blocking)" Fix suffix only existed in
       // the per-issue renderer; the GROUP renderer (default full view) has no such
       // suffix — assert the grouped warning render instead.
-      expect(fill.stdout).toMatch(/Warnings \(\d+\)( in \d+ groups)?:/);
-      expect(fill.stdout).toContain('advisory');
-      expect(fill.stdout).toContain("aspect 'no-banned-word'");
-      expect(fill.stdout).toContain('- services/orders');
+      expect(fill.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
+      expect(fill.stdout).not.toContain('error[refused]');
+      expect(fill.stdout).toContain('services/orders  src/services/orders.ts:16  BANNED token found.');
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0); // advisory violation does NOT fail check
-      expect(check.stdout).toContain('no-banned-word');
-      expect(check.stdout).toContain('advisory');
+      expect(check.stdout).toContain('warning[refused] no-banned-word');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -506,7 +501,8 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // FULL_WHAT code). Assert the group's shared `why` + `Fix:` guidance, which
       // conveys the same intent: the cycle was detected with an actionable fix.
       expect(stdout).toContain('Cycles in implies prevent aspect resolution.');
-      expect(stdout).toContain('Fix: Break the cycle by removing one implies edge.');
+      expect(stdout).toContain('Aspect implies cycle: cyc-a → cyc-b → cyc-a');
+      expect(stdout).toContain('  fix:  Break the cycle by removing one implies edge.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -551,7 +547,8 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // structural code, not a FULL_WHAT code). Assert the group's shared `why` +
       // `Fix:` — same structured guidance as test 8, proving no crash wrapper.
       expect(all).toContain('Cycles in implies prevent aspect resolution.');
-      expect(all).toContain('Fix: Break the cycle by removing one implies edge.');
+      expect(all).toContain('Aspect implies cycle: no-banned-word → no-fixme → no-banned-word');
+      expect(all).toContain('  fix:  Break the cycle by removing one implies edge.');
       // NOT the unclassified crash wrapper.
       expect(all).not.toContain('Unexpected error');
       expect(all).not.toContain('This is a bug');
@@ -604,7 +601,8 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // cycle — it says only that nothing ran.
       expect(all).toContain('yg check: ABORTED');
       expect(all).toContain('must be fixed first');
-      expect(all).toContain('then re-run: yg check --approve');
+      expect(all).toContain('next: Break the cycle by removing one implies edge\nthen: yg check --approve\n');
+
       // What actually tells the user THIS run's problem is a cycle — not the
       // generic header above, which is deliberately silent on specifics — is
       // the cycle's own diagnostic underneath, not buried: same what/why/next

@@ -22,3 +22,9 @@ Counting the committed refusal cases of a rule reuses the read-only corpus disco
 The shape of a wired drill run moved beside the runner's other contract types, so both drill commands can name it without importing each other.
 ## [2026-09-23T22:37:56.178Z]
 The graph-governance work met the release work already merged in this component: the wired drill run shape lives beside the runner's contract types so the drill commands stop importing each other, and the read-only corpus discovery that counts committed refusal cases is unchanged.
+## [2026-09-24T07:24:03.969Z]
+The drill's budget line agrees its counts with their nouns and says reviewer-rule and script cases instead of LLM and deterministic cases.
+## [2026-09-24T08:38:01.891Z]
+A drill case that could not run now names its next step on a labelled next: line under the reason, instead of a sentence that folded the step into the reason.
+## [2026-09-24T09:15:55.811Z]
+A drill case that could not be scored now carries a structured what, why and next, which the drill command renders in the one output grammar and puts in its JSON document, instead of the engine handing it a finished sentence.

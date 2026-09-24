@@ -110,11 +110,11 @@ describe('E2E: scoped coverage via the real CLI binary', () => {
         const { status, out } = run(['check'], dir);
         expect(status).toBe(0); // advisory-only must NOT block
         expect(out).toContain('PASS');
-        expect(out).toContain('uncovered (1)'); // middle-tier warning block rendered
+        expect(out).toContain('warning[uncovered] 1 file belongs to no node'); // middle-tier warning block rendered
         expect(out).toContain('lib/u.ts');
         expect(out).not.toContain('vendor/v.ts'); // excluded → silent
         expect(out).not.toContain('apps/web/main.ts'); // nested .yggdrasil subtree → skipped
-        expect(out).not.toContain('unmapped ('); // no required-tier error
+        expect(out).not.toContain('error[unmapped]'); // no required-tier error
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -122,7 +122,7 @@ describe('E2E: scoped coverage via the real CLI binary', () => {
   );
 
   it.skipIf(!distExists)(
-    'a file unmapped under a required root is a blocking error: exits 1 (FAIL) and renders unmapped (N)',
+    'a file unmapped under a required root is a blocking error: exits 1 (FAIL) and renders the error[unmapped] block',
     () => {
       // narrow mapping to the exact file so src/svc/extra.ts is unmapped UNDER required → error.
       const dir = scaffold('required-error', { mapping: 'src/svc/i.ts', extraSvcFile: true });
@@ -130,9 +130,9 @@ describe('E2E: scoped coverage via the real CLI binary', () => {
         const { status, out } = run(['check'], dir);
         expect(status).toBe(1); // required-tier error blocks
         expect(out).toContain('FAIL');
-        expect(out).toContain('unmapped (1)'); // required-tier error block rendered
+        expect(out).toContain('error[unmapped] 1 file belongs to no node'); // required-tier error block rendered
         expect(out).toContain('src/svc/extra.ts');
-        expect(out).toContain('uncovered (1)'); // lib/u.ts still a non-blocking warning
+        expect(out).toContain('warning[uncovered] 1 file belongs to no node'); // lib/u.ts still a non-blocking warning
         expect(out).not.toContain('vendor/v.ts'); // excluded → silent
       } finally {
         rmSync(dir, { recursive: true, force: true });

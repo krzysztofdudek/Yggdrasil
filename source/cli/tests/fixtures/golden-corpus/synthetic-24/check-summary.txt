@@ -1,37 +1,11 @@
 $ yg check --summary
 exit: 1
 --- stdout
-yg check: FAIL  25 nodes · 24/29 files (83%) · 2 aspects · 0 flows · 16 verified (16 deterministic, 0 LLM)
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
 
-Errors (34):
-  app/svc-03  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-05  1 unverified (0 deterministic-free, 1 LLM), 0 refused, 1 other
-  app/svc-06  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-09  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-12  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-15  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-18  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-21  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  app/svc-24  1 unverified (0 deterministic-free, 1 LLM), 1 refused
-  (repo)  0 unverified (0 deterministic-free, 0 LLM), 0 refused, 1 other
-  app/svc-01  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-02  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-04  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-07  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-08  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-10  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-11  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-13  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-14  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-16  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-17  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-19  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-20  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  app/svc-22  1 unverified (0 deterministic-free, 1 LLM), 0 refused
-  ... and 1 more row with 1 finding (yg check --details)
+errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 reviewer)
+warnings  uncovered 4
 
-Warnings (1):
-  (repo)  0 unverified (0 deterministic-free, 0 LLM), 0 refused, 1 other
-
-Next: yg check --approve
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
 --- stderr

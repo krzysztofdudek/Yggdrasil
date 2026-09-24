@@ -31,9 +31,12 @@ const distExists = existsSync(BIN_PATH);
 
 const INCIDENTS_REL = path.join('.yggdrasil', 'incidents.md');
 
-/** The reality-counter line, verbatim (only N varies; the noun is singular at N=1). */
+/** The reality-counter line, verbatim (only N varies; the noun is singular at N=1, and N=0 reads "no"). */
 const COUNTER_RE =
-  /(\d+) incidents? on record — (?:incidents are )?the only evidence from outside the graph that a rule missed something; (?:see \.yggdrasil\/incidents\.md|record one with yg incident add)/g;
+  /(\d+|no) incidents? on record — (?:incidents are )?the only evidence from outside the graph that a rule missed something; (?:see \.yggdrasil\/incidents\.md|record one with yg incident add)/g;
+
+/** The counter's N as a number ("no" is 0). */
+const counterValue = (raw: string): number => (raw === 'no' ? 0 : Number(raw));
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
@@ -126,11 +129,12 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
       const out = stdout + stderr;
       // Non-gating: the ledger warning never fails the build.
       expect(status).toBe(0);
-      const matches = [...out.matchAll(/incident-ledger-out-of-order/g)];
+      const matches = [...out.matchAll(/^warning\[incident-ledger-out-of-order\] /gm)];
       expect(matches).toHaveLength(1);
       expect(out).toContain('not strictly ascending');
       // It is a WARNING, not an error.
-      expect(out).not.toMatch(/error[^]*incident-ledger-out-of-order/i);
+      expect(out).not.toContain('error[incident-ledger-out-of-order]');
+
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -174,7 +178,7 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
       expect(empty.status).toBe(0);
       let m = [...empty.stdout.matchAll(COUNTER_RE)];
       expect(m).toHaveLength(1);
-      expect(Number(m[0][1])).toBe(0); // an empty ledger reads honestly as 0
+      expect(counterValue(m[0][1])).toBe(0); // an empty ledger reads honestly as none
       expect(empty.stdout).not.toContain('wrong-rule incidents recorded'); // no evidence line at 0
 
       run(['incident', 'add', '--tag', 'wrong-rule', '--reason', 'a rule fired on the wrong thing'], dir);
@@ -183,7 +187,7 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
       expect(withOne.status).toBe(0);
       m = [...withOne.stdout.matchAll(COUNTER_RE)];
       expect(m).toHaveLength(1);
-      expect(Number(m[0][1])).toBe(1);
+      expect(counterValue(m[0][1])).toBe(1);
       // A wrong-rule incident joins the health story as evidence — singular noun at exactly one.
       expect(withOne.stdout).toContain('1 wrong-rule incident recorded — rules may be miscalibrated; see incidents.md');
     } finally {

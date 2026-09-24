@@ -36,7 +36,7 @@ export function checkRelationTargets(graph: Graph): ValidationIssue[] {
     for (const rel of node.meta.relations ?? []) {
       if (!graph.nodes.has(rel.target)) {
         const suggestion = findSimilar(rel.target, nodePaths);
-        const parts = rel.target.split('/');
+        const parts = toPosixPath(rel.target).split('/');
         const parentPrefix = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : '';
         const existingInParent = nodePaths
           .filter((p) => p.startsWith(parentPrefix) && p !== rel.target)
@@ -64,7 +64,7 @@ export function checkRelationTargets(graph: Graph): ValidationIssue[] {
           code: 'relation-broken',
           rule: 'broken-relation',
           ...issueMsg({
-            what: `Relation target '${rel.target}' does not exist.`,
+            what: `Relation target '${toPosixPath(rel.target)}' does not exist.`,
             why: `This node declares a dependency on a node the graph does not contain, so the relation cannot be checked.${existingSentence}`,
             next: `Correct the target in .yggdrasil/model/${toPosixPath(nodePath)}/yg-node.yaml relations${hint}, or remove the relation.`,
           }),
@@ -209,7 +209,7 @@ export function checkNoCycles(graph: Graph): ValidationIssue[] {
       ...issueMsg({
         what,
         why: `Cycles prevent deterministic context assembly and cascade tracking.`,
-        next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
+        next: `Break the cycle in the relations: of one of these nodes' .yggdrasil/model/<node>/yg-node.yaml (${members.slice(0, 3).join(', ')}${members.length > 3 ? ', …' : ''}) — extract a shared interface, invert a dependency, or merge nodes.`,
       }),
       cycleMembers: members,
     };
@@ -234,12 +234,12 @@ export function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
           rule: 'broken-flow-ref',
           ...issueMsg(failedToLoad
             ? {
-                what: `Flow '${flow.name}' names node '${n}', whose yg-node.yaml did not parse.`,
+                what: `Flow '${flow.name}' names node '${toPosixPath(n)}', whose yg-node.yaml did not parse.`,
                 why: `The component was not loaded, so the flow cannot resolve it — a symptom of the yaml-invalid error on '${n}', not a missing node.`,
-                next: `Fix the YAML in .yggdrasil/model/${n}/yg-node.yaml; the flow resolves once the component loads.`,
+                next: `Fix the YAML in .yggdrasil/model/${toPosixPath(n)}/yg-node.yaml; the flow resolves once the component loads.`,
               }
             : {
-                what: `Flow '${flow.name}' references non-existent node '${n}'.`,
+                what: `Flow '${flow.name}' references non-existent node '${toPosixPath(n)}'.`,
                 why: `Flow participants must exist in the graph.`,
                 next: `Fix the nodes list in yg-flow.yaml or create the missing node.`,
               }),
@@ -273,7 +273,7 @@ export function checkHighFanOut(graph: Graph): ValidationIssue[] {
         ...issueMsg({
           what: `Node has ${count} direct relations (max: ${maxRel}).`,
           why: `High fan-out makes context packages large and suggests unclear separation of concerns.`,
-          next: `Consider splitting responsibilities or introducing an intermediary node.`,
+          next: `Split .yggdrasil/model/${nodePath}/yg-node.yaml's responsibilities, or introduce an intermediary node its relations go through.`,
         }),
         nodePath,
       });
@@ -311,9 +311,9 @@ export function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
           code: 'event-unpaired',
           rule: 'unpaired-event',
           ...issueMsg({
-            what: `Node '${emitter}' emits to '${target}' but '${target}' has no listens from '${emitter}'.`,
+            what: `Node '${toPosixPath(emitter)}' emits to '${toPosixPath(target)}' but '${toPosixPath(target)}' has no listens from '${toPosixPath(emitter)}'.`,
             why: `Events need paired emits/listens for flow tracking.`,
-            next: `Add the complementary event relation.`,
+            next: `Add a listens relation to '${toPosixPath(emitter)}' in .yggdrasil/model/${toPosixPath(target)}/yg-node.yaml, or remove the emits.`,
           }),
           nodePath: emitter,
         });
@@ -329,9 +329,9 @@ export function checkUnpairedEvents(graph: Graph): ValidationIssue[] {
           code: 'event-unpaired',
           rule: 'unpaired-event',
           ...issueMsg({
-            what: `Node '${listener}' listens from '${source}' but '${source}' has no emits to '${listener}'.`,
+            what: `Node '${toPosixPath(listener)}' listens from '${toPosixPath(source)}' but '${toPosixPath(source)}' has no emits to '${toPosixPath(listener)}'.`,
             why: `Events need paired emits/listens for flow tracking.`,
-            next: `Add the complementary event relation.`,
+            next: `Add an emits relation to '${toPosixPath(listener)}' in .yggdrasil/model/${toPosixPath(source)}/yg-node.yaml, or remove the listens.`,
           }),
           nodePath: listener,
         });
@@ -356,7 +356,7 @@ export function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         ...issueMsg({
           what: `Node has no description.`,
           why: `Description is used in context output — agents need it for orientation.`,
-          next: `Add a description field to yg-node.yaml.`,
+          next: `Add a description field to .yggdrasil/model/${toPosixPath(nodePath)}/yg-node.yaml.`,
         }),
         nodePath,
       });
@@ -373,7 +373,7 @@ export function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         ...issueMsg({
           what: `Aspect '${aspect.id}' has no description.`,
           why: `Description is used in context output — agents need it for orientation.`,
-          next: `Add a description field to yg-aspect.yaml.`,
+          next: `Add a description field to .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml.`,
         }),
         aspectId: aspect.id,
       });
@@ -391,7 +391,7 @@ export function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
         ...issueMsg({
           what: `Flow '${flow.name}' has no description.`,
           why: `Description is used in context output — agents need it for orientation.`,
-          next: `Add a description field to yg-flow.yaml.`,
+          next: `Add a description field to .yggdrasil/flows/${toPosixPath(flow.path)}/yg-flow.yaml.`,
         }),
         flowName: flow.name,
       });
