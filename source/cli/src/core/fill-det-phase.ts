@@ -17,6 +17,8 @@
  * unverified and the run ends red.
  */
 
+import path from 'node:path';
+
 import type { Graph, AspectDef } from '../model/graph.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { LockVerification } from './verify-lock.js';
@@ -26,6 +28,9 @@ import type { VerdictWriter } from './fill-writer.js';
 import type { InfraDiagnosticItem } from './fill-report.js';
 import { detGateKey, isNodeBlocked } from './fill-contract.js';
 import { fillDetPair } from './fill-det.js';
+import { computeNodeMappedFiles } from './pairs.js';
+import { statPath } from '../io/graph-fs.js';
+import { debugWrite } from '../utils/debug-log.js';
 import {
   buildParseCacheBuckets,
   destroyRemainingParseCaches,
@@ -79,6 +84,8 @@ export interface DetPhaseParams {
   /** Deterministic-phase thread budget: 1 → sequential in-process; >1 → a
    *  worker-thread pool bounded by this value. */
   detConcurrency: number;
+  /** Second pool ceiling from the largest bucket's source bytes — see RunFillOptions.detWorkerCeiling. */
+  detWorkerCeiling?: (largestUnitSourceBytes: number) => number;
   /** Per-check wall-clock budget in ms (0 = unbounded) — see RunFillOptions.detTaskBudgetMs. */
   detTaskBudgetMs?: number;
   typeCoverage: TypeCoverageInput | undefined;
@@ -91,9 +98,56 @@ export interface DetPhaseParams {
   emit: FillEventSink;
 }
 
+/**
+ * Source bytes of the largest parse-cache bucket among `pairs`: for a
+ * component's pair, its node's mapped files (the files a worker may parse for
+ * it); for a nodeless pair, its one file. Each node is sized once however many
+ * rules it carries; an unreadable file counts as empty.
+ */
+async function largestBucketSourceBytes(
+  graph: Graph,
+  projectRoot: string,
+  pairs: ExpectedPair[],
+  nodeFilesMemo: Map<string, Promise<string[]>>,
+): Promise<number> {
+  const sized = new Map<string, number>();
+  const sizeOf = async (files: string[]): Promise<number> => {
+    let total = 0;
+    for (const rel of files) {
+      try {
+        total += (await statPath(path.resolve(projectRoot, rel))).size;
+      } catch (err) {
+        // unreadable or gone — contributes nothing to what a worker can parse
+        debugWrite(`[fill-det] pool sizing: no size for ${rel}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return total;
+  };
+  let largest = 0;
+  for (const pair of pairs) {
+    const key = pair.nodePath !== undefined ? `node:${pair.nodePath}` : pair.unitKey;
+    if (sized.has(key)) continue;
+    let files: string[];
+    if (pair.nodePath !== undefined) {
+      let memo = nodeFilesMemo.get(pair.nodePath);
+      if (memo === undefined) {
+        memo = computeNodeMappedFiles(graph, pair.nodePath);
+        nodeFilesMemo.set(pair.nodePath, memo);
+      }
+      files = await memo;
+    } else {
+      files = pair.subjectFiles;
+    }
+    const bytes = await sizeOf(files);
+    sized.set(key, bytes);
+    if (bytes > largest) largest = bytes;
+  }
+  return largest;
+}
+
 export async function runDeterministicPhase({
   graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-  detConcurrency, detTaskBudgetMs = 0, typeCoverage, reachCache, writer, tracker, emit,
+  detConcurrency, detWorkerCeiling, detTaskBudgetMs = 0, typeCoverage, reachCache, writer, tracker, emit,
 }: DetPhaseParams): Promise<DetPhaseResult> {
   const result: DetPhaseResult = {
     detEnforcedRefusedNodes: new Set<string>(),
@@ -124,6 +178,10 @@ export async function runDeterministicPhase({
     if (!aspect) continue;
     activeDetPairs.push({ pair, aspect });
   }
+
+  // One node-files snapshot per node for the whole phase — see fillDetPair's
+  // nodeFilesMemo for why a per-pair recomputation made a node's fill quadratic.
+  const nodeFilesMemo = new Map<string, Promise<string[]>>();
 
   // Per-pair outcome handling — identical for the sequential and parallel paths.
   // Applies the LIVE side effects (setEntry, counters, tracker) and RETURNS a
@@ -187,10 +245,17 @@ export async function runDeterministicPhase({
   // a budget every check runs on a worker — at least one, even for a fill too
   // small to parallelize.
   const bounded = detTaskBudgetMs > 0 && activeDetPairs.length > 0;
-  const detPoolSize = Math.max(
+  let detPoolSize = Math.max(
     bounded ? 1 : 0,
     Math.min(detConcurrency, Math.floor(activeDetPairs.length / MIN_DET_PAIRS_PER_WORKER)),
   );
+  // A worker holds one bucket's trees (one rule on one node) at a time, so the
+  // largest bucket — not the parent's size — bounds what one worker can grow
+  // to. Measured only when a pool would be spawned; never enters a verdict.
+  if (detPoolSize > 1 && detWorkerCeiling !== undefined) {
+    const largest = await largestBucketSourceBytes(graph, projectRoot, activeDetPairs.map(({ pair }) => pair), nodeFilesMemo);
+    detPoolSize = Math.max(1, Math.min(detPoolSize, detWorkerCeiling(largest)));
+  }
   if (detPoolSize > 1 || bounded) {
     const pool = new DetWorkerPool(graph, projectRoot, detPoolSize, detTaskBudgetMs);
     // A pool-backed structure runner: execute the check on a worker and
@@ -241,6 +306,7 @@ export async function runDeterministicPhase({
             tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), emit);
             const outcome = await fillDetPair(
               graph, projectRoot, pair, aspect, runViaPool(parseCacheBucketKey(pair)), typeCoverage, reachCache,
+              undefined, nodeFilesMemo,
             );
             diagSlots[start + offset] = await applyDetOutcome(pair, outcome);
           }),
@@ -267,7 +333,7 @@ export async function runDeterministicPhase({
         tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), emit);
         const bucket = parseCacheBuckets.get(parseCacheBucketKey(pair));
         try {
-          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverage, reachCache, bucket?.cache);
+          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverage, reachCache, bucket?.cache, nodeFilesMemo);
           collectDetDiag(await applyDetOutcome(pair, outcome));
         } finally {
           releaseParseCacheBucket(parseCacheBuckets, pair);

@@ -53,6 +53,14 @@ export interface ValidationIssue {
    * rather than adding a second aggregate-identity field.
    */
   relationEdges?: Array<{ fromFile: string; toFile: string }>;
+  /**
+   * The members of the strongly connected component a `structural-cycle`
+   * issue reports. The issue stays repo-level (no `nodePath`, so every scoped
+   * check still sees it), and a consumer that must decide which nodes a cycle
+   * touches — `yg context` — reads the members instead of treating it as
+   * relevant to every node.
+   */
+  cycleMembers?: string[];
 }
 
 export interface ValidationResult {

@@ -24,7 +24,8 @@ import { normalizeMappingPaths } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { excludeNestedGraphSubtrees, loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
 import type { GitignoreEntry } from '../io/repo-scanner.js';
-import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../utils/mapping-path.js';
+import { isGlobPattern, normalizeMappingPath } from '../utils/mapping-path.js';
+import { mappingEntrySet } from '../utils/mapping-index.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { partitionByCoverageTier } from './check-coverage-tiers.js';
 import type { CheckIssue } from './check-contract.js';
@@ -39,12 +40,14 @@ import { fileUnit } from '../model/lock.js';
  * subtree (a directory that contains its own .yggdrasil/).
  */
 export function scanUncoveredFiles(graph: Graph, coverageVisibleFiles: string[]): string[] {
-  // Build list of all mapping paths (normalized)
+  // Every mapping path (normalized), indexed so a file is matched by lookup,
+  // not against each entry in turn — see utils/mapping-index.ts.
   const allMappings: string[] = [];
   for (const node of graph.nodes.values()) {
     const paths = normalizeMappingPaths(node.meta.mapping);
     allMappings.push(...paths);
   }
+  const mappingIndex = mappingEntrySet(allMappings);
 
   // Determine .yggdrasil prefix relative to project root
   const projectRoot = path.dirname(graph.rootPath);
@@ -60,7 +63,7 @@ export function scanUncoveredFiles(graph: Graph, coverageVisibleFiles: string[])
     if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
 
     // Check if covered by any mapping
-    const covered = allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized));
+    const covered = mappingIndex.matchesAny(normalized);
 
     if (!covered) {
       uncovered.push(normalized);

@@ -176,6 +176,20 @@ I built it while shipping things alone, fast, which is where the wall above come
 
 The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
 
+On a large repository, keep the local cache between runs so the first line only fills what changed:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: |
+      .yggdrasil/.yg-lock.deterministic.json
+      .yggdrasil/.ast-cache
+    key: yg-${{ runner.os }}-${{ github.sha }}
+    restore-keys: yg-${{ runner.os }}-
+```
+
+Every entry in the cache is keyed by a hash of what it judged, so an entry whose inputs changed reads as unverified and is filled again: a restored cache saves work and cannot turn a changed file green. It is as trusted as the run that wrote it, so restore only caches your own branches produced (GitHub Actions already keeps a fork's pull request from writing a cache the base branch reads).
+
 If you measure changes against a branch, add `--full` to the leg that runs on the branch you merge into. A plain run there passes by construction, so it is the `--full` leg that actually answers for it.
 
 ## Works with

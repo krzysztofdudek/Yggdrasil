@@ -2,8 +2,9 @@ name: Path and IO Utils Unit Tests
 type: test-suite
 description: "Unit tests for filesystem and path utility modules: atomic writes,
   cross-platform binary-availability probing, debug logging, node-path
-  validation, path helpers, mapping-path normalization and glob matching, and
-  check.mjs export-shape validation"
+  validation, path helpers, mapping-path normalization and glob matching, the
+  mapping index's equivalence with a linear match, and check.mjs export-shape
+  validation"
 aspects: []
 relations:
   [
@@ -18,6 +19,7 @@ mapping:
   - source/cli/tests/unit/utils/debug-log.test.ts
   - source/cli/tests/unit/utils/mapping-path.test.ts
   - source/cli/tests/unit/utils/mapping-path-glob.test.ts
+  - source/cli/tests/unit/utils/mapping-index.test.ts
   - source/cli/tests/unit/utils/node-path-validator.test.ts
   - source/cli/tests/unit/utils/paths.test.ts
   - source/cli/tests/unit/utils/validate-check-module.test.ts

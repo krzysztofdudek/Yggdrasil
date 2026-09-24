@@ -88,6 +88,26 @@ function makeSink(): { emit: (m: IssueMessage) => void; text: () => string } {
   return { emit: (m) => { buf += buildIssueMessage(m) + '\n'; }, text: () => buf };
 }
 
+describe('deterministic worker pool: sized from the largest bucket', () => {
+  it('asks the injected ceiling with the largest bucket\'s source bytes and never spawns more workers than it allows', async () => {
+    const root = await buildProject();
+    const graph = await loadGraph(root);
+    const asked: number[] = [];
+    const res = await runFill(graph, { isTTY: false, now: Date.now,
+      coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 4,
+      detWorkerCeiling: (bytes) => { asked.push(bytes); return 1; },
+      write: () => {}, emitIssue: () => {},
+    });
+    // One bucket (one rule on one node): its source is every mapped file.
+    expect(asked).toEqual([FILES.length * 'export const x = 1;\n'.length]);
+    // A ceiling of one keeps the fill on one thread — and changes no verdict.
+    const entries = Object.values(readLock(graph.rootPath).verdicts['per-file-rule'] ?? {});
+    expect(entries).toHaveLength(FILES.length);
+    expect(entries.filter((e) => e.verdict === 'refused')).toHaveLength(BAD_FILES.length);
+    expect(res).toBeDefined();
+  });
+});
+
 describe('deterministic fill parity: sequential vs worker pool', () => {
   it('detConcurrency 1 and 4 produce identical verdicts, diagnostics and counts', async () => {
     const rootSeq = await buildProject();

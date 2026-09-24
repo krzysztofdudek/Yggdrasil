@@ -419,7 +419,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   const det = await runDeterministicPhase({
     graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-    detConcurrency, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit,
+    detConcurrency, detWorkerCeiling: opts.detWorkerCeiling, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit,
   });
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────

@@ -1,7 +1,7 @@
 import { UndeclaredFsReadError } from './ctx-fs.js';
 import { describeExclusionCause } from '../io/repo-scanner.js';
 import { UndeclaredGraphReadError, StructureNodeContextUnavailableError } from './ctx-graph.js';
-import { ParseAstNotPrewarmedError } from './ctx-parsers.js';
+import { ParseAstNotPrewarmedError, parseIntoCache } from './ctx-parsers.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from '../ast/suppress.js';
 import type { SuppressedRange } from '../ast/suppress.js';
@@ -86,9 +86,10 @@ export async function runStructureAspect(
   const checkFn = mod.check as (...args: unknown[]) => unknown;
 
   // Build the unit-scoped ctx (shared with the companion resolver). This is the
-  // byte-behavior-preserving head: same recorder, touchedFiles, subjectFiles set,
-  // ctx identity, and AST prewarmup as the legacy inline construction.
-  const { ctx, recorder, ownFiles, astInputSet } = await buildUnitCtx({
+  // byte-behavior-preserving head: same recorder, touchedFiles, subjectFiles set
+  // and ctx identity as the legacy inline construction; trees are parsed on
+  // first use instead of up front, which changes no result.
+  const { ctx, recorder, ownFilePaths, sourceFor } = await buildUnitCtx({
     aspectId, unit, graph, projectRoot, astCache, touchedFiles, subjectScope,
   });
 
@@ -201,7 +202,7 @@ export async function runStructureAspect(
     });
   }
 
-  const contextFiles = new Set<string>(ownFiles.map(f => f.path));
+  const contextFiles = new Set<string>(ownFilePaths);
   for (const t of touchedFiles) contextFiles.add(t);
 
   const violations: Violation[] = [];
@@ -225,16 +226,12 @@ export async function runStructureAspect(
   }
 
   // Filter suppressed violations. Ranges for a parseable file come from its
-  // parsed tree in the astCache (own files are eagerly parsed; cross-node files
-  // the check parsed are cached). A non-parseable file (no registered grammar)
-  // is not in the astCache, so its ranges come from a raw-line scan of its
-  // content, sourced here from the own/related file sets the runner already read.
-  // A violation with no file/line, or in a file with neither tree nor content,
-  // is not suppressible.
-  const contentByPath = new Map<string, string>();
-  for (const f of [...ownFiles, ...astInputSet]) {
-    contentByPath.set(normalizeMappingPath(f.path), f.content);
-  }
+  // parsed tree (a tree the check already built is reused from the astCache; an
+  // own or relation-target file it never parsed is parsed now, on demand). A
+  // non-parseable file (no registered grammar) has its ranges from a raw-line
+  // scan of its content, sourced from what the unit served or read
+  // (`sourceFor`). A violation with no file/line, or in a file with neither tree
+  // nor content, is not suppressible.
   const rangesByFile = new Map<string, SuppressedRange[] | null>();
   function rangesFor(filePath: string): SuppressedRange[] | null {
     const existing = rangesByFile.get(filePath);
@@ -245,9 +242,9 @@ export async function runStructureAspect(
       if (cached) {
         ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
       } else {
-        const content = contentByPath.get(filePath);
+        const content = sourceFor(filePath);
         ranges = content !== undefined
-          ? collectSuppressions(undefined, filePath, content.split('\n').length, content)
+          ? collectSuppressions(parseIntoCache(astCache, filePath, content), filePath, content.split('\n').length, content)
           : null;
       }
     } catch (err) {

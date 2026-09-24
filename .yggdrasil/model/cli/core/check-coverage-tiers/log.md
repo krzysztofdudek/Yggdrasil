@@ -26,3 +26,5 @@ The one-file coverage.excluded predicate needed to be reachable from the persist
 Added a helper that splits the aggregate unmapped-files finding by a given file set into two findings, each rebuilt from scratch off its own file list rather than the original text with a count swapped in, and returns only the non-empty side so a fully one-sided split never produces a hollow second finding naming zero files. It partitions and rebuilds only; deciding what each half means is left to a later step.
 ## [2026-09-23T19:41:24.300Z]
 The unmapped-file finding justified itself with an undefined protocol and, once enriched, ran two commands together in one unreadable fix line. It now states the concrete consequence — nothing checks those files and the check stays red — and gives one readable instruction.
+## [2026-09-24T01:25:04.452Z]
+Deciding which paths no mapping claims tested every path against every mapping entry; it now uses the shared mapping index, which gives the same answers by lookup.

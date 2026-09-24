@@ -424,3 +424,47 @@ describe('TypeClassCache — the look-identical-to-the-key class (a file must ne
     expect(warm!.matches.map((m) => m.typeId)).not.toContain('dosScript');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Bounded to one architecture revision. Every shard key folds in the
+// architecture hash, so a shard from another revision is never read again —
+// and used to stay on disk forever, one per unmapped file per `when` edit.
+// ---------------------------------------------------------------------------
+describe('TypeClassCache — keeps one architecture revision on disk', () => {
+  it('an architecture edit removes the previous revision\'s shards instead of piling new ones beside them', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const classifyAll = async (architecture: typeof graph.architecture): Promise<void> => {
+      const g = { ...graph, architecture };
+      const cache = new TypeClassCache(d, architecture);
+      for (const rel of ['src/svc/handler.ts']) {
+        await classifyFile(path.join(d, rel), rel, g, new FileContentCache(), cache);
+      }
+    };
+    await classifyAll(graph.architecture);
+    expect(findShardFiles(typeClassCacheDir(d))).toHaveLength(1);
+
+    // Three successive edits to a classifying type's `when`, then a revert.
+    const edited = (n: number): typeof graph.architecture => {
+      const [firstId, firstDef] = Object.entries(graph.architecture.node_types).find(([, def]) => def.when !== undefined)!;
+      return { ...graph.architecture, node_types: { ...graph.architecture.node_types, [firstId]: { ...firstDef, description: firstDef.description, when: { ...firstDef.when!, path: `edited-${n}/**` } } } } as typeof graph.architecture;
+    };
+    for (const n of [1, 2, 3]) {
+      await classifyAll(edited(n));
+      expect(findShardFiles(typeClassCacheDir(d))).toHaveLength(1);
+    }
+    await classifyAll(graph.architecture);
+    expect(findShardFiles(typeClassCacheDir(d))).toHaveLength(1);
+  });
+
+  it('removes directories of older schema versions', async () => {
+    const d = copyFixture();
+    const graph = await loadGraph(d);
+    const stale = path.join(typeClassCacheDir(d), 'v2', 'abc.json');
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(path.dirname(stale), { recursive: true });
+    writeFileSync(stale, '{}');
+    new TypeClassCache(d, graph.architecture);
+    expect(findShardFiles(typeClassCacheDir(d))).toHaveLength(0);
+  });
+});

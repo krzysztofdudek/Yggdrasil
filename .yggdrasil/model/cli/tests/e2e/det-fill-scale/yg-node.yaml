@@ -1,0 +1,9 @@
+name: E2E Tests — The deterministic fill grows linearly with node size
+type: test-suite
+description: "Subprocess E2E pinning growth, not time: the keyless deterministic fill on one generated node of N and of 2N files, with filesystem operations and tree-sitter parses counted, must roughly double rather than quadruple, and rules that never read a tree must cause no parse per file per worker."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-det-fill-scale.test.ts

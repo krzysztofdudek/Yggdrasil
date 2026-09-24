@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { toPosixPath } from '../utils/posix.js';
+import { runCaches } from './run-scope-cache.js';
 import { isGlobPattern, globMatch, normalizeMappingPath } from '../utils/mapping-path.js';
 import {
   findNestedProjectRoots,
@@ -94,19 +95,38 @@ export function hashBytes(bytes: Buffer): string {
 }
 
 /**
- * Collect file paths and mtimes from a directory without hashing.
- * Used by expandMappingPaths and pairs/fingerprint computation.
+ * The files below a directory — absolute paths, gitignore-aware, `.git` never
+ * entered. Used by expandMappingPaths for directory and glob entries.
  *
- * Directory recursion and file stat() calls are parallelized for performance.
+ * The walk descends exactly as the repo walk does (io/repo-scanner.ts): the
+ * caller hands in the stack of every ancestor (see gitignoreStackFor), and each
+ * directory adds its own .gitignore on the way down. That stack is a function
+ * of the directory's place under the project root alone, so inside a run scope
+ * (io/run-scope-cache.ts) a directory's result is kept for the run and every later
+ * expansion that reaches it — the same node's mapping expanded again by another
+ * check, or a parent's mapping walking into it — reuses it instead of listing
+ * the subtree again. Outside a scope every call walks the disk.
+ *
+ * Directory recursion is parallel. No file is stat-ed: a directory entry's own
+ * type says whether it is a file, and nothing downstream reads more than that.
  */
-async function collectDirectoryFilePaths(
+async function collectDirectoryFiles(
   directoryPath: string,
-  rootDirectoryPath: string,
   options: { projectRoot?: string; gitignoreStack?: GitignoreEntry[] },
-): Promise<Array<{ relPath: string; absPath: string; mtimeMs: number }>> {
-  // The walk descends exactly as the repo walk does (io/repo-scanner.ts): the
-  // caller hands in the stack of every ancestor (see gitignoreStackFor), and
-  // each directory adds its own .gitignore on the way down.
+): Promise<string[]> {
+  const caches = runCaches();
+  const key = `${options.projectRoot ?? ''}\0${directoryPath}`;
+  const cached = caches?.directoryFiles.get(key);
+  if (cached !== undefined) return cached;
+  const walked = walkDirectoryFiles(directoryPath, options);
+  caches?.directoryFiles.set(key, walked);
+  return walked;
+}
+
+async function walkDirectoryFiles(
+  directoryPath: string,
+  options: { projectRoot?: string; gitignoreStack?: GitignoreEntry[] },
+): Promise<string[]> {
   const stack = await withLocalGitignore(directoryPath, options.gitignoreStack ?? []);
 
   const entries = await readdir(directoryPath, { withFileTypes: true });
@@ -127,25 +147,14 @@ async function collectDirectoryFilePaths(
     else if (entry.isFile()) files.push(absoluteChildPath);
   }
 
-  // Parallel: recurse into directories AND stat files concurrently
-  const [dirResults, fileStats] = await Promise.all([
-    Promise.all(dirs.map((d) => collectDirectoryFilePaths(d, rootDirectoryPath, {
-      projectRoot: options.projectRoot,
-      gitignoreStack: stack,
-    }))),
-    Promise.all(files.map(async (f) => {
-      const fileStat = await stat(f);
-      return {
-        relPath: toPosixPath(path.relative(rootDirectoryPath, f)),
-        absPath: f,
-        mtimeMs: fileStat.mtimeMs,
-      };
-    })),
-  ]);
+  const dirResults = await Promise.all(dirs.map((d) => collectDirectoryFiles(d, {
+    projectRoot: options.projectRoot,
+    gitignoreStack: stack,
+  })));
 
-  const result: Array<{ relPath: string; absPath: string; mtimeMs: number }> = [];
+  const result: string[] = [];
   for (const nested of dirResults) result.push(...nested);
-  result.push(...fileStats);
+  result.push(...files);
   return result;
 }
 
@@ -156,9 +165,8 @@ async function collectDirectoryFilePaths(
  * first segment containing a glob metachar (if the first segment is already a
  * glob, the base is projectRoot) — and keeps the entries matching the full
  * pattern (minimatch, { dot: true }, segment-aware). Honors every .gitignore from
- * the project root down (see gitignoreStackFor). Returns { relPath (POSIX, relative to projectRoot), absPath,
- * mtimeMs } so callers can both display paths and reuse the mtime without an
- * extra stat. A missing base directory yields an empty list (silent skip).
+ * the project root down (see gitignoreStackFor). Returns POSIX paths relative to
+ * projectRoot. A missing base directory yields an empty list (silent skip).
  *
  * Single source of truth for glob expansion, shared by expandMappingPaths
  * (display/validation) and pairs/fingerprint computation.
@@ -166,23 +174,19 @@ async function collectDirectoryFilePaths(
 async function expandGlobEntry(
   projectRoot: string,
   glob: string,
-): Promise<Array<{ relPath: string; absPath: string; mtimeMs: number }>> {
+): Promise<string[]> {
   const segments = glob.split('/');
   const firstGlobIdx = segments.findIndex((s) => isGlobPattern(s));
   const baseSegments = firstGlobIdx > 0 ? segments.slice(0, firstGlobIdx) : [];
   const baseDir = baseSegments.length > 0 ? path.join(projectRoot, ...baseSegments) : projectRoot;
   try {
-    const dirEntries = await collectDirectoryFilePaths(baseDir, projectRoot, {
+    const files = await collectDirectoryFiles(baseDir, {
       projectRoot,
       gitignoreStack: await gitignoreStackFor(projectRoot, baseDir),
     });
-    return dirEntries
-      .filter((entry) => globMatch(entry.relPath, glob))
-      .map((entry) => ({
-        relPath: toPosixPath(entry.relPath),
-        absPath: entry.absPath,
-        mtimeMs: entry.mtimeMs,
-      }));
+    return files
+      .map((abs) => toPosixPath(path.relative(projectRoot, abs)))
+      .filter((relPath) => globMatch(relPath, glob));
   } catch {
     // Base dir missing — skip
     return [];
@@ -213,8 +217,7 @@ export async function expandMappingPaths(
 
   for (const mp of mappingPaths) {
     if (isGlobPattern(mp)) {
-      const entries = await expandGlobEntry(projectRoot, mp);
-      for (const entry of entries) pushContained(entry.relPath);
+      for (const relPath of await expandGlobEntry(projectRoot, mp)) pushContained(relPath);
     } else {
       // Guard the mapping entry itself before touching the filesystem — an
       // escaping entry must not even be stat()'d as an in-repo path.
@@ -223,12 +226,12 @@ export async function expandMappingPaths(
       try {
         const st = await stat(absPath);
         if (st.isDirectory()) {
-          const dirEntries = await collectDirectoryFilePaths(absPath, absPath, {
+          const files = await collectDirectoryFiles(absPath, {
             projectRoot,
             gitignoreStack: await gitignoreStackFor(projectRoot, absPath),
           });
-          for (const entry of dirEntries) {
-            pushContained(toPosixPath(path.join(mp, entry.relPath)));
+          for (const abs of files) {
+            pushContained(toPosixPath(path.join(mp, path.relative(absPath, abs))));
           }
         } else {
           pushContained(toPosixPath(mp));

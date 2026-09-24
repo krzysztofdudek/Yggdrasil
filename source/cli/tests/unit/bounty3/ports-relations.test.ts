@@ -683,6 +683,45 @@ describe('checkNoCycles — structural relations only', () => {
     ]);
     expect(checkNoCycles(makeGraph({ nodes }))).toEqual([]);
   });
+
+  // One finding per strongly connected component, carrying its members, so a
+  // consumer can scope the block to the nodes the cycle touches. A DFS used to
+  // stop at the first back edge of each walk and print the walk's prefix.
+  it('reports each strongly connected component once, with its members and a real cycle', () => {
+    const uses = (target: string) => ({ portNames: ['default'], target, type: 'uses' as RelationType });
+    const nodes = new Map<string, GraphNode>([
+      ['entry', makeNode('entry', { relations: [uses('p1')] })],
+      ['p1', makeNode('p1', { relations: [uses('p2'), uses('p3')] })],
+      ['p2', makeNode('p2', { relations: [uses('p1')] })],
+      ['p3', makeNode('p3', { relations: [uses('p4')] })],
+      ['p4', makeNode('p4', { relations: [uses('p1')] })],
+      ['q1', makeNode('q1', { relations: [uses('q2')] })],
+      ['q2', makeNode('q2', { relations: [uses('q1')] })],
+      ['free', makeNode('free', { relations: [uses('q1')] })],
+    ]);
+    const issues = checkNoCycles(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['structural-cycle', 'structural-cycle']);
+    expect(issues.map((i) => i.cycleMembers)).toEqual([['p1', 'p2', 'p3', 'p4'], ['q1', 'q2']]);
+    expect(issues[0].nodePath).toBeUndefined();
+    expect(issues[0].messageData.what).toContain('among 4 nodes (p1, p2, p3, p4)');
+    expect(issues[0].messageData.what).toContain('p1 -> p2 -> p1');
+    expect(issues[1].messageData.what).toContain('Circular dependency: q1 -> q2 -> q1.');
+    for (const issue of issues) {
+      expect(issue.messageData.what).not.toContain('entry');
+      expect(issue.messageData.what).not.toContain('free');
+    }
+  });
+
+  it('a long chain does not overflow the stack', () => {
+    const uses = (target: string) => ({ portNames: ['default'], target, type: 'uses' as RelationType });
+    const nodes = new Map<string, GraphNode>();
+    const n = 20_000;
+    for (let i = 0; i < n; i++) nodes.set(`n${i}`, makeNode(`n${i}`, { relations: [uses(`n${(i + 1) % n}`)] }));
+    const issues = checkNoCycles(makeGraph({ nodes }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].cycleMembers).toHaveLength(n);
+    expect(issues[0].messageData.what).toContain(`(${n} hops)`);
+  });
 });
 
 // ============================================================================

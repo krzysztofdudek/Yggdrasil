@@ -18,3 +18,5 @@ The environment-robustness fixes and the release work already merged met in this
 The lock work met the release work already merged in this component: the fill options require the writer, TTY state and clock and the result carries the dry-run budget as numbers, next to the retry command and the per-check wall-clock budget the earlier work added.
 ## [2026-09-23T23:00:42.648Z]
 The fill options gain an event sink for everything the fill says while it runs, worded by the fill-text formatter, and a switch that hands a gate's findings back on the abort error instead of the diagnostic stream. The abort error now carries which gate stopped the run, every gating finding as a whole check issue, and the command to re-run, so a caller can report it like any other result.
+## [2026-09-24T01:30:34.917Z]
+The fill options gain a second, optional worker-pool ceiling that the command layer computes from the source size of the largest unit one worker may parse. The pool used to be sized from the parent's resident size alone, which let a component of thousands of files, held by every worker, overshoot the memory budget that sizing exists to keep.

@@ -54,3 +54,5 @@ The gitignore-vs-mapping check's own local variable holding a plain repo walk wa
 The strict-overlap and strict-orphan findings named their offending file only in prose, and a repeated overlap across several files silently kept only the first example rather than recording every file the conflict actually touched.
 ## [2026-09-23T20:49:54.463Z]
 A mapping entry is now compared with the directory listing, so an entry that differs from the real path only in letter case is reported with the real spelling. A case-insensitive filesystem used to resolve it, passing locally while ownership disagreed and case-sensitive CI failed with a misleading message.
+## [2026-09-24T01:25:05.222Z]
+The check for model directories without a component definition skipped every dot-named directory, which hid the same components the loader was silently dropping; it now walks them like any other directory. The check that an exactly mapped file is visible to the repository walk now walks the repository only when some mapping names a file exactly, so a graph of directory mappings, and a context lookup, no longer pays for a whole-repository walk it never consults.

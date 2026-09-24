@@ -3,8 +3,9 @@ import * as path from 'node:path';
 import { extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parse as parseTomlSmol } from 'smol-toml';
-import { parseFile as parseAstFile } from '../ast/parser.js';
+import { parseFile as parseAstFile, loadedParserFor } from '../ast/parser.js';
 import type { ParseCache } from '../ast/parse-cache.js';
+import type { Tree } from 'web-tree-sitter';
 import { getLanguageForExtension } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';
 import type { File } from './types.js';
@@ -37,6 +38,14 @@ export interface CtxParsersParams {
   nestedProjectRoots?: ReadonlySet<string>;
   /** The graph's `coverage` config — see CtxFsParams.coverage (ctx-fs.ts) for the full contract. Defaults to no adopter-configured exclusion. */
   coverage?: CoverageConfig;
+  /**
+   * Repo-relative POSIX paths `parseAst` may parse on demand when their tree is
+   * not cached yet: the unit's own files and its relation targets' files — the
+   * set the dispatcher used to parse up front. Their grammars must already be
+   * loaded (`loadGrammarsFor`). A path outside it still raises
+   * `ParseAstNotPrewarmedError`, exactly as before. Defaults to empty.
+   */
+  astEligible?: ReadonlySet<string>;
 }
 
 export interface CtxParsers {
@@ -59,7 +68,7 @@ export class ParseAstNotPrewarmedError extends Error {
 }
 
 export function createCtxParsers(params: CtxParsersParams): CtxParsers {
-  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage } = params;
+  const { allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage, astEligible } = params;
 
   function asFile(input: File | string): File {
     if (typeof input !== 'string') {
@@ -94,6 +103,10 @@ export function createCtxParsers(params: CtxParsersParams): CtxParsers {
       const f = asFile(file);
       const cached = astCache.get(f.path);
       if (cached && cached.content === f.content) return cached.ast;
+      if (astEligible?.has(f.path)) {
+        const ast = parseIntoCache(astCache, f.path, f.content);
+        if (ast !== undefined) return ast;
+      }
       throw new ParseAstNotPrewarmedError(f.path);
     },
     parseYaml(file) { return parseYaml(asFile(file).content); },
@@ -116,6 +129,63 @@ export async function prewarmupAstCache(params: {
     const tree = await parseAstFile(f.path, f.content);
     astCache.set(f.path, { content: f.content, ast: tree });
   }
+}
+
+/**
+ * The tree for `filePath` at `content`, parsed now if the cache does not hold
+ * one for exactly this content, and cached. Synchronous: it uses a grammar
+ * already loaded on this thread (`loadGrammarsFor`) and returns undefined when
+ * the file has no registered grammar or its grammar is not loaded.
+ *
+ * This is what lets a unit's trees be built on first use (a file's `.ast`, a
+ * `ctx.parseAst` call, a suppression scan) instead of for every file of the
+ * node before the check runs: a text-only rule then parses nothing, and a
+ * per-file rule parses its own subject, not the whole node once per worker.
+ */
+export function parseIntoCache(astCache: ParseCache, filePath: string, content: string): Tree | undefined {
+  if (!isAstLanguageExtension(filePath)) return undefined;
+  const existing = astCache.get(filePath);
+  if (existing && existing.content === content) return existing.ast;
+  const parser = loadedParserFor(extname(filePath));
+  if (!parser) return undefined;
+  const tree = parser.parse(content);
+  if (tree === null) throw new Error(`tree-sitter failed to parse file: ${filePath}`);
+  astCache.set(filePath, { content, ast: tree });
+  return tree;
+}
+
+/**
+ * `file` with `language` set from the extension registry and `ast` as a getter
+ * that parses on first read ({@link parseIntoCache}) — the lazy counterpart of
+ * {@link enrichFilesWithAst}. `content` is read through the given accessor, so
+ * a caller that defers the file read itself (a non-subject sibling) keeps that
+ * deferral: nothing is read or parsed until the check asks.
+ */
+export function lazyAstFile(
+  filePath: string,
+  readContent: () => string,
+  astCache: ParseCache,
+  onContentAccess?: () => void,
+): File {
+  const language = getLanguageForExtension(extname(filePath)) ?? undefined;
+  const file = { path: filePath, language } as File;
+  Object.defineProperty(file, 'content', {
+    enumerable: true,
+    configurable: true,
+    get(): string {
+      onContentAccess?.();
+      return readContent();
+    },
+  });
+  Object.defineProperty(file, 'ast', {
+    enumerable: true,
+    configurable: true,
+    get(): unknown {
+      onContentAccess?.();
+      return parseIntoCache(astCache, filePath, readContent());
+    },
+  });
+  return file;
 }
 
 function isAstLanguageExtension(p: string): boolean {

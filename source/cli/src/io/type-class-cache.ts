@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { atomicWriteFile } from './atomic-write.js';
 import type { Graph } from '../model/graph.js';
@@ -122,6 +122,63 @@ function shardPath(dir: string, key: string): string {
   return path.join(dir, `v${TYPE_CLASS_CACHE_SCHEMA_VERSION}`, `${key}.json`);
 }
 
+/** Records which architecture revision the current version directory's shards were written under. */
+const ARCH_MARKER = '.architecture';
+
+/** The revision this process last brought each cache directory to — skips the marker read when unchanged. */
+const revisionOf = new Map<string, string>();
+
+/** Per cache directory: the pending write of its revision marker, made by the first shard write after a prune. */
+const markerWrites = new Map<string, Promise<void>>();
+
+/**
+ * Keep the cache to ONE architecture revision. Every shard's key folds in the
+ * architecture-predicate hash, so a shard written under another revision can
+ * never be read again by this one — yet it used to stay on disk forever: each
+ * edit to a type's `when` added a shard per unmapped file (19k files, 75 MB
+ * per edit on a large unmapped repository), and nothing removed them.
+ *
+ * A marker in the version directory names the revision its shards belong to.
+ * When the marker names another revision (or is missing), the version
+ * directory is emptied before this revision writes into it, and directories of
+ * older schema versions are removed too. The marker itself is written with the
+ * first shard of the new revision (see `set`), through the atomic writer. Reverting an edit therefore costs one
+ * cold re-classification of the reverted revision — the cache is rebuildable
+ * by definition — instead of keeping every revision ever seen. Best-effort:
+ * a failure here only leaves stale shards behind, never a wrong answer.
+ */
+function pruneToRevision(dir: string, archHash: string): void {
+  if (revisionOf.get(dir) === archHash) return;
+  revisionOf.set(dir, archHash);
+  const current = `v${TYPE_CLASS_CACHE_SCHEMA_VERSION}`;
+  const versionDir = path.join(dir, current);
+  const marker = path.join(versionDir, ARCH_MARKER);
+  try {
+    if (existsSync(marker) && readFileSync(marker, 'utf-8') === archHash) return;
+    if (existsSync(dir)) {
+      for (const entry of readdirSync(dir)) {
+        rmSync(path.join(dir, entry), { recursive: true, force: true });
+      }
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+  markerWrites.delete(dir);
+}
+
+/** Write `dir`'s revision marker once per prune, before its first new shard. Best-effort. */
+function ensureRevisionMarker(dir: string, archHash: string): Promise<void> {
+  let pending = markerWrites.get(dir);
+  if (pending === undefined) {
+    const marker = path.join(dir, `v${TYPE_CLASS_CACHE_SCHEMA_VERSION}`, ARCH_MARKER);
+    pending = existsSync(marker) && readFileSync(marker, 'utf-8') === archHash
+      ? Promise.resolve()
+      : atomicWriteFile(marker, archHash).catch(() => {});
+    markerWrites.set(dir, pending);
+  }
+  return pending;
+}
+
 /**
  * Path-and-content-keyed classification cache, constructed once per
  * computeTypeCoverage run and injected into every classifyFile call —
@@ -155,6 +212,7 @@ export class TypeClassCache {
   constructor(graphRoot: string, architecture: Graph['architecture']) {
     this.dir = typeClassCacheDir(graphRoot);
     this.archHash = architecturePredicateHash(architecture);
+    pruneToRevision(this.dir, this.archHash);
   }
 
   /**
@@ -212,6 +270,7 @@ export class TypeClassCache {
     const p = shardPath(this.dir, key);
     if (existsSync(p)) return;
 
+    await ensureRevisionMarker(this.dir, this.archHash);
     const body: CachedClassification = {
       v: TYPE_CLASS_CACHE_SCHEMA_VERSION,
       key,

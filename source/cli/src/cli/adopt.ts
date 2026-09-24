@@ -11,7 +11,7 @@ import { validate } from '../core/validator.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { logAdd } from '../core/log/log-add.js';
 import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
-import { detConcurrencyForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
+import { detConcurrencyForThisMachine, detWorkerCeilingForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
 import { ensureGitattributes, ensureYggdrasilGitignore } from './init-scaffold.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import type { Graph } from '../model/graph.js';
@@ -341,6 +341,7 @@ export function registerAdoptCommand(program: Command): void {
             reviewNowUtc: () => new Date(),
             rulesArtifacts: await readRulesArtifacts(projectRoot),
             detConcurrency: detConcurrencyForThisMachine(),
+            detWorkerCeiling: detWorkerCeilingForThisMachine,
             detTaskBudgetMs: detTaskBudgetMs(),
             write: () => {},
             isTTY: false,

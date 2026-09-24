@@ -25,7 +25,11 @@ description: Shared helper functions — debug logging, git introspection, path
   Most of it is pure. The exceptions are the process adapters, the only
   utility modules that start a child process — git.ts and git-introspect.ts run
   git queries, git-pack-fetch.ts clones a package remote over the network, and
-  binary-check.ts runs `<binary> --version`.
+  binary-check.ts runs `<binary> --version`. It also owns the mapping index
+  (answers which mapping entries match a file by lookup instead of testing every
+  entry, with exactly mappingEntryMatchesFile's answers) and the bounded async
+  map used for repository-wide file I/O, so a large repository is neither read
+  one awaited call at a time nor opened all at once.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses } ]
@@ -39,6 +43,8 @@ mapping:
   - source/cli/src/utils/git.ts
   - source/cli/src/utils/known-providers.ts
   - source/cli/src/utils/mapping-path.ts
+  - source/cli/src/utils/mapping-index.ts
+  - source/cli/src/utils/bounded-map.ts
   - source/cli/src/utils/marker-block.ts
   - source/cli/src/utils/node-path-validator.ts
   - source/cli/src/utils/posix.ts

@@ -7,7 +7,8 @@ import {
   createCtxGraph, createNodelessCtxGraph, UndeclaredGraphReadError, StructureNodeContextUnavailableError,
   computeAllowedNodePaths, recordNodeGraphObservation,
 } from './ctx-graph.js';
-import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPrewarmedError } from './ctx-parsers.js';
+import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, lazyAstFile, ParseAstNotPrewarmedError } from './ctx-parsers.js';
+import { loadGrammarsFor } from '../ast/parser.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
 import { enumerateNodeMappedFilesCached } from '../io/hash.js';
@@ -85,96 +86,117 @@ export function nodeOwnFilePaths(node: ModelNode, expandedOwnFiles: string[]): s
 }
 
 /**
- * Read the node's own files — the paths `nodeOwnFilePaths` lists — into a flat
- * list of readable text files. Directory entries were expanded recursively by
- * the gitignore-aware expandMappingPathsWithinOwnGraph helper (same function used
- * by the node-size budget and build-context), so ctx.files exactly matches what
- * the LLM path sees — a separate project's own subtree (a directory carrying its
- * own `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
- * dropped by that helper before it ever reaches ctx, so a vendored
- * dependency's or a submodule's files are never exposed to this graph's
- * review as though they were this node's own.
- * Unreadable files are silently skipped.
+ * The node's own files — the paths `nodeOwnFilePaths` lists — as the `File`
+ * views a check receives. Directory entries were expanded recursively by the
+ * gitignore-aware expandMappingPathsWithinOwnGraph helper (same function used by
+ * the node-size budget and build-context), so ctx.files exactly matches what the
+ * LLM path sees — a separate project's own subtree (a directory carrying its own
+ * `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is dropped
+ * by that helper before it ever reaches ctx, so a vendored dependency's or a
+ * submodule's files are never exposed to this graph's review as though they
+ * were this node's own. Unreadable files are silently skipped.
  *
- * Returns each file's RAW disk bytes alongside its File view so the caller can
- * fold a byte-symmetric `read:` observation if the check accesses a non-subject
- * sibling's content (spec §3.1, Bug 1).
+ * What is read, and when, is what keeps a node's fill linear in its size:
+ *
+ *  - A SUBJECT file (hashed as a subject input) is read now, fresh from disk,
+ *    on every call — its bytes are what the verdict is about.
+ *  - A NON-subject sibling of a narrowed (`per: file`) unit is read only when
+ *    the check reads its `content` or `ast`, and that read folds the `read:`
+ *    observation with the exact bytes the check saw (spec §3.1, Bug 1): the
+ *    observation is what widens invalidation, so a sibling that is never read
+ *    stays immune, and one that changes after it was read makes the verdict
+ *    stale rather than wrong. Reading every sibling eagerly made each subject
+ *    of an N-file node cost N reads — N² for the node.
+ *  - Every file's tree is parsed on first `.ast` read ({@link lazyAstFile}),
+ *    never up front: a text-only rule parses nothing.
+ *
+ * A sibling's readability is still decided before the check runs (an
+ * unreadable file is skipped from the list, as before), but by one access probe
+ * per file per parse-cache bucket — the bucket is one rule on one node, the
+ * same unit the trees are shared across — not by a read per subject.
  *
  * `ownFilePaths` is computed once by the caller (`buildUnitCtx`, from the
  * expansion `enumerateNodeMappedFilesCached` returns) and passed in here rather
- * than re-derived, so this function's own contribution is only the per-file byte
- * READ (never cached — see that function's doc for why the disk walk is memoised
- * but the content read is not).
+ * than re-derived.
  */
-async function buildOwnFiles(
-  projectRoot: string,
-  touchedFiles: string[],
-  ownFilePaths: string[],
-): Promise<Array<{ file: File; bytes: Buffer }>> {
-  const result: Array<{ file: File; bytes: Buffer }> = [];
+function buildOwnFiles(params: {
+  projectRoot: string;
+  touchedFiles: string[];
+  ownFilePaths: string[];
+  /** Paths hashed as subject inputs — read now. Undefined: every own file is a subject. */
+  narrowedSubjects: ReadonlySet<string> | undefined;
+  astCache: ParseCache;
+  recorder: ObservationRecorder;
+}): { files: File[]; loadedContent: Map<string, string> } {
+  const { projectRoot, touchedFiles, ownFilePaths, narrowedSubjects, astCache, recorder } = params;
+  const files: File[] = [];
+  // Content each file was actually served with, for the runner's suppression
+  // scan — so a violation is matched against the bytes the check judged.
+  const loadedContent = new Map<string, string>();
+  const readable = narrowedSubjects !== undefined ? readabilityMemo(astCache) : undefined;
   for (const p of ownFilePaths) {
     const abs = path.resolve(projectRoot, p);
-    let bytes: Buffer;
-    try {
-      bytes = fs.readFileSync(abs);
-    } catch {
-      continue; // unreadable — skip
+    const key = normalizeMappingPath(p);
+    if (narrowedSubjects === undefined || narrowedSubjects.has(key)) {
+      let content: string;
+      try {
+        content = fs.readFileSync(abs).toString('utf8');
+      } catch {
+        continue; // unreadable — skip
+      }
+      loadedContent.set(key, content);
+      files.push(lazyAstFile(p, () => content, astCache));
+      touchedFiles.push(p);
+      continue;
     }
-    const content = bytes.toString('utf8');
-    result.push({ file: { path: p, content }, bytes });
+    let isReadable = readable!.get(key);
+    if (isReadable === undefined) {
+      try {
+        fs.accessSync(abs, fs.constants.R_OK);
+        isReadable = true;
+      } catch {
+        isReadable = false;
+      }
+      readable!.set(key, isReadable);
+    }
+    if (!isReadable) continue; // unreadable — skip
+    let served: string | undefined;
+    const readContent = (): string => {
+      if (served === undefined) {
+        try {
+          const bytes = fs.readFileSync(abs);
+          recorder.recordRead(key, bytes);
+          served = bytes.toString('utf8');
+        } catch {
+          // Readable when listed, gone or locked by the time the check asked:
+          // fold the absence (a later successful read changes the value, so the
+          // verdict re-runs) and serve it as empty.
+          recorder.recordReadAbsent(key);
+          served = '';
+        }
+        loadedContent.set(key, served);
+      }
+      return served;
+    };
+    files.push(lazyAstFile(p, readContent, astCache));
     touchedFiles.push(p);
   }
-  return result;
+  return { files, loadedContent };
 }
 
 /**
- * Wrap a NON-subject own-file (visible through `ctx.node.files`) so reading any
- * content-derived field folds a `read:` observation on first access. Both
- * `content` AND `ast` are gated: the AST is parsed from the file bytes, so a
- * check that inspects a sibling's `.ast` is reading its content just as surely
- * as reading `.content`, and must widen invalidation identically. Both getters
- * share one record-once guard, so touching either (or both) costs exactly one
- * observation; the raw disk `bytes` make the fold byte-symmetric with
- * verifyLock's re-observation. `path` and `language` pass through untouched —
- * both are extension/path-derived, not content-derived, so a sibling content
- * edit need never invalidate on their account. If raw bytes are unavailable
- * (defensive — should not happen for a materialized own-file) the fields read
- * back plainly without recording. Spec §3.1 (Bug 1): the observation is what
- * widens invalidation, so a sibling that is never read stays immune.
+ * Per parse-cache bucket: whether each own file was readable when first
+ * listed. Keyed by the bucket's cache object, so it lives exactly as long as
+ * the bucket and never crosses into another run or another rule's node.
  */
-function wrapNonSubjectFile(
-  f: File,
-  repoRelPosixPath: string,
-  bytes: Buffer | undefined,
-  recorder: ObservationRecorder,
-): File {
-  if (bytes === undefined) return f;
-  const { content, ast, ...rest } = f;
-  let recorded = false;
-  const ensureRecorded = (): void => {
-    if (!recorded) {
-      recorder.recordRead(repoRelPosixPath, bytes);
-      recorded = true;
-    }
-  };
-  const wrapped = { ...rest } as File;
-  Object.defineProperty(wrapped, 'content', {
-    enumerable: true,
-    configurable: true,
-    get(): string {
-      ensureRecorded();
-      return content;
-    },
-  });
-  Object.defineProperty(wrapped, 'ast', {
-    enumerable: true,
-    configurable: true,
-    get(): unknown {
-      ensureRecorded();
-      return ast;
-    },
-  });
-  return wrapped;
+const readabilityByBucket = new WeakMap<ParseCache, Map<string, boolean>>();
+function readabilityMemo(astCache: ParseCache): Map<string, boolean> {
+  let memo = readabilityByBucket.get(astCache);
+  if (memo === undefined) {
+    memo = new Map();
+    readabilityByBucket.set(astCache, memo);
+  }
+  return memo;
 }
 
 // Mapping enumeration for prewarmup — files or directories, directories
@@ -307,10 +329,16 @@ export interface BuildUnitCtxResult {
   node: ModelNode | undefined;
   /** The unit's subject-exclusion set (paths hashed as subject inputs). */
   subjectFiles: Set<string>;
-  /** Own-mapping files (child carve-out applied), without AST enrichment. */
-  ownFiles: File[];
-  /** Files prewarmed into the AST cache (own files + relation-target files). */
-  astInputSet: File[];
+  /** Readable own-mapping file paths (child carve-out applied) — the files a violation may name without the check having touched them. */
+  ownFilePaths: string[];
+  /**
+   * The content a file had for this unit, for the runner's suppression scan:
+   * what the check was served for an own file it read (or the subject bytes),
+   * else a fresh raw read of an own or relation-target file — the set the
+   * dispatcher used to parse up front. A raw read here folds no observation, as
+   * the up-front read it replaces did not. Undefined for any other path.
+   */
+  sourceFor(repoRelPosixPath: string): string | undefined;
 }
 
 /**
@@ -318,7 +346,9 @@ export interface BuildUnitCtxResult {
  * companion resolver. Extracted VERBATIM from runStructureAspect's head so the
  * deterministic path stays byte-behavior preserving: same recorder, same
  * touchedFiles, same subjectFiles set, same ctx identity (ctx.files === ctx.node.files
- * === ctx.subject reference in the whole-node case), and the same AST prewarmup.
+ * === ctx.subject reference in the whole-node case). Trees are parsed on first
+ * use, not up front: the grammars of the unit's own and relation-target files
+ * are loaded here, and a file's `.ast` / `ctx.parseAst` parses it when read.
  *
  * CRITICAL: createCtxGraph is seeded with currentNodePath = nodePath exactly as
  * the deterministic runner does — a later verify step re-observes stored
@@ -394,49 +424,67 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     if (m) expandedFilesByNode.set(id, await enumerateNodeMappedFilesCached(id, m.meta.mapping, projectRoot, coverage));
   }
   const ctxGraph = createCtxGraph({ currentNodePath: nodePath, graph, projectRoot, touchedFiles, expandedFilesByNode, recorder, subjectFiles });
-  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage });
 
   // The paths ctx.node.files is built from — also what a read of ctx.node.files
   // folds as its node-files: observation (see the ctx.node Proxy below).
   const ownFilePaths = nodeOwnFilePaths(node, ownFilesExpanded);
-  const ownFilesWithBytes = await buildOwnFiles(projectRoot, touchedFiles, ownFilePaths);
-  const ownFiles = ownFilesWithBytes.map((x) => x.file);
-  // Raw disk bytes per own-file path — used to fold a byte-symmetric read:
-  // observation if the check accesses a non-subject sibling's content (Bug 1).
-  const bytesByPath = new Map<string, Buffer>();
-  for (const x of ownFilesWithBytes) bytesByPath.set(normalizeMappingPath(x.file.path), x.bytes);
-  // Eagerly parse own-mapping files so ctx.files carry .ast + .language (AST-aspect parity).
-  await prewarmupAstCache({ astCache, projectRoot, files: ownFiles });
+  // The relation targets' files: the other half of what may be parsed on demand
+  // (the dispatcher used to read and parse them up front, for every subject).
+  // Paths only — the same expansion the ctx.graph loop above computed (it always
+  // covers every direct relation target); nothing is read here.
+  const relationTargetPaths: string[] = [];
+  for (const rel of (node.meta.relations ?? [])) {
+    const target = graph.nodes.get(rel.target);
+    if (!target) continue;
+    const targetFiles = expandedFilesByNode.get(target.path)
+      ?? await enumerateNodeMappedFilesCached(target.path, target.meta.mapping, projectRoot, coverage);
+    relationTargetPaths.push(...targetFiles);
+  }
+  const astEligible = new Set<string>([...ownFilePaths, ...relationTargetPaths].map(normalizeMappingPath));
+  // Grammars, not trees: loading a grammar is the one asynchronous step of a
+  // parse, so it happens here, once per language per thread; each tree is then
+  // built synchronously on first use.
+  await loadGrammarsFor(new Set([...astEligible].map((p) => path.extname(p))));
+  const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage, astEligible });
 
-  const ownFilesEnriched = enrichFilesWithAst(ownFiles, astCache);
+  const { files: ownFilesEnriched, loadedContent } = buildOwnFiles({
+    projectRoot,
+    touchedFiles,
+    ownFilePaths,
+    narrowedSubjects: subjectScope !== undefined ? subjectFiles : undefined,
+    astCache,
+    recorder,
+  });
+  const readableOwnPaths = ownFilesEnriched.map((f) => f.path);
+  const sourceFor = (p: string): string | undefined => {
+    const key = normalizeMappingPath(p);
+    const served = loadedContent.get(key);
+    if (served !== undefined) return served;
+    if (!astEligible.has(key)) return undefined;
+    try {
+      return fs.readFileSync(path.resolve(projectRoot, key), 'utf8');
+    } catch {
+      return undefined;
+    }
+  };
+
   // ctx.node.files always exposes the FULL node mapping (node-scoped, §1). When
   // the subject set is narrowed (subjectScope set, i.e. a per: file pair), a
-  // NON-subject sibling here has its `content` wrapped in a getter that folds a
-  // read: observation on first access — so a check that reads a sibling's
-  // preloaded content (no ctx.fs call) still invalidates when that sibling is
-  // edited (spec §3.1, Bug 1). A sibling that is NEVER accessed records nothing,
+  // NON-subject sibling here is read — and folds its read: observation — only
+  // when the check reads its content or tree (buildOwnFiles), so a check that
+  // reads a sibling's content still invalidates when that sibling is edited
+  // (spec §3.1, Bug 1), and a sibling that is NEVER accessed records nothing,
   // preserving scope.files-excluded immunity: the filter bounds the subject, the
   // OBSERVATION bounds invalidation.
   //
   // When the subject set is NOT narrowed (per: node, no override) every own-file
-  // is a subject — nothing to wrap — and ctx.node.files IS ctx.files (same array
+  // is a subject — nothing to defer — and ctx.node.files IS ctx.files (same array
   // reference; the documented alias holds).
-  let nodeFilesEnriched: File[];
-  let ctxFilesEnriched: File[];
-  if (subjectScope !== undefined) {
-    nodeFilesEnriched = recorder !== undefined
-      ? ownFilesEnriched.map((f) => {
-          const p = normalizeMappingPath(f.path);
-          if (subjectFiles.has(p)) return f; // subject — hashed as a subject input
-          return wrapNonSubjectFile(f, p, bytesByPath.get(p), recorder);
-        })
-      : ownFilesEnriched;
-    // ctx.files is the scope-driven subject view: exactly the subjectScope files.
-    ctxFilesEnriched = ownFilesEnriched.filter((f) => subjectFiles.has(normalizeMappingPath(f.path)));
-  } else {
-    nodeFilesEnriched = ownFilesEnriched;
-    ctxFilesEnriched = ownFilesEnriched;
-  }
+  const nodeFilesEnriched = ownFilesEnriched;
+  // ctx.files is the scope-driven subject view: exactly the subjectScope files.
+  const ctxFilesEnriched = subjectScope !== undefined
+    ? ownFilesEnriched.filter((f) => subjectFiles.has(normalizeMappingPath(f.path)))
+    : ownFilesEnriched;
   // ctx.node reads of `type` / `ports` must fold the node's identity into the
   // verdict, else a check that gates on ctx.node.type (a documented cookbook
   // pattern) produces a stale-green verdict when the type/ports later change.
@@ -489,43 +537,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     parseToml: parsers.parseToml,
   };
 
-  // PREWARMUP. Compute AST input set, prewarm cache.
-  const astInputSet: File[] = [...ownFiles];
-  for (const rel of (node.meta.relations ?? [])) {
-    const target = graph.nodes.get(rel.target);
-    if (!target) continue;
-    // Reuse the SAME expansion the ctx.graph loop above already computed for
-    // this target (computeAllowedNodePaths always includes every direct
-    // relation target) instead of walking its mapping a second time in this
-    // same call. The `??` fallback only matters if a future caller ever narrows
-    // expandedFilesByNode to something other than computeAllowedNodePaths's
-    // full set — today it never does, so this is a pure Map lookup in practice.
-    const targetFiles = expandedFilesByNode.get(target.path)
-      ?? await enumerateNodeMappedFilesCached(target.path, target.meta.mapping, projectRoot, coverage);
-    for (const p of targetFiles) {
-      // Content is read fresh from disk here EVERY call, never cached — only the
-      // PATH LIST above is memoised. A relation-target file edited between two
-      // buildUnitCtx calls sharing that path list must still be re-read with its
-      // current bytes, so prewarmupAstCache's content-equality gate (never the
-      // presence of the path) is what decides whether a re-parse is skipped.
-      //
-      // This read looks like obvious waste when a `per: file` rule rebuilds the
-      // same unit once per subject, and memoising it measurably speeds that up —
-      // but the memo is what the gate above is guarding against, and the saving
-      // is on the CHEAP half: the read exists to supply the bytes the gate
-      // compares, and the parse it may then skip is the expensive part, already
-      // shared through the caller's parse cache. Pinning content for a bucket's
-      // lifetime buys the small half at the cost of the guarantee.
-      const abs = path.resolve(projectRoot, p);
-      try {
-        const content = fs.readFileSync(abs, 'utf8');
-        astInputSet.push({ path: p, content });
-      } catch {/* skip */}
-    }
-  }
-  await prewarmupAstCache({ astCache, projectRoot, files: astInputSet });
-
-  return { ctx, recorder, node, subjectFiles, ownFiles, astInputSet };
+  return { ctx, recorder, node, subjectFiles, ownFilePaths: readableOwnPaths, sourceFor };
 }
 
 /**
@@ -621,8 +633,8 @@ async function buildNodelessUnitCtx(params: {
     recorder,
     node: undefined,
     subjectFiles,
-    ownFiles: ownFilesEnriched,
-    astInputSet: ownFilesEnriched,
+    ownFilePaths: ownFilesEnriched.map((f) => f.path),
+    sourceFor: (p: string) => ownFilesEnriched.find((f) => f.path === normalizeMappingPath(p))?.content,
   };
 }
 

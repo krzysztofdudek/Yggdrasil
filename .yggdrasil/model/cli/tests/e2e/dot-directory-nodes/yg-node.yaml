@@ -1,0 +1,7 @@
+name: E2E Tests — Nodes under a dot-directory in model/
+type: test-suite
+description: "Subprocess E2E for components whose model directory is dot-named (.github, .vscode): the node loads, is listed and owns its files, and an enforced rule it attaches gates the check — the model walk used to skip every dot-named directory, so such a rule never ran and the check passed over a violating file."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-dot-directory-nodes.test.ts

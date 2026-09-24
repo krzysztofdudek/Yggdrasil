@@ -26,7 +26,11 @@ description: "Filesystem readers and writers for runtime state — find index,
   something, while what a source has published since changes on its own and
   would legitimately differ between two machines. The cache is rebuildable and
   never committed, and losing it costs only a quiet attention feed until the next
-  listing."
+  listing. It also owns the run scope: caches (each directory's parsed
+  .gitignore, each directory walk) that live for exactly one read-only command
+  run that asks for them, so the many consumers inside one `yg check` or
+  `yg context` share one reading of the repository instead of each re-reading
+  it; outside a scope nothing is cached."
 relations:
   - target: cli/model/graph
     type: uses
@@ -55,3 +59,4 @@ mapping:
   - source/cli/src/io/paths.ts
   - source/cli/src/io/read-or-default.ts
   - source/cli/src/io/repo-scanner.ts
+  - source/cli/src/io/run-scope-cache.ts

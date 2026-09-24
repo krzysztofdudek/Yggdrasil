@@ -120,6 +120,14 @@ export interface RunFillOptions {
    *  degenerate case that keeps every existing verdict path byte-identical.
    *  Never affects verdicts, only speed. */
   detConcurrency?: number;
+  /** Optional second ceiling on the deterministic worker pool, asked once the
+   *  fill knows the source bytes of its largest parse-cache bucket (one rule on
+   *  one node): a worker may hold that bucket's trees, so a component of
+   *  thousands of files needs fewer workers than a machine's cores allow.
+   *  Injected from the CLI layer (it measures memory; the engine reads no system
+   *  state). The pool is the smaller of this and `detConcurrency`. Never affects
+   *  verdicts, only speed and peak memory. */
+  detWorkerCeiling?: (largestUnitSourceBytes: number) => number;
   /** Wall-clock budget for ONE deterministic check, in ms; 0/absent = unbounded.
    *  Injected from the CLI layer. When set, every deterministic check runs on a
    *  worker thread (even a fill too small to parallelize), because only a check
