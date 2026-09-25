@@ -168,9 +168,11 @@ I built it while shipping things alone, fast, which is where the wall above come
 ## In CI
 
 ```yaml
-- run: npx @chrisdudek/yg check --approve --only-deterministic
-- run: npx @chrisdudek/yg check --no-approve
+- run: npx @chrisdudek/yg@6.1.0 check --approve --only-deterministic
+- run: npx @chrisdudek/yg@6.1.0 check --no-approve
 ```
+
+Pin the version, and raise the pin in a commit of its own. A bare `npx @chrisdudek/yg` runs whatever release is newest on the day the job runs, so a new release, a major one included, would change your gate without a commit, and a CI on one version and developers on another re-open each other's verdicts.
 
 The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
 
@@ -208,7 +210,7 @@ A hook is a real gate and you should use one. Point it at `yg check` and you hav
 Review bots hunt for bugs against their own idea of good code, and they re-run and re-bill on every pull request. This checks your specific rules, the ones only your team knows, and records a durable proof of each verdict.
 
 **What if I want to stop?**
-Delete `.yggdrasil/`. There are no runtime dependencies and no build hooks. Outside that directory, `yg init` wrote the agent-rules files (the summary block in `AGENTS.md`, the import line in `CLAUDE.md`, `.clinerules/yggdrasil.md`) and four lines in the repo-root `.gitattributes`; delete those too if you want no trace left. The full list is in the "No lock-in" note of [How it works](https://krzysztofdudek.github.io/Yggdrasil/how-it-works).
+Delete `.yggdrasil/`. There are no runtime dependencies and no build hooks. Outside that directory, `yg init` wrote the agent-rules files (the summary block in `AGENTS.md`, the import line in `CLAUDE.md`, `.clinerules/yggdrasil.md`) and five lines in the repo-root `.gitattributes`; delete those too if you want no trace left. The full list is in the "No lock-in" note of [How it works](https://krzysztofdudek.github.io/Yggdrasil/how-it-works).
 
 ## Examples and docs
 

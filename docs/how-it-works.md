@@ -81,7 +81,7 @@ The event must include: user ID, action, timestamp, resource ID.
 The reviewer reads that and checks your code against it. Write rules the way you would write a clear code-review comment.
 
 ::: info No lock-in
-Delete `.yggdrasil/` and your project builds and runs exactly as before — no build dependencies, no runtime hooks. The few artifacts that live outside it are the agent-rules files `yg init` wrote (`AGENTS.md`'s summary block, the import line it added to `CLAUDE.md`, and `.clinerules/yggdrasil.md` — whichever of them this project has enabled under `rules_artifacts`) and the four lines it maintains in the repo-root `.gitattributes`; delete those too if you want no trace left.
+Delete `.yggdrasil/` and your project builds and runs exactly as before — no build dependencies, no runtime hooks. The few artifacts that live outside it are the agent-rules files `yg init` wrote (`AGENTS.md`'s summary block, the import line it added to `CLAUDE.md`, and `.clinerules/yggdrasil.md` — whichever of them this project has enabled under `rules_artifacts`) and the five lines it maintains in the repo-root `.gitattributes`; delete those too if you want no trace left.
 :::
 
 ## What it costs before it pays
