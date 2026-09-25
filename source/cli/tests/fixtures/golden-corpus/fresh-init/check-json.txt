@@ -64,7 +64,7 @@ exit: 0
       "severity": "warning",
       "subject": "1 file belongs to no node — not under coverage.required, so it never blocks",
       "why": "Not under a coverage.required root — shown, but it never blocks. Your architecture has no type for this file yet.",
-      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file src/app.ts.",
       "members": [
         0
       ]
@@ -85,10 +85,16 @@ exit: 0
     },
     "remaining": {
       "needsFix": 0,
-      "fillable": 0
+      "fillable": 0,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": null
   },
-  "banner": null
+  "banner": null,
+  "notes": [
+    "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types."
+  ]
 }
 --- stderr

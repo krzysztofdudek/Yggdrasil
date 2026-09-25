@@ -82,7 +82,7 @@ export interface CodeInfo {
  * for, never run. `--model` is required by every provider but claude-code, and
  * the draft alternative stays in view.
  */
-export const CONFIGURE_REVIEWER_STEP = 'ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft';
+export const CONFIGURE_REVIEWER_STEP = 'ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft';
 
 /**
  * Codes whose failure means the graph did not load as written: a

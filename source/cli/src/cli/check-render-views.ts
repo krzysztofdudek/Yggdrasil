@@ -312,7 +312,7 @@ function fillStep(fills: CheckBlock[], lead: CheckBlock | undefined): FillStep {
 
 /** A fill step's cost in words, with the ask when it is paid. */
 function fillWords(step: FillStep): string {
-  return `${costWords(step.cost)}${step.paid ? ' — ask the user first' : ''}`;
+  return `${costWords(step.cost)}${step.paid ? ' — ask the user to approve it first' : ''}`;
 }
 
 /**
@@ -351,7 +351,7 @@ export function computeNext(blocks: CheckBlock[], result: Pick<CheckResult, 'iss
     cost = step.cost;
     // A free script-only step leaves the reviewer's pairs: name that paid run next.
     const left = fillStep(fills, undefined);
-    if (!step.paid && left.paid) then = `yg check --approve  (${count(left.cost.reviewerPairs, 'reviewer pair')} · paid — ask the user first)`;
+    if (!step.paid && left.paid) then = `yg check --approve  (${count(left.cost.reviewerPairs, 'reviewer pair')} · paid — ask the user to approve it first)`;
   } else if (first.tier !== 'T3' && fills.length > 0) {
     // Then: the fill, once the fixes above it are in.
     const step = fillStep(fills, undefined);

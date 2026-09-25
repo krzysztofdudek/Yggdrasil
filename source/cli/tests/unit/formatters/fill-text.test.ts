@@ -125,7 +125,7 @@ describe('renderFillEvent', () => {
     expect(dry).toContain('  2 script pairs — free, not listed\n');
     expect(dry).toContain('note: 2 reviewer calls is an upper bound');
     // A paid fill is the user's decision.
-    expect(dry).toContain('Nothing was written; running yg check --approve is paid — ask the user first.\n');
+    expect(dry).toContain('Nothing was written.\n  fix:  ask the user to approve yg check --approve (paid, up to 2 reviewer calls) before running it\n');
   });
 
   it('dry run: caps the priced list like every list, and names the free lane when no reviewer is configured', () => {
@@ -134,7 +134,7 @@ describe('renderFillEvent', () => {
     expect(dry.split('\n').filter((l) => / — 1 reviewer call$/.test(l))).toHaveLength(12);
     expect(dry).toContain('  … +3 more  (yg check --details)\n');
     // The full run would stop before recording anything: the preview names the one that works.
-    expect(dry).toContain('Nothing was written; run yg check --approve --only-deterministic to fill the script pairs.\n');
+    expect(dry).toContain('  fix:  yg check --approve --only-deterministic fills the script pairs\n');
     expect(dry).not.toContain('run yg check --approve to fill');
   });
 

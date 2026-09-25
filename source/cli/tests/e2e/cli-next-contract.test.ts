@@ -150,7 +150,7 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
       const out = run(dir, ['check', '--approve', '--only-deterministic']);
       expect(out.stderr).not.toMatch(/^next: /m);
       expect((out.stdout.match(/^next: /gm) ?? []).length).toBe(1);
-      expect(out.stdout).toContain('next: ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft');
+      expect(out.stdout).toContain('next: ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft');
       expect(out.stdout).not.toContain('need a code or graph fix');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -163,10 +163,10 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
       const out = run(dir, ['check', '--approve', '--dry-run']);
       expect(out.status).toBe(0);
       expect(out.stdout).not.toMatch(/^next: /m);
-      expect(out.stdout).toContain('run yg check --approve --only-deterministic to fill the script pairs');
+      expect(out.stdout).toContain('  fix:  yg check --approve --only-deterministic fills the script pairs');
       expect(out.stdout).toContain('a fill would record the script rules');
       const lines = out.stdout.trimEnd().split('\n');
-      expect(lines.slice(-1)[0]).toMatch(/^ {2}fix: {2}Ask the user first: yg init --provider <name> \[--model <m>\]/);
+      expect(lines.slice(-1)[0]).toMatch(/^ {2}fix: {2}Ask the user to approve configuring a reviewer — yg init --provider <name> \[--model <m>\]/);
       const json = run(dir, ['check', '--approve', '--dry-run', '--json']);
       expect(json.status).toBe(0);
       const doc = JSON.parse(json.stdout);

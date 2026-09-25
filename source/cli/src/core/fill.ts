@@ -133,7 +133,7 @@ import { count } from '../utils/count.js';
  * for, with `--model` (required by every provider but claude-code) and the
  * draft alternative in view.
  */
-const CONFIGURE_REVIEWER_NEXT = 'Ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft.';
+const CONFIGURE_REVIEWER_NEXT = 'Ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft.';
 
 // ============================================================
 // Public surface

@@ -59,13 +59,13 @@ describe('M6: a fill step states what the whole command costs', () => {
   it('names the free lane first, and the paid run after it with the ask', () => {
     expect(steps(render(r))).toEqual([
       'next: yg check --approve --only-deterministic  (unverified — 1 script pair · free)',
-      'then: yg check --approve  (2 reviewer pairs · paid — ask the user first)',
+      'then: yg check --approve  (2 reviewer pairs · paid — ask the user to approve it first)',
     ]);
   });
 
   it('a script-only block names the free lane in its own fix', () => {
     expect(render(r)).toContain('  fix:  yg check --approve --only-deterministic  (1 script pair · free)');
-    expect(render(r)).toContain('  fix:  yg check --approve  (2 reviewer pairs · paid — ask the user first)');
+    expect(render(r)).toContain('  fix:  yg check --approve  (2 reviewer pairs · paid — ask the user to approve it first)');
   });
 
   it('JSON: next.cost is the cost of running next.command', () => {
@@ -81,7 +81,7 @@ describe('M6: a fill step states what the whole command costs', () => {
     expect(next.text).toBe('yg check --approve');
     expect(next.cost).toEqual({ free: 1, reviewerPairs: 2 });
     expect(next.requiresUser).toBe(true);
-    expect(doc(paid).suggestedNext).toBe('yg check --approve  (unverified — 1 script pair · free + 2 reviewer pairs · paid — ask the user first)');
+    expect(doc(paid).suggestedNext).toBe('yg check --approve  (unverified — 1 script pair · free + 2 reviewer pairs · paid — ask the user to approve it first)');
   });
 });
 
@@ -115,7 +115,7 @@ describe('C2/F6/C4: configuring a reviewer is asked for, and the counts say what
 
   it('next asks the user, keeps --model and the draft alternative, and claims no code fix', () => {
     const [next] = steps(render(r));
-    expect(next).toBe('next: ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft  (config-reviewer-missing)');
+    expect(next).toBe('next: ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft  (config-reviewer-missing)');
     expect(render(r)).not.toContain('need a code or graph fix');
   });
 
@@ -128,7 +128,7 @@ describe('C2/F6/C4: configuring a reviewer is asked for, and the counts say what
 
   it('the gate abort names the same asked-for step', () => {
     const out = formatAbort({ stage: 'structural', issues: [reviewerMissing()], retry: 'yg check --approve' }, false);
-    expect(steps(out)[0]).toBe('next: ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft');
+    expect(steps(out)[0]).toBe('next: ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft');
   });
 });
 

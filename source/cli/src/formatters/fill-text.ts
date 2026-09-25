@@ -97,13 +97,17 @@ function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
   // What to run to fill: the free lane when no reviewer can judge the rest
   // (the full run would stop before recording anything), else the whole run,
   // which is paid when it calls the reviewer.
+  // A paid run is the user's to approve.
   const fillWith = e.reviewerConfigured === false
-    ? (free > 0 ? 'run yg check --approve --only-deterministic to fill the script pairs' : 'no fill can record these until a reviewer is configured')
-    : e.reviewerCallBudget > 0 ? 'running yg check --approve is paid — ask the user first' : 'run yg check --approve --only-deterministic to fill';
+    ? (free > 0 ? 'yg check --approve --only-deterministic fills the script pairs' : 'configure a reviewer first — no fill can record these until one is')
+    : e.reviewerCallBudget > 0
+      ? `ask the user to approve yg check --approve (paid, up to ${count(e.reviewerCallBudget, 'reviewer call')}) before running it`
+      : 'yg check --approve --only-deterministic fills them';
   out += e.reviewerCallBudget > 0
     ? `note: ${count(e.reviewerCallBudget, 'reviewer call')} is an upper bound — a unit a script rule refuses has its reviewer ` +
-      `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; ${fillWith}.\n`
-    : `note: Nothing was written; ${fillWith}.\n`;
+      `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.\n`
+    : 'note: Nothing was written.\n';
+  out += `  fix:  ${fillWith}\n`;
   return out;
 }
 

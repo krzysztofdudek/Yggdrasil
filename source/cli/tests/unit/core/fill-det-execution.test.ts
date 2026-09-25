@@ -495,7 +495,7 @@ describe('dry-run cost preview (no writes)', () => {
     // The upper-bound caveat (the dry-run-only closing line).
     expect(out).toContain('note: 1 reviewer call is an upper bound');
     // The fill it previews calls the paid reviewer: that is the user's decision.
-    expect(out).toContain('Nothing was written; running yg check --approve is paid — ask the user first.');
+    expect(out).toContain('  fix:  ask the user to approve yg check --approve (paid, up to 1 reviewer call) before running it');
 
     // Structural no-write guarantee: NO verdict landed in any lock file.
     const lock = readLock(graph.rootPath);
