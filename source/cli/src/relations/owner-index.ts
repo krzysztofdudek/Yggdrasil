@@ -5,23 +5,10 @@ import { MappingIndex } from '../utils/mapping-index.js';
 import { toPosixPath } from '../utils/posix.js';
 import { isExcludedFromGraph, type GraphExclusionSet } from '../io/repo-scanner.js';
 
-/**
- * How the winning mapping entry matched the file:
- *   - 'exact'     — a non-glob entry equal to the file path.
- *   - 'directory' — a non-glob entry that is a directory prefix of the file
- *                   (`file.startsWith(entry + '/')`).
- *   - 'glob'      — a glob entry (`isGlobPattern`) that matched the file.
- */
-export interface OwnerEntry {
-  nodePath: string;
-  mapping: string;
-  kind: 'exact' | 'directory' | 'glob';
-}
-
-export interface OwnerIndex {
-  ownerOf(repoRelPosix: string): string | undefined;
-  ownerEntryOf(repoRelPosix: string): OwnerEntry | undefined;
-}
+// The index's types live in the model layer (model/owner-index.ts) so layers that may
+// not depend on relations/* can accept an index; re-exported for this module's callers.
+import type { OwnerEntry, OwnerIndex } from '../model/owner-index.js';
+export type { OwnerEntry, OwnerIndex };
 
 export function buildOwnerIndex(nodes: Graph['nodes']): OwnerIndex {
   const entries: Array<{ nodePath: string; mapping: string; glob: boolean }> = [];

@@ -6,29 +6,10 @@ import type { FileContentCache } from '../io/file-content-cache.js';
 import { hashFileRaw } from '../io/hash.js';
 import type { TypeClassCache } from '../io/type-class-cache.js';
 
-export type TypeMatch = {
-  typeId: string;
-  trace: PredicateTrace;
-};
-
-export type ClosestType = {
-  typeId: string;
-  trace: PredicateTrace;
-  score: number;
-};
-
-export type UnreadableType = {
-  typeId: string;
-  reason: string;
-  /** Why the file could not be evaluated: a genuine read failure, or over the content-scan size limit. */
-  kind: 'read' | 'too-large';
-};
-
-export type ClassificationResult = {
-  matches: TypeMatch[];
-  closest: ClosestType[];
-  unreadable: UnreadableType[];
-};
+// The result types live in the model layer (model/type-classification.ts) so the
+// classification cache may store them; re-exported for this module's callers.
+import type { ClassificationResult, TypeMatch, ClosestType, UnreadableType } from '../model/type-classification.js';
+export type { ClassificationResult, TypeMatch, ClosestType, UnreadableType };
 
 /**
  * `classifyFile`'s three returned arrays — `matches`, `closest`, `unreadable`

@@ -23,6 +23,8 @@ relations:
     type: uses
   - target: cli/tests/unit/helpers
     type: uses
+  - target: cli/core/pairs
+    type: uses
 mapping:
   - source/cli/tests/unit/core/companion-resolve.test.ts
   - source/cli/tests/unit/core/companion-resolve-nodeless.test.ts

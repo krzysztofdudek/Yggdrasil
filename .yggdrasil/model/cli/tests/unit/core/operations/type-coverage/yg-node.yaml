@@ -21,6 +21,8 @@ relations:
     type: uses
   - target: cli/core/aspect-test-file-target
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/core/type-coverage.test.ts
   - source/cli/tests/unit/core/type-coverage-tier-independence.test.ts

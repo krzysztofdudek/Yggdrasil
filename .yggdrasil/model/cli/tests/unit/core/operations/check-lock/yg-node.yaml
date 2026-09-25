@@ -15,7 +15,9 @@ relations:
     { target: cli/io/lock-store, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
-    { target: cli/check-render-views, type: uses }
+    { target: cli/check-render-views, type: uses },
+    { target: cli/core/progressive-scope, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/check-lock.test.ts

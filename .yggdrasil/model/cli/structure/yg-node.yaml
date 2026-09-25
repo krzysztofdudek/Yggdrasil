@@ -34,3 +34,11 @@ relations:
     type: calls
   - target: cli/core/allowed-relation-types
     type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/llm-contract
+    type: uses
+  - target: cli/model/owner-index
+    type: uses
+  - target: cli/model/validation
+    type: uses

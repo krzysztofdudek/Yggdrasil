@@ -9,5 +9,13 @@ relations:
     type: calls
   - target: cli/io/stores
     type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/io/type-class-cache
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/type-classification
+    type: uses
 mapping:
   - source/cli/src/core/type-classifier.ts

@@ -19,7 +19,8 @@ relations:
     { target: cli/structure, type: uses },
     { target: cli/core/pair-hash, type: uses },
     { target: cli/core/pair-inputs, type: uses },
-    { target: cli/io/stores, type: uses }
+    { target: cli/io/stores, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-llm.test.ts

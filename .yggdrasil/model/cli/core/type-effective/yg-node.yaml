@@ -9,5 +9,7 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/relations/core
+    type: calls
 mapping:
   - source/cli/src/core/type-effective.ts

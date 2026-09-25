@@ -8,6 +8,9 @@
 import type { VerdictEntry } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { AspectResponse } from '../llm/types.js';
+import type { ExpectedPair } from './pairs.js';
+import type { VerdictEvent } from '../io/events-store.js';
+import type { FillEventSink, FillLane } from '../model/fill-event.js';
 import { debugWrite } from '../utils/debug-log.js';
 
 /** Outcome of filling one deterministic pair. A real verdict carries an entry to
@@ -72,4 +75,87 @@ export async function readBytesOrEmpty(absPath: string): Promise<Buffer> {
     debugWrite(`[fill] readBytesOrEmpty failed for ${absPath}: ${e instanceof Error ? e.message : String(e)}`);
     return Buffer.alloc(0);
   }
+}
+
+// ============================================================
+// Contracts the orchestrator hands to the fill phases
+// ============================================================
+// Declared here, beside the other shared fill primitives, so the per-kind phases
+// (fill-det-phase, fill-llm-phase) name what they are handed without depending on the
+// orchestrator's own modules (fill-writer, fill-report, fill-progress), which call them.
+
+/** One infrastructure diagnostic collected during a fill phase, grouped by aspect before it is emitted. */
+export interface InfraDiagnosticItem {
+  aspectId: string;
+  unitKey: string;
+  messageData: IssueMessage;
+}
+
+/** The progress display's per-pair callbacks, implemented by fill-progress.ts's ProgressTracker. */
+export interface PairProgress {
+  /** Called just before a pair starts filling. */
+  onPairStart(kind: FillLane, aspectId: string, unitKey: string, emit: FillEventSink): void;
+  /** Called after a pair completes; `votes` is a consensus review's split (verdict votes only). */
+  onPairComplete(
+    kind: FillLane,
+    aspectId: string,
+    unitKey: string,
+    verdict: string,
+    emit: FillEventSink,
+    votes?: { satisfied: number; total: number },
+  ): void;
+}
+
+/** Extra, disposition-specific fields recorded on one verdict-events line. */
+export interface VerdictEventExtra {
+  hash?: string;
+  reason?: string;
+  tier?: string;
+  votes?: { satisfied: number; total: number };
+  judge?: { provider: string; model: string };
+}
+
+export interface VerdictWriter {
+  /** Write out the in-memory lock as it stands now (every partition, since the
+   *  caller mutated it directly) and resolve once that state is on disk. Handed
+   *  to the closure and GC stages so their own writes join the same writer.
+   *  Rejects with a LockEnvironmentError when the write fails. */
+  persistLock: () => Promise<void>;
+  /** Record ONE pair's real verdict: mutate the in-memory lock and mark it
+   *  unwritten; its telemetry line is emitted after the flush that carries it.
+   *  An LLM verdict resolves once it is on disk (or its flush failed — it then
+   *  rides the next one); a deterministic verdict resolves at once unless a full
+   *  batch is waiting. Never rejects. The ONLY path that writes verdict content. */
+  setEntry: (
+    pair: ExpectedPair,
+    entry: VerdictEntry,
+    tierName?: string,
+    votes?: { satisfied: number; total: number },
+    judge?: { provider: string; model: string },
+    /** An approval's reason, for the local events line only (never the lock). */
+    approvalReason?: string,
+  ) => Promise<void>;
+  /** Append one (aspect, unit) disposition line to the telemetry sidecar —
+   *  used directly for the no-write dispositions; `setEntry` calls it itself
+   *  for a real verdict. */
+  emitEvent: (
+    aspectId: string,
+    unitKey: string,
+    kind: 'llm' | 'deterministic',
+    disposition: VerdictEvent['disposition'],
+    extra?: VerdictEventExtra,
+  ) => void;
+  /** Flush every unwritten verdict — drained before the run reports. Throws a
+   *  LockEnvironmentError when the final flush still fails. */
+  drain: () => Promise<void>;
+  /** Best-effort final flush and teardown on any exit from the run, including
+   *  an error. Never throws. */
+  close: () => Promise<void>;
+  /** Count of verdict-content writes performed this run (one per setEntry).
+   *  Read ONLY by the convergence sentinel at the report boundary — GC's
+   *  canonical re-serialization and closure's fingerprint writes are
+   *  deliberately NOT counted, since only a real verdict write would
+   *  legitimately explain a change in the unverified set between the pre-fill
+   *  and post-fill classifications. */
+  readonly lockWrites: number;
 }

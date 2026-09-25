@@ -21,11 +21,8 @@
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
-import type { LlmFillOutcome } from './fill-shared.js';
-import type { ProgressTracker } from './fill-progress.js';
+import type { LlmFillOutcome, PairProgress, VerdictWriter, InfraDiagnosticItem } from './fill-shared.js';
 import type { FillEventSink, FillUsageTotals } from '../model/fill-event.js';
-import type { VerdictWriter } from './fill-writer.js';
-import type { InfraDiagnosticItem } from './fill-report.js';
 import { detGateKey, isNodeBlocked } from './fill-contract.js';
 import { fillLlmPair } from './fill-llm.js';
 import { consensusTally } from '../llm/aspect-verifier.js';
@@ -109,7 +106,7 @@ export interface LlmPhaseParams {
    *  runFill's own doc for why one map serves both. */
   reachCache: Map<string, Set<string>>;
   writer: VerdictWriter;
-  tracker: ProgressTracker;
+  tracker: PairProgress;
   /** Where progress events go (see model/fill-event.ts). */
   emit: FillEventSink;
   emitIssue: (msg: IssueMessage) => void;

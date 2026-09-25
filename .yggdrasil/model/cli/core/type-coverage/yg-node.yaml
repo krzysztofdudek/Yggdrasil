@@ -9,5 +9,9 @@ relations:
     type: calls
   - target: cli/io/type-class-cache
     type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/core/type-coverage.ts

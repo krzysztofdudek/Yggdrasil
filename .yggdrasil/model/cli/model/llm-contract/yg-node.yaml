@@ -1,0 +1,7 @@
+name: LlmContractTypes
+type: types
+description: "The reviewer contract as data: what a reviewer provider promises (verify one prompt, report availability and why it is unavailable), what one verdict call returns (verdict, reason, error source, token and cost usage), the cached verdict shape, and the pre-resolved suppress line ranges a reviewer prompt carries. Pure types in the model layer, so the subprocess base and the structure runner, which may not depend on llm/*, can name the contract; llm/types.ts and llm/prompt.ts re-export it."
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/llm-contract.ts

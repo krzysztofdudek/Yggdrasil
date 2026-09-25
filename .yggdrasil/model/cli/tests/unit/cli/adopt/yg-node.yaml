@@ -14,5 +14,7 @@ aspects: []
 relations:
   - target: cli/adopt-transaction
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/cli/adopt.test.ts

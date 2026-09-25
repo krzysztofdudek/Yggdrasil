@@ -1,0 +1,65 @@
+/**
+ * The reviewer contract: what a reviewer provider promises (LlmProvider), what one
+ * verdict call returns (AspectResponse, ReviewerUsage), the cached verdict shape
+ * (AspectVerificationResult), and the pre-resolved suppress spans a prompt carries
+ * (PromptSuppressedRangesInput). Pure types, in the model layer so every layer that
+ * speaks the contract, the subprocess base and the structure runner included, may
+ * depend on it. `llm/types.ts` and `llm/prompt.ts` re-export these names.
+ */
+/** Cached LLM aspect verification result. Moved here from model/drift.ts in the B4 deletion sweep. */
+export interface AspectVerificationResult {
+  satisfied: boolean;
+  reason: string;
+  /** Discriminator: codeViolation = real code issue; provider = infra/API error; checkRuntime = deterministic check threw */
+  errorSource: 'codeViolation' | 'provider' | 'checkRuntime';
+}
+
+export interface LlmProvider {
+  /** Send self-contained prompt, get verdict */
+  verifyAspect(prompt: string): Promise<AspectResponse>;
+
+  /** Check if provider is available (binary on PATH / endpoint reachable) */
+  isAvailable(): Promise<boolean>;
+
+  /**
+   * Why the last isAvailable() answered false, worded for the person who has to
+   * fix it: the binary that is missing and how to install it, the environment
+   * variable a missing API key is read from, the server that did not answer.
+   * Asked only after isAvailable() returned false; a provider without one is
+   * reported with a generic sentence.
+   */
+  unavailableReason?(): Promise<string>;
+}
+
+export interface AspectResponse {
+  aspectId?: string;
+  satisfied: boolean;
+  reason: string;
+  /** Discriminator: codeViolation = real code issue; provider = infra/API error; checkRuntime = deterministic check threw */
+  errorSource: 'codeViolation' | 'provider' | 'checkRuntime';
+  /** What the call consumed, when the provider reports it. Telemetry for the
+   *  end-of-fill summary only — never a verdict input, never persisted. */
+  usage?: ReviewerUsage;
+}
+
+/** Tokens and cost of one reviewer call, as far as the provider reports them. */
+export interface ReviewerUsage {
+  /** Prompt tokens, cached reads and cache writes included. */
+  inputTokens?: number;
+  outputTokens?: number;
+  /** The provider's own cost figure in US dollars (list price where the
+   *  provider says so — a subscription is not billed per call). */
+  costUsd?: number;
+}
+
+/**
+ * Pre-resolved suppress line ranges injected into the reviewer prompt so the LLM
+ * honors EXACTLY the same `(file, startLine..endLine)` spans the deterministic
+ * matcher (`ast/suppress.ts`) computes — no model-side re-derivation of marker
+ * scope. `byFile` carries only files that have at least one applicable range;
+ * an empty `byFile` (or an omitted `suppressedRanges`) renders no block and keeps
+ * the prompt byte-identical to the no-suppress case.
+ */
+export interface PromptSuppressedRangesInput {
+  byFile: Array<{ path: string; ranges: Array<{ startLine: number; endLine: number }> }>;
+}

@@ -2,6 +2,6 @@ name: Bounty eff-implies
 type: test-suite
 description: "Bug-bounty branch-coverage suites: eff-implies (~26981 chars)."
 aspects: []
-relations: [ { target: cli/core/graph, type: uses } ]
+relations: [ { target: cli/core/graph, type: uses }, { target: cli/model/graph, type: uses }, { target: cli/model/when, type: uses } ]
 mapping:
   - source/cli/tests/unit/bounty/eff-implies.test.ts

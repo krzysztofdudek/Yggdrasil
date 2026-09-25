@@ -8,3 +8,5 @@ mapping:
 relations:
   - target: cli/utils
     type: calls
+  - target: cli/model/llm-contract
+    type: uses

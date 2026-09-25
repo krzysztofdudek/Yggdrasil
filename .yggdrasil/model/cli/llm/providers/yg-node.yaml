@@ -10,7 +10,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
-
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/llm/anthropic.ts
   - source/cli/src/llm/openai.ts

@@ -48,5 +48,7 @@ relations:
     type: calls
   - target: cli/structure
     type: calls
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/verify-lock.ts

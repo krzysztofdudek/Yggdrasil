@@ -1,4 +1,9 @@
-import type { RelationType } from './graph.js';
+/**
+ * The relation vocabulary of the graph. Declared here, not in model/graph.ts, because a
+ * relation clause names one and graph.ts already depends on this module; graph.ts
+ * re-exports it, so both import paths name the same type.
+ */
+export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
 /**
  * Applicability filter. Evaluated by the CLI against the graph before an aspect

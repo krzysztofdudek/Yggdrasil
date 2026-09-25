@@ -32,6 +32,10 @@ relations:
     type: uses
   - target: cli/tests/support
     type: uses
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
 mapping:
   - source/cli/tests/unit/io/package-manifests.test.ts
   - source/cli/tests/unit/io/aspect-adapt-merge.test.ts

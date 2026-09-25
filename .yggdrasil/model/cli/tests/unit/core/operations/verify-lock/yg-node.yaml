@@ -14,7 +14,8 @@ relations:
     { target: cli/core/pair-inputs, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/llm/shared, type: uses },
-    { target: cli/core/pairs, type: uses }
+    { target: cli/core/pairs, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/verify-lock.test.ts

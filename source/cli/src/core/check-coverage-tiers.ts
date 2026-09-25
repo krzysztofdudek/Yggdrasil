@@ -2,8 +2,7 @@ import type { CoverageConfig } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
 import { isGlobPattern, normalizeMappingPath } from '../utils/mapping-path.js';
 import { mappingEntrySet } from '../utils/mapping-index.js';
-// type-only import — erased at runtime, no circular runtime dependency
-import type { CheckIssue } from './check.js';
+import type { CheckIssue } from '../model/check-issue.js';
 
 /**
  * `normalizeRoot`, `matchesRoot`, `isExcludedByCoverage` now live in

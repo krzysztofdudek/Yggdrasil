@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 30, ahead of cli/entry at 28', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 33, ahead of cli/core/fill and cli/entry at 28', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -73,10 +73,19 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // loader, an edge it already declared; it is pinned by PATH rather than by index for the same reason aspect-test
     // below is: anchoring a node to a fixed slot is the brittle anchor a past
     // dogfood entry recorded against this very file.
+    //
+    // 6.1.0 made type-only imports dependencies, so every node declared the relations
+    // its type imports always implied: cli/tests/unit/cli/general went from 30 to 33,
+    // cli/core/fill from 26 to 28 (the fill-event and validation models), and
+    // cli/core/check from 24 to 26 (the pair engine's coverage input and the
+    // check-issue model). cli/core/fill now ties cli/entry at 28; the tie breaks by
+    // path, so cli/core/fill ranks first. aspect-test went from 21 to 22 (the AST report).
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(30);
-    expect(data.hubs.fanOut[1].path).toBe('cli/entry');
+    expect(data.hubs.fanOut[0].count).toBe(33);
+    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[1].count).toBe(28);
+    expect(data.hubs.fanOut[2].path).toBe('cli/entry');
     // 27 since the marketplace command joined, 26 again since the verdict
     // command left (the configured reviewer is the only judge), 27 again since
     // a hidden stub took its name to point callers at the replacement, 28 since
@@ -84,12 +93,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // dispatcher necessarily references one node per command, so this number
     // moves by one with every command the CLI gains or loses — that is the
     // dispatcher working, and its own node carries a reviewed allowance saying so.
-    expect(data.hubs.fanOut[1].count).toBe(28);
+    expect(data.hubs.fanOut[2].count).toBe(28);
 
-    expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[2].count).toBe(26);
     expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[3].count).toBe(24);
+    expect(data.hubs.fanOut[3].count).toBe(26);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
     expect(engineApi!.count).toBe(22);
@@ -101,8 +108,9 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // failure mode a past dogfood entry recorded for this same test file.
     const aspectTest = data.hubs.fanOut.find((h) => h.path === 'cli/commands/aspect-test');
     expect(aspectTest).toBeDefined();
-    // 21 since its errors go through the shared CLI output layer, one more edge.
-    expect(aspectTest!.count).toBe(21);
+    // 21 since its errors go through the shared CLI output layer, one more edge;
+    // 22 since its type import of the AST report became a declared relation.
+    expect(aspectTest!.count).toBe(22);
     expect(aspectTest!.count).toBeLessThan(23);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {

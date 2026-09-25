@@ -11,5 +11,7 @@ relations:
     type: uses
   - target: cli/core/checks/incident-ledger
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/cli/incident.test.ts

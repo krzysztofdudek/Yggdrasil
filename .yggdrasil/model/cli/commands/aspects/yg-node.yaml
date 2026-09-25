@@ -22,7 +22,7 @@ description: >-
   two things.
 aspects: []
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Reviewed at exactly this count. This node owns two commands — the rule
     inventory with its health projection, and each rule's own history — and the
@@ -31,6 +31,9 @@ max_direct_relations:
     the suppression scan and the rule's log. The twenty-first edge is the CLI
     output layer, through which both commands now report their errors like every
     other command.
+    Raised from 21 to 22 when type-only imports became dependencies in 6.1.0: the
+    commands already named the graph model's types, and that import is now a declared
+    relation to cli/model/graph. No new call was added.
 relations:
   - target: cli/output
     type: calls
@@ -74,6 +77,8 @@ relations:
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/cli/aspects-log.ts
   - source/cli/src/cli/aspects.ts

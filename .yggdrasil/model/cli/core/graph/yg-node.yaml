@@ -29,6 +29,12 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/expected-pair
+    type: uses
+  - target: cli/model/lock
+    type: uses
 mapping:
   - source/cli/src/core/graph/aspects.ts
   - source/cli/src/core/graph/dependencies.ts

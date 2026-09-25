@@ -7,6 +7,12 @@ description: >-
   contract of both halves of the drill command — running a rule's corpus, and
   taking a case into it.
 aspects: []
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Set at the reviewed count of 21 when type-only imports became dependencies in 6.1.0:
+    the suite already named the graph model's types, and that import is now a declared
+    relation, taking it one over the project default.
 relations:
   [
     { target: cli/ast/runtime, type: uses },
@@ -28,7 +34,8 @@ relations:
     { target: cli/io/stores, type: uses },
     { target: cli/commands/prime, type: uses },
     { target: cli/cli-version, type: uses },
-    { target: cli/templates, type: uses }
+    { target: cli/templates, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/knowledge.test.ts

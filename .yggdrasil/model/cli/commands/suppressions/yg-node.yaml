@@ -41,5 +41,7 @@ relations:
     type: calls
   - target: cli/formatters
     type: calls
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/cli/suppressions.ts

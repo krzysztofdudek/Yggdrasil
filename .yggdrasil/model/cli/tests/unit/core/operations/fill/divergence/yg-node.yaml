@@ -9,7 +9,8 @@ aspects: []
 relations:
   [
     { target: cli/core/fill, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-divergence.test.ts
