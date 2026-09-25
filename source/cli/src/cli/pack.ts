@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { parseDocument, isSeq } from 'yaml';
+import { valid as validSemver } from 'semver';
 
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { findUpwards } from './marketplace.js';
@@ -58,7 +59,7 @@ import {
 import { runUpdate } from './pack-update.js';
 import type { UpdateOptions } from './pack-update.js';
 import { cliVersion } from './cli-version.js';
-import { fail, paint, writeOut } from './output.js';
+import { fail, paint, writeOut, count, next as nextStep } from './output.js';
 
 /**
  * `yg pack` — install law published by someone else, keep it as they published
@@ -358,6 +359,7 @@ export function registerPackCommand(program: Command): void {
     .option('--to <version>', "take this exact version and pin it, or 'latest' to follow the newest again")
     .option('--allow-downgrade', 'with --to, allow a version older than the one installed')
     .option('--reinstall', 'restore an edited or incomplete copy from the version the record names, keeping your adaptations')
+    .option('--accept-republished', 'with --reinstall, take what the source publishes under the installed version today when the publisher re-used the number or moved the tag')
     .action(async (name: string | undefined, opts: UpdateOptions) => {
       await runPackAction(() => runUpdate(name, opts));
     });
@@ -540,7 +542,7 @@ async function runList(): Promise<number> {
     const provenance =
       entry.tag !== undefined
         ? `${entry.tag}, commit ${shortCommit(entry.commit)}`
-        : 'no tag recorded — read from a plain directory, or installed by an earlier release';
+        : `no tag recorded — read from a plain directory, or installed by an earlier release; for a git source, yg pack update ${name} records it`;
     writeOut(
       `  ${name}  ${entry.version}  ${requested === REQUESTED_LATEST ? 'follows the newest version' : `pinned at ${requested}`}  ` +
         `${intact ? paint.green('copy untouched') : paint.red('copy changed')}\n` +
@@ -627,42 +629,89 @@ async function runVerify(name: string | undefined): Promise<number> {
         for (const f of packageDrift?.modified ?? []) problems.push(`${repoRelativePackagePath(f)} has been edited in this repository`);
         for (const f of packageDrift?.missing ?? []) problems.push(`${repoRelativePackagePath(f)} is missing in this repository`);
 
+        const next: string[] = [];
+        if ((packageDrift?.modified.length ?? 0) + (packageDrift?.missing.length ?? 0) > 0) {
+          next.push(`to put the copy back as it was installed, keeping your adaptations: yg pack update ${pkgName} --reinstall`);
+        }
+
         let against = '';
+        let untagged: string | null = null;
         try {
           const resolved = resolveRecordedSource(entry.source, projectRoot);
           const kind = await sourceKindOf(resolved, pkgName);
           const tagVersion = entry.tag?.slice(`pack/${pkgName}@`.length) ?? entry.version;
-          const fetched = await session.fetch(
-            resolved,
-            kind,
-            pkgName,
-            kind === 'directory' ? { kind: 'latest' } : { kind: 'exact', version: tagVersion },
-          );
-          const marketEntry = await readMarketplaceEntry(fetched.rootAbs, pkgName);
-          const { packageRootAbs } = await readPackage(fetched.rootAbs, marketEntry);
-          const now = await hashPackageTree(packageRootAbs, entry.package);
-          if (!now.ok) failWith(now.messageData);
-          if (entry.commit !== undefined && fetched.commit !== entry.commit) {
-            problems.push(`${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}`);
+          // A record from an earlier release, which installed a git source's
+          // default branch whether or not it was tagged: when that version was
+          // never published there is nothing to compare the copy with. That is
+          // its own outcome — the copy is not edited and no tag moved.
+          const published = kind === 'git' && entry.tag === undefined ? await session.versionsOf(resolved.location, pkgName) : null;
+          if (published !== null && !published.includes(tagVersion)) {
+            const others = published.filter((v) => validSemver(v) !== null);
+            if (next.length > 0) {
+              // A reinstall needs the published version, which is exactly what is missing.
+              next.splice(0, next.length, `put the edited files back from version control: git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}`);
+            }
+            untagged =
+              `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release: '${entry.source}' publishes no version ${entry.version} of it ` +
+              `(no tag pack/${pkgName}@${entry.version}), so there is nothing to compare the copy with.`;
+            next.push(
+              others.length > 0
+                ? `take a published version: yg pack update ${pkgName} (it publishes ${others.join(', ')})`
+                : `ask the author to tag the version you have (pack/${pkgName}@${entry.version}) and run yg pack verify ${pkgName} again, or a newer one and run yg pack update ${pkgName}. To stop depending on it: yg pack remove ${pkgName}`,
+            );
+          } else {
+            const fetched = await session.fetch(
+              resolved,
+              kind,
+              pkgName,
+              kind === 'directory' ? { kind: 'latest' } : { kind: 'exact', version: tagVersion },
+            );
+            const marketEntry = await readMarketplaceEntry(fetched.rootAbs, pkgName);
+            const { packageRootAbs } = await readPackage(fetched.rootAbs, marketEntry);
+            const now = await hashPackageTree(packageRootAbs, entry.package);
+            if (!now.ok) failWith(now.messageData);
+            const moved = entry.commit !== undefined && fetched.commit !== entry.commit;
+            if (moved) {
+              problems.push(`${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}`);
+            }
+            const differs = differingFiles(entry.files, now.value);
+            for (const f of differs) {
+              problems.push(`${repoRelativePackagePath(f)} is not what the source publishes${fetched.tag === undefined ? '' : ` under ${fetched.tag}`}`);
+            }
+            if (moved) {
+              next.push(
+                `the publisher moved ${fetched.tag}; ask them why. To take what it names now, keeping your adaptations: yg pack update ${pkgName} --reinstall --accept-republished`,
+              );
+            } else if (differs.length > 0 && fetched.tag !== undefined) {
+              problems.push(
+                `the publisher re-used the version number ${entry.version}: what ${fetched.tag} holds today is not what was installed as ${entry.version}` +
+                  (entry.commit === undefined ? ' (the record comes from an earlier release and names no commit)' : ''),
+              );
+              next.push(`to take it, keeping your adaptations: yg pack update ${pkgName} --reinstall --accept-republished`);
+            } else if (differs.length > 0) {
+              next.push(`the directory changed since the copy was taken; to take it as it is now: yg pack update ${pkgName}`);
+            }
+            against =
+              fetched.tag !== undefined
+                ? `${fetched.tag} at commit ${shortCommit(fetched.commit)}${entry.commit === undefined ? ` (the record names no commit, so only the files were compared; the next yg pack update ${pkgName} records the tag and commit)` : ''}`
+                : `the directory '${entry.source}' as it is now (it publishes no versions)`;
           }
-          for (const f of differingFiles(entry.files, now.value)) {
-            problems.push(`${repoRelativePackagePath(f)} is not what the source publishes${fetched.tag === undefined ? '' : ` under ${fetched.tag}`}`);
-          }
-          against =
-            fetched.tag !== undefined
-              ? `${fetched.tag} at commit ${shortCommit(fetched.commit)}${entry.commit === undefined ? ' (the record names no commit, so only the files were compared)' : ''}`
-              : `the directory '${entry.source}' as it is now (it publishes no versions)`;
         } catch (err) {
           if (!(err instanceof PackRefusal)) throw err;
           debugWrite(`[pack] verify '${pkgName}': could not compare with its source: ${err.messageData.what}`);
           problems.push(`could not be compared with its source: ${err.messageData.what}`);
+          next.push(err.messageData.next);
         }
 
-        if (problems.length === 0) {
+        const nextLines = next.map((n) => `  ${nextStep(n)}\n`).join('');
+        if (untagged !== null) {
+          failed += 1;
+          writeOut(paint.yellow(`${untagged}\n`) + problems.map((p) => `  ${p}\n`).join('') + nextLines);
+        } else if (problems.length === 0) {
           writeOut(paint.green(`'${pkgName}' ${entry.version} — the copy is exactly ${against}.\n`));
         } else {
           failed += 1;
-          writeOut(paint.red(`'${pkgName}' ${entry.version} does not verify:\n`) + problems.map((p) => `  ${p}\n`).join(''));
+          writeOut(paint.red(`'${pkgName}' ${entry.version} does not verify:\n`) + problems.map((p) => `  ${p}\n`).join('') + nextLines);
         }
       }
     } finally {
@@ -671,8 +720,7 @@ async function runVerify(name: string | undefined): Promise<number> {
 
     if (failed > 0) {
       writeOut(
-        `\nA copy that does not match its source is not what its publisher released. ` +
-          `Restore an edited copy with yg pack update <name> --reinstall; ask the publisher about a tag that moved.\n`,
+        `\n${count(failed, 'copy', 'copies')} could not be shown to be what the publisher released; each says above what to do next.\n`,
       );
       return 1;
     }

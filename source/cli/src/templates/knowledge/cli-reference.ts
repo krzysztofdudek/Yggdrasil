@@ -1551,7 +1551,7 @@ belongs to, from any directory inside it.
 \`\`\`bash
 yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
 yg pack update [<package>] [--to <version>|latest] [--allow-downgrade]
-yg pack update <package> --reinstall
+yg pack update <package> --reinstall [--accept-republished]
 yg pack list
 yg pack verify [<package>]
 yg pack remove <package>
@@ -1584,9 +1584,17 @@ yg pack new <name>
   and marketplace entry disagree, a source that no longer is the recorded
   publisher, or a dropped rule the graph still attaches (a component, a port, a
   type, a flow, an \`implies:\`) stops the whole run with nothing changed.
+  ONE EXCEPTION: with no name, a package whose source publishes no version at
+  all (an earlier release installed it from a default branch) is left as it is
+  and named at the end; the others are updated and the run exits 1. A record
+  from an earlier release (no tag, no commit) gets both on the next update that
+  reaches its version's tag, even with nothing newer to take.
   \`--reinstall\` puts an edited or incomplete copy back from the version the
   record names, keeping your adaptations; it refuses when the source no longer
-  publishes exactly that (a moved tag, a changed file).
+  publishes exactly that, naming the cause (the publisher moved the tag, or
+  re-used the version number). \`--reinstall --accept-republished\` takes what the
+  source publishes under that number now, keeping your adaptations — the only
+  command that does; a plain update or \`--to\` the same version changes nothing.
 - \`list\` — what is installed, which version, pinned or following, from where,
   the tag and commit, and whether each copy is still untouched. It names a newer
   version only when the source answers; an unreachable source produces silence,
@@ -1596,8 +1604,12 @@ yg pack new <name>
   the repository.
 - \`verify\` — asks each source whether the recorded tag still points at the
   recorded commit and whether the copy is still exactly what it holds. Exits 1 on
-  any difference. The record attests only to itself; this is the check against
-  the source.
+  any difference, and names per package its cause and the next step: an edited
+  copy (\`--reinstall\`), a moved tag or a re-used version number
+  (\`--reinstall --accept-republished\`), or a version an earlier release
+  installed that the source never published (\`yg pack update <name>\` once
+  anything is published, or \`yg pack remove\`). The record attests only to
+  itself; this is the check against the source.
 - \`remove\` — deletes the installed rules, their adaptations and the record.
   REFUSED while anything in the graph still names one of the rules — a
   component, a port, a type, a flow, or another rule's \`implies:\` — listing what

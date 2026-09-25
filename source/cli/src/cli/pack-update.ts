@@ -41,7 +41,7 @@ import {
   withCommandLock,
 } from './pack-source.js';
 import type { Fetched, Want } from './pack-source.js';
-import { paint, writeOut } from './output.js';
+import { paint, writeOut, next } from './output.js';
 
 /**
  * source/cli/src/cli/pack-update.ts — `yg pack update`: replace an installed
@@ -58,20 +58,30 @@ import { paint, writeOut } from './output.js';
  * `--to` moves it. Going back a version is refused unless `--to` names it and
  * `--allow-downgrade` says so. `--reinstall` restores the version the record
  * names, file for file, keeping the consumer's adaptations — the repair for a
- * copy that was edited or lost a file.
+ * copy that was edited or lost a file. `--reinstall --accept-republished` is the
+ * one way to take different content under the version already installed, for
+ * when the publisher re-used the number or moved its tag.
+ *
+ * A record written by an earlier release names no tag or commit; the first
+ * update that reaches the tag of the installed version writes them, even when
+ * there is nothing newer to take. A package whose source publishes no version
+ * at all (an earlier release installed its default branch) cannot be updated,
+ * and when every package is updated at once it is reported at the end rather
+ * than holding back all the others.
  */
 
 export interface UpdateOptions {
   to?: string;
   allowDowngrade?: boolean;
   reinstall?: boolean;
+  acceptRepublished?: boolean;
 }
 
 /** What an update decided to do with one package, before anything was written. */
 interface UpdatePlan {
   name: string;
   entry: PackagesLockEntry;
-  action: 'install' | 'record' | 'none';
+  action: 'install' | 'record' | 'none' | 'skip';
   /** Lines said about this package whatever happens. */
   notes: string[];
   /** For 'install': what to install and what it changes. */
@@ -84,6 +94,10 @@ interface UpdatePlan {
   };
   /** For 'record': the entry to write in place of the old one. */
   record?: PackagesLockEntry;
+  /** For 'skip': why this package could not be updated while the others were. */
+  skip?: IssueMessage;
+  /** Whether applying the plan changes a rule's content on disk, so verdicts need judging again. */
+  changesRules?: boolean;
 }
 
 export async function runUpdate(name: string | undefined, opts: UpdateOptions): Promise<number> {
@@ -102,6 +116,13 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       what: '--reinstall cannot be combined with --to or --allow-downgrade.',
       why: 'A reinstall puts back exactly the version the record names; choosing another version is what --to does, as a separate step.',
       next: 'Run the reinstall on its own, then move to another version with --to if you want one.',
+    });
+  }
+  if (opts.acceptRepublished === true && opts.reinstall !== true) {
+    failWith({
+      what: '--accept-republished only goes with --reinstall.',
+      why: 'It lets a reinstall take what the source publishes under the installed version today, when that differs from what was installed. Without --reinstall there is nothing for it to accept.',
+      next: 'Run: yg pack update <name> --reinstall --accept-republished.',
     });
   }
   if (opts.allowDowngrade === true && opts.to === undefined) {
@@ -138,8 +159,8 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
     // before a single file is replaced — so a refusal can truthfully say nothing
     // was changed. A reinstall is the one exception: an edited or incomplete copy
     // is exactly what it exists to repair.
+    const drift = await collectPackagesDrift(projectRoot, lock);
     if (opts.reinstall !== true) {
-      const drift = await collectPackagesDrift(projectRoot, lock);
       const drifted = names.filter((pkgName) => !isCopyIntact(drift.byPackage.get(pkgName)));
       if (drifted.length > 0) {
         const listed = drifted
@@ -167,17 +188,23 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       // "nothing was changed" it prints is true.
       const plans: UpdatePlan[] = [];
       for (const pkgName of names) {
-        plans.push(await planUpdate(graph, projectRoot, session, pkgName, lock.packages[pkgName], opts));
+        plans.push(
+          await planUpdate(graph, projectRoot, session, pkgName, lock.packages[pkgName], opts, {
+            sweep: name === undefined,
+            copyIntact: isCopyIntact(drift.byPackage.get(pkgName)),
+          }),
+        );
       }
 
       // Phase two: apply. Each package is its own atomic swap; a failure here is
       // reported for exactly what it is — what was already applied, what was not.
       let current = lock;
       const applied: string[] = [];
+      let rulesChanged = false;
       let failure: { name: string; message: IssueMessage } | null = null;
       for (const plan of plans) {
         for (const note of plan.notes) writeOut(`${note}\n`);
-        if (plan.action === 'none') continue;
+        if (plan.action === 'none' || plan.action === 'skip') continue;
         if (plan.action === 'record' && plan.record !== undefined) {
           current = { schema: 'yg-packages/1', packages: { ...current.packages, [plan.name]: plan.record } };
           await writePackagesLock(projectRoot, current);
@@ -210,6 +237,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
         }
         current = { schema: 'yg-packages/1', packages: { ...current.packages, [plan.name]: result.value } };
         applied.push(plan.name);
+        if (plan.changesRules !== false) rulesChanged = true;
         const verb = opts.reinstall === true ? 'Reinstalled' : 'Updated';
         const change = opts.reinstall === true ? plan.entry.version : `${plan.entry.version} → ${install.manifest.version}`;
         const from = install.fetched.tag === undefined ? '' : ` (${install.fetched.tag}, commit ${shortCommit(install.fetched.commit)})`;
@@ -227,17 +255,31 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       }
       await rememberObservedVersions(graph.rootPath, observed, Object.keys(observed).length > 0);
 
-      if (applied.length > 0) {
-        writeOut('\nRules whose content changed need judging again. Run: yg check --approve\n');
+      if (rulesChanged) {
+        writeOut(`\nRules whose content changed need judging again.\n${next('yg check --approve')}\n`);
       }
+      const skipped = plans.filter((p) => p.action === 'skip' && p.skip !== undefined);
+      const skippedLine =
+        skipped.length === 0 ? '' : ` Not updated, because its source publishes no version of it: ${skipped.map((p) => `'${p.name}'`).join(', ')}.`;
       if (failure !== null) {
         const notReached = plans
           .filter((p) => p.action === 'install' && !applied.includes(p.name) && p.name !== failure!.name)
           .map((p) => `'${p.name}'`);
         failWith({
           what: `'${failure.name}' could not be updated. ${failure.message.what}`,
-          why: `${failure.message.why} ${applied.length === 0 ? 'No package was changed.' : `Already updated before this: ${applied.map((n) => `'${n}'`).join(', ')} — those changes stand.`}${notReached.length === 0 ? '' : ` Not attempted: ${notReached.join(', ')}.`}`,
+          why: `${failure.message.why} ${applied.length === 0 ? 'No package was changed.' : `Already updated before this: ${applied.map((n) => `'${n}'`).join(', ')} — those changes stand.`}${notReached.length === 0 ? '' : ` Not attempted: ${notReached.join(', ')}.`}${skippedLine}`,
           next: failure.message.next,
+        });
+      }
+      if (skipped.length > 0) {
+        // Every other package was updated (or was already current) above; these
+        // are the ones left as they were. The run did not do everything it was
+        // asked, so it exits 1 — but it says what it did do.
+        const [first, ...rest] = skipped;
+        failWith({
+          what: [first, ...rest].map((p) => p.skip!.what).join('\n'),
+          why: `${first.skip!.why} ${applied.length === 0 ? 'No other package needed updating.' : `Updated: ${applied.map((n) => `'${n}'`).join(', ')} — those changes stand.`}`,
+          next: skipped.length === 1 ? first.skip!.next : `For each package above: ${first.skip!.next.replaceAll(first.name, '<name>')}`,
         });
       }
       return 0;
@@ -255,6 +297,7 @@ async function planUpdate(
   pkgName: string,
   entry: PackagesLockEntry,
   opts: UpdateOptions,
+  run: { sweep: boolean; copyIntact: boolean },
 ): Promise<UpdatePlan> {
   const resolved = resolveRecordedSource(entry.source, projectRoot);
   const kind = await sourceKindOf(resolved, pkgName);
@@ -304,6 +347,25 @@ async function planUpdate(
     want = { kind: 'latest' };
   }
 
+  // A source that publishes no version of the package at all. An earlier release
+  // installed such a package from the default branch; nothing can be taken from
+  // it now. Named on its own it is refused; in an update of every package it is
+  // left as it is and reported at the end, so it does not hold back the others.
+  if (kind === 'git' && opts.reinstall !== true) {
+    const published = await session.versionsOf(resolved.location, pkgName);
+    if (published !== null && !published.some((v) => validSemver(v) !== null)) {
+      const message = unpublishedMessage(pkgName, entry, resolved.location);
+      if (!run.sweep) failWith(message);
+      return { name: pkgName, entry, action: 'skip', notes: [], skip: message };
+    }
+  }
+  if (kind === 'git' && opts.reinstall === true && entry.tag === undefined) {
+    const published = await session.versionsOf(resolved.location, pkgName);
+    if (published !== null && !published.includes(entry.version)) {
+      failWith(untaggedReinstallMessage(pkgName, entry, resolved.location, published));
+    }
+  }
+
   const fetched = await session.fetch(resolved, kind, pkgName, want);
   const marketEntry = await readMarketplaceEntry(fetched.rootAbs, pkgName);
   const { manifest, packageRootAbs } = await readPackage(fetched.rootAbs, marketEntry);
@@ -313,20 +375,47 @@ async function planUpdate(
   if (!newHashes.ok) failWith(newHashes.messageData);
 
   if (opts.reinstall === true) {
-    if (entry.commit !== undefined && fetched.commit !== entry.commit) {
+    const accept = opts.acceptRepublished === true;
+    const moved = entry.commit !== undefined && fetched.commit !== entry.commit;
+    if (moved && !accept) {
       failWith({
         what: `The tag ${fetched.tag} of '${pkgName}' now points at commit ${shortCommit(fetched.commit)}, not ${shortCommit(entry.commit)}, the one this repository installed.`,
         why: 'A reinstall puts back exactly what was installed. The publisher has moved the tag since, so what it names today is not that — and taking it would swap code under a version number nobody changed. Nothing was changed.',
-        next: `Ask the publisher why the tag moved. To take what it points at now, run yg pack remove ${pkgName} and install it again; git history holds the copy you had.`,
+        next: `Ask the publisher why the tag moved. To take what it points at now, keeping your adaptations, run: yg pack update ${pkgName} --reinstall --accept-republished. git history holds the copy you had.`,
       });
     }
     const differs = differingFiles(entry.files, newHashes.value);
+    if (differs.length > 0 && !accept) {
+      const listed = differs.map((f) => `  ${repoRelativePackagePath(f)}`).join('\n');
+      failWith(
+        entry.commit === undefined && fetched.tag !== undefined
+          ? {
+              what: `The publisher re-used the version number ${entry.version} of '${pkgName}': what ${fetched.tag} holds today (commit ${shortCommit(fetched.commit)}) is not what this repository installed as ${entry.version}:\n${listed}`,
+              why: `${run.copyIntact ? 'The copy here is as it was installed; the' : 'The'} source changed under the same number${entry.tag === undefined ? ' (this record comes from an earlier release, which installed without a tag and recorded no commit)' : ''}. A reinstall puts back exactly what was installed, and the source no longer has it. Nothing was changed.`,
+              next: `To take what the source publishes as ${entry.version} now, keeping your adaptations, run: yg pack update ${pkgName} --reinstall --accept-republished. To keep the copy you have, leave it; git history holds it.`,
+            }
+          : {
+              what: `What the source publishes as '${pkgName}' ${entry.version} today is not what this repository installed:\n${listed}`,
+              why: 'A reinstall puts back exactly what the record says was installed, file for file. The source no longer has that, so nothing could be put back faithfully. Nothing was changed.',
+              next: `Restore the copy from version control instead (git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}), or take what the source publishes now, keeping your adaptations: yg pack update ${pkgName} --reinstall --accept-republished.`,
+            },
+      );
+    }
     if (differs.length > 0) {
-      failWith({
-        what: `What the source publishes as '${pkgName}' ${entry.version} today is not what this repository installed:\n${differs.map((f) => repoRelativePackagePath(f)).join('\n')}`,
-        why: 'A reinstall puts back exactly what the record says was installed, file for file. The source no longer has that, so nothing could be put back faithfully. Nothing was changed.',
-        next: `Restore the copy from version control instead (git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}), or take a published version with yg pack update ${pkgName} --to <version>.`,
-      });
+      // Taking republished content is an update in all but number: it can drop a
+      // rule the graph attaches, and what it changes is said before it happens.
+      const oldRules = await installedRuleDirs(graph, projectRoot, entry);
+      const removed = oldRules.filter((r) => !manifest.aspects.includes(r));
+      assertNothingDangles(graph, entry, pkgName, `What the source publishes as ${entry.version}`, removed);
+      const summary = await describeUpdate(projectRoot, entry, manifest, packageRootAbs, newHashes.value, oldRules, removed);
+      return {
+        name: pkgName,
+        entry,
+        action: 'install',
+        notes: [],
+        install: { manifest, packageRootAbs, fetched, requested: requestedNow, summary },
+        changesRules: true,
+      };
     }
     return {
       name: pkgName,
@@ -334,6 +423,9 @@ async function planUpdate(
       action: 'install',
       notes: [],
       install: { manifest, packageRootAbs, fetched, requested: requestedNow, summary: [] },
+      // Putting back an edited or incomplete copy changes what runs; rewriting an
+      // untouched one changes nothing a verdict was recorded for.
+      changesRules: !run.copyIntact,
     };
   }
 
@@ -357,17 +449,58 @@ async function planUpdate(
         ],
       };
     }
-    if (requested !== requestedNow) {
+    // The same number, different files, and the tag has not moved as far as
+    // the record can tell: the publisher re-used the version number. Nothing is
+    // taken without being asked for, and nothing claims a pin it did not take.
+    const differs = kind === 'git' ? differingFiles(entry.files, newHashes.value) : [];
+    if (differs.length > 0) {
+      const said =
+        `the publisher re-used the version number ${installed} (what ${fetched.tag} holds today differs from the installed copy in ` +
+        `${differs.length} ${differs.length === 1 ? 'file' : 'files'})`;
+      const take = `To take it, keeping your adaptations: yg pack update ${pkgName} --reinstall --accept-republished`;
+      if (opts.to !== undefined) {
+        failWith({
+          what: `'${pkgName}' was not moved: ${said}.`,
+          why: `--to ${opts.to} names the version already installed, and what the source publishes under it is not what was installed. Recording a pin there would claim a copy this repository does not hold. Nothing was changed.`,
+          next: `${take}. Or choose another version with --to.`,
+        });
+      }
+      return {
+        name: pkgName,
+        entry,
+        action: 'none',
+        notes: [paint.yellow(`'${pkgName}' stays at ${installed}, and nothing was copied: ${said}. ${take}`)],
+      };
+    }
+
+    // A record from an earlier release names no tag or commit. The tag it is at
+    // holds exactly the installed files, so they are recorded now — the record
+    // catches up without anything being reinstalled.
+    const backfill = entry.tag === undefined && fetched.tag !== undefined && fetched.commit !== undefined;
+    if (requested !== requestedNow || backfill) {
+      const notes: string[] = [];
+      if (requested !== requestedNow) {
+        notes.push(
+          requested === REQUESTED_LATEST
+            ? `'${pkgName}' stays at ${installed} and now follows the newest published version.`
+            : `'${pkgName}' stays at ${installed}, now pinned there.`,
+        );
+      }
+      if (backfill) {
+        notes.push(
+          `'${pkgName}' is already at ${installed}; recorded its tag ${fetched.tag} and commit ${shortCommit(fetched.commit)}, which the record from an earlier release did not name.`,
+        );
+      }
       return {
         name: pkgName,
         entry,
         action: 'record',
-        record: { ...entry, requested },
-        notes: [
-          requested === REQUESTED_LATEST
-            ? `'${pkgName}' stays at ${installed} and now follows the newest published version.`
-            : `'${pkgName}' stays at ${installed}, now pinned there.`,
-        ],
+        record: {
+          ...entry,
+          requested,
+          ...(backfill && { tag: fetched.tag, commit: fetched.commit }),
+        },
+        notes,
       };
     }
     return { name: pkgName, entry, action: 'none', notes: [`'${pkgName}' is already at ${installed}.`] };
@@ -397,16 +530,8 @@ async function planUpdate(
   // What the new version would do to the graph: a rule that is gone while
   // something still names it fails every check on the dangling name.
   const oldRules = await installedRuleDirs(graph, projectRoot, entry);
-  const idPrefix = `${PACKAGES_DIR}/${entry.package}`;
   const removed = oldRules.filter((r) => !manifest.aspects.includes(r));
-  const attached = attachmentsOf(graph, new Set(removed.map((r) => `${idPrefix}/${r}`)), idPrefix);
-  if (attached.length > 0) {
-    failWith({
-      what: `${target} of '${pkgName}' no longer ships ${removed.map((r) => `'${r}'`).join(', ')}, and the graph still names it:\n${attached.map((a) => `${a.aspectId} — ${a.where}`).join('\n')}`,
-      why: 'Replacing the copy would leave those references pointing at a rule that is gone, and every check would fail on the dangling names rather than on anything real. Nothing was updated.',
-      next: 'Detach the rules listed above (or attach whatever replaces them in the new version), then run this again.',
-    });
-  }
+  assertNothingDangles(graph, entry, pkgName, target, removed);
 
   const summary = await describeUpdate(projectRoot, entry, manifest, packageRootAbs, newHashes.value, oldRules, removed);
   return {
@@ -415,6 +540,44 @@ async function planUpdate(
     action: 'install',
     notes: [],
     install: { manifest, packageRootAbs, fetched, requested, summary },
+  };
+}
+
+/** Refuse a new copy that drops a rule the graph still names. */
+function assertNothingDangles(graph: Graph, entry: PackagesLockEntry, pkgName: string, newCopy: string, removed: string[]): void {
+  const idPrefix = `${PACKAGES_DIR}/${entry.package}`;
+  const attached = attachmentsOf(graph, new Set(removed.map((r) => `${idPrefix}/${r}`)), idPrefix);
+  if (attached.length > 0) {
+    failWith({
+      what: `${newCopy} of '${pkgName}' no longer ships ${removed.map((r) => `'${r}'`).join(', ')}, and the graph still names it:\n${attached.map((a) => `${a.aspectId} — ${a.where}`).join('\n')}`,
+      why: 'Replacing the copy would leave those references pointing at a rule that is gone, and every check would fail on the dangling names rather than on anything real. Nothing was updated.',
+      next: 'Detach the rules listed above (or attach whatever replaces them in the new version), then run this again.',
+    });
+  }
+}
+
+/** Why a package whose source publishes no version at all cannot be updated. */
+function unpublishedMessage(pkgName: string, entry: PackagesLockEntry, location: string): IssueMessage {
+  const earlier = entry.tag === undefined;
+  return {
+    what: earlier
+      ? `'${pkgName}' was not updated: it was installed from an untagged source by an earlier release, and '${location}' still publishes no version of it.`
+      : `'${pkgName}' was not updated: '${location}' publishes no version of it any more.`,
+    why: `A version is a tag, pack/${pkgName}@<version>, and there is none to take. Its copy stays as it is and its rules still run.`,
+    next: `Ask the author to publish a version (tag pack/${pkgName}@<version> and push it), then run: yg pack update ${pkgName}. To stop depending on it: yg pack remove ${pkgName}.`,
+  };
+}
+
+/** Why a copy an earlier release installed from an untagged source cannot be reinstalled. */
+function untaggedReinstallMessage(pkgName: string, entry: PackagesLockEntry, location: string, published: string[]): IssueMessage {
+  const others = published.filter((v) => validSemver(v) !== null);
+  return {
+    what: `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release, and '${location}' publishes no version ${entry.version} of it (no tag pack/${pkgName}@${entry.version}).`,
+    why: 'A reinstall puts back the published version the record names, and that version was never published. Nothing was changed.',
+    next:
+      others.length > 0
+        ? `Take a published version instead: yg pack update ${pkgName} (it publishes ${others.join(', ')}). To keep the copy you have, restore it from version control.`
+        : `Ask the author to tag the version you have (pack/${pkgName}@${entry.version}), then run this again. To keep the copy you have, restore it from version control; to stop depending on it: yg pack remove ${pkgName}.`,
   };
 }
 

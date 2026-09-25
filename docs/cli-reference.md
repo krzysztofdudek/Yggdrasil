@@ -2095,7 +2095,7 @@ repository the graph belongs to, from any directory inside it. Full guide:
 ```bash
 yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
 yg pack update [<package>] [--to <version>|latest] [--allow-downgrade]
-yg pack update <package> --reinstall
+yg pack update <package> --reinstall [--accept-republished]
 yg pack list
 yg pack verify [<package>]
 yg pack remove <package>
@@ -2120,9 +2120,15 @@ yg pack new <name>
   rule before swapping anything. All or nothing: refuses, naming the reason and
   changing nothing, on an edited copy, an unreachable source, versions that
   disagree, a source that is no longer the recorded publisher, or a dropped rule
-  the graph still names. `--reinstall` restores an edited or incomplete copy from
-  the version the record names. Rules whose content changed go back to
-  unverified.
+  the graph still names. With no name, a package whose source publishes no
+  version at all is not updated, is named at the end, and makes the run exit 1
+  after the others are updated. A record from an earlier release with no tag or
+  commit gets both on the next update that reaches its version's tag, even with
+  nothing newer to take. `--reinstall` restores an edited or incomplete copy from
+  the version the record names; it refuses when the publisher moved the tag or
+  re-used the version number, and `--reinstall --accept-republished` takes what
+  the source publishes under that number now, keeping your adaptations. Rules
+  whose content changed go back to unverified.
 - `list` — what is installed, which version, pinned or following, from where, the
   tag and commit, and whether each copy is still untouched. Names newer versions
   only when the source answers; an unreachable source produces silence, never a
@@ -2132,7 +2138,9 @@ yg pack new <name>
   refresh the same cache while they are already talking to the source.
 - `verify` — asks each source whether the recorded tag still points at the
   recorded commit and whether the copy is still exactly what it holds; exits 1 on
-  any difference.
+  any difference, naming its cause (an edited copy, a moved tag, a re-used
+  version number, or a version an earlier release installed that was never
+  published) and the next step for each package.
 - `remove` — deletes the rules, their adaptations and the record. Refuses while
   anything in the graph still names one of them — a component, a port, a type, a
   flow, or another rule's `implies:` — listing what does.

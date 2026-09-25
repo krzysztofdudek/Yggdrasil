@@ -50,6 +50,14 @@
 //    B4. a rule of your own under aspects/packages/ is named as reserved
 //    B5. references: in the adaptation of a script rule names the adaptation
 //    B6. no fetch directory survives a refusal or a successful install
+//   Records written by an earlier release
+//    E1. the next plain update records the tag and commit, even at the newest
+//        version, and asks for no re-judging when no rule changed
+//    E2. a package installed from an untagged source does not stop update-all;
+//        verify names that cause and a next step that works
+//    E3. a re-used version number is named as such; only --reinstall
+//        --accept-republished takes it, keeping the adaptation
+//    E4. --accept-republished only goes with --reinstall
 // =============================================================================
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -155,6 +163,41 @@ function publish(work: string, from: string, version: string): void {
   rmSync(path.join(work, 'packages'), FIXTURE_RM_OPTIONS);
   cpSync(from, work, { recursive: true });
   bump(work, version);
+}
+
+/** Make the record look like one an earlier release wrote: no requested, tag or commit. */
+function asEarlierRelease(dir: string): void {
+  write(dir, LOCK, read(dir, LOCK).replace(/^ {4}(?:requested|tag|commit): .*\n/gm, ''));
+}
+
+/**
+ * Publish the named packages of a two-package marketplace (alpha, zulu) at
+ * `version`, each tagged; the other keeps whatever version it already had.
+ */
+function writeTwoPackages(src: string, version: string, which: string[]): void {
+  const versions: Record<string, string> = {};
+  const market = path.join(src, 'yg-marketplace.yaml');
+  if (existsSync(market)) {
+    for (const m of readFileSync(market, 'utf-8').matchAll(/- name: (\w+)\n.*\n {4}version: (.*)\n/g)) versions[m[1]] = m[2];
+  }
+  for (const name of which) {
+    versions[name] = version;
+    rmSync(path.join(src, 'packages', name), FIXTURE_RM_OPTIONS);
+    cpSync(path.join(MARKET_V1, 'packages', 'demo'), path.join(src, 'packages', name), { recursive: true });
+    const manifest = path.join(src, 'packages', name, 'yg-package.yaml');
+    writeFileSync(manifest, readFileSync(manifest, 'utf-8').replace('name: demo', `name: ${name}`).replace(/^version: .*$/m, `version: ${version}`), 'utf-8');
+    const check = path.join(src, 'packages', name, 'rule-a', 'check.mjs');
+    writeFileSync(check, `${readFileSync(check, 'utf-8')}// ${name} ${version}\n`, 'utf-8');
+  }
+  writeFileSync(
+    market,
+    'schema: yg-marketplace/1\npackages:\n' +
+      Object.keys(versions).sort().map((n) => `  - name: ${n}\n    path: packages/${n}\n    version: ${versions[n]}\n`).join(''),
+    'utf-8',
+  );
+  git(src, ['add', '-A']);
+  git(src, ['commit', '-qm', `${which.join(', ')} ${version}`]);
+  for (const name of which) git(src, ['tag', `pack/${name}@${version}`]);
 }
 
 function leftovers(dir: string): string[] {
@@ -677,5 +720,145 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(leftovers(dir)).toEqual([]);
     expect(run(['pack', 'add', `${market.bare}#demo`, '--as', 'acme/law'], dir).status).toBe(0);
     expect(leftovers(dir)).toEqual([]);
+  }, 60_000);
+
+  // -------------------------------------------------------------------------
+  // Records written by an earlier release
+  // -------------------------------------------------------------------------
+
+  it('E1: a record from an earlier release gets its tag and commit from the next plain update, even at the newest version', () => {
+    const dir = consumer('backfill');
+    expect(run(['pack', 'add', `${market.bare}#demo`, '--as', 'acme/law'], dir).status).toBe(0);
+    asEarlierRelease(dir);
+    expect(read(dir, LOCK)).not.toContain('tag:');
+
+    const verified = run(['pack', 'verify', 'demo'], dir);
+    expect(verified.status, verified.all).toBe(0);
+    expect(verified.stdout).toContain('the next yg pack update demo records the tag and commit');
+
+    const updated = run(['pack', 'update'], dir);
+    expect(updated.status, updated.all).toBe(0);
+    expect(updated.stdout).toContain("'demo' is already at 0.2.0; recorded its tag pack/demo@0.2.0 and commit");
+    expect(updated.stdout).not.toContain('need judging again');
+    const lock = read(dir, LOCK);
+    expect(lock).toContain('requested: "latest"');
+    expect(lock).toContain('tag: "pack/demo@0.2.0"');
+    expect(lock).toMatch(/commit: "[0-9a-f]{40}"/);
+
+    // Once recorded, a plain update has nothing to write.
+    const again = run(['pack', 'update', 'demo'], dir);
+    expect(again.stdout).toContain("'demo' is already at 0.2.0.");
+    expect(read(dir, LOCK)).toBe(lock);
+
+    // A reinstall of an untouched copy changes no rule, so it asks for no re-judging.
+    const reinstalled = run(['pack', 'update', 'demo', '--reinstall'], dir);
+    expect(reinstalled.status, reinstalled.all).toBe(0);
+    expect(reinstalled.stdout).not.toContain('need judging again');
+  }, 90_000);
+
+  it('E2: a package an earlier release installed from an untagged source does not stop the others from updating', () => {
+    const src = temp('untagged-one');
+    git(src, ['init', '-q', '-b', 'main']);
+    writeTwoPackages(src, '0.1.0', ['alpha', 'zulu']);
+    git(src, ['remote', 'add', 'origin', 'https://example.test/acme/law.git']);
+
+    const dir = consumer('untagged-one');
+    expect(run(['pack', 'add', `${src}#alpha`], dir).status).toBe(0);
+    expect(run(['pack', 'add', `${src}#zulu`], dir).status).toBe(0);
+    // What an earlier release left: no tag recorded, and the source never
+    // tagged 'zulu' (that release read its default branch).
+    asEarlierRelease(dir);
+    git(src, ['tag', '-d', 'pack/zulu@0.1.0']);
+    writeTwoPackages(src, '0.2.0', ['alpha']);
+
+    const updated = run(['pack', 'update'], dir);
+    expect(updated.status).toBe(1);
+    expect(updated.stdout).toContain("Updated 'alpha' 0.1.0 → 0.2.0");
+    expect(updated.all).toContain("'zulu' was not updated");
+    expect(updated.all).toContain('installed from an untagged source by an earlier release');
+    expect(updated.all).not.toContain('Nothing was installed or changed');
+    expect(read(dir, LOCK)).toContain('tag: "pack/alpha@0.2.0"');
+
+    const verified = run(['pack', 'verify', 'zulu'], dir);
+    expect(verified.status).toBe(1);
+    expect(verified.stdout).toContain("'zulu' 0.1.0 was installed from an untagged source by an earlier release");
+    expect(verified.stdout).not.toContain('--reinstall');
+    expect(verified.stdout).toContain('yg pack remove zulu');
+
+    // The author tags a version: the step verify named now works.
+    writeTwoPackages(src, '0.3.0', ['zulu']);
+    const hinted = run(['pack', 'verify', 'zulu'], dir);
+    expect(hinted.status).toBe(1);
+    expect(hinted.stdout).toContain('take a published version: yg pack update zulu');
+    const taken = run(['pack', 'update', 'zulu'], dir);
+    expect(taken.status, taken.all).toBe(0);
+    expect(taken.stdout).toContain("Updated 'zulu' 0.1.0 → 0.3.0");
+    expect(run(['pack', 'verify'], dir).status).toBe(0);
+  }, 120_000);
+
+  it('E3: a version number the publisher re-used is named as such, and taken only when asked, keeping the adaptation', () => {
+    const src = temp('reused');
+    git(src, ['init', '-q', '-b', 'main']);
+    publish(src, MARKET_V1, '0.1.0');
+    git(src, ['add', '-A']);
+    git(src, ['commit', '-qm', '0.1.0']);
+    git(src, ['tag', 'pack/demo@0.1.0']);
+    git(src, ['remote', 'add', 'origin', 'https://example.test/acme/law.git']);
+
+    const dir = consumer('reused');
+    expect(run(['pack', 'add', `${src}#demo`], dir).status).toBe(0);
+    asEarlierRelease(dir);
+    setSetting(dir, 'threshold', '50');
+    const adapt = read(dir, ADAPT_A);
+    const lockBefore = read(dir, LOCK);
+
+    // The publisher changes the package and tags it 0.1.0 again.
+    const check = path.join(src, 'packages', 'demo', 'rule-a', 'check.mjs');
+    writeFileSync(check, `${readFileSync(check, 'utf-8')}// republished\n`, 'utf-8');
+    git(src, ['commit', '-qam', 'same number, new content']);
+    git(src, ['tag', '-f', 'pack/demo@0.1.0']);
+
+    const verified = run(['pack', 'verify', 'demo'], dir);
+    expect(verified.status).toBe(1);
+    expect(verified.stdout).toContain('the publisher re-used the version number 0.1.0');
+    expect(verified.stdout).toContain('yg pack update demo --reinstall --accept-republished');
+    expect(verified.stdout).not.toContain('edited copy');
+    expect(verified.stdout).not.toContain('tag that moved');
+
+    const plain = run(['pack', 'update', 'demo'], dir);
+    expect(plain.status, plain.all).toBe(0);
+    expect(plain.stdout).not.toContain('already at');
+    expect(plain.stdout).toContain('re-used the version number 0.1.0');
+    expect(read(dir, LOCK)).toBe(lockBefore);
+
+    const pinned = run(['pack', 'update', 'demo', '--to', '0.1.0'], dir);
+    expect(pinned.status).toBe(1);
+    expect(pinned.all).not.toContain('now pinned there');
+    expect(pinned.all).toContain('re-used the version number 0.1.0');
+    expect(read(dir, LOCK)).toBe(lockBefore);
+
+    const reinstall = run(['pack', 'update', 'demo', '--reinstall'], dir);
+    expect(reinstall.status).toBe(1);
+    expect(reinstall.all).toContain('re-used the version number 0.1.0');
+    expect(reinstall.all).toContain('--accept-republished');
+    expect(read(dir, LOCK)).toBe(lockBefore);
+
+    const accepted = run(['pack', 'update', 'demo', '--reinstall', '--accept-republished'], dir);
+    expect(accepted.status, accepted.all).toBe(0);
+    expect(accepted.stdout).toContain("Reinstalled 'demo' 0.1.0 (pack/demo@0.1.0, commit");
+    expect(accepted.stdout).toContain('rule-a: changed check.mjs');
+    expect(accepted.stdout).toContain('need judging again');
+    expect(read(dir, CHECK_A)).toContain('// republished');
+    expect(read(dir, ADAPT_A)).toBe(adapt);
+    expect(read(dir, LOCK)).toContain('tag: "pack/demo@0.1.0"');
+    expect(run(['pack', 'verify', 'demo'], dir).status).toBe(0);
+  }, 120_000);
+
+  it('E4: --accept-republished only goes with --reinstall', () => {
+    const dir = consumer('accept-alone');
+    expect(run(['pack', 'add', `${market.bare}#demo`, '--as', 'acme/law'], dir).status).toBe(0);
+    const alone = run(['pack', 'update', 'demo', '--accept-republished'], dir);
+    expect(alone.status).toBe(1);
+    expect(alone.all).toContain('--accept-republished only goes with --reinstall');
   }, 60_000);
 });
