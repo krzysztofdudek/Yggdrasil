@@ -188,7 +188,7 @@ yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 exclude
 error[unverified] 1 pair with no verdict yet
   at:   requires-audit @ payments
   why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-  fix:  yg check --approve  (1 reviewer pair · paid — ask the user first)
+  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)
 ```
 
 Check detected that the `requires-audit` rule on `src/payments/` has no recorded verdict. The block's `fix:` is the one step, so the report prints no separate `next:` line. (Once a verdict exists and the code changes, the same pair shows up as `error[unverified] 1 pair whose inputs changed since the verdict`; a script rule with no result in this checkout's local cache — a fresh clone — shows up as `error[unverified] N pairs whose script check has not run on this checkout — free to run`, fixed by the free `yg check --approve --only-deterministic`.) The agent runs `yg check --approve` and the reviewer reads the source code, checks it against the rules in `content.md`. The fill reports on stderr, in lines that start with `fill`, and the report is written to stdout — a clean run prints the PASS verdict line:

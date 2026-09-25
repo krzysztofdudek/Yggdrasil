@@ -16,5 +16,6 @@ fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
   readable-names @ app/svc-11 — 1 reviewer call
   readable-names @ app/svc-12 — 1 reviewer call
   … +12 more  (yg check --details)
-note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; running yg check --approve is paid — ask the user first.
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.
+  fix:  ask the user to approve yg check --approve (paid, up to 24 reviewer calls) before running it
 --- stderr

@@ -402,7 +402,7 @@ describe('check command', () => {
         // A bare `yg-node.yaml` in the fix is the finding's own node's file, which
         // the CLI knows: the step names it by its place in the repository.
         expect(out).toMatch(/next: edit \.yggdrasil\/model\/[^ ]+\/yg-node\.yaml {2}\(mapping-path-missing\)/);
-        expect(out).toContain('then: yg check --approve  (3 reviewer pairs · paid — ask the user first)');
+        expect(out).toContain('then: yg check --approve  (3 reviewer pairs · paid — ask the user to approve it first)');
       });
     });
 

@@ -363,7 +363,7 @@ The step to take first comes twice. `suggestedNext` is the text of the report's 
 }
 ```
 
-`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on; `cost` is the cost of running `command` — the whole command, never one block's share of it (script pairs free, reviewer pairs paid; zero for a step that is not a fill). A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost, and its text says `ask the user first`. `requiresUser` is true when the step needs the user's approval before it runs: a fill that calls the paid reviewer, or a decision only the user makes — configuring a reviewer (`ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft`, whose `command` is `null`). `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a recording run, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
+`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on; `cost` is the cost of running `command` — the whole command, never one block's share of it (script pairs free, reviewer pairs paid; zero for a step that is not a fill). A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost, and its text says `ask the user to approve it first`. `requiresUser` is true when the step needs the user's approval before it runs: a fill that calls the paid reviewer, or a decision only the user makes — configuring a reviewer (`ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft`, whose `command` is `null`). `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a fill, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
 
 `yg check --json --compact` writes the same document without what a reader can recompute — for a reader that pays per token, since the full document runs to 15–40 times the text report: `pairs` lists only the pairs that are not approved (`totals.verdicts.approved` still counts them all), an issue leaves out its `why` and `next` when its group states them, and its `label` and `unitRef` (its group's label, its `unit` parsed), the JSON is not indented, and `compact: true` marks the form. Every other field keeps its shape. `--compact` without `--json` is refused.
 
@@ -515,14 +515,14 @@ error[unmapped] 1 file belongs to no node
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user first)
+  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 
 warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
   at:   .clinerules/yggdrasil.md
         …
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
+then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 ```
 
 **The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
@@ -531,7 +531,7 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
 
 - `at:` — where: one line per member. A refusal lists `<unit>  <file>:<line>  <message>` per violation (a reviewer refusal: the unit and the reviewer's reason); a coverage block lists files; an unverified block lists one line per rule (`readable-names  24 pairs · 24 nodes · reviewer`, or `<aspect> @ <unit>` for a single pair). At most 12 members are listed, then `… +K more  (<command>)` names the view that lists the rest — `yg check --aspect <id>` for a block about one rule, `yg check --details` otherwise.
 - `why:` — the reason, stated once per block. Members whose reason differs are split into blocks of their own.
-- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid — ask the user first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
+- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid — ask the user to approve it first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
 
 The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
 
@@ -539,7 +539,7 @@ The label comes from one registry, and the JSON document's `label` field is the 
 
 **After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
 
-- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid — ask the user first)`), never a restated code, and never a fill while a code or graph error stands. A fill states the cost of the whole command it names: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft` — and a paid one says `ask the user first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
+- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)`), never a restated code, and never a fill while a code or graph error stands. A fill states the cost of the whole command it names: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft` — and a paid one says `ask the user to approve it first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
 - `then:` is the step after it — typically the fill, once the fixes are in.
 - There is no `next:` at all when the report holds exactly one error block (or, with no errors, one finding) whose `fix:` already is the step: the line would only repeat it.
 
@@ -606,7 +606,7 @@ errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 revi
 warnings  uncovered 4
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
+then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 ```
 
 Nothing is dropped: every finding the verdict line counts is under exactly one label. `--summary nodes` prints one row per node instead (or per file, or `(repository)` for a finding about neither) — each label with its count, the busiest 24 rows first, the rest counted in one `… +K more rows with N findings  (yg check --details)` line.
@@ -770,7 +770,8 @@ fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
   readable-names @ app/svc-01 — 1 reviewer call
   readable-names @ app/svc-02 — 1 reviewer call
   …
-note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; run yg check --approve to fill.
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.
+  fix:  ask the user to approve yg check --approve (paid, up to 24 reviewer calls) before running it
 ```
 
 When a fill would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any `check.mjs`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced script refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real `--approve` bills at most that many calls. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.

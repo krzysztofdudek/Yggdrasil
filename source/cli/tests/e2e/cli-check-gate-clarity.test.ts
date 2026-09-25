@@ -159,7 +159,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         const doc = json(run(['check', '--json'], dir));
         // Configuring a reviewer is the user's decision: asked for, never a command to run.
-        expect(doc.suggestedNext).toMatch(/^ask the user first: yg init --provider <name> \[--model <m>\]/);
+        expect(doc.suggestedNext).toMatch(/^ask the user to approve configuring a reviewer — yg init --provider <name> \[--model <m>\]/);
         expect(doc.next?.command).toBeNull();
         expect(doc.next?.requiresUser).toBe(true);
         const llm = doc.issues.filter((i) => i.code === 'unverified' && i.cause === 'reviewer-missing');

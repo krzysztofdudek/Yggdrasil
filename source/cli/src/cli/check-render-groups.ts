@@ -222,7 +222,7 @@ export function costWords(cost: BlockCost): string {
  */
 export function costNote(cost: BlockCost): string {
   const words = costWords(cost);
-  return words !== '' && cost.reviewerPairs > 0 ? `${words} — ask the user first` : words;
+  return words !== '' && cost.reviewerPairs > 0 ? `${words} — ask the user to approve it first` : words;
 }
 
 /** The command that lists every member of a block. */

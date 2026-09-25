@@ -51,10 +51,10 @@ error[refused] no-todo — 8 violations in 8 nodes
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: …
-  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user first)
+  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
+then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 \`\`\`
 
 - The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
@@ -66,7 +66,7 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
   \`… +K more  (<command that lists them all>)\`), \`why:\` (once per block) and
   \`fix:\`. A fix that differs only by node is printed once with \`<node>\` and ends
   \`for each node above\`; a fill names its cost (\`(24 script pairs · free)\`,
-  \`(24 reviewer pairs · paid — ask the user first)\`).
+  \`(24 reviewer pairs · paid — ask the user to approve it first)\`).
 - Labels: \`refused\` (a rule refused the code — error if enforced, warning if
   advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside
   coverage.required — never blocking), \`unverified\` (no valid verdict; the cause
@@ -85,7 +85,7 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
   errors, one finding) whose \`fix:\` already is the step, there is no \`next:\`.
   A fill states the cost of the whole command it names; one whose first block is
   script pairs alone is \`yg check --approve --only-deterministic\` (free). A step
-  that says \`ask the user first\` — a paid fill, configuring a reviewer — is the
+  that says \`ask the user to approve it first\` — a paid fill, configuring a reviewer — is the
   user's decision: ask, never run it on your own. Read the \`next:\` line and do
   that.
 - A \`partial: …\` line under the verdict line means part of the graph did not load;
