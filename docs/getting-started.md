@@ -293,18 +293,15 @@ this way, so the moment you map a directory that imports from another mapped
 directory, the check turns red and names each import, like this:
 
 ```text
-error[relation-undeclared-dependency] Node 'users' has undeclared dependencies on other nodes:
+error[relation-undeclared-dependency] Node 'users' has undeclared dependencies on other nodes
   at:   users
           src/users/index.js:1 → payments
   why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
-  fix:  Declare the missing relation(s) in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
-        payments: allowed relation type(s) [uses, calls, extends, implements, emits, listens]. Add to .yggdrasil/model/users/yg-node.yaml:
-        relations:
-          - target: payments
-            type: uses
+  fix:  Declare the missing relation in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
+        payments: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: payments, type: uses } under relations: in .yggdrasil/model/users/yg-node.yaml.
 ```
 
-Paste the `relations:` stanza it prints into the importing node. Two things can
+Add the relation it names under `relations:` in the importing node (`- { target: payments, type: uses }`). Declared relations are not an input to any verdict, so declaring them re-opens nothing. Two things can
 make that harder:
 
 - If your architecture restricts which types may relate, the message says that
@@ -325,9 +322,11 @@ blocking it.
 When you start working on a covered area, add aspects to enforce rules.
 This is how coverage naturally expands into enforcement as you work.
 
+A node without aspects still needs a type, and once `yg-architecture.yaml` declares any node type, that type must declare a `when:` that every file the node maps satisfies. A type with no `when:` is organizational: a node of that type with a non-empty mapping is a blocking `type-without-when-with-mapping` error, and a mapped file outside its type's `when:` is a blocking `type-when-mismatch`. So give the broad nodes a broad type — for example `module` with `when: { path: "src/**" }` — before you map them. While `yg-architecture.yaml` declares no node types at all, types are not checked yet: each node gets a `type-undefined-pending` warning, and the first type anyone declares turns every node whose type is still missing into a blocking `type-undefined` error. Adding a type is an architecture change, so your agent asks you first.
+
 Practical steps for a 200-file repo:
 
-1. Create 5-8 nodes without aspects for broad directory mappings
+1. Create 5-8 nodes without aspects for broad directory mappings, of a type whose `when:` covers every file they map
 2. Run `yg check` and declare the relations it asks for between those nodes
    (`relation-undeclared-dependency`), or merge nodes whose code is too
    entangled to separate yet
@@ -361,10 +360,12 @@ only the script pairs and writes the gitignored cache. See
 
 ```yaml
 - name: Rebuild the script-rule cache (free, no keys)
-  run: npx @chrisdudek/yg check --approve --only-deterministic
+  run: npx @chrisdudek/yg@6.1.0 check --approve --only-deterministic
 - name: Check architecture
-  run: npx @chrisdudek/yg check --no-approve
+  run: npx @chrisdudek/yg@6.1.0 check --no-approve
 ```
+
+Pin the CLI version as above, and raise the pin in a commit of its own. A bare `npx @chrisdudek/yg` runs whatever release is newest on the day the job runs, so a new release, a major one included, would change your gate without a commit; and when CI runs one version while developers run another, the two can hash a pair differently and keep re-opening each other's verdicts in the committed lock.
 
 On a large repository, restore the local cache before those steps so the rebuild
 fills only what changed since the cached run:
