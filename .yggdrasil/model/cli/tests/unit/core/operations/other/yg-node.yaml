@@ -3,6 +3,6 @@ type: test-suite
 description: "Unit tests for effective-aspect resolution — how aspects
   accumulate on a node across cascading channels."
 aspects: []
-relations: [ { target: cli/core/graph, type: uses } ]
+relations: [ { target: cli/core/graph, type: uses }, { target: cli/model/graph, type: uses } ]
 mapping:
   - source/cli/tests/unit/core/effective-aspects.test.ts

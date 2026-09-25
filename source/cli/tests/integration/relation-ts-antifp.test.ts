@@ -72,7 +72,7 @@ describe('relation TS anti-false-positive (D8 soundness gate)', () => {
     writeNode(root, 'b', 'B', ['src/b/**']);
 
     // --- target files (the things imports may point at) ---
-    // mapped node b's file (whole-statement `import type` must NOT flag it)
+    // mapped node b's file (the type-only import test below imports it)
     writeSrc(root, 'src/b/bar.ts', 'export interface T { v: number }\nexport const bar = 2;\n');
     // unmapped file (case a): exists on disk, owned by no node
     writeSrc(root, 'src/unmapped/target.ts', 'export const target = 1;\n');
@@ -89,9 +89,8 @@ describe('relation TS anti-false-positive (D8 soundness gate)', () => {
     writeSrc(root, 'src/a/d7.ts', "import { target } from '../unmapped/target.js';\nexport const d7 = target;\n");
     // (b) bare / external import → never resolves to an in-graph node.
     writeSrc(root, 'src/a/ext.ts', "import { z } from 'zod';\nexport const ext = z;\n");
-    // (c) whole-statement `import type` → carries no runtime edge; the
-    //     extractor drops it even though it points at mapped node b.
-    writeSrc(root, 'src/a/typeimp.ts', "import type { T } from '../b/bar.js';\nexport const typeimp: T | null = null;\n");
+    // (c) was a whole-statement `import type`, silent until type-only imports became
+    //     dependencies; it is now a positive case (the last test below), not an anti-FP one.
     // (d) dynamic import with a non-literal specifier → no static edge.
     writeSrc(root, 'src/a/dyn.ts', "const m = './intra2.js';\nexport async function load() { return import(m); }\n");
     // (e) intra-node import (same node a) → never crosses a boundary.
@@ -136,7 +135,6 @@ describe('relation TS anti-false-positive (D8 soundness gate)', () => {
   const cases: Array<{ name: string; node: string }> = [
     { name: '(a) dep onto an UNMAPPED file is a coverage matter, not a violation', node: 'a' },
     { name: '(b) bare/external import never resolves to an in-graph node', node: 'a' },
-    { name: '(c) whole-statement `import type` carries no runtime edge', node: 'a' },
     { name: '(d) dynamic import of a variable has no static specifier', node: 'a' },
     { name: '(e) intra-node import never crosses a boundary', node: 'a' },
     { name: '(g) asset import never resolves to a TS source', node: 'a' },
@@ -155,4 +153,16 @@ describe('relation TS anti-false-positive (D8 soundness gate)', () => {
       expect(v?.violations, c.name).toHaveLength(0);
     });
   }
+
+  it('a whole-statement `import type` IS a dependency: it gives the edge a value import would', async () => {
+    writeSrc(root, 'src/a/typeimp.ts', "import type { T } from '../b/bar.js';\nexport const typeimp: T | null = null;\n");
+    const graph = await loadGraph(root);
+    const result = await runRelationPass(graph, root, {
+      extractorFor: extractorForLanguage,
+      resolvePathToFile: makeResolvePathToFile(root),
+      symbolIndexDir: path.join(root, '.yg-cache'),
+    });
+    const found = (result.violationsByNode.get('a')?.violations ?? []).map((v) => `${v.fromFile}:${v.line} -> ${v.ownerNode}`);
+    expect(found).toEqual(['src/a/typeimp.ts:1 -> b']);
+  });
 });

@@ -3,12 +3,9 @@ import * as path from 'node:path';
 import type { ArchitectureDef, Graph, GraphNode } from '../model/graph.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { allowedRelationTypes } from '../core/allowed-relation-types.js';
-// Type-only: relations/owner-index.ts's buildOwnerIndex() call itself stays
-// with the CALLER (core/fill-det.ts, which already declares a relation to
-// cli/relations/core) — a whole-statement `import type` here creates no code
-// edge for the relation-conformance pass to see, so this module never needs
-// its own relation to relations-adapter just to spell the resolver's type.
-import type { OwnerIndex } from '../relations/owner-index.js';
+// The index is built by the CALLER (core/fill-det.ts calls buildOwnerIndex); this
+// module only names its type, which lives in the model layer.
+import type { OwnerIndex } from '../model/owner-index.js';
 import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
 import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 

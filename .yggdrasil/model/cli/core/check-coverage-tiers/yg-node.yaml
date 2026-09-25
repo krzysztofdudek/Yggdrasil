@@ -15,5 +15,7 @@ relations:
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/model/check-issue
+    type: uses
 mapping:
   - source/cli/src/core/check-coverage-tiers.ts

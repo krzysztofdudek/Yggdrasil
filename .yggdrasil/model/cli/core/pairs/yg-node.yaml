@@ -29,5 +29,11 @@ relations:
     type: calls
   - target: cli/core/type-effective
     type: calls
+  - target: cli/model/expected-pair
+    type: uses
+  - target: cli/model/validation
+    type: uses
+  - target: cli/relations/core
+    type: calls
 mapping:
   - source/cli/src/core/pairs.ts

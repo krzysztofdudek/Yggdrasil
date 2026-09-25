@@ -8,5 +8,7 @@ relations:
     type: calls
   - target: cli/core/progressive-scope
     type: calls
+  - target: cli/model/check-issue
+    type: uses
 mapping:
   - source/cli/src/core/check-codes.ts

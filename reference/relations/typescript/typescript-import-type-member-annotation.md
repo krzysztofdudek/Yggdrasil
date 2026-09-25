@@ -2,13 +2,13 @@
 id: typescript-import-type-member-annotation
 language: typescript
 category: usage-site
-expectation: silence
-cites: "TS 2.9 import types (`import('x').T` in an annotation or an `as` type, erased); Yggdrasil type-only rule"
+expectation: edge
+cites: "TS 2.9 import types (`import('x').T` in an annotation or an `as` type); Yggdrasil type-only rule"
 ---
 
 ## Rule
 
-An inline import type in an annotation (`let v: import('./m').T`) or on the type side of `as` names a type only and loads nothing. A value-position `import('./m')` on the same line of the same file still gives its edge. A relation edge records a runtime dependency. TypeScript erases every type-only construct from the emitted JavaScript, so every spelling of a type-only reference is silent, the statement forms (`import type`, `export type`, all-inline `type` clauses; see typescript-import-type-whole-statement-silence) and the type-position forms alike.
+An inline import type in an annotation (`let v: import('./m').T`) or on the type side of `as` names the module by a string literal, like a value-position `import('./m')`, and gives an edge at its own line. A type-only reference is a dependency like a value import: the importing file compiles only against the module it names, so changing or removing that module breaks it. Every spelling of a type-only reference therefore gives an edge (see typescript-import-type-whole-statement-edge for the rule).
 
 ## Files
 
@@ -29,4 +29,6 @@ export const read = () => [v, w];
 
 ## Expect
 
-- r/app/use.ts:3 -> node:c      # the value-position import() keeps its edge; lines 1-2 (import types) stay silent
+- r/app/use.ts:1 -> node:b      # annotation import type
+- r/app/use.ts:2 -> node:b      # the type side of `as`
+- r/app/use.ts:3 -> node:c      # the value-position import()

@@ -2,13 +2,13 @@
 id: typescript-import-type-equals-require
 language: typescript
 category: import
-expectation: silence
-cites: "TS 5.0 `import type X = require()` (a type-only import-equals, erased); Yggdrasil type-only rule"
+expectation: edge
+cites: "TS 5.0 `import type X = require()` (a type-only import-equals); Yggdrasil type-only rule"
 ---
 
 ## Rule
 
-`import type B = require('./b')` carries the whole-statement `type` token before the `import_require_clause` and is erased like `import type { … }`. The guard runs before the require-clause branch, so the form no longer slips through as an edge. A plain `import B = require('./b')` still gives one (typescript-import-equals-require-edge). A relation edge records a runtime dependency. TypeScript erases every type-only construct from the emitted JavaScript, so every spelling of a type-only reference is silent, the statement forms (`import type`, `export type`, all-inline `type` clauses; see typescript-import-type-whole-statement-silence) and the type-position forms alike.
+`import type B = require('./b')` is the CommonJS spelling of a type-only import. It gives the same edge as a plain `import B = require('./b')` (typescript-import-equals-require-edge). Before 6.1.0 it emitted an edge while `import type` did not; both now give one. A type-only reference is a dependency like a value import: the importing file compiles only against the module it names, so changing or removing that module breaks it. Every spelling of a type-only reference therefore gives an edge (see typescript-import-type-whole-statement-edge for the rule).
 
 ## Files
 
@@ -23,4 +23,4 @@ export const f = (b: B) => b;
 
 ## Expect
 
-- silence      # type-only import-equals → erased → no edge
+- r/app/use.cts:1 -> node:b      # type-only import-equals → edge to node:b

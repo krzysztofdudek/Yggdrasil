@@ -18,3 +18,5 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/formatters
+    type: calls

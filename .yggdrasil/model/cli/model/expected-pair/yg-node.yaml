@@ -1,0 +1,11 @@
+name: ExpectedPairTypes
+type: types
+description: "One (rule, unit) pair the check expects a verdict for: the rule id, its reviewer kind (LLM or deterministic), the unit key (a node or one file), the owning node when a node owns the unit, the rule effective status there, and the sorted repository-relative files the verdict is about. Pure types in the model layer, so modules that pair enumeration calls (the impact graph among them) name a pair without depending back on it; core/pairs.ts re-exports it."
+aspects: []
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+mapping:
+  - source/cli/src/model/expected-pair.ts

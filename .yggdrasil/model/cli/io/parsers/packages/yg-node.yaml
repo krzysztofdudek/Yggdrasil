@@ -21,5 +21,7 @@ relations:
     type: calls
   - target: cli/io/stores
     type: calls
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/io/package-manifest-parser.ts

@@ -1,0 +1,9 @@
+name: CheckIssueTypes
+type: types
+description: "One issue of a check run (its code, the uncovered files of an unmapped-files issue, the reviewer kind of a pair-derived issue, and why a pair is unverified) and the vocabulary of unverified causes: infrastructure causes a re-run cannot fix, and the ordinary states of a pair waiting for a fill. Pure types in the model layer, so every module that builds or reads an issue, the ones the check orchestrator calls included, names them without depending back on the orchestrator; core/check-contract.ts and core/check-codes.ts re-export them."
+aspects: []
+relations:
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/model/check-issue.ts

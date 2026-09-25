@@ -8,6 +8,10 @@
 
 import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from '../utils/rules-artifact-names.js';
 import { ARCHITECTURE_FILE, CONFIG_FILE } from './progressive-scope.js';
+// UnverifiedCause lives in the model layer (model/check-issue.ts) beside the issue that
+// carries it; re-exported for this module's callers.
+import type { UnverifiedCause } from '../model/check-issue.js';
+export type { UnverifiedCause };
 
 /**
  * Standing notice: coverage.type_level is on, but no type in the architecture
@@ -20,35 +24,6 @@ import { ARCHITECTURE_FILE, CONFIG_FILE } from './progressive-scope.js';
 export const ZERO_CLASSIFYING_TYPES_NOTICE =
   "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
-/**
- * Why a pair has no valid verdict. One `unverified` code used to cover every
- * one of these, under one label and one fix — so a reviewer that was down, a
- * check.mjs that crashed, a fresh clone whose free local cache was simply never
- * built, and a pair nobody had reviewed yet all told the reader the same thing:
- * run `yg check --approve` again. For the first two that command is certain to
- * reproduce the same failure, and for the third it names a paid run where a
- * free one does the job. The cause travels on the issue (and into the
- * `yg-check/1` document) so each group can name the fix that actually works.
- *
- * The first five are infrastructure: the pair was never judged because
- * something around it failed, and re-running changes nothing until that is
- * fixed. `reviewer-missing` is known from the config alone; the other four are
- * facts only a recording run witnesses, so they appear on that run's own
- * report. The last four are the ordinary states of a pair waiting for a fill;
- * `keyed-by-earlier-release` is a script verdict whose inputs did not move but
- * which an earlier release (or an earlier parser grammar) keyed differently, so
- * an upgrade re-opens it once — free to re-record.
- */
-export type UnverifiedCause =
-  | 'reviewer-missing'
-  | 'reviewer-unreachable'
-  | 'reviewer-failed'
-  | 'check-failed-to-run'
-  | 'suppress-marker-invalid'
-  | 'stale'
-  | 'keyed-by-earlier-release'
-  | 'never-reviewed'
-  | 'deterministic-not-run';
 
 /**
  * The order causes are acted on in — shared by the `Next:` line and the grouped

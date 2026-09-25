@@ -15,7 +15,8 @@ relations:
     { target: cli/core/loader, type: uses },
     { target: cli/language-registry, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
-    { target: cli/core/allowed-relation-types, type: uses }
+    { target: cli/core/allowed-relation-types, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/relations/symbol-table.test.ts

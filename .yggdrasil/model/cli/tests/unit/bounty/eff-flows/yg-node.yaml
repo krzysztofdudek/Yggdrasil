@@ -5,7 +5,8 @@ aspects: []
 relations:
   [
     { target: cli/core/graph, type: uses },
-    { target: cli/tests/unit/helpers, type: uses }
+    { target: cli/tests/unit/helpers, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty/eff-flows.test.ts

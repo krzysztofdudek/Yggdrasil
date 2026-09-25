@@ -24,7 +24,8 @@ relations:
     { target: cli/core/drill, type: uses },
     { target: cli/model/graph, type: uses },
     { target: cli/llm/shared, type: uses },
-    { target: cli/structure, type: uses }
+    { target: cli/structure, type: uses },
+    { target: cli/io/stores, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/drill-runner.test.ts

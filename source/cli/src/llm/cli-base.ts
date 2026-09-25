@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { LlmProvider, AspectResponse, ReviewerUsage } from './types.js';
+import type { LlmProvider, AspectResponse, ReviewerUsage } from '../model/llm-contract.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { probeBinary } from '../utils/binary-check.js';
 import { redactedTail, redactSecrets } from '../utils/redact.js';

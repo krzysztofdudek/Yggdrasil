@@ -1,6 +1,10 @@
 // Reviewer prompt assembly — per-node and per-file scaffold variants.
 import type { ScopeDef } from '../model/graph.js';
 import { escapeXmlText } from './xml-escape.js';
+// PromptSuppressedRangesInput lives in the model layer (model/llm-contract.ts) so the
+// structure runner that builds it may name it; re-exported for this module's callers.
+import type { PromptSuppressedRangesInput } from '../model/llm-contract.js';
+export type { PromptSuppressedRangesInput };
 
 /**
  * The reviewer-prompt template regime marker. Recorded on each LLM verdict
@@ -67,17 +71,6 @@ export interface PromptAspectInput { id: string; description: string; content: s
 export interface PromptReferenceInput { path: string; description?: string; content: string }
 export interface PromptFileInput { path: string; content: string }
 export interface PromptCompanionInput { path: string; content: string; label?: string }
-/**
- * Pre-resolved suppress line ranges injected into the reviewer prompt so the LLM
- * honors EXACTLY the same `(file, startLine..endLine)` spans the deterministic
- * matcher (`ast/suppress.ts`) computes — no model-side re-derivation of marker
- * scope. `byFile` carries only files that have at least one applicable range;
- * an empty `byFile` (or an omitted `suppressedRanges`) renders no block and keeps
- * the prompt byte-identical to the no-suppress case.
- */
-export interface PromptSuppressedRangesInput {
-  byFile: Array<{ path: string; ranges: Array<{ startLine: number; endLine: number }> }>;
-}
 export interface PairPromptInput {
   aspect: PromptAspectInput;
   references: PromptReferenceInput[];

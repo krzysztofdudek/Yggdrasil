@@ -38,7 +38,7 @@ import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
 import type { AspectStatus, CoverageConfig } from '../model/graph.js';
-import type { UnitKey } from '../model/lock.js';
+import type { ExpectedPair } from '../model/expected-pair.js';
 import type { IssueMessage } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
 import { nodeUnit, fileUnit } from '../model/lock.js';
@@ -65,19 +65,9 @@ import type { TypedEdgeIndex } from '../relations/pass.js';
 // Public types
 // ============================================================
 
-export interface ExpectedPair {
-  aspectId: string;
-  kind: 'llm' | 'deterministic';
-  unitKey: UnitKey;          // nodeUnit(nodePath) for per-node; fileUnit(path) per-file
-  /**
-   * The component that owns this unit. Absent when the file is enforced by its
-   * architecture type and no component owns it — there is no owner to name, and
-   * inventing one would put a component in front of a person that does not exist.
-   */
-  nodePath?: string;
-  status: AspectStatus;      // effective status on the node (for rendering/severity)
-  subjectFiles: string[];    // repo-relative POSIX, sorted
-}
+// ExpectedPair lives in the model layer (model/expected-pair.ts) so modules pair
+// enumeration calls can name it; re-exported for this module's callers.
+export type { ExpectedPair };
 
 /**
  * Why a rule attached to a file's type does not run on that file. A widening of

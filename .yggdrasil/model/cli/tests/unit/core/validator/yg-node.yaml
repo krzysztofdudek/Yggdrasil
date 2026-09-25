@@ -20,7 +20,10 @@ relations:
     { target: cli/io/file-content-cache, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/tests/fixtures, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/pairs, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/when, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/validator-core.test.ts

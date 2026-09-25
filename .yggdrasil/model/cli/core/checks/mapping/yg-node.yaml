@@ -20,7 +20,9 @@ relations:
     { target: cli/utils, type: calls },
     { target: cli/relations/core, type: calls },
     { target: cli/core/type-classifier, type: calls },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/src/core/checks/mapping.ts

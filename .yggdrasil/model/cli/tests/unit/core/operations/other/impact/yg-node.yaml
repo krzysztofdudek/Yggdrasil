@@ -7,7 +7,9 @@ relations:
   [
     { target: cli/core/graph, type: uses },
     { target: cli/impact-handlers, type: uses },
-    { target: cli/core/loader, type: uses }
+    { target: cli/core/loader, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/lock, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/impact.test.ts

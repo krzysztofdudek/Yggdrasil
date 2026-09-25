@@ -3,7 +3,7 @@ type: test-suite
 description: "Unit tests for the LLM aspect verifier surface — provider
   selection, XML escaping, and reference-file packaging."
 aspects: []
-relations: [ { target: cli/llm/shared, type: uses }, { target: cli/llm/registry, type: uses } ]
+relations: [ { target: cli/llm/shared, type: uses }, { target: cli/llm/registry, type: uses }, { target: cli/model/graph, type: uses } ]
 mapping:
   - source/cli/tests/unit/llm/provider.test.ts
   - source/cli/tests/unit/llm/xml-escape.test.ts

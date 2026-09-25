@@ -11,7 +11,7 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
 aspects:
   - provider-redaction-cascade
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Restored from 24 back to the pre-existing 21 (originally: raised from the
     project default of 20 to 21 for three dependencies the LLM-mode pair
@@ -34,6 +34,9 @@ max_direct_relations:
     under this ceiling — 21 is kept rather than tightened further so a small,
     genuine future addition here does not immediately require another graph
     edit.
+    Raised from 21 to 22 when type-only imports became dependencies in 6.1.0: the
+    command already named the AST report's types, and that import is now a declared
+    relation to cli/ast/report like any other. No new call was added.
 relations:
   - target: cli/output
     type: calls
@@ -76,6 +79,8 @@ relations:
   - target: cli/commands/owner
     type: calls
   - target: cli/core/aspect-test-file-target
+    type: calls
+  - target: cli/ast/report
     type: calls
 mapping:
   - source/cli/src/cli/aspect-test.ts

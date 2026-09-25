@@ -9,5 +9,7 @@ relations:
     type: uses
   - target: cli/core/loader
     type: uses
+  - target: cli/model/lock
+    type: uses
 mapping:
   - source/cli/tests/integration/impact-cold-companion.test.ts

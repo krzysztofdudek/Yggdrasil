@@ -9,7 +9,8 @@ relations:
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
     { target: cli/io/parsers/graph, type: uses },
-    { target: cli/core/checks/architecture, type: uses }
+    { target: cli/core/checks/architecture, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/validator-architecture.test.ts

@@ -16,6 +16,10 @@ relations:
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/model/file-when
+    type: uses
+  - target: cli/model/when
+    type: uses
 mapping:
   - source/cli/src/io/architecture-parser.ts
   - source/cli/src/io/node-parser.ts

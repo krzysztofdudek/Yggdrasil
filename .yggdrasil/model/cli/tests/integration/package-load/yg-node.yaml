@@ -18,5 +18,7 @@ relations:
     type: uses
   - target: cli/io/stores
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/integration/package-load.test.ts

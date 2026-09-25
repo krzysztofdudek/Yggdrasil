@@ -22,5 +22,7 @@ relations:
     type: calls
   - target: cli/model/packages
     type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/graph-loader.ts

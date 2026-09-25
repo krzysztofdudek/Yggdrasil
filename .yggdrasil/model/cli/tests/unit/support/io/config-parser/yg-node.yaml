@@ -4,7 +4,8 @@ description: "Unit tests for the config parser I/O adapter — config-parser cor
   parsing/validation and config-parser references resolution"
 aspects: []
 relations: [ { target: cli/io/parsers/config, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/config-parser.test.ts
