@@ -13,6 +13,13 @@ description: "Unit tests for deterministic fills — det-first ordering, det gat
   is already valid, and so the only reason a repository with nothing to fill
   ever reaches the fast path at all."
 aspects: []
+max_direct_relations:
+  limit: 23
+  reason: >-
+    Set at the reviewed count of 23 when type-only imports became dependencies in 6.1.0:
+    the suite already named the pair engine's, the fill-event model's and the validation
+    model's types, and those imports are now declared relations, taking it three over
+    the project default. No new behaviour is tested through them.
 relations:
   [
     { target: cli/core/fill, type: uses },
@@ -34,7 +41,10 @@ relations:
     { target: cli/tests/fixtures, type: uses },
     { target: cli/core/check, type: uses },
     { target: cli/check-render-header, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/pairs, type: uses },
+    { target: cli/model/fill-event, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-det.test.ts

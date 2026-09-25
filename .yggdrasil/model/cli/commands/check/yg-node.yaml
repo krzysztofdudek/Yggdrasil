@@ -52,5 +52,7 @@ relations:
     type: calls
   - target: cli/portal/engine-api
     type: calls
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/cli/check.ts

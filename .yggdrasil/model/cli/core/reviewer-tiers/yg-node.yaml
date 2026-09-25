@@ -5,5 +5,7 @@ aspects: []
 relations:
   - target: cli/model/graph
     type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/tier-selection.ts

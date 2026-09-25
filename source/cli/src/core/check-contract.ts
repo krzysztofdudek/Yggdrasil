@@ -13,41 +13,14 @@
  * the derivation finds nothing to check call sites against.
  */
 
-import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
 import type { VerifiedPair } from './verify-lock.js';
 import type { BaselineNoise } from './check-progressive.js';
-import type { UnverifiedCause } from './check-codes.js';
+// CheckIssue lives in the model layer (model/check-issue.ts) so modules the orchestrator
+// calls can build issues without depending on it; re-exported for this module's callers.
+import type { CheckIssue } from '../model/check-issue.js';
+export type { CheckIssue };
 
-export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
-  /** All issues have a code -- override optional from ValidationIssue */
-  code: string;
-  /** For unmapped-files: uncovered file paths */
-  uncoveredFiles?: string[];
-  /** For unmapped-files: total count of uncovered files */
-  uncoveredCount?: number;
-  /**
-   * For pair-derived issues (unverified / refused): the reviewer kind of the
-   * pair. Lets the CLI's `--summary` view split per-node counts into
-   * deterministic-free vs LLM without re-resolving the pair. Data-only — set
-   * from `pair.kind`; absent on non-pair issues (coverage / log / relation /
-   * structural), which the summary buckets as "other".
-   */
-  pairKind?: 'llm' | 'deterministic';
-  /**
-   * For `unverified` (and its outside twin): WHY the pair has no valid verdict
-   * — see {@link UnverifiedCause}. Decides the group it renders in, its label,
-   * and the fix it names; carried into the `yg-check/1` document as `cause`.
-   */
-  unverifiedCause?: UnverifiedCause;
-  // `aspectId` / `unitKey` / `flowName` / `relationEdges` are inherited from
-  // `ValidationIssue` (model/validation.ts) — every non-pair emit site that
-  // stamps them (ambiguous-node-type, type-relation-forbidden,
-  // description-missing's aspect/flow cases, tracked-file-gitignored,
-  // type-strict-orphan, strict-overlap-conflict) produces a plain
-  // `ValidationIssue`, not a `CheckIssue`, so the fields have to live on the
-  // shared base to type-check there. See that interface for the full doc.
-}
 
 export interface CheckResult {
   projectName: string;

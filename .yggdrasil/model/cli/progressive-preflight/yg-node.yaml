@@ -15,5 +15,8 @@ description: "Pure decision table that turns the progressive-mode git probes
   itself clean lands in global-fallback rather than being mistaken for
   honest-empty — closing the silent-green hole an unproven empty diff would
   otherwise open."
+relations:
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/cli/progressive-preflight.ts

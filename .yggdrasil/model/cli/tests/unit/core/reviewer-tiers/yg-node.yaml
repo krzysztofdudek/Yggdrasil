@@ -3,6 +3,6 @@ type: test-suite
 description: "Unit tests for v5 reviewer-tiers — tier-identity canonical JSON
   and tier-selection aspect-to-tier resolution"
 aspects: []
-relations: [ { target: cli/core/reviewer-tiers, type: uses } ]
+relations: [ { target: cli/core/reviewer-tiers, type: uses }, { target: cli/model/graph, type: uses } ]
 mapping:
   - source/cli/tests/unit/core/tier-selection.test.ts

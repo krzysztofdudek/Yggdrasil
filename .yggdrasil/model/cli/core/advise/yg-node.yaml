@@ -43,6 +43,8 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/core/pairs
+    type: calls
 mapping:
   - source/cli/src/core/advise-nominations.ts
   - source/cli/src/core/advise-architecture-cut.ts

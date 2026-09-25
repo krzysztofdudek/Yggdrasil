@@ -40,6 +40,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/io/advise-decisions-store.ts
   - source/cli/src/io/advise-imported-store.ts

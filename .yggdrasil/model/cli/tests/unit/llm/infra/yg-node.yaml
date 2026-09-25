@@ -3,7 +3,7 @@ type: test-suite
 description: "Unit tests for LLM infrastructure helpers — API utilities, model
   fetching, error-source classification, and the reviewer-test stub."
 aspects: []
-relations: [ { target: cli/llm/shared, type: uses }, { target: cli/llm/registry, type: uses } ]
+relations: [ { target: cli/llm/shared, type: uses }, { target: cli/llm/registry, type: uses }, { target: cli/model/graph, type: uses } ]
 mapping:
   - source/cli/tests/unit/llm/api-utils.test.ts
   - source/cli/tests/unit/llm/model-fetcher.test.ts

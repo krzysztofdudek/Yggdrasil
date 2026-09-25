@@ -43,6 +43,10 @@ relations:
     type: calls
   - target: cli/model/fill-event
     type: uses
+  - target: cli/model/file-when
+    type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/formatters/advise-json.ts
   - source/cli/src/formatters/aspect-log-json.ts

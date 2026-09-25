@@ -30,7 +30,7 @@ description: "Unit tests for build and check CLI commands — build-command,
   each pair."
 aspects: []
 max_direct_relations:
-  limit: 30
+  limit: 33
   reason: >-
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
@@ -41,6 +41,10 @@ max_direct_relations:
     relation count tracks the real dependency surface of everything it tests.
     The ceiling gives modest headroom above the current count (28) without
     silencing a genuine future over-connection.
+    Raised from 30 to 33 when type-only imports became dependencies in 6.1.0: the suite
+    already named types of the graph model, the lock verifier and the type-visibility
+    report, and those imports are now declared relations. No new behaviour is tested
+    through them.
 relations:
   [
     { target: cli/output, type: uses },
@@ -72,7 +76,10 @@ relations:
     { target: cli/progressive-scope-resolve, type: uses },
     { target: cli/core/check-codes, type: uses },
     { target: cli/core/progressive-scope, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/type-visibility, type: uses },
+    { target: cli/core/verify-lock, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts

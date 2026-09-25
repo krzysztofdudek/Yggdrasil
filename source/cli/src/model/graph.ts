@@ -1,9 +1,10 @@
-import type { WhenPredicate } from './when.js';
+import type { WhenPredicate, RelationType } from './when.js';
 import type { FileWhenPredicate } from './file-when.js';
 import type { IssueMessage } from './validation.js';
 
 export type {
   WhenPredicate,
+  RelationType,
   BooleanClause,
   AtomicClause,
   RelationClause,
@@ -203,7 +204,7 @@ export interface QualityConfig {
 // Node
 // ============================================================
 
-export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
+// RelationType is declared in model/when.ts (a relation clause names one) and re-exported above.
 
 /**
  * The reserved port name every node carries implicitly, whether or not it

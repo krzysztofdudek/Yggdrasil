@@ -4,7 +4,7 @@ description: "Unit tests for effective-aspect computation — the seven-channel
   cascade that accumulates aspects onto a node, and the max() status resolution
   across cascading channels (draft/advisory/enforced)."
 aspects: []
-relations: [ { target: cli/core/graph, type: uses } ]
+relations: [ { target: cli/core/graph, type: uses }, { target: cli/model/graph, type: uses }, { target: cli/model/when, type: uses } ]
 mapping:
   - source/cli/tests/unit/core/graph/aspect-status.test.ts
   - source/cli/tests/unit/core/graph/aspects-cascade-characterization.test.ts

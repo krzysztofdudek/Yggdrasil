@@ -15,8 +15,8 @@ import { runCase } from '../reference-case-runner.js';
  * by a construct bearing a module SPECIFIER (a string literal). The specifier resolves to a
  * file by relative join, by the package root (root-absolute), by package.json `imports`,
  * by tsconfig `paths`/`baseUrl`, or by an in-repo package's `name` + `exports`/`main`;
- * everything else is external and silent. Type-only references are erased at compile time and
- * silent in every spelling (statement forms and type-position `import()` alike). The cardinal invariant — ZERO false positives — outranks recall:
+ * everything else is external and silent. Type-only references are dependencies and give edges
+ * in every spelling (statement forms, type-position `import()`, module augmentation). The cardinal invariant — ZERO false positives — outranks recall:
  * where resolution is ambiguous (two `paths` targets, two packages with one name) the
  * reference stays silent.
  */
@@ -32,28 +32,33 @@ describe('MATRIX — static import forms (the specifier IS the edge; binding for
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MATRIX — type-only references (one rule: erased at compile time → SILENT in every spelling) vs runtime-binding keeps', () => {
-  it('typescript-import-type-whole-statement-silence', () => runCase('typescript-import-type-whole-statement-silence'));
-  it('typescript-import-type-namespace-silence', () => runCase('typescript-import-type-namespace-silence'));
-  it('typescript-all-inline-type-import-silence', () => runCase('typescript-all-inline-type-import-silence'));
+describe('MATRIX — type-only references (one rule: a type-only reference is a dependency → EDGE in every spelling)', () => {
+  it('typescript-import-type-whole-statement-edge', () => runCase('typescript-import-type-whole-statement-edge'));
+  it('typescript-import-type-namespace-edge', () => runCase('typescript-import-type-namespace-edge'));
+  it('typescript-all-inline-type-import-edge', () => runCase('typescript-all-inline-type-import-edge'));
   it('typescript-mixed-inline-type-import-edge', () => runCase('typescript-mixed-inline-type-import-edge'));
   it('typescript-inline-type-runtime-default-edge', () => runCase('typescript-inline-type-runtime-default-edge'));
   it('typescript-typeof-import-type-query', () => runCase('typescript-typeof-import-type-query'));
   it('typescript-import-type-member-annotation', () => runCase('typescript-import-type-member-annotation'));
   it('typescript-import-type-equals-require', () => runCase('typescript-import-type-equals-require'));
   it('typescript-relative-module-augmentation', () => runCase('typescript-relative-module-augmentation'));
+  it('typescript-satisfies-import-type-edge', () => runCase('typescript-satisfies-import-type-edge'));
+  it('typescript-type-argument-import-type-edge', () => runCase('typescript-type-argument-import-type-edge'));
+  it('typescript-bare-module-augmentation-edge', () => runCase('typescript-bare-module-augmentation-edge'));
+  it('typescript-import-type-declaration-file-edge', () => runCase('typescript-import-type-declaration-file-edge'));
+  it('typescript-import-type-paths-multi-target-silence', () => runCase('typescript-import-type-paths-multi-target-silence'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MATRIX — re-exports (value re-exports resolve; type-only re-exports → SILENT)', () => {
+describe('MATRIX — re-exports (value and type-only re-exports alike resolve to an edge)', () => {
   it('typescript-named-reexport-edge', () => runCase('typescript-named-reexport-edge'));
   it('typescript-star-reexport-edge', () => runCase('typescript-star-reexport-edge'));
   it('typescript-namespace-reexport-edge', () => runCase('typescript-namespace-reexport-edge'));
   it('typescript-empty-reexport-edge', () => runCase('typescript-empty-reexport-edge'));
-  it('typescript-export-type-whole-statement-silence', () => runCase('typescript-export-type-whole-statement-silence'));
-  it('typescript-all-inline-type-reexport-silence', () => runCase('typescript-all-inline-type-reexport-silence'));
+  it('typescript-export-type-whole-statement-edge', () => runCase('typescript-export-type-whole-statement-edge'));
+  it('typescript-all-inline-type-reexport-edge', () => runCase('typescript-all-inline-type-reexport-edge'));
   it('typescript-mixed-inline-type-reexport-edge', () => runCase('typescript-mixed-inline-type-reexport-edge'));
-  it('typescript-export-type-star-reexport-silence', () => runCase('typescript-export-type-star-reexport-silence'));
+  it('typescript-export-type-star-reexport-edge', () => runCase('typescript-export-type-star-reexport-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

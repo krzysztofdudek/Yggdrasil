@@ -3,16 +3,12 @@ id: typescript-mixed-inline-type-import-edge
 language: typescript
 category: import
 expectation: edge
-cites: "TS 4.5 inline type modifiers (a non-type specifier keeps the runtime dependency); research B4"
+cites: "TS 4.5 inline type modifiers (a mixed clause); research B4"
 ---
 
 ## Rule
 
-A MIXED inline-type import `import { type A, b } from './m'` has `b` as a runtime
-binding; the `type` modifier sits inside the `A` specifier, not as a statement-level
-token. The statement still pulls in `b` at runtime, so it retains a runtime dependency
-on `./m`. The all-inline-type guard returns false on the first non-type specifier and
-the edge is kept — over-silencing here would lose a real edge.
+A mixed inline-type import `import { type A, b } from './m'` names the type `A` and the value `b` of the same module. It is one dependency on `./m` and gives one edge; the inline `type` on `A` changes nothing about it. Since 6.1.0 every type-only spelling gives an edge too (typescript-import-type-whole-statement-edge), so no clause shape silences an import; this case pins that it still gives exactly one.
 
 ## Files
 
@@ -29,9 +25,8 @@ console.log(b);
 
 ## Expect
 
-- r/app/use.ts:1 -> node:m      # `b` is a runtime binding → the statement keeps its edge to r/m/value.ts (node m)
+- r/app/use.ts:1 -> node:m      # `import { type A, b }` → one edge to r/m/value.ts (node m)
 
 ## Why
 
-A clause with any runtime binding is a real dependency; the inline `type` on a sibling
-specifier must not over-broaden the type-only guard.
+One statement, one module, one edge, whatever mix of value and type bindings it carries.

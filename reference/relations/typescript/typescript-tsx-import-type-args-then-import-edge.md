@@ -8,7 +8,7 @@ cites: "TSX — `import('x').T<U>` in an annotation re-lexed the rest of the lin
 
 ## Rule
 
-In `.tsx`, tree-sitter-typescript 0.23.2 read `<U>` after an import type as a JSX element and swallowed the following import into JSX text. The grammar shipped since 6.1.0 (upstream PR #365 applied) parses the annotation, and the ERROR-region rescan would recover the import otherwise. The annotation itself is an import type and stays silent (type-only rule); the import after it keeps its edge.
+In `.tsx`, tree-sitter-typescript 0.23.2 read `<U>` after an import type as a JSX element and swallowed the following import into JSX text. The grammar shipped since 6.1.0 (upstream PR #365 applied) parses the annotation, and the ERROR-region rescan would recover the import otherwise. The annotation is an import type and gives its own edge (type-only rule, see typescript-import-type-whole-statement-edge); the import after it keeps its edge.
 
 ## Files
 
@@ -28,4 +28,5 @@ export const V = () => <div>{B}</div>;
 
 ## Expect
 
-- r/app/view.tsx:2 -> node:b      # swallowed import recovered; line 1 (an import type) stays silent
+- r/app/view.tsx:1 -> node:x      # the import type in the annotation
+- r/app/view.tsx:2 -> node:b      # swallowed import recovered

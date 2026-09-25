@@ -19,5 +19,7 @@ relations:
     type: uses
   - target: cli/tests/support
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/core/type-visibility.test.ts

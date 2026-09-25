@@ -5,7 +5,8 @@ aspects: []
 relations:
   [
     { target: cli/core/check, type: uses },
-    { target: cli/core/loader, type: uses }
+    { target: cli/core/loader, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty/path-coverage.test.ts

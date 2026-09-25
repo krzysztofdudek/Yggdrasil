@@ -42,6 +42,12 @@ relations:
     type: calls
   - target: cli/model/packages
     type: uses
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/aspect-status.ts

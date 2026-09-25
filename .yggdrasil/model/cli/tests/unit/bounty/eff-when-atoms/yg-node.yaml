@@ -4,7 +4,7 @@ description: "Bug-bounty branch-coverage suites: eff-when-atoms (~31420 chars)."
 aspects: []
 relations:
   [
-    { target: cli/core/graph, type: uses }
+    { target: cli/core/graph, type: uses }, { target: cli/model/graph, type: uses }, { target: cli/model/when, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty/eff-when-atoms.test.ts

@@ -3,17 +3,12 @@ id: typescript-ambient-declare-module-silence
 language: typescript
 category: trap
 expectation: silence
-cites: "TS Modules Reference — ambient modules / pattern ambient modules (`declare module '*.css'` declares a shape, names no file); research H3 (DELIBERATE-SILENCE)"
+cites: "TS Modules Reference — ambient modules / pattern ambient modules (in a script file `declare module 'foo'` declares a shape; `'*.css'` names no file); research H3 (DELIBERATE-SILENCE)"
 ---
 
 ## Rule
 
-An ambient module declaration `declare module 'foo' { … }` (and the wildcard pattern
-`declare module '*.css'`) declares the SHAPE of an external module without providing its
-implementation; the actual module is supplied by a bundler/loader at runtime. The header
-string (`'foo'`, `'*.css'`) is never read as a module specifier — mapping it to an
-in-repo `foo.ts` would be a phantom. (A real `import`/`require` NESTED inside such a
-block would still emit, correctly; the header alone names nothing.)
+In a script file (no top-level `import` or `export`), `declare module 'foo' { … }` is an ambient module declaration: it DECLARES the shape of a module whose implementation a bundler or loader supplies, rather than depending on an existing one. A wildcard pattern (`declare module '*.css'`) names no module at all. Neither is read as a specifier. The same header in a module file is an augmentation of an existing module and gives an edge (typescript-bare-module-augmentation-edge), and a relative name is always an augmentation (typescript-relative-module-augmentation). A real `import`/`require` nested inside an ambient block would still emit.
 
 ## Files
 
@@ -33,9 +28,8 @@ declare module '*.css' {
 
 ## Expect
 
-- silence      # `declare module 'foo'` / `'*.css'` headers are shape declarations, not specifiers → no edge, even though r/foo exists
+- silence      # ambient declarations in a script file and wildcard patterns name no dependency → no edge, even though r/foo exists
 
 ## Why
 
-An ambient declaration's header names no in-repo file; reading it as a specifier would
-manufacture a dependency on a same-named directory that the declaration never references.
+An ambient declaration provides a module's types instead of consuming another module's, so reading its header as a specifier would manufacture a dependency on a same-named directory that the declaration never references.

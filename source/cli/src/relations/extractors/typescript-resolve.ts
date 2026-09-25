@@ -288,15 +288,17 @@ function entryOf(pkg: TsPackage, exists: (repoRelPosix: string) => boolean): str
   return undefined;
 }
 
+// A declaration file (`.d.ts`, `.d.mts`, `.d.cts`) is probed right after the sources, the
+// way the compiler probes it: a type-only import of `./types` commonly names one.
 const JS_REWRITES: Record<string, string[]> = {
-  '.js': ['.ts', '.tsx', '.js', '.jsx'],
+  '.js': ['.ts', '.tsx', '.d.ts', '.js', '.jsx'],
   '.jsx': ['.tsx', '.jsx'],
-  '.mjs': ['.mts', '.mjs'],
-  '.cjs': ['.cts', '.cjs'],
+  '.mjs': ['.mts', '.d.mts', '.mjs'],
+  '.cjs': ['.cts', '.d.cts', '.cjs'],
 };
 const TS_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
-const APPENDED_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
-const INDEX_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const APPENDED_EXTENSIONS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
+const INDEX_EXTENSIONS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
 
 /**
  * The direct-file candidates for a normalised joined path. They always precede the

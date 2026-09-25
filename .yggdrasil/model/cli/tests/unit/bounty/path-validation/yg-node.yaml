@@ -6,7 +6,9 @@ relations:
   [
     { target: cli/core/checks/architecture, type: uses },
     { target: cli/core/checks/mapping, type: uses },
-    { target: cli/io/file-content-cache, type: uses }
+    { target: cli/io/file-content-cache, type: uses },
+    { target: cli/model/file-when, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty/path-validation.test.ts

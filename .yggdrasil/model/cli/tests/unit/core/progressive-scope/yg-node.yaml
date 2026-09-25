@@ -33,6 +33,10 @@ relations:
     type: uses
   - target: cli/core/graph
     type: uses
+  - target: cli/core/pairs
+    type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/core/progressive-scope.test.ts
   - source/cli/tests/unit/core/progressive-byte-guard.test.ts

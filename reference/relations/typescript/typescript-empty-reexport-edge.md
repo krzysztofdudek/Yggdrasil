@@ -3,16 +3,12 @@ id: typescript-empty-reexport-edge
 language: typescript
 category: import
 expectation: edge
-cites: "TS Modules Reference — re-exports (an empty clause is not provably type-only; the module is still loaded); research C4"
+cites: "TS Modules Reference — re-exports (an empty clause still loads the module); research C4"
 ---
 
 ## Rule
 
-An empty re-export clause `export {} from './empty'` has zero specifiers. It is not
-provably type-only, and the module is still loaded at runtime (its side effects run).
-The all-inline-type guard requires at least one type specifier, so an empty clause
-returns false and the edge is conservatively kept — over-recording a real load is
-zero-FP-safe.
+An empty re-export clause `export {} from './empty'` has zero specifiers, and the module is still loaded (its side effects run), so it gives an edge like any re-export with a source. Since 6.1.0 every type-only spelling gives an edge too (typescript-import-type-whole-statement-edge), so no clause shape silences an import; this case pins that it still gives exactly one.
 
 ## Files
 
@@ -26,9 +22,8 @@ export {} from '../empty/value';
 
 ## Expect
 
-- r/app/use.ts:1 -> node:empty      # `export {} from '../empty/value'` is not provably type-only → keeps the edge to node:empty
+- r/app/use.ts:1 -> node:empty      # `export {} from '../empty/value'` loads the module → edge to node:empty
 
 ## Why
 
-An empty re-export still loads the target module; conservatively keeping the edge
-over-records a real runtime load rather than risking a missed dependency.
+An empty re-export still loads the target module, so it is a dependency like any other re-export.
