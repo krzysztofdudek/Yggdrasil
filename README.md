@@ -61,7 +61,7 @@ warning[uncovered] 50 files belong to no node — not under coverage.required, s
 
 note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
-next: yg type-suggest --file package.json
+next: yg type-suggest --file src/f1.ts
 ```
 
 Nothing is enforced yet, because you have not said what matters yet. Nothing is pretending otherwise. That list is your to-do, not a finding.

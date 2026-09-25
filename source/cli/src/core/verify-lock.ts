@@ -165,6 +165,13 @@ export interface VerifiedPair {
    */
   stale?: boolean;
   /**
+   * Set on a stale script verdict whose inputs did NOT move: it only no longer
+   * matches because an earlier Yggdrasil release keyed it (before the
+   * deterministic contract marker, or under the grammar and runtime that parsed
+   * the code then). Re-running the script checks re-records it, free.
+   */
+  keyedByEarlierRelease?: true;
+  /**
    * The reviewer tier this LLM pair resolves to — the ONLY part of a tier a
    * verdict's identity folds in, and the resolution this file already made to
    * recompute the hash. Carried rather than re-resolved by a consumer, so
@@ -634,7 +641,7 @@ async function verifyDetPair(
 
     const ruleHash = ruleHashFor(aspect, 'check.mjs');
 
-    const expectedHash = computeDetInputHash({
+    const hashInput = {
       aspectId: aspect.id,
       scope: aspect.scope,
       nodePath: pair.nodePath,
@@ -642,8 +649,22 @@ async function verifyDetPair(
       files,
       touched: touchedNow,
       verdict: storedEntry.verdict,
-    });
-    valid = expectedHash === storedEntry.hash;
+    };
+    valid = computeDetInputHash(hashInput) === storedEntry.hash;
+    if (!valid) {
+      // Nothing the check reads may have moved: the verdict may only have been
+      // keyed by an earlier release — before the canonical form carried its
+      // contract marker, or under the grammar and runtime that parsed the code
+      // then. Re-hashing under the stored key tells the two apart, so the report
+      // names the upgrade instead of a source edit nobody made.
+      const storedGrammar = new Map(stored.filter(([k]) => k.startsWith('grammar:')));
+      const touchedThen = touchedNow.map(([k, v]): [string, string] => [k, storedGrammar.get(k) ?? v]);
+      const keyedEarlier = [
+        { ...hashInput, touched: touchedThen },
+        { ...hashInput, touched: touchedThen, contract: null },
+      ].some((input) => computeDetInputHash(input) === storedEntry.hash);
+      if (keyedEarlier) return { ...classifyWithGate(pair, storedEntry, false, undefined), keyedByEarlierRelease: true };
+    }
   }
 
   // Deterministic pairs have no prompt and are not subject to the gate (§4).

@@ -179,7 +179,9 @@ describe('impact command', () => {
           { cwd, encoding: 'utf-8' },
         );
         expect(result.status).toBe(1);
-        expect(result.stderr).toContain('Node not found');
+        // The same node-not-found error every command that takes a node answers with.
+        expect(result.stderr).toContain("error[node-not-found]: node 'does/not/exist' is not in the graph");
+        expect(result.stderr).toContain('next: yg find "does/not/exist"');
       });
     });
 

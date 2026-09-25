@@ -6,7 +6,7 @@ yg check: FAIL  1 error · 2 warnings   3 nodes · 3/3 files covered · 1 pair v
 error[unverified] 1 pair whose inputs changed since the verdict
   at:   no-todo-comments @ alpha
   why:  A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
-  fix:  yg check --approve  (1 script pair · free)
+  fix:  yg check --approve --only-deterministic  (1 script pair · free)
 
 warning[rules-digest-stale] Committed agent-rules digest is out of sync: AGENTS.md digest block is missing; .clinerules/yggdrasil.md is missing; CLAUDE.md @AGENTS.md import is missing
   why:  Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.

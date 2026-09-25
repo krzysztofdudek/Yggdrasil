@@ -6,7 +6,7 @@ yg check: PASS  1 warning   0 nodes · 4/5 files covered (4 excluded)
 warning[uncovered] 1 file belongs to no node — not under coverage.required, so it never blocks
   at:   src/app.ts
   why:  Not under a coverage.required root — shown, but it never blocks. Your architecture has no type for this file yet.
-  fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file src/app.ts.
 
 note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 

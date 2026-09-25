@@ -189,7 +189,10 @@ export async function runLlmPhase({
       const unreachable: IssueMessage = {
         what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}. ${group.length} ${group.length === 1 ? 'pair' : 'pairs'} left unverified.`,
         why: 'The reviewer failed its availability check before any pair was sent — an infrastructure problem, not a code violation. No verdict was written.',
-        next: `Fix the cause above, then re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
+        // The cause itself leads the remedy: a report on stdout shows the
+        // remedy, never this warning on stderr, so "the cause above" pointed
+        // at text its reader never saw.
+        next: `Make the reviewer reachable: ${probe.reason.replace(/\.$/, '')}.\nThen re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
       };
       emitIssue(unreachable);
       for (const item of group) {

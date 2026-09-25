@@ -74,7 +74,7 @@ describe('context CLI exit codes', () => {
     });
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Node 'nonexistent/node' does not exist in the graph.");
+    expect(result.stderr).toContain("error[node-not-found]: node 'nonexistent/node' is not in the graph");
   });
 
   it('POSIX-normalizes a backslash-separated --node path in the not-found error message', async () => {
@@ -89,7 +89,7 @@ describe('context CLI exit codes', () => {
     // The sibling "outside project root" error path already ran its path through
     // toPosixPath; this one silently didn't — a raw Windows-style path would have
     // been echoed to stderr unconverted.
-    expect(result.stderr).toContain("Node 'nonexistent/node' does not exist in the graph.");
+    expect(result.stderr).toContain("error[node-not-found]: node 'nonexistent/node' is not in the graph");
     expect(result.stderr).not.toContain('nonexistent\\node');
   });
 
@@ -106,7 +106,10 @@ describe('context CLI exit codes', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('build-context blocked by');
+    // One block: the errors that stop it as members, and yg check as the step.
+    expect(result.stderr).toContain('yg context cannot assemble orders/broken-service');
+    expect(result.stderr).toContain('  relation-broken  orders/broken-service  ');
+    expect(result.stderr).toMatch(/\nnext: yg check\n/);
   });
 
 });

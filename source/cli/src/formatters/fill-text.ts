@@ -51,9 +51,13 @@ function renderDispatch(counts: FillDispatchCounts): string {
   // A fill with nothing to do says nothing (a preview still says what it is).
   if (counts.fillPairs === 0 && counts.skippedLlmPairs === 0 && counts.skippedOutsideLlmPairs === 0 && counts.preview !== true) return '';
   const preface = counts.preview === true ? `${FILL}dry run — a cost preview; nothing is filled or written\n` : '';
+  // A run that fills nothing and only leaves reviewer pairs alone says just
+  // that: a budget line of zeros would say nothing.
   let out =
     preface +
-    `${FILL}${count(counts.fillPairs, 'pair')} · ${counts.detPairs} script (free) · ${count(counts.reviewerCallBudget, 'reviewer call')}${counts.reviewerCallBudget > 0 ? ' (consensus included)' : ''}\n`;
+    (counts.fillPairs > 0 || counts.preview === true
+      ? `${FILL}${count(counts.fillPairs, 'pair')} · ${counts.detPairs} script (free) · ${count(counts.reviewerCallBudget, 'reviewer call')}${counts.reviewerCallBudget > 0 ? ' (consensus included)' : ''}\n`
+      : '');
   if (counts.skippedLlmPairs > 0) {
     out +=
       `${FILL}${count(counts.skippedLlmPairs, 'reviewer pair')} left alone — ` +
@@ -76,22 +80,39 @@ function billedLine(p: DryRunPair): string {
  * of lines long to say "this costs nothing".
  */
 function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
-  let out = '';
+  const billed: DryRunPair[] = [];
   let free = 0;
   for (const node of e.nodes) {
-    const billed = node.pairs.filter((p) => p.lane === 'llm');
-    free += node.pairs.length - billed.length;
-    for (const p of billed) out += billedLine(p);
+    const own = node.pairs.filter((p) => p.lane === 'llm');
+    free += node.pairs.length - own.length;
+    billed.push(...own);
   }
   const billedFiles = e.files.filter((p) => p.lane === 'llm');
   free += e.files.length - billedFiles.length;
-  for (const p of billedFiles) out += billedLine(p);
+  billed.push(...billedFiles);
+  // Capped like every other list, the rest counted with the command that lists them all.
+  let out = billed.slice(0, DRY_RUN_CAP).map(billedLine).join('');
+  if (billed.length > DRY_RUN_CAP) out += `  … +${billed.length - DRY_RUN_CAP} more  (yg check --details)\n`;
   if (free > 0) out += `  ${count(free, 'script pair')} — free, not listed\n`;
-  out +=
-    `note: ${count(e.reviewerCallBudget, 'reviewer call')} is an upper bound — a unit a script rule refuses has its reviewer ` +
-    `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`;
+  // What to run to fill: the free lane when no reviewer can judge the rest
+  // (the full run would stop before recording anything), else the whole run,
+  // which is paid when it calls the reviewer.
+  // A paid run is the user's to approve.
+  const fillWith = e.reviewerConfigured === false
+    ? (free > 0 ? 'yg check --approve --only-deterministic fills the script pairs' : 'configure a reviewer first — no fill can record these until one is')
+    : e.reviewerCallBudget > 0
+      ? `ask the user to approve yg check --approve (paid, up to ${count(e.reviewerCallBudget, 'reviewer call')}) before running it`
+      : 'yg check --approve --only-deterministic fills them';
+  out += e.reviewerCallBudget > 0
+    ? `note: ${count(e.reviewerCallBudget, 'reviewer call')} is an upper bound — a unit a script rule refuses has its reviewer ` +
+      `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.\n`
+    : 'note: Nothing was written.\n';
+  out += `  fix:  ${fillWith}\n`;
   return out;
 }
+
+/** How many priced pairs a preview lists before it counts the rest (the CLI's one member cap). */
+const DRY_RUN_CAP = 12;
 
 /**
  * The garbage collector's prune summary. Nothing when nothing was pruned; an
@@ -160,21 +181,29 @@ function renderTotals(t: FillOutcomeTotals): string {
     t.skippedOutsideLlmPairs > 0 ? `${count(t.skippedOutsideLlmPairs, 'reviewer pair')} outside this change left alone` : '',
     t.skippedByDetGate > 0 ? `reviewer skipped on ${count(t.skippedByDetGate, 'unit')} a script rule refuses` : '',
   ].filter((p) => p !== '');
-  // What reviews the pairs left alone, as the fill's own labelled step.
-  const step = t.skippedLlmPairs > 0
-    ? (t.reviewerConfigured === false ? 'next: yg init --provider <name> [--model <m>]  (configures a reviewer — ask the user first)\n' : 'next: yg check --approve  (reviews the pairs left alone)\n')
-    : t.skippedOutsideLlmPairs > 0 ? 'next: yg check --full --approve  (reviews the pairs outside this change)\n' : '';
+  // What reviews the pairs left alone is the report's own `next:` / `then:`,
+  // on stdout after this line: a run shows one step, always last.
   if (done === 0 && skipped.length === 0) return '';
   const took = t.elapsedMs !== undefined ? ` in ${formatElapsed(t.elapsedMs)}` : '';
-  const line = `${FILL}done${took} — ${approved} passed · ${refused} refused · ${failed} failed · ${count(t.reviewerCallsMade, 'reviewer call')}${usageWords(t)}`;
-  return `${line}${skipped.length > 0 ? ` · ${skipped.join(' · ')}` : ''}\n${step}`;
+  // The outcome counts of a run that judged something, zeros included (a zero
+  // `failed` is news); a run that only left reviewer pairs alone judged
+  // nothing, and a row of zeros would say nothing.
+  const outcomes = done === 0
+    ? []
+    : [`${approved} passed`, `${refused} refused`, `${failed} failed`, `${count(t.reviewerCallsMade, 'reviewer call')}${usageWords(t)}`];
+  const line = `${FILL}done${took}${outcomes.length > 0 ? ` — ${outcomes.join(' · ')}` : ''}`;
+  return `${line}${skipped.length > 0 ? `${outcomes.length > 0 ? ' · ' : ' — '}${skipped.join(' · ')}` : ''}\n`;
 }
 
-/** A what/why/next message in the one grammar, headed by `word`. */
+/**
+ * A what/why/next message in the one grammar, headed by `word`. Said while the
+ * run goes on, so its remedy is a `fix:` field: `next:` is only ever the last
+ * line of the output — the report's.
+ */
 function messageLines(word: string, msg: { what: string; why: string; next: string }): string {
   const why = msg.why !== '' ? `  why:  ${msg.why}\n` : '';
-  const next = msg.next !== '' ? `next: ${msg.next.split('\n').join('\n      ')}\n` : '';
-  return `${word}: ${msg.what}\n${why}${next}`;
+  const fix = msg.next !== '' ? `  fix:  ${msg.next.split('\n').join('\n        ')}\n` : '';
+  return `${word}: ${msg.what}\n${why}${fix}`;
 }
 
 /** The text one fill event reads as. */

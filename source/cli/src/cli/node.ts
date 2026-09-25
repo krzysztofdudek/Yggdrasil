@@ -6,7 +6,7 @@ import { NODE_JSON_SCHEMA, formatNodeJson } from '../formatters/node-json.js';
 import type { NodeJsonDocument } from '../formatters/node-json.js';
 import { buildNodeDocument } from '../core/graph/machine-documents.js';
 import { toPosixPath } from '../utils/posix.js';
-import { fail, writeOut } from './output.js';
+import { fail, nodeNotFound, writeOut } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -71,11 +71,7 @@ export function registerNodeCommand(program: Command): void {
 
         const nodePath = toPosixPath(pathArg.trim());
         if (!graph.nodes.has(nodePath)) {
-          fail({
-                what: `Node '${nodePath}' does not exist in the graph.`,
-                why: 'The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.',
-                next: 'Browse the graph with yg tree, or locate one with yg find "<keywords>", then retry with a valid path.',
-              }, 'node-not-found');
+          fail(nodeNotFound(nodePath, 'The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
           process.exit(1);
         }
 

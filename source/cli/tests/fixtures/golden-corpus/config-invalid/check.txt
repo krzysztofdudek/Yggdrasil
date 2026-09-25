@@ -5,7 +5,7 @@ yg check: FAIL  5 errors   4 nodes · 3/8 files covered
 
 partial: yg-config.yaml did not load, so its defaults were used — the findings below were computed without it and may be symptoms of it; fix it first.
 
-error[config-invalid] yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:
+error[config-invalid] yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1
   at:   quality: [
         ^
   why:  Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.

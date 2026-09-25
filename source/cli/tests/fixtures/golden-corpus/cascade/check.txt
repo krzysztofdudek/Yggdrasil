@@ -5,7 +5,7 @@ yg check: FAIL  5 errors · 1 warning   3 nodes · 2/7 files covered
 
 partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first.
 
-error[yaml-invalid] yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:
+error[yaml-invalid] yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1
   at:   app/svc-02
           bad: [unclosed
           ^
@@ -19,7 +19,7 @@ error[flow-node-broken] Flow 'Checkout' names node 'app/svc-02', whose yg-node.y
 error[unmapped] 1 file belongs to no node
   at:   src/svc-02/index.ts
   why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
-  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file src/svc-02/index.ts lists candidate owners.
 
 error[unverified] 2 pairs whose script check has not run on this checkout — free to run
   at:   no-todo  2 pairs · 2 nodes · script

@@ -278,7 +278,9 @@ describe('header + summary strings (exact)', () => {
     );
     // …and the closing summary never claims every pair holds a valid verdict:
     // it names the reviewer pair it left alone.
-    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 1 reviewer pair left alone\nnext: yg check --approve {2}\(reviews the pairs left alone\)\n/);
+    // The step that reviews them is the report's own then: — the fill prints no next: of its own.
+    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 1 reviewer pair left alone\n/);
+    expect(w.text()).not.toContain('next:');
     expect(w.text()).not.toMatch(/\bvalid\b/);
     // No reviewer was constructed at all — the count above is not merely unspent.
     expect(mockCreateLlmProvider).not.toHaveBeenCalled();

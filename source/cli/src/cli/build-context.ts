@@ -40,10 +40,11 @@ import { verifyPairs } from '../core/verify-lock.js';
 import { computeLogGateState } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
+import type { ValidationIssue } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail, plural, writeOut, count } from './output.js';
+import { fail, nodeNotFound, plural, warn, writeOut, count } from './output.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
@@ -105,6 +106,45 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
   }
 
   return relevant;
+}
+
+/**
+ * Repository-wide error codes that never change what a node's context says: a
+ * credential in the committed config, a tracked secrets file, a reviewer rule
+ * with no reviewer configured. They block `yg check`, and `yg context` names
+ * them, but refusing the context over them locked every agent out of its
+ * required pre-edit step until a human acted.
+ */
+const CONTEXT_INDEPENDENT_CODES: ReadonlySet<string> = new Set([
+  'config-committed-api-key',
+  'secrets-file-tracked',
+  'config-reviewer-missing',
+]);
+
+/** Whether a rule is attached to any of these nodes: by the node itself, its type, or a flow it is in. */
+function aspectUsedBy(graph: Graph, aspectId: string, nodes: Set<string>): boolean {
+  const names = (ids: readonly string[] | undefined): boolean => (ids ?? []).some((id) => id === aspectId || aspectId.startsWith(`${id}/`) || id.startsWith(`${aspectId}/`));
+  for (const nodePath of nodes) {
+    const node = graph.nodes.get(nodePath);
+    if (node === undefined) continue;
+    if (names(node.meta.aspects) || names(graph.architecture.node_types[node.meta.type]?.aspects)) return true;
+    if (graph.flows.some((f) => f.nodes.includes(nodePath) && names(f.aspects))) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether an error stops this node's context from being assembled: one about a
+ * node the context draws on, a cycle through one, a rule those nodes use that
+ * did not load, or any other repository-wide error that is not one of the
+ * {@link CONTEXT_INDEPENDENT_CODES}.
+ */
+function affectsContext(graph: Graph, issue: ValidationIssue, relevant: Set<string>): boolean {
+  if (issue.cycleMembers) return issue.cycleMembers.some((m) => relevant.has(m));
+  if (issue.nodePath) return relevant.has(issue.nodePath);
+  if (CONTEXT_INDEPENDENT_CODES.has(issue.code ?? '')) return false;
+  if (issue.aspectId !== undefined) return aspectUsedBy(graph, issue.aspectId, relevant);
+  return true;
 }
 
 /**
@@ -432,7 +472,7 @@ export function registerBuildCommand(program: Command): void {
           fail({
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
-            next: "Use one or the other, not both.",
+            next: "yg context --node <path>, or yg context --file <path> — one of them, not both",
           });
           process.exit(1);
         }
@@ -568,7 +608,7 @@ export function registerBuildCommand(program: Command): void {
               fail({
                 what: `${displayFile} has no graph coverage.`,
                 why: uncoveredWhy,
-                next: 'Add the file to an existing node mapping, or create a new node.',
+                next: `Add ${displayFile} to the mapping of the node that owns its code (.yggdrasil/model/<node>/yg-node.yaml), or create a node for it; yg tree lists the nodes.`,
               }, 'no-coverage', { document: false });
             }
             // The machine view still gets an ANSWER on stdout — "nothing in this
@@ -592,31 +632,30 @@ export function registerBuildCommand(program: Command): void {
         // Only the per-node disk checks of the nodes this context draws on run;
         // every graph-wide check still runs (validate's onlyNodes).
         const validationResult = await validate(graph, 'all', undefined, undefined, { onlyNodes: relevantNodes });
-        const relevantErrors = validationResult.issues.filter(
-          (issue) =>
-            issue.severity === 'error' &&
-            (issue.cycleMembers
-              ? issue.cycleMembers.some((m) => relevantNodes.has(m))
-              : !issue.nodePath || relevantNodes.has(issue.nodePath)),
-        );
+        const errors = validationResult.issues.filter((issue) => issue.severity === 'error');
+        const relevantErrors = errors.filter((issue) => affectsContext(graph, issue, relevantNodes));
         if (relevantErrors.length > 0) {
-          const totalErrors = validationResult.issues.filter((i) => i.severity === 'error').length;
-          const skippedErrors = totalErrors - relevantErrors.length;
-          let errorList = '';
-          for (const err of relevantErrors) {
-            const loc = err.nodePath ? `${err.nodePath}: ` : '';
-            errorList += `  ${err.code ?? ''} ${loc}${buildIssueMessage(err.messageData)}\n`;
-          }
-          let whyText = 'Context cannot be assembled when structural errors exist.';
-          if (skippedErrors > 0) {
-            whyText += ` (${skippedErrors} unrelated ${plural(skippedErrors, 'error')} in other nodes ignored.)`;
-          }
+          const skippedErrors = errors.length - relevantErrors.length;
+          // One block: the errors that stop it as members, each on its own line.
+          const members = relevantErrors.map((err) => `${err.code ?? 'error'}  ${err.nodePath !== undefined ? `${toPosixPath(err.nodePath)}  ` : ''}${err.messageData.what.split('\n')[0]}`);
           fail({
-            what: `build-context blocked by ${relevantErrors.length} error${relevantErrors.length === 1 ? '' : 's'} affecting this node's context.`,
-            why: whyText,
-            next: `Run yg check and fix the listed errors first:\n${errorList}`,
+            what: `yg context cannot assemble ${nodePath}: ${relevantErrors.length} ${plural(relevantErrors.length, 'error')} in the graph it draws on\n${members.join('\n')}`,
+            why: `The context is built from this node, its ancestors and its relation targets, and these errors leave part of that graph unreadable.${skippedErrors > 0 ? ` (${skippedErrors} other ${plural(skippedErrors, 'error')} elsewhere in the repository ${skippedErrors === 1 ? 'does' : 'do'} not affect it.)` : ''}`,
+            next: 'yg check',
           });
           process.exit(1);
+        }
+        // Errors that block the gate but not this context — a key in the
+        // committed config, a rule no relevant node uses, a reviewer not yet
+        // configured: the context is still whole, so it is given, and the
+        // errors are named so nobody reads the context as a clean bill.
+        const elsewhere = errors.filter((issue) => !issue.nodePath && !issue.cycleMembers);
+        if (elsewhere.length > 0) {
+          warn({
+            what: `${elsewhere.length} repository-wide ${plural(elsewhere.length, 'error')} ${elsewhere.length === 1 ? 'blocks' : 'block'} yg check but not this context: ${[...new Set(elsewhere.map((e) => e.code ?? 'error'))].join(', ')}`,
+            why: 'None of them changes what the rules on this node are or what it may depend on.',
+            next: 'yg check',
+          });
         }
 
         if (resolvedFilePath) {
@@ -650,11 +689,7 @@ export function registerBuildCommand(program: Command): void {
         const msg = error instanceof Error ? error.message : String(error);
         const notFound = msg.match(/^Node not found: (.+)$/);
         if (notFound) {
-          fail({
-            what: `Node '${toPosixPath(notFound[1])}' does not exist in the graph.`,
-            why: `The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.`,
-            next: `Browse the graph with 'yg tree', or locate one with 'yg find "<keywords>"', then retry with a valid --node path.`,
-          }, 'node-not-found');
+          fail(nodeNotFound(toPosixPath(notFound[1]), 'The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
           process.exit(1);
         }
         // A --file path that resolves outside the repository is USER input, not an
@@ -664,7 +699,7 @@ export function registerBuildCommand(program: Command): void {
           fail({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `Context can only be built for files tracked inside the project.`,
-            next: `Pass a path inside the project root (relative to the repo).`,
+            next: 'yg context --file <a path inside the repository, relative to its root>',
           });
           process.exit(1);
         }
