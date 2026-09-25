@@ -26,5 +26,5 @@ warning[uncovered] 4 files belong to no node — not under coverage.required, so
   fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
 next: edit .yggdrasil/yg-architecture.yaml  (aspect-status-downgrade)
-then: yg check --approve --only-deterministic  (4 script pairs · free)
+then: yg check --approve --only-deterministic  (8 script pairs · free)
 --- stderr

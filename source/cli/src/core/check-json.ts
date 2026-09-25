@@ -275,6 +275,7 @@ export function buildCheckJson(result: CheckResult): CheckJsonDocument {
     issues: result.issues.map(issueOf),
     judges,
     progressive: progressiveOf(result),
-    suggestedNext: result.suggestedNext,
+    // The step is the report's own: the command layer sets it from the findings.
+    suggestedNext: null,
   };
 }

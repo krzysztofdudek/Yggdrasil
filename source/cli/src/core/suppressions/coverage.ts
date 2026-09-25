@@ -1,13 +1,13 @@
 import { buildOwnerIndex } from '../../relations/owner-index.js';
 import type { Graph, GraphNode } from '../../model/graph.js';
-import type { SuppressionsReport } from './suppress-scan.js';
+import type { SuppressionsReport } from './scan.js';
 
 /**
- * portal/api/suppress-coverage — a focused derivation over the live suppress scan:
- * map each active waiver to the VERIFICATION units it covers. Split out of
- * suppress-scan.ts so that scan module stays within its file-size boundary; it is
- * the graph-aware interpretation of the scan, so it lives in the same portal facade
- * node (the single audited seam permitted to reach the shared owner index).
+ * core/suppressions/coverage — a focused derivation over the live suppress scan:
+ * map each active waiver to the VERIFICATION units it covers. Kept apart from the
+ * scan so that module stays within its file-size boundary; it is the graph-aware
+ * interpretation of the scan, resolving each file's owner through the shared
+ * owner index.
  *
  * Its one consumer today is the `yg aspects --health` false-block (fp) signal,
  * which joins these covered units against past refusals to see which of a rule's

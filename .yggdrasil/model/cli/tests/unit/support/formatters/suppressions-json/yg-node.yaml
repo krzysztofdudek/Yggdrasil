@@ -13,6 +13,8 @@ description: >-
   arithmetic, and POSIX path normalization at the output boundary.
 aspects: []
 relations:
+  - target: cli/core/suppressions
+    type: uses
   - target: cli/formatters
     type: uses
   - target: cli/commands/suppressions

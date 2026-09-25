@@ -122,6 +122,9 @@ const REGISTRY: ReadonlyMap<string, CodeInfo> = new Map<string, CodeInfo>([
   ['unverified', { label: 'unverified', tier: 'T3', noun: 'pair' }],
 ]);
 
+/** Every code the registry names — the codes a report ranks and labels specially; a test holds each one's step to the Next contract. */
+export const REGISTERED_CODES: readonly string[] = [...REGISTRY.keys()];
+
 const DEFAULT_TIER: Tier = 'T1';
 
 /** The suffix a finding put outside a measured change carries on its code and its label. */

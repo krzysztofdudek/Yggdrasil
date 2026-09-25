@@ -3,7 +3,7 @@ type: engine
 description: "Pure advise engine — turns the graph's live attention signals into
   stable, evidence-bound nominations (buildNominations) and folds the committed
   decision register over them into a visible/hidden feed (applyDecisions). Also
-  provides pure per-node churn counting (countChurnByNode) for the uncovered-hot-spot
+  provides pure per-node churn counting (countChurnByNode) for the unguarded-hot-spot
   nomination — the churn count itself is measured from git history at the CLI
   boundary and handed in as parsed touch sets. No I/O and no clock of its own: the
   UTC date is injected and every non-graph signal (suppress-marker anomalies, churn)

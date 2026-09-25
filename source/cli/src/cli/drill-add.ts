@@ -21,7 +21,7 @@ import {
 import { appendAspectLogEntry } from '../core/log/aspect-log.js';
 import type { AspectDef, Graph } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
-import { fail, failAndExit, paint, writeOut } from './output.js';
+import { aspectNotFound, fail, failAndExit, paint, writeOut } from './output.js';
 
 /**
  * `yg drill add` — take a file as it stood at a named commit into a rule's case
@@ -268,11 +268,7 @@ function resolveAspect(graph: Graph, id: string): { def: AspectDef } | { error: 
   const def = graph.aspects.find((a) => a.id === id);
   if (def === undefined) {
     return {
-      error: {
-        what: `No rule '${id}' in this graph.`,
-        why: 'A case belongs to the rule it exercises, so the rule has to exist before code can be filed under it.',
-        next: 'List the rules with yg aspects, then re-run with --aspect <id>.',
-      },
+      error: aspectNotFound(id, 'A case belongs to the rule it exercises, so the rule has to exist before code can be filed under it.'),
     };
   }
   if (def.reviewer.type === 'aggregate') {

@@ -1,0 +1,9 @@
+name: E2E Tests — Unknown Rule Id
+type: test-suite
+description: "Subprocess E2E on the built binary proving that every command taking a rule id answers an id the graph does not declare the same way: yg check --aspect, yg impact --aspect, yg aspect-test --aspect, yg simulate <id>, yg aspects log add and read --aspect, yg drill --aspect, yg drill add --aspect and yg incident add --aspect each exit 1 with the aspect-not-found code, the one what line naming the rule as not in the graph, and yg aspects as the next step; the commands that answer in JSON carry the same code, what and next in their yg-error/1 document."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-aspect-not-found.test.ts

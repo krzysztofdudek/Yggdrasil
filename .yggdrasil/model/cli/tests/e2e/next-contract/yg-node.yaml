@@ -1,9 +1,10 @@
 name: E2E Tests — Next Contract and Diagnostics
 type: test-suite
-description: "Subprocess E2E on the built binary for the step a run names and the diagnostics around it: yg context given over repository-wide errors it does not depend on (a judgment rule with no reviewer, a key in the config) and naming them on stderr; config-committed-api-key telling a key only in the working copy from one already in HEAD; a symlinked rule directory refused as a link rather than reported undefined; a recording run printing one next: (the report's), a keyless dry run ending on its caveat and naming the command that fills, and its JSON exit saying what the process does; colour flags accepted by every command and --json on a command without it never answered with an unrelated suggestion; --json --compact as the same document without what a reader can recompute; and a walk of the command tree through --help pinning the one three-word command group a next: step keeps whole."
+description: "Subprocess E2E on the built binary for the step a run names and the diagnostics around it: yg context given over repository-wide errors it does not depend on (a judgment rule with no reviewer, a key in the config) and naming them on stderr; config-committed-api-key telling a key only in the working copy from one already in HEAD; a symlinked rule directory refused as a link rather than reported undefined; a recording run printing one next: (the report's), a keyless dry run ending on its caveat and naming the command that fills, and its JSON exit saying what the process does; colour flags accepted by every command and --json on a command without it never answered with an unrelated suggestion; --json --compact as the same document without what a reader can recompute; and a walk of the command tree through --help pinning the one three-word command group a next: step keeps whole. It also holds the cost a fill step states to the fill's own cost preview on script-only, mixed and advisory-only trees: every pending pair the command fills, advisory ones included, the reviewer's share as pairs and calls."
 aspects: []
 relations:
   - target: cli/tests/support
     type: uses
 mapping:
   - source/cli/tests/e2e/cli-next-contract.test.ts
+  - source/cli/tests/e2e/cli-next-cost-parity.test.ts

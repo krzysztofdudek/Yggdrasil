@@ -8,7 +8,6 @@ import {
   unverifiedMessage,
 } from '../../../src/formatters/lock-issue-messages.js';
 import { applyChangeScope } from '../../../src/core/check-progressive.js';
-import { computeSuggestedNext } from '../../../src/core/check.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 
 /** Strip ANSI color codes so line matching is deterministic. */
@@ -44,7 +43,6 @@ function render(result: CheckResult, view: CheckView = { kind: 'full' }): string
  */
 
 function baseResult(issues: CheckIssue[]): CheckResult {
-  const hasError = issues.some((i) => i.severity === 'error');
   return {
     projectName: 'test',
     nodeCount: 1,
@@ -54,7 +52,6 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: hasError ? 'yg check --approve' : null,
     advisoryWarnings: issues.filter((i) => i.code === 'aspect-violation-advisory').length,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -79,7 +76,7 @@ describe('check render — next line surfacing', () => {
         reason: 'missing audit entry',
       }),
     };
-    return { ...baseResult([advWarning]), suggestedNext: advWarning.messageData.next, advisoryWarnings: 1 };
+    return { ...baseResult([advWarning]), advisoryWarnings: 1 };
   }
 
   it('renders a next line on a warnings-only PASS', () => {
@@ -91,7 +88,7 @@ describe('check render — next line surfacing', () => {
   });
 
   it('omits the next line on a fully-green run', () => {
-    const green: CheckResult = { ...warningsOnlyResult(), issues: [], suggestedNext: null, advisoryWarnings: 0 };
+    const green: CheckResult = { ...warningsOnlyResult(), issues: [], advisoryWarnings: 0 };
     const out = render(green);
     expect(out).toContain('yg check: PASS');
     // A clean run is self-evidently done — no invented next line.
@@ -120,7 +117,7 @@ describe('check render — next line surfacing', () => {
       },
     ]));
     expect(out).toContain('yg check: FAIL');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
     expect(out).not.toContain('next:');
   });
 });
@@ -221,7 +218,7 @@ describe('check render — --top view', () => {
     // next never names the fill while a code or graph error stands; then: does.
     expect(steps(out)).toEqual([
       'next: Create the file or fix the mapping entry  (mapping-path-missing)',
-      'then: yg check --approve  (1 script pair · free + 2 reviewer pairs · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 script pair · free + 2 reviewer pairs · 2 calls · paid — ask the user to approve it first)',
     ]);
   });
 });
@@ -249,7 +246,7 @@ describe('check render — --summary view', () => {
   });
 
   it('on a green result prints only the PASS verdict — no rows', () => {
-    const green: CheckResult = { ...fourErrorResult(), issues: [], suggestedNext: null, advisoryWarnings: 0 };
+    const green: CheckResult = { ...fourErrorResult(), issues: [], advisoryWarnings: 0 };
     for (const view of [{ kind: 'summary' }, { kind: 'summary', by: 'nodes' }] as CheckView[]) {
       const out = render(green, view);
       expect(out).toContain('yg check: PASS');
@@ -374,13 +371,13 @@ describe('check render — next: never a fill while a code error stands, then: n
     const out = render(baseResult(issues));
     expect(steps(out)).toEqual([
       'next: edit src/a.ts:3  (refused — 2 errors need a code or graph fix)',
-      'then: yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)',
     ]);
     // The same step as data: what remains after it.
     const r = baseResult(issues);
     const doc = enrichCheckJson(buildCheckJson(r), r);
     expect(doc.next?.remaining).toEqual({ needsFix: 2, fillable: 1, needsUser: 0, waitingOnReviewer: 0 });
-    expect(doc.next?.then).toBe('yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+    expect(doc.next?.then).toBe('yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
     expect(doc.suggestedNext).toBe('edit src/a.ts:3  (refused — 2 errors need a code or graph fix)');
   });
 
@@ -400,7 +397,7 @@ describe('check render — next: never a fill while a code error stands, then: n
 
   it('when every error is a pending pair, the one block\'s fix is the step: no next, and nothing needs a code fix', () => {
     const out = render(baseResult([pending('x', 'svc/a'), pending('y', 'svc/b')]));
-    expect(out).toContain('  fix:  yg check --approve  (2 reviewer pairs · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (2 reviewer pairs · 2 calls · paid — ask the user to approve it first)');
     expect(out).not.toContain('next:');
     expect(out).not.toContain('need a code or graph fix');
   });
@@ -604,7 +601,7 @@ describe('check render — --aspect drill-in view', () => {
     expect(headings(out)[0]).toBe('error[refused] x — 1 violation in node-a');
     expect(steps(out)).toEqual([
       'next: edit src/node-a.ts:7  (refused)',
-      'then: yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)',
     ]);
   });
 
@@ -658,9 +655,8 @@ describe('check render — --aspect drill-in view', () => {
     ];
     return {
       ...baseResult(twins),
-      // What computeSuggestedNext returns for this run — the standing line, not
-      // any one finding's own command.
-      suggestedNext: computeSuggestedNext(twins),
+      // Findings outside the change only: the report's step is the standing
+      // audit line, not any one finding's own command.
       outsideCount: 1,
       progressiveReference: 'origin/main',
       changedInputCount: 3,
@@ -695,7 +691,6 @@ describe('check render — --aspect drill-in view', () => {
       } as CheckIssue));
       const out = render({
         ...baseResult(twins),
-        suggestedNext: computeSuggestedNext(twins),
         outsideCount: count,
         progressiveReference: 'origin/main',
         changedInputCount: 1,
@@ -723,7 +718,7 @@ describe('check render — --aspect drill-in view', () => {
     } as CheckIssue;
     const base = inheritedOnlyOnAspectX();
     const issues = [...base.issues, genuine];
-    const out = render({ ...base, issues, suggestedNext: computeSuggestedNext(issues) }, { kind: 'aspect', id: 'x' });
+    const out = render({ ...base, issues }, { kind: 'aspect', id: 'x' });
     // The genuine finding comes first, with its fix.
     expect(headings(out)[0]).toBe('warning[refused] x — refused on orders/handler');
     expect(out).toContain(`  fix:  ${genuine.messageData.next.split('\n')[0]}`);
@@ -792,7 +787,6 @@ function fourGroupErrorResult(): CheckResult {
   return {
     ...baseResult(issues),
     // All 4 issues are errors; suggestedNext points at highest-priority (unverified).
-    suggestedNext: 'yg check --approve',
   };
 }
 describe('check render — --top block view', () => {

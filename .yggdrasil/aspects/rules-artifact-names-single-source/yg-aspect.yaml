@@ -24,7 +24,7 @@ description: >-
   merely CONTAINS one of these (a retired `.windsurf/rules/yggdrasil.md` path, a
   human-facing label, a sentence of prose) is never a hit. One documented
   per-file, per-value exemption is carried in the check: the base name
-  `.clinerules` in portal/api/suppress-eligibility.ts is Cline's LEGACY
+  `.clinerules` in core/suppressions/eligibility.ts is Cline's LEGACY
   single-file convention (a root file with no extension that `yg init` has never
   written), the same bytes as the directory constant by coincidence rather than
   by shared definition. errs: under — a literal whose whole value is one of these

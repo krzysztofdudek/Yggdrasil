@@ -206,7 +206,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
 
       const unknownRule = run(['drill', 'add', '--aspect', 'no-such-rule', '--violates', `src/charge.ts@${sha}`], dir);
       expect(unknownRule.status).toBe(1);
-      expect(unknownRule.stderr).toContain("No rule 'no-such-rule' in this graph");
+      expect(unknownRule.stderr).toContain("error[aspect-not-found]: rule 'no-such-rule' is not in the graph");
       expect(unknownRule.stderr).toContain('yg aspects');
 
       const malformed = run(['drill', 'add', '--aspect', RULE, '--violates', 'src/charge.ts'], dir);

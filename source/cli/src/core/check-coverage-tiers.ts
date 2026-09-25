@@ -103,6 +103,13 @@ export function blockingUnmappedPaths(
 }
 
 /**
+ * The first step for a file no node owns: ask which node's mapping it belongs
+ * in. Read-only, and it lists the candidate owners; the report fills `<path>`
+ * with the first file the finding names.
+ */
+const CONTEXT_STEP = { command: 'yg context --file <path>' } as const;
+
+/**
  * Build the unmapped-files CheckIssue from uncovered files.
  * Aggregates into one error with count + sample.
  */
@@ -142,7 +149,9 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
     severity: 'error',
     code: 'unmapped-files',
     rule: 'unmapped-file',
-    messageData: coverageMd,
+    // The step is to find the file an owner, never to edit the file itself:
+    // `yg context --file` names the candidate nodes whose mapping it belongs in.
+    messageData: { ...coverageMd, step: CONTEXT_STEP },
     uncoveredFiles,
     uncoveredCount: uncoveredFiles.length,
   };
@@ -206,6 +215,7 @@ export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue
       what: `${count(uncoveredFiles.length, 'coverage-visible file')} outside any required coverage root.\n${body}`,
       why: 'Not under a coverage.required root — shown, but it never blocks.',
       next: 'Map these files to a node, or add their root to coverage.required to make this an error.',
+      step: CONTEXT_STEP,
     },
     uncoveredFiles,
     uncoveredCount: uncoveredFiles.length,

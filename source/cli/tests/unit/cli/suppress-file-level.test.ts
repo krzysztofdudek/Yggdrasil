@@ -6,9 +6,12 @@ import {
   runSuppressionsScan,
   formatSuppressionsOutput,
 } from '../../../src/cli/suppressions.js';
-import { scanPortalSuppressions as adaptPortalSuppressions } from '../../../src/portal/api/suppress-scan.js';
+import { scanPortalSuppressions as adaptPortalSuppressions } from '../../../src/portal/api/suppress-adapt.js';
 import { collectSuppressions } from '../../../src/ast/suppress.js';
 import { resolveSuppressedRangesForPrompt } from '../../../src/structure/suppress-ranges.js';
+import { suppressionWarningText } from '../../../src/cli/suppressions.js';
+/** The scan's warnings in the words the inventory prints them in. */
+const warningTexts = (r: { warningRecords?: Parameters<typeof suppressionWarningText>[0][] }): string[] => (r.warningRecords ?? []).map(suppressionWarningText);
 
 // ===========================================================================
 // RZ-12 — File-level suppress taxonomy.
@@ -65,7 +68,7 @@ describe('RZ-12: file-level classification for a top-of-file bare disable', () =
     expect(out).toContain('file-level(rz12-rule)');
     expect(out).not.toContain('disable(rz12-rule)');
     // No "Unbounded range" (and no other) warning for the sanctioned whole-file form.
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
     expect(out).not.toContain('Unbounded');
   });
 
@@ -87,7 +90,7 @@ describe('RZ-12: file-level classification for a top-of-file bare disable', () =
     const report = await runSuppressionsScan(root, ['blank.ts'], new Set(['rz12-rule']));
     const out = formatSuppressionsOutput(report);
     expect(out).toContain('file-level(rz12-rule)');
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 
   it('(boundary) disable on the 5th non-empty line is file-level; on the 6th it is unbounded', async () => {
@@ -108,7 +111,7 @@ describe('RZ-12: file-level classification for a top-of-file bare disable', () =
     );
     const fifth = await runSuppressionsScan(root, ['fifth.ts'], new Set(['rz12-rule']));
     expect(formatSuppressionsOutput(fifth)).toContain('file-level(rz12-rule)');
-    expect(fifth.warnings).toHaveLength(0);
+    expect(warningTexts(fifth)).toHaveLength(0);
 
     // 5 code lines, then the disable => marker on the 6th NON-EMPTY line => unbounded.
     const root2 = freshDir('boundary6');
@@ -128,7 +131,7 @@ describe('RZ-12: file-level classification for a top-of-file bare disable', () =
     );
     const sixth = await runSuppressionsScan(root2, ['sixth.ts'], new Set(['rz12-rule']));
     expect(formatSuppressionsOutput(sixth)).toContain('disable(rz12-rule)');
-    expect(sixth.warnings.some(w => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at sixth.ts:6'))).toBe(true);
+    expect(warningTexts(sixth).some(w => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at sixth.ts:6'))).toBe(true);
   });
 });
 
@@ -152,7 +155,7 @@ describe('RZ-12: a mid-file bare disable keeps the Unbounded warning (regression
     expect(out).toContain('disable(rz12-rule)');
     expect(out).not.toContain('file-level(rz12-rule)');
     // Marker sits on line 21 (the 21st non-empty line) → unbounded warning as today.
-    expect(report.warnings.some(w => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:21'))).toBe(true);
+    expect(warningTexts(report).some(w => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:21'))).toBe(true);
   });
 });
 
@@ -178,7 +181,7 @@ describe('RZ-12: the portal inventory and `yg suppressions` agree on a file-head
 
     // CLI surface: classified file-level, no Unbounded warning.
     expect(formatSuppressionsOutput(report)).toContain('file-level(rz12-rule)');
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
 
     // Portal surface: the SAME report, adapted → the file-head disable must NOT be
     // tagged `unbounded`; it honors the same `fileLevelKeys` the CLI renders from.
@@ -209,7 +212,7 @@ describe('RZ-12: the portal inventory and `yg suppressions` agree on a file-head
     // CLI surface: still the Unbounded warning, not file-level.
     expect(formatSuppressionsOutput(report)).not.toContain('file-level(rz12-rule)');
     expect(
-      report.warnings.some((w) => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:7')),
+      warningTexts(report).some((w) => w.startsWith('Unbounded yg-suppress-disable("rz12-rule") at mid.ts:7')),
     ).toBe(true);
 
     // Portal surface agrees: the mid-file disable IS tagged `unbounded`.

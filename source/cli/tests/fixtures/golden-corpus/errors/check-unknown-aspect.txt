@@ -2,6 +2,6 @@ $ yg check --aspect nope
 exit: 1
 --- stdout
 --- stderr
-error[aspect-not-found]: Unknown aspect 'nope'.
-  why:  --aspect drills into ONE rule by its aspect id, but 'nope' is not an aspect defined in this graph — so the filter would match nothing and render a misleading "0 of N errors" view. Known aspect ids: no-todo.
-next: yg aspects (list every aspect id), then yg check --aspect <id> with a real id; or yg check (full wall).
+error[aspect-not-found]: rule 'nope' is not in the graph
+  why:  --aspect drills into one rule by its id; an id that names no rule would match nothing and read as a rule with no findings.
+next: yg aspects

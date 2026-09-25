@@ -100,7 +100,7 @@ describe.skipIf(!distExists)('CLI E2E — impact', () => {
   it('yg impact --aspect nonexistent returns exit 1', () => {
     const { status, stderr } = run(['impact', '--aspect', 'nonexistent']);
     expect(status).toBe(1);
-    expect(stderr).toContain('Aspect not found');
+    expect(stderr).toContain("error[aspect-not-found]: rule 'nonexistent' is not in the graph");
   });
 
   it('yg impact --flow checkout-flow shows participants', () => {

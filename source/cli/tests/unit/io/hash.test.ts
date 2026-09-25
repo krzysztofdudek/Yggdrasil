@@ -344,7 +344,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
   });
 
   it('two nodes expanded separately (enforcement) and together (audit-style) draw the SAME boundary', async () => {
-    // The audit universe (portal/api/suppress-eligibility.ts) expands every
+    // The audit universe (core/suppressions/eligibility.ts) expands every
     // node's mapping entries TOGETHER; enforcement expands one node's mapping
     // at a time. Both must agree — the boundary is a property of the
     // filesystem, never of which candidates a particular call happened to expand.

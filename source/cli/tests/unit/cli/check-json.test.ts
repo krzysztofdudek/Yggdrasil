@@ -32,7 +32,6 @@ function emptyResult(overrides: Partial<CheckResult> = {}): CheckResult {
     coveredFiles: 8,
     totalFiles: 10,
     issues: [],
-    suggestedNext: null,
     advisoryWarnings: 0,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -413,10 +412,11 @@ describe('the check document — the exit code and the sentence behind it', () =
 
 describe('the check document — the project and its coverage', () => {
   it('restates the project counts and the run schema', () => {
-    const doc = buildCheckJson(emptyResult({ suggestedNext: 'yg check --approve' }));
+    const doc = buildCheckJson(emptyResult());
     expect(doc.schema).toBe(CHECK_JSON_SCHEMA);
     expect(doc.project).toEqual({ name: 'demo', nodes: 3, aspects: 2, flows: 1 });
-    expect(doc.suggestedNext).toBe('yg check --approve');
+    // The step is the report's own, set by the command layer from the findings.
+    expect(doc.suggestedNext).toBeNull();
   });
 
   it('leaves the type-level split null when the tier is off, so a zero never claims a measurement', () => {

@@ -50,3 +50,5 @@ Two machine forms joined the node: one drill run and the rule health view. Each 
 The context reports label the steps they recommend: a node's dependents, its impact command and the workflow after editing now end in next: and then: lines, and a file's report does the same, instead of prose starting with Run: or Strongly recommended. The machine forms are untouched.
 ## [2026-09-24T10:25:49.186Z]
 The fill names what reviews the pairs it left alone on one labelled next: line after its closing line, instead of commands inside its sentences.
+## [2026-09-25T21:50:43.621Z]
+The machine document's next-step cost gains the number of reviewer calls, so a reader that plans or budgets a fill reads the calls it bills and not only the pairs.

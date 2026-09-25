@@ -59,19 +59,19 @@ describe('M6: a fill step states what the whole command costs', () => {
   it('names the free lane first, and the paid run after it with the ask', () => {
     expect(steps(render(r))).toEqual([
       'next: yg check --approve --only-deterministic  (unverified — 1 script pair · free)',
-      'then: yg check --approve  (2 reviewer pairs · paid — ask the user to approve it first)',
+      'then: yg check --approve  (2 reviewer pairs · 2 calls · paid — ask the user to approve it first)',
     ]);
   });
 
   it('a script-only block names the free lane in its own fix', () => {
     expect(render(r)).toContain('  fix:  yg check --approve --only-deterministic  (1 script pair · free)');
-    expect(render(r)).toContain('  fix:  yg check --approve  (2 reviewer pairs · paid — ask the user to approve it first)');
+    expect(render(r)).toContain('  fix:  yg check --approve  (2 reviewer pairs · 2 calls · paid — ask the user to approve it first)');
   });
 
   it('JSON: next.cost is the cost of running next.command', () => {
     const next = doc(r).next!;
     expect(next.command).toEqual(['yg', 'check', '--approve', '--only-deterministic']);
-    expect(next.cost).toEqual({ free: 1, reviewerPairs: 0 });
+    expect(next.cost).toEqual({ free: 1, reviewerPairs: 0, reviewerCalls: 0 });
     expect(next.requiresUser).toBe(false);
   });
 
@@ -79,9 +79,9 @@ describe('M6: a fill step states what the whole command costs', () => {
     const paid = result([pending('readable-names', 'app/svc-01', 'llm', 'stale'), pending('readable-names', 'app/svc-02', 'llm', 'never-reviewed'), pending('no-todo', 'app/svc-03', 'deterministic', 'deterministic-not-run')]);
     const next = doc(paid).next!;
     expect(next.text).toBe('yg check --approve');
-    expect(next.cost).toEqual({ free: 1, reviewerPairs: 2 });
+    expect(next.cost).toEqual({ free: 1, reviewerPairs: 2, reviewerCalls: 2 });
     expect(next.requiresUser).toBe(true);
-    expect(doc(paid).suggestedNext).toBe('yg check --approve  (unverified — 1 script pair · free + 2 reviewer pairs · paid — ask the user to approve it first)');
+    expect(doc(paid).suggestedNext).toBe('yg check --approve  (unverified — 1 script pair · free + 2 reviewer pairs · 2 calls · paid — ask the user to approve it first)');
   });
 });
 

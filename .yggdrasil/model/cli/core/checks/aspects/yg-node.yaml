@@ -2,7 +2,8 @@ name: Aspect Checks
 type: engine
 description: "Validation checks for aspect definitions and contracts — dangling
   refs, id uniqueness, implied-aspect existence and acyclicity, orphaned
-  aspects, when-predicate references, rule-source exclusivity, reviewer
+  aspects (skipping any the effective-nowhere linter already reports, so a
+  dead rule is one finding), when-predicate references, rule-source exclusivity, reviewer
   presence, reviewer credentials (a key in the committed config, a tracked
   secrets overlay, a committed endpoint that would receive the environment
   key), tier references, reference files (refusing one reached through a

@@ -108,7 +108,6 @@ function result(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: 'yg check --approve',
     advisoryWarnings: issues.filter((i) => i.code === 'aspect-violation-advisory').length,
     draftSkipped: 0,
     verifiedDet: 0,

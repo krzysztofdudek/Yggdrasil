@@ -307,7 +307,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).not.toMatch(/^ {2}at: {3}broken$/m);
 
     // The drilled block's own step fills exactly this rule's pairs.
-    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(3 reviewer pairs · paid — ask the user to approve it first\)$/m);
+    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(3 reviewer pairs · 3 calls · paid — ask the user to approve it first\)$/m);
   });
 
   it('--aspect aspect-two: only that aspect\'s single issue, header shows K=1 of N=5, exit 1', () => {
@@ -373,7 +373,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).toMatch(/^next: .* {2}\(mapping-path-missing\)$/m);
 
     // The then: line still names the fill the hidden block needs.
-    expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · paid — ask the user to approve it first\)$/m);
+    expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · 4 calls · paid — ask the user to approve it first\)$/m);
 
     // Bare --top and --top 1 are the SAME view (n=1 semantics).
     const explicit = run(['check', '--top', '1'], dir);
@@ -449,7 +449,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     const out = strip(stdout);
     expect(status).toBe(1);
     // Error names the unknown id and says it is unknown.
-    expect(err).toContain("error[aspect-not-found]: Unknown aspect 'totally-bogus-aspect'");
+    expect(err).toContain("error[aspect-not-found]: rule 'totally-bogus-aspect' is not in the graph");
     // It must NOT render the misleading drill-in "0 of N errors" FAIL.
     expect(out).not.toContain('0 of');
     expect(out).not.toContain("aspect 'totally-bogus-aspect'");
@@ -590,7 +590,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     expect(out).toMatch(/^… \+2 more blocks {2}\(yg check\)$/m);
 
     // The one error block's fix IS the step, so it prints no separate next:.
-    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(1 reviewer pair · paid — ask the user to approve it first\)$/m);
+    expect(out).toMatch(/^ {2}fix: {2}yg check --approve {2}\(1 reviewer pair · 1 call · paid — ask the user to approve it first\)$/m);
     expectNoDanglingSectionHeader(stdout);
   });
 

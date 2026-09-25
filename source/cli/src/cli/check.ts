@@ -5,23 +5,20 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck, runAttentionDump } from '../core/check.js';
-import { computeSuggestedNext } from '../core/check-suggested-next.js';
-import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import path from 'node:path';
 import { detConcurrencyForThisMachine, detWorkerCeilingForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
 import { getHeadSha } from '../utils/git.js';
 import { sweepStaleTempFiles } from '../io/atomic-write.js';
-import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
-import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
-import type { YggConfig, Graph } from '../model/graph.js';
+import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
+import { scanReasonlessMarkers } from '../core/suppressions/scan.js';
+import type { YggConfig } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, formatOwed } from './check-render-views.js';
 import { CHECK_JSON_SCHEMA, formatCheckJson, formatCompactCheckJson, type CheckJsonDocument } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
-import { fail, notice, warn, writeErr, writeOut } from './output.js';
+import { fail, notice, warn, writeErr, writeOut, aspectNotFound } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
@@ -93,55 +90,6 @@ export function isCiEnvironment(env: Readonly<Record<string, string | undefined>
   if (v === undefined) return false;
   const norm = v.trim().toLowerCase();
   return norm !== '' && norm !== '0' && norm !== 'false';
-}
-
-/**
- * Warn, on the report, about every `yg-suppress` marker in a mapped source that
- * carries no reason. Such a marker waives nothing and nothing else notices it:
- * the check passes until the day a violation lands in its range, and only then
- * does the fill reject the marker and leave the pair unverified. Surfacing it
- * here, as a warning, is what lets it be fixed when it is written instead of
- * when it first matters. The scan is the `yg suppressions` inventory's own,
- * limited to mapped sources (the only files a marker can waive in), and skips
- * any file that does not contain the marker token at all, so it costs one read
- * of each mapped file and nothing more.
- */
-async function appendReasonlessSuppressWarnings(
-  result: CheckResult,
-  graph: Graph,
-  projectRoot: string,
-  repoFiles: string[],
-): Promise<void> {
-  // Best effort: a warning about a marker must never be what fails a check.
-  let report: Awaited<ReturnType<typeof runSuppressionsScan>>;
-  try {
-    const mappingEntries = collectMappingEntries(graph);
-    if (mappingEntries.length === 0) return;
-    report = await runSuppressionsScan(
-      projectRoot,
-      repoFiles.filter((f) => isMappedSource(f, mappingEntries)),
-      new Set(graph.aspects.map((a) => a.id)),
-      mappingEntries,
-      new Set(),
-      new Set(),
-      graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
-    );
-  } catch (error) {
-    debugWrite(`[check] reason-less marker scan skipped: ${error instanceof Error ? error.message : String(error)}`);
-    return;
-  }
-  const reasonless = (report.warningRecords ?? []).filter((w) => w.code === 'missing-reason');
-  if (reasonless.length === 0) return;
-  for (const w of reasonless) {
-    result.issues.push({
-      severity: 'warning',
-      code: 'suppress-marker-missing-reason',
-      rule: 'suppress-marker-missing-reason',
-      messageData: reasonlessMarkerMessage(w.file, w.line, w.aspect ?? '*'),
-      unitKey: `file:${w.file}`,
-    });
-  }
-  result.suggestedNext = computeSuggestedNext(result.issues);
 }
 
 export function registerCheckCommand(program: Command): void {
@@ -366,23 +314,10 @@ export function registerCheckCommand(program: Command): void {
           }
           // Validate the drill-in target against the REAL aspect ids in the graph.
           // An unknown / mistyped id would otherwise render a misleading "0 of N
-          // errors" FAIL that looks like the rule merely has no issues this run —
-          // sending the agent chasing a nonexistent aspect. Name the unknown id
-          // explicitly and (when the set is small enough) list the real ones.
-          const knownAspectIds = (graph.aspects ?? []).map((a) => a.id);
-          if (!knownAspectIds.includes(opts.aspect)) {
-            const idList = knownAspectIds.slice().sort((a, b) => a.localeCompare(b, 'en'));
-            const known =
-              idList.length === 0
-                ? 'The graph defines no aspects.'
-                : idList.length <= 30
-                  ? `Known aspect ids: ${idList.join(', ')}.`
-                  : `The graph defines ${idList.length} aspects.`;
-            fail({
-              what: `Unknown aspect '${opts.aspect}'.`,
-              why: `--aspect drills into ONE rule by its aspect id, but '${opts.aspect}' is not an aspect defined in this graph — so the filter would match nothing and render a misleading "0 of N errors" view. ${known}`,
-              next: 'Run: yg aspects (list every aspect id), then yg check --aspect <id> with a real id; or yg check (full wall).',
-            }, 'aspect-not-found');
+          // errors" view that reads as a rule with no findings. The refusal is
+          // the one every command taking a rule id gives, pointing at `yg aspects`.
+          if (!(graph.aspects ?? []).some((a) => a.id === opts.aspect)) {
+            fail(aspectNotFound(opts.aspect, '--aspect drills into one rule by its id; an id that names no rule would match nothing and read as a rule with no findings.'), 'aspect-not-found');
             await exitAfterFlush(1);
             return;
           }
@@ -479,6 +414,10 @@ export function registerCheckCommand(program: Command): void {
         // the same whole-project gate plus a notice saying so — never a silently
         // empty scope, which would downgrade every finding in the report AND
         // leave every rule outside it unreviewed.
+        // The suppression scan's reason-less markers, read once here and handed
+        // to every report this command builds (runCheck turns them into
+        // warnings, exactly as the portal's report does from the same scan).
+        const reasonlessSuppressMarkers = await scanReasonlessMarkers(graph, projectRoot, repoFiles);
         const decision = await resolveChangeScope({
           graph,
           projectRoot,
@@ -583,6 +522,7 @@ export function registerCheckCommand(program: Command): void {
               // it the identical repo printed one fewer warning under --approve. Core
               // reads no files itself; read-only, never gates the fill.
               rulesArtifacts: await readRulesArtifacts(projectRoot),
+              reasonlessSuppressMarkers,
               // Worker ceiling resolved in the CLI layer (engine stays
               // deterministic): cores AND this machine's memory, since every
               // worker carries its own copy of the graph and its own ASTs. See
@@ -628,7 +568,6 @@ export function registerCheckCommand(program: Command): void {
               divergenceWrite: (text) => { writeFillDivergence(graph.rootPath, text); },
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
-            await appendReasonlessSuppressWarnings(fill.checkResult, graph, projectRoot, repoFiles);
             // A text preview's deliverable is the budget it already printed: the
             // report of the unchanged tree below it headed "FAIL" over a run that
             // exits 0 and fills nothing, which read as the preview failing. The
@@ -688,9 +627,9 @@ export function registerCheckCommand(program: Command): void {
                   nowUtc: () => new Date(),
                   trackedFiles: tracked,
                   rulesArtifacts: await readRulesArtifacts(projectRoot),
+                  reasonlessSuppressMarkers,
                   changeScope: changeScope,
                 });
-                await appendReasonlessSuppressWarnings(read, graph, projectRoot, repoFiles);
                 writeOut(renderJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
               } else {
                 writeOut(formatAbort(abort));
@@ -721,13 +660,13 @@ export function registerCheckCommand(program: Command): void {
           now: () => new Date(),
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
+          reasonlessSuppressMarkers,
           // The measurement above, or undefined for a run answering for the
           // whole project. Absent, every finding keeps the code and severity it
           // always had; present, a finding this change is not accountable for
           // becomes its non-blocking counterpart — still named, still counted.
           changeScope: changeScope,
         });
-        await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
         writeOut(asJson ? renderJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
