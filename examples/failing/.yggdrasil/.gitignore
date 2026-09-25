@@ -10,3 +10,6 @@ yg-secrets.yaml
 .yg-events.jsonl*
 *.tmp
 .yg-packages-versions.json
+.family-candidates.json
+.family-candidates.*.json
+.yg-*.lock
