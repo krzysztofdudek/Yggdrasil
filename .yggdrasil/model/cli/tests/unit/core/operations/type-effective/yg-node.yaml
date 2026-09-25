@@ -11,6 +11,8 @@ relations:
     type: uses
   - target: cli/relations/core
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/core/type-effective.test.ts
   - source/cli/tests/unit/core/type-effective-cascade-guard.test.ts

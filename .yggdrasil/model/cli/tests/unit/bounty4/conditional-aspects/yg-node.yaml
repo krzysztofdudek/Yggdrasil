@@ -8,7 +8,9 @@ relations:
     { target: cli/core/file-when-evaluator, type: uses },
     { target: cli/core/graph, type: uses },
     { target: cli/io/file-content-cache, type: uses },
-    { target: cli/utils, type: uses }
+    { target: cli/utils, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/when, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty4/conditional-aspects.test.ts

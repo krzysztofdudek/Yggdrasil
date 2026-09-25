@@ -1,0 +1,9 @@
+name: TypeClassificationTypes
+type: types
+description: "The result of classifying one file against the architecture node types: the types whose file predicate matched (with the predicate trace), the closest near-misses with their score, and the types that could not be evaluated (a read failure or over the content-scan size limit). Pure types in the model layer, so the classification cache can store results without depending on the classifier engine; core/type-classifier.ts re-exports them."
+aspects: []
+relations:
+  - target: cli/model/file-when
+    type: uses
+mapping:
+  - source/cli/src/model/type-classification.ts

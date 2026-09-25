@@ -19,11 +19,9 @@ import { computeSuggestedNext } from './check-suggested-next.js';
 import { toPosixPath } from '../utils/posix.js';
 
 /** One pair's infrastructure diagnostic, collected by a phase for grouped emission. */
-export interface InfraDiagnosticItem {
-  aspectId: string;
-  unitKey: string;
-  messageData: IssueMessage;
-}
+// InfraDiagnosticItem lives in fill-shared.ts (see there); re-exported for this module's callers.
+import type { InfraDiagnosticItem } from './fill-shared.js';
+export type { InfraDiagnosticItem };
 
 /**
  * Emit infrastructure diagnostics grouped by aspectId — one message per aspect

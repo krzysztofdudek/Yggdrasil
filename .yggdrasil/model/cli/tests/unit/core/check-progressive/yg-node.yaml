@@ -52,6 +52,12 @@ relations:
     type: uses
   - target: cli/core/progressive-scope
     type: uses
+  - target: cli/core/pairs
+    type: uses
+  - target: cli/core/verify-lock
+    type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/tests/unit/core/check-progressive.test.ts
   - source/cli/tests/unit/core/check-byte-guard.test.ts

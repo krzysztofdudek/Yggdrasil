@@ -7,4 +7,6 @@ description: "Pure lookup: for a (fromType, toType) node-type pair, which
   over classified imports."
 mapping:
   - source/cli/src/core/allowed-relation-types.ts
-relations: []
+relations:
+  - target: cli/model/graph
+    type: uses

@@ -21,10 +21,10 @@ describe('typescript extractor — uses()', () => {
     const { uses } = await run(`import path from 'node:path';\nimport { z } from 'zod';\nimport u from 'https://x.dev/u.js';`);
     expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: 'zod' }]);
   });
-  it('excludes whole-statement import type', async () => {
+  it('gives whole-statement import type its edge (a type-only import is a dependency)', async () => {
     const { uses } = await run(`import type { T } from './t';\nimport { a } from './ab';`);
-    expect(uses.some((u) => u.candidates[0].kind === 'path' && u.candidates[0].specifier === './t')).toBe(
-      false,
+    expect(uses).toContainEqual(
+      expect.objectContaining({ candidates: [{ kind: 'path', specifier: './t' }], line: 1 }),
     );
     expect(uses).toContainEqual(
       expect.objectContaining({ candidates: [{ kind: 'path', specifier: './ab' }] }),
@@ -77,10 +77,10 @@ describe('typescript extractor — uses()', () => {
     const { uses } = await run(`import x from './x';\nconst y = require('./y');`, '.js', 'javascript');
     expect(uses).toHaveLength(2);
   });
-  it('excludes a whole-statement namespace type import (`import type * as T from ...`)', async () => {
+  it('gives a whole-statement namespace type import its edge (`import type * as T from ...`)', async () => {
     const { uses } = await run(`import type * as T from './t';\nimport { a } from './ab';`);
-    expect(uses.some((u) => u.candidates[0].kind === 'path' && u.candidates[0].specifier === './t')).toBe(
-      false,
+    expect(uses).toContainEqual(
+      expect.objectContaining({ candidates: [{ kind: 'path', specifier: './t' }], line: 1 }),
     );
     expect(uses).toContainEqual(
       expect.objectContaining({ candidates: [{ kind: 'path', specifier: './ab' }] }),
@@ -95,28 +95,35 @@ describe('typescript extractor — uses()', () => {
     );
   });
 
-  it('excludes a whole-statement export type re-export (`export type { X } from`)', async () => {
-    // `export type { X } from './m'` carries a statement-level `type` token before the
-    // export_clause — a compile-time-only re-export, NOT a runtime dependency.
+  it('gives a whole-statement export type re-export its edge (`export type { X } from`)', async () => {
+    // `export type { X } from './m'` republishes a type of ./m: this module's surface
+    // depends on it, so it is a dependency like a value re-export.
     const { uses } = await run(`export type { X } from './typeonly';\nexport { v } from './value';`);
-    expect(
-      uses.some((u) => u.candidates[0].kind === 'path' && u.candidates[0].specifier === './typeonly'),
-    ).toBe(false);
+    expect(uses).toContainEqual(
+      expect.objectContaining({ candidates: [{ kind: 'path', specifier: './typeonly' }], line: 1 }),
+    );
     // The value re-export on the next line is unaffected.
     expect(uses).toContainEqual(
       expect.objectContaining({ candidates: [{ kind: 'path', specifier: './value' }] }),
     );
   });
 
-  it('excludes an all-inline-type named import (`import { type A, type B } from`)', async () => {
-    // Every specifier carries `type`; no default/namespace binding remains at runtime.
+  it('gives an all-inline-type named import its edge (`import { type A, type B } from`)', async () => {
     const { uses } = await run(`import { type A, type B } from './alltype';`);
-    expect(uses).toHaveLength(0);
+    expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: './alltype' }]);
   });
 
-  it('excludes an all-inline-type named export (`export { type A, type B } from`)', async () => {
+  it('gives an all-inline-type named export its edge (`export { type A, type B } from`)', async () => {
     const { uses } = await run(`export { type A, type B } from './alltype';`);
-    expect(uses).toHaveLength(0);
+    expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: './alltype' }]);
+  });
+
+  it('gives `export type * from` and `export type * as ns from` their edges', async () => {
+    const { uses } = await run(`export type * from './a';\nexport type * as ns from './b';`);
+    expect(uses.map((u) => [u.candidates[0], u.line])).toEqual([
+      [{ kind: 'path', specifier: './a' }, 1],
+      [{ kind: 'path', specifier: './b' }, 2],
+    ]);
   });
 
   it('KEEPS a mixed inline-type export re-export (`export { type A, b } from`)', async () => {
@@ -177,7 +184,7 @@ describe('typescript extractor — uses()', () => {
 });
 
 describe('typescript extractor — one type-only rule, new forms, grammar recovery', () => {
-  it('silences `import type X = require()` and an import() in any type position, keeps value positions', async () => {
+  it('gives `import type X = require()` and an import() in any type position an edge, like value positions', async () => {
     const { uses } = await run(
       [
         `import type B = require('./b');`,
@@ -192,16 +199,34 @@ describe('typescript extractor — one type-only rule, new forms, grammar recove
         `import C = require('./c');`,
       ].join('\n'),
     );
-    expect(uses.map((u) => [u.candidates[0], u.line])).toEqual([
-      [{ kind: 'path', specifier: './value' }, 8],
-      [{ kind: 'path', specifier: './value2' }, 9],
-      [{ kind: 'path', specifier: './c' }, 10],
-    ]);
+    expect(uses.map((u) => [(u.candidates[0] as { specifier: string }).specifier, u.line]).sort()).toEqual(
+      [
+        ['./b', 1],
+        ['./m', 2],
+        ['./t', 3],
+        ['./t2', 4],
+        ['./t3', 5],
+        ['./t4', 6],
+        ['./t5', 7],
+        ['./t6', 7],
+        ['./value', 8],
+        ['./value2', 9],
+        ['./t7', 9],
+        ['./c', 10],
+      ].sort(),
+    );
   });
 
-  it('never follows a module augmentation (`declare module`), relative or not', async () => {
-    const { uses } = await run(`declare module './m' { interface X { a: 1 } }\ndeclare module 'pkg' {}\ndeclare module '*.css';`);
-    expect(uses).toHaveLength(0);
+  it('a module augmentation names its module: relative always, bare only in a module file, never a wildcard', async () => {
+    // Script file (no top-level import/export): a bare `declare module` is an ambient declaration.
+    const script = await run(`declare module './m' { interface X { a: 1 } }\ndeclare module 'pkg' {}\ndeclare module '*.css';`);
+    expect(script.uses.map((u) => [u.candidates[0], u.line])).toEqual([[{ kind: 'path', specifier: './m' }, 1]]);
+    // Module file: a bare name is an augmentation of that module.
+    const mod = await run(`declare module './m' { interface X { a: 1 } }\ndeclare module 'pkg' {}\ndeclare module '*.css';\nexport {};`);
+    expect(mod.uses.map((u) => [u.candidates[0], u.line])).toEqual([
+      [{ kind: 'path', specifier: './m' }, 1],
+      [{ kind: 'path', specifier: 'pkg' }, 2],
+    ]);
   });
 
   it('emits `new URL(lit, import.meta.url)` only for a literal import.meta.url base; a bare name is made relative', async () => {
@@ -229,11 +254,15 @@ describe('typescript extractor — one type-only rule, new forms, grammar recove
     expect(uses).toHaveLength(4);
   });
 
-  it('recovery keeps the type-only rule: a recovered `export type` or all-`type` clause stays silent', async () => {
+  it('recovery keeps the type-only rule: a recovered `export type` or all-`type` clause gives its edge', async () => {
     const { uses } = await run(
       `export type { B } from './b' with { type: 'json' };\nexport { type C, type D } from './cd' with { type: 'json' };\nexport { type F, g } from './fg' with { type: 'json' };`,
     );
-    expect(uses.map((u) => u.candidates[0])).toEqual([{ kind: 'path', specifier: './fg' }]);
+    expect(uses.map((u) => u.candidates[0])).toEqual([
+      { kind: 'path', specifier: './b' },
+      { kind: 'path', specifier: './cd' },
+      { kind: 'path', specifier: './fg' },
+    ]);
   });
 
   it('recovery reads only line-anchored statement text: a commented import inside an ERROR region is not one', async () => {

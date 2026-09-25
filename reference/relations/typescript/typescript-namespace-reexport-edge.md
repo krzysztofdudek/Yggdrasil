@@ -8,10 +8,7 @@ cites: "TS Modules Reference — `export * as ns from` (TS 3.8+) re-exports the 
 
 ## Rule
 
-A namespace re-export `export * as ns from './ns'` re-exports the module as a named
-namespace — a real runtime dependency. It uses a `namespace_export` node and is never
-type-only in the value form, so it must keep its edge. The type-only seal for
-`export type * as` must NOT over-silence this VALUE form (which carries no `type`).
+A namespace re-export `export * as ns from './ns'` re-exports the module as a named namespace (a `namespace_export` node) and gives an edge. Its type-only twin `export type * as ns from` gives the same edge (typescript-export-type-star-reexport-edge).
 
 ## Files
 
@@ -29,5 +26,4 @@ export * as ns from '../ns/value';
 
 ## Why
 
-The value namespace re-export is a genuine runtime dependency; the type-only seal fires
-only when a leading `type` marker is present, never for this bare value form.
+The value namespace re-export is a dependency on the module it republishes.

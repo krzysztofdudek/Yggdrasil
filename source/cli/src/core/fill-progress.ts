@@ -16,6 +16,7 @@
  */
 
 import type { FillEventSink, FillLane } from '../model/fill-event.js';
+import type { PairProgress } from './fill-shared.js';
 
 // ============================================================
 // Public types
@@ -58,7 +59,7 @@ export interface ProgressState {
 // ProgressTracker
 // ============================================================
 
-export class ProgressTracker {
+export class ProgressTracker implements PairProgress {
   private readonly isTTY: boolean;
   private readonly now: () => number;
   private readonly milestoneInterval: number;

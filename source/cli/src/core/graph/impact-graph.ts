@@ -3,13 +3,11 @@ import { collectAllowedReadsForAspect } from '../../structure/allowed-reads.js';
 import { isPathInMapping } from '../../structure/expand-mapping-sync.js';
 import type { Graph } from '../../model/graph.js';
 import type { LockFile } from '../../model/lock.js';
-import type { ExpectedPair } from '../pairs.js';
+import type { ExpectedPair } from '../../model/expected-pair.js';
 import { toPosix } from '../../utils/posix.js';
 import { buildOwnerIndex, guardOwnerIndex } from '../../relations/owner-index.js';
-// Type-only: repo-scanner's GraphExclusionSet is a value the caller (cli/impact-handlers.ts,
-// which already declares a relation to cli/io/stores) resolves; spelling its TYPE here
-// creates no code edge for the relation-conformance pass to see, so this module needs no
-// new relation just to name it.
+// The exclusion set itself is resolved by the caller (cli/impact-handlers.ts); this module
+// only names its type, a declared dependency on cli/io/stores like any other import.
 import type { GraphExclusionSet } from '../../io/repo-scanner.js';
 
 /**

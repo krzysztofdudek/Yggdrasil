@@ -36,7 +36,7 @@ description: Shared helper functions — debug logging, git introspection, path
   call utility but not the command layer.
 aspects:
   - posix-paths-output
-relations: [ { target: cli/model/graph, type: uses } ]
+relations: [ { target: cli/model/graph, type: uses }, { target: cli/model/file-when, type: uses }, { target: cli/model/validation, type: uses }, { target: cli/model/when, type: uses } ]
 mapping:
   - source/cli/src/utils/binary-check.ts
   - source/cli/src/utils/binary-extensions.ts

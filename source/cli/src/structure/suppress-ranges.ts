@@ -18,7 +18,7 @@ import { extname } from 'node:path';
 import { withParsedFile } from '../ast/parser.js';
 import { collectSuppressions, formatSuppressedRangesForAspect } from '../ast/suppress.js';
 import { getLanguageForExtension } from '../utils/language-registry.js';
-import type { PromptSuppressedRangesInput } from '../llm/prompt.js';
+import type { PromptSuppressedRangesInput } from '../model/llm-contract.js';
 
 // Re-export so the engine/command callers (which may NOT import ast/* directly)
 // can `instanceof`-check the reasonless-marker error their fail-closed handling

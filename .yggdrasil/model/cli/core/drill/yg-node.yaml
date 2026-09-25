@@ -27,6 +27,8 @@ relations:
     type: calls
   - target: cli/structure
     type: calls
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/drill-add.ts
   - source/cli/src/core/drill-runner.ts

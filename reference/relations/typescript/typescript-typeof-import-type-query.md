@@ -2,13 +2,13 @@
 id: typescript-typeof-import-type-query
 language: typescript
 category: usage-site
-expectation: silence
-cites: "TS 2.9 import types (`typeof import('x')` is a type query, erased); Yggdrasil type-only rule"
+expectation: edge
+cites: "TS 2.9 import types (`typeof import('x')` is a type query); Yggdrasil type-only rule"
 ---
 
 ## Rule
 
-A type query over an import type (`typeof import('./m')`, the vitest `importOriginal<typeof import('./m')>()` idiom) is a type: it loads nothing at runtime. The extractor recognises an `import('…')` call whose ancestors reach a type context (a type query, a type annotation, a type argument, a type alias, the type side of `as`/`satisfies`) before any value boundary and emits nothing. A relation edge records a runtime dependency. TypeScript erases every type-only construct from the emitted JavaScript, so every spelling of a type-only reference is silent, the statement forms (`import type`, `export type`, all-inline `type` clauses; see typescript-import-type-whole-statement-silence) and the type-position forms alike.
+A type query over an import type (`typeof import('./m')`, the vitest `importOriginal<typeof import('./m')>()` idiom) derives a type from the module's exports, so the file depends on that module: rename an export and the query breaks. It gives an edge in a type alias and in a type argument alike. A type-only reference is a dependency like a value import: the importing file compiles only against the module it names, so changing or removing that module breaks it. Every spelling of a type-only reference therefore gives an edge (see typescript-import-type-whole-statement-edge for the rule).
 
 ## Files
 
@@ -24,8 +24,5 @@ export const mocked = vi.fn<() => Promise<typeof import('../b/value')>>();
 
 ## Expect
 
-- silence      # `typeof import()` in an alias and in a type argument → erased → no edge
-
-## Why
-
-Before 6.1.0 this form emitted an edge while `import type` was silent, so the ubiquitous vitest idiom produced false edges; one rule now covers both.
+- r/app/use.ts:1 -> node:b      # `typeof import()` in a type alias
+- r/app/use.ts:3 -> node:b      # `typeof import()` in a type argument

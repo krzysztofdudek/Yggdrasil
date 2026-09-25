@@ -13,6 +13,13 @@ description: >-
   dependency algorithms deliberately ignore — and a port's DECLARED contract
   version rather than the one a versionless port is read at.
 aspects: []
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Set at the reviewed count of 21 when type-only imports became dependencies in 6.1.0:
+    the suite already named types of the graph model, the lock verifier, the rule-health
+    signals and the portal engine facade, and those imports are now declared relations,
+    taking it one over the project default. No new behaviour is tested through them.
 relations:
   [
     { target: cli/commands/aspects, type: uses },
@@ -31,7 +38,11 @@ relations:
     { target: cli/formatters, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/tests/fixtures, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/aspect-health-signals, type: uses },
+    { target: cli/core/verify-lock, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/portal/engine-api, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts

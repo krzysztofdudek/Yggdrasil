@@ -35,59 +35,11 @@ import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import { toPosixPath } from '../utils/posix.js';
 import { count } from '../utils/count.js';
 
-/** Extra, disposition-specific fields recorded on one verdict-events line. */
-export interface VerdictEventExtra {
-  hash?: string;
-  reason?: string;
-  tier?: string;
-  votes?: { satisfied: number; total: number };
-  judge?: { provider: string; model: string };
-}
-
-export interface VerdictWriter {
-  /** Write out the in-memory lock as it stands now (every partition, since the
-   *  caller mutated it directly) and resolve once that state is on disk. Handed
-   *  to the closure and GC stages so their own writes join the same writer.
-   *  Rejects with a LockEnvironmentError when the write fails. */
-  persistLock: () => Promise<void>;
-  /** Record ONE pair's real verdict: mutate the in-memory lock and mark it
-   *  unwritten; its telemetry line is emitted after the flush that carries it.
-   *  An LLM verdict resolves once it is on disk (or its flush failed — it then
-   *  rides the next one); a deterministic verdict resolves at once unless a full
-   *  batch is waiting. Never rejects. The ONLY path that writes verdict content. */
-  setEntry: (
-    pair: ExpectedPair,
-    entry: VerdictEntry,
-    tierName?: string,
-    votes?: { satisfied: number; total: number },
-    judge?: { provider: string; model: string },
-    /** An approval's reason, for the local events line only (never the lock). */
-    approvalReason?: string,
-  ) => Promise<void>;
-  /** Append one (aspect, unit) disposition line to the telemetry sidecar —
-   *  used directly for the no-write dispositions; `setEntry` calls it itself
-   *  for a real verdict. */
-  emitEvent: (
-    aspectId: string,
-    unitKey: string,
-    kind: 'llm' | 'deterministic',
-    disposition: VerdictEvent['disposition'],
-    extra?: VerdictEventExtra,
-  ) => void;
-  /** Flush every unwritten verdict — drained before the run reports. Throws a
-   *  LockEnvironmentError when the final flush still fails. */
-  drain: () => Promise<void>;
-  /** Best-effort final flush and teardown on any exit from the run, including
-   *  an error. Never throws. */
-  close: () => Promise<void>;
-  /** Count of verdict-content writes performed this run (one per setEntry).
-   *  Read ONLY by the convergence sentinel at the report boundary — GC's
-   *  canonical re-serialization and closure's fingerprint writes are
-   *  deliberately NOT counted, since only a real verdict write would
-   *  legitimately explain a change in the unverified set between the pre-fill
-   *  and post-fill classifications. */
-  readonly lockWrites: number;
-}
+// VerdictWriter and VerdictEventExtra live in fill-shared.ts so the fill phases the
+// orchestrator hands a writer to can name it without depending on the orchestrator's
+// modules; re-exported for this module's callers.
+import type { VerdictWriter, VerdictEventExtra } from './fill-shared.js';
+export type { VerdictWriter, VerdictEventExtra };
 
 /**
  * Build this run's verdict writer over `lock` (mutated in place).

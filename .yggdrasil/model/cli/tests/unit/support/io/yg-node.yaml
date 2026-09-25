@@ -34,7 +34,8 @@ relations:
     { target: cli/io/file-content-cache, type: uses },
     { target: cli/core/type-classifier, type: uses },
     { target: cli/io/type-class-cache, type: uses },
-    { target: cli/core/file-when-evaluator, type: uses }
+    { target: cli/core/file-when-evaluator, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/advise-decisions-store.test.ts

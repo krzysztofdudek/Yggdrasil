@@ -3,7 +3,7 @@ type: test-suite
 description: Unit tests for CLI diagnostic-message formatters — issue-message
   snapshots, message-builder, and predicate-trace output rendering
 aspects: []
-relations: [ { target: cli/formatters, type: uses } ]
+relations: [ { target: cli/formatters, type: uses }, { target: cli/model/file-when, type: uses } ]
 mapping:
   - source/cli/tests/unit/formatters/message-builder.test.ts
   - source/cli/tests/unit/formatters/predicate-trace.test.ts

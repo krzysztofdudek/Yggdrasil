@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { atomicWriteFile } from './atomic-write.js';
 import type { Graph } from '../model/graph.js';
-import type { ClassificationResult } from '../core/type-classifier.js'; // type-only — no relation implication, mirrors the FileContentCache precedent's own type-only cross-reference
+import type { ClassificationResult } from '../model/type-classification.js';
 
 /**
  * Cache schema version. Bump whenever the on-disk shard format OR the stored

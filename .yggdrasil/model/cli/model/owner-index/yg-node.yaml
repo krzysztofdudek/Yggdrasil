@@ -1,0 +1,7 @@
+name: OwnerIndexTypes
+type: types
+description: "The query surface of the owner index: which node owns a repository file, and how the winning mapping entry matched it (exact path, directory prefix or glob). Pure types in the model layer, so a layer that may not depend on the relations adapter can accept an index built by its caller; relations/owner-index.ts builds the index and re-exports them."
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/owner-index.ts

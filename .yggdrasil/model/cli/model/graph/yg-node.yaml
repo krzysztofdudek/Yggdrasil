@@ -6,7 +6,8 @@ aspects: []
 relations:
   [
     { target: cli/model/file-when, type: uses },
-    { target: cli/model/when, type: uses }
+    { target: cli/model/when, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/src/model/graph.ts

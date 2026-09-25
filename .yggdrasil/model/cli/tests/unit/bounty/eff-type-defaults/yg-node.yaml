@@ -6,7 +6,9 @@ relations:
   [
     { target: cli/core/graph, type: uses },
     { target: cli/io/parsers/graph, type: uses },
-    { target: cli/tests/unit/helpers, type: uses }
+    { target: cli/tests/unit/helpers, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/when, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty/eff-type-defaults.test.ts

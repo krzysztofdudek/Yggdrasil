@@ -16,7 +16,8 @@ relations:
     { target: cli/io/stores, type: uses },
     { target: cli/language-registry, type: uses },
     { target: cli/model/lock, type: uses },
-    { target: cli/relations/extractors, type: uses }
+    { target: cli/relations/extractors, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/helpers/build-test-graph.ts

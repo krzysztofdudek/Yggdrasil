@@ -9,7 +9,8 @@ relations:
     { target: cli/core/checks/aspects, type: uses },
     { target: cli/core/checks/relations, type: uses },
     { target: cli/core/graph, type: uses },
-    { target: cli/io/parsers/graph, type: uses }
+    { target: cli/io/parsers/graph, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty4/ports-and-relations.test.ts

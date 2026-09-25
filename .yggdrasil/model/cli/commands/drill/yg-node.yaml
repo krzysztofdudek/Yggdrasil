@@ -53,6 +53,8 @@ relations:
     type: uses
   - target: cli/tests/unit/cli
     type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/cli/drill-add.ts
   - source/cli/src/cli/drill.ts

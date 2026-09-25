@@ -47,6 +47,8 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/model/fill-event
+    type: uses
 mapping:
   - source/cli/src/core/fill-llm-phase.ts
   - source/cli/src/core/fill-llm.ts

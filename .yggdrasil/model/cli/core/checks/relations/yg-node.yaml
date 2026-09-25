@@ -11,7 +11,9 @@ relations:
   [
     { target: cli/core/checks/architecture, type: calls },
     { target: cli/io/parsers/config, type: calls },
-    { target: cli/utils, type: calls }
+    { target: cli/utils, type: calls },
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/validation, type: uses }
   ]
 mapping:
   - source/cli/src/core/checks/relations.ts

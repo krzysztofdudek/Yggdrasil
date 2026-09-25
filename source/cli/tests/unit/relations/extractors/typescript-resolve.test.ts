@@ -35,6 +35,16 @@ describe('resolveTsPath', () => {
   it('resolves a plain .js source when no .ts exists', () => {
     expect(resolveTsPath('../m/m.js', 'src/core/x.ts', exists)).toBe('src/m/m.js');
   });
+  it('probes a declaration file after the sources, the way the compiler does', () => {
+    const decl = new Set(['src/t/types.d.ts', 'src/u/api.d.ts', 'src/v/esm.d.mts', 'src/w/index.d.ts', 'src/x/both.ts', 'src/x/both.d.ts']);
+    const has = (p: string) => decl.has(p);
+    expect(resolveTsPath('../t/types', 'src/app/a.ts', has)).toBe('src/t/types.d.ts');
+    expect(resolveTsPath('../u/api.js', 'src/app/a.ts', has)).toBe('src/u/api.d.ts');
+    expect(resolveTsPath('../v/esm.mjs', 'src/app/a.ts', has)).toBe('src/v/esm.d.mts');
+    expect(resolveTsPath('../w', 'src/app/a.ts', has)).toBe('src/w/index.d.ts');
+    // A source file beats its declaration file.
+    expect(resolveTsPath('../x/both', 'src/app/a.ts', has)).toBe('src/x/both.ts');
+  });
   it('returns undefined for a non-existent target', () => {
     expect(resolveTsPath('./nope', 'src/core/x.ts', exists)).toBeUndefined();
   });

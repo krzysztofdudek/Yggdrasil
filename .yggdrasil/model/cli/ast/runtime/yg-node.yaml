@@ -16,3 +16,5 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/model/validation
+    type: uses

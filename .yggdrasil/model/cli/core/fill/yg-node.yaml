@@ -39,7 +39,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   that lock verification can share them without reaching anything that depends
   back on the check report."
 max_direct_relations:
-  limit: 26
+  limit: 28
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -111,6 +111,10 @@ max_direct_relations:
     events to the formatter on that caller's behalf. Keeping that path is what
     lets every existing caller of the stage go on reading exactly the text it
     always read.
+    Raised from 26 to 28 when type-only imports became dependencies in 6.1.0: the stage
+    already named the fill-event and validation model types in several modules, and
+    those imports are now declared relations to cli/model/fill-event and
+    cli/model/validation. No new call was added.
 aspects:
   - deterministic
   - posix-paths-output
@@ -171,6 +175,10 @@ relations:
     type: calls
   - target: cli/core/progressive-scope
     type: calls
+  - target: cli/model/fill-event
+    type: uses
+  - target: cli/model/validation
+    type: uses
 mapping:
   - source/cli/src/core/fill.ts
   - source/cli/src/core/fill-classify.ts

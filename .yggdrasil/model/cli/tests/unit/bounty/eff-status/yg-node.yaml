@@ -2,6 +2,6 @@ name: Bounty eff-status
 type: test-suite
 description: "Bug-bounty branch-coverage suites: eff-status (~31190 chars)."
 aspects: []
-relations: [ { target: cli/core/graph, type: uses } ]
+relations: [ { target: cli/core/graph, type: uses }, { target: cli/model/graph, type: uses }, { target: cli/model/when, type: uses } ]
 mapping:
   - source/cli/tests/unit/bounty/eff-status.test.ts

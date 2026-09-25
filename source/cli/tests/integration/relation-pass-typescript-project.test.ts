@@ -13,7 +13,7 @@ import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
 // package, a Vue component's `<script setup>` block (parsed as its script view by
 // pass.ts itself, not by a test double), and the type-only rule. Node `app` declares
 // no relations, so every cross-node edge is a violation the pass must report at the
-// right file and line — and a type-only reference must report nothing.
+// right file and line — a type-only reference included, since it is a dependency too.
 
 function write(root: string, rel: string, content: string): void {
   const abs = path.join(root, rel);
@@ -61,7 +61,7 @@ describe('relation pass — TypeScript project configuration and components', ()
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-  it('reports aliased, workspace and component edges at their own lines, and nothing for type-only references', async () => {
+  it('reports aliased, workspace, type-only and component edges at their own lines', async () => {
     for (const run of ['cold', 'cached']) {
       const graph = await loadGraph(root);
       const result = await runRelationPass(graph, root, {
@@ -76,7 +76,9 @@ describe('relation pass — TypeScript project configuration and components', ()
         'apps/web/Panel.vue:5 -> ui',
         'apps/web/main.ts:1 -> ui',
         'apps/web/main.ts:2 -> kit',
-      ]); // main.ts:3-4 (type-only) are silent; main.ts:5 (./Panel.vue) is intra-node
+        'apps/web/main.ts:3 -> types',
+        'apps/web/main.ts:4 -> types',
+      ]); // main.ts:3-4 are type-only references, dependencies like any import; main.ts:5 (./Panel.vue) is intra-node
       expect(result.parseFailures, run).toHaveLength(0);
     }
   });

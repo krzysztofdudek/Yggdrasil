@@ -6,7 +6,8 @@ aspects: []
 relations:
   [
     { target: cli/ast/runtime, type: uses },
-    { target: cli/core/graph, type: uses }
+    { target: cli/core/graph, type: uses },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/integration/ast-runner.test.ts

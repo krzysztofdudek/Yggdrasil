@@ -51,7 +51,7 @@ description: "Unified check orchestrator — it also projects its own finished
   compares the very bytes each verdict was re-hashed from rather than reading
   the same files again, and reports how many findings the guard kept."
 max_direct_relations:
-  limit: 25
+  limit: 26
   reason: >-
     Reviewed architectural seam. This node is the single read-only orchestrator of
     `yg check`: it composes every check module and every source of facts one report
@@ -67,6 +67,12 @@ max_direct_relations:
     the scope engine whose burn-set shape this node's options contract names) plus
     modest headroom, so one more check lands without churning this allowance while a
     larger jump still re-raises the warning for review.
+    Raised from 25 to 26 when type-only imports became dependencies in 6.1.0: the
+    orchestrator already named the pair engine's coverage input, and that import is now
+    a declared relation to cli/core/pairs. A second new edge, to the check-issue model,
+    replaces nothing this node could drop: the issue type moved there so the modules
+    this node calls can name it without a cycle back here, and the check contract
+    re-exports it.
 aspects:
   - posix-paths-output
   - what-why-next
@@ -119,6 +125,10 @@ relations:
     type: calls
   - target: cli/core/progressive-scope
     type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/model/check-issue
+    type: uses
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/check-contract.ts

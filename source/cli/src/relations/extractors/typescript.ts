@@ -9,26 +9,34 @@ import { single } from './types.js';
  *
  * v1 scope = EXISTENCE, not relation type. A dependency edge is established
  * ONLY by a module-specifier-bearing construct: a static import, a re-export
- * with a source, `import x = require(...)`, a `require(...)` call, a dynamic
- * `import(...)` with a string-literal specifier in a value position,
+ * with a source, `import x = require(...)`, a `require(...)` call, an
+ * `import(...)` with a string-literal specifier (in a value or a type position),
+ * a module augmentation `declare module '<spec>' { … }`,
  * or `new URL('<lit>', import.meta.url)`. Usage-site nodes (extends, implements, calls,
  * JSX, type references) would only REFINE the relation type of an
  * already-imported binding, and v1 does not enforce relation type — so this
  * extractor performs NO usage-site refinement. It emits exactly one path hint
  * per import-bearing statement.
  *
- * TYPE-ONLY REFERENCES ARE NOT EDGES — ONE RULE FOR EVERY SPELLING. A
- * relation edge records a RUNTIME dependency: a module the importing file
- * loads. Every construct TypeScript erases from the emitted JavaScript is
- * silent: `import type { T } from`, an import whose every specifier is inline
- * `type` with no default/namespace binding, `export type { X } from`,
- * `export type * [as ns] from`, `import type X = require(…)`, an `import('…')`
- * in a TYPE position (`typeof import('./x')`, `let v: import('./x').T`,
- * `x as import('./x').T`, a type argument), and a module augmentation
- * `declare module './x' { … }`. Before 6.1.0 the statement forms were silent
- * but the type-position `import()` and `import type = require` forms emitted
- * edges; they now follow the same rule. A mixed clause (`import { type A, b }`)
- * or a default/namespace binding keeps its edge — it loads the module.
+ * TYPE-ONLY REFERENCES ARE EDGES — ONE RULE FOR EVERY SPELLING. A relation
+ * edge records that one node's code depends on another's, and a file that
+ * compiles only because another module declares a type depends on that module
+ * as much as a file that loads it: change or remove the type and the importer
+ * breaks. So a type-only reference gives its edge exactly like a value import:
+ * `import type { T } from`, an all-inline `import { type A } from`,
+ * `export type { X } from`, `export type * [as ns] from`,
+ * `import type X = require(…)`, an `import('…')` in a TYPE position
+ * (`typeof import('./x')`, `let v: import('./x').T`, the type side of
+ * `as`/`satisfies`, a type argument). A module augmentation
+ * `declare module '<spec>' { … }` extends the declarations of the module it
+ * names and compiles only against it, so it gives an edge too — when it IS an
+ * augmentation: a relative name (TypeScript accepts a relative name only as an
+ * augmentation), or any name without a `*` wildcard in a file that is itself a
+ * module (a top-level import or export). The same header in a script file is
+ * an ambient module declaration: it declares a module's shape instead of
+ * depending on one, and stays silent, as does a wildcard pattern
+ * (`declare module '*.css'`). Before 6.1.0 the statement forms were silent
+ * while the type-position forms emitted; 6.1.0 makes every spelling an edge.
  *
  * Every non-empty specifier is emitted — relative ('./', '../'), root-absolute
  * ('/src/…'), package-internal ('#…') and bare ('@scope/pkg', 'lib/x'). The
@@ -46,8 +54,8 @@ import { single } from './types.js';
  * `import('x').T<U>` annotation, and the palette pins that those imports keep
  * their edge. A swallowed import is a real dependency with no edge, so every
  * source line an ERROR node touches is rescanned for a line-anchored
- * import/re-export statement (see `recoverFromErrors`); the type-only rule
- * applies to what is recovered.
+ * import/re-export statement (see `recoverFromErrors`); a recovered type-only
+ * statement gives its edge like any other.
  */
 
 /** Strip the surrounding quotes from a `string` node by reading its `string_fragment` child. */
@@ -134,16 +142,6 @@ const RECOVERY_PATTERNS: RegExp[] = [
   /^[ \t]*(?:export[ \t]+)?import([ \t]+(?:type[ \t]+)?)[\w$]+[ \t]*=[ \t]*require[ \t]*\([ \t]*(['"])([^'"\r\n]+)\2/gm,
 ];
 
-/** Type-only test over the raw clause text of a recovered statement (group 1 of the patterns). */
-function isTypeOnlyClauseText(clause: string): boolean {
-  const text = clause.trim();
-  if (/^type\b/.test(text)) return true;
-  const braced = /^\{([^}]*)\}$/.exec(text);
-  if (braced === null) return false;
-  const specs = braced[1].split(',').map((s) => s.trim()).filter((s) => s !== '');
-  return specs.length > 0 && specs.every((s) => /^type\s/.test(s));
-}
-
 /** Zero-based rows touched by any ERROR node in the tree (empty for an error-free parse). */
 function errorRows(root: Node): Set<number> {
   const rows = new Set<number>();
@@ -191,109 +189,35 @@ function recoverFromErrors(file: ParsedFile): Array<{ specifier: string; line: n
       let touched = false;
       for (let r = first; r <= last && !touched; r++) touched = rows.has(r);
       if (!touched) continue;
-      // The type-only rule holds in recovered statements too: a leading `type`
-      // (`import type …`, `export type …`) or a braced clause whose every specifier is
-      // `type`-prefixed with nothing outside the braces is erased.
-      if (isTypeOnlyClauseText(m[1])) continue;
       out.push({ specifier: m[3], line: first + 1 });
     }
   }
   return out;
 }
 
-/**
- * True when a statement child is the whole-statement `type` modifier — either a
- * direct anonymous `type` token, OR a `type` token the grammar wrapped in an
- * `ERROR` node. The shipped grammar does not model `export type *` and parses the
- * leading `type` into an `ERROR` wrapper before the `*` / `namespace_export`; the
- * ERROR text is matched verbatim so an unrelated parse error never trips the guard.
- */
-function isWholeStatementTypeToken(child: Node): boolean {
-  if (child.type === 'type') return true;
-  return child.type === 'ERROR' && child.text === 'type';
+/** True for a pattern ambient module name (`*.css`, `virtual:*`), which names no module. */
+function isWildcardModuleName(name: string): boolean {
+  return name.includes('*');
+}
+
+/** True when the file is an ES module: a top-level import or export statement. */
+function isModuleFile(root: Node): boolean {
+  return root.namedChildren.some((c) => c !== null && (c.type === 'import_statement' || c.type === 'export_statement'));
 }
 
 /**
- * Whole-statement `import type { T } from`, `import type * as T from`,
- * `import type X = require(…)`, `export type { X } from` and `export type * from`
- * carry a `type` token as a direct statement child before the clause. An inline
- * modifier (`import { type A, b }`) sits inside a specifier instead. `clauseType`
- * ends the scan: 'import_clause' for imports, 'export_clause' for exports.
+ * The specifier of a module augmentation `declare module '<spec>' { … }`, or
+ * undefined when the header is an ambient module declaration instead. A relative
+ * name is always an augmentation (TypeScript rejects a relative ambient name); any
+ * other non-wildcard name is an augmentation only inside a module file.
  */
-function isWholeStatementTypeImport(statement: Node, clauseType: string): boolean {
-  for (let i = 0; i < statement.childCount; i++) {
-    const child = statement.child(i);
-    if (child === null) continue;
-    if (child.type === clauseType || child.type === 'import_require_clause') return false;
-    if (isWholeStatementTypeToken(child)) return true;
-  }
-  return false;
-}
-
-/** An import clause with no default/namespace binding whose named specifiers are all inline `type`. */
-function isAllTypeImportClause(importClause: Node): boolean {
-  const hasRuntimeBinding = importClause.namedChildren.some(
-    (c) => c !== null && (c.type === 'identifier' || c.type === 'namespace_import'),
-  );
-  if (hasRuntimeBinding) return false;
-  const named = importClause.namedChildren.find((c): c is Node => c !== null && c.type === 'named_imports');
-  return named !== undefined && isAllInlineTypeClause(named, 'import_specifier');
-}
-
-/**
- * True when every specifier of a named clause carries an inline `type` modifier and
- * nothing in the clause is a runtime binding. An EMPTY clause (`export {} from`) is
- * not provably type-only and keeps its edge.
- */
-function isAllInlineTypeClause(clause: Node, specifierType: string): boolean {
-  let specifierCount = 0;
-  for (let i = 0; i < clause.namedChildCount; i++) {
-    const child = clause.namedChild(i);
-    if (child === null) continue;
-    if (child.type === 'identifier' || child.type === 'namespace_import') return false;
-    if (child.type !== specifierType) continue;
-    specifierCount++;
-    let typed = false;
-    for (let j = 0; j < child.childCount; j++) if (child.child(j)?.type === 'type') typed = true;
-    if (!typed) return false;
-  }
-  return specifierCount > 0;
-}
-
-/** Nodes whose whole subtree is a type (an `import('…')` inside one is an import type). */
-const TYPE_CONTEXTS = new Set([
-  'type_annotation',
-  'type_query',
-  'type_arguments',
-  'type_alias_declaration',
-  'interface_declaration',
-  'constraint',
-  'default_type',
-  'implements_clause',
-  'extends_type_clause',
-  'opting_type_annotation',
-  'omitting_type_annotation',
-  'asserts_annotation',
-]);
-/** Expressions whose operand is a value but whose trailing child is a type. */
-const TYPE_TAIL_EXPRESSIONS = new Set(['as_expression', 'satisfies_expression']);
-/** Nodes at which an import can no longer be inside a type: a body or a statement. */
-const VALUE_BOUNDARIES = new Set(['statement_block', 'class_body', 'program', 'arrow_function', 'function_expression']);
-
-/** True when an `import('…')` call sits in a type position (an import type), not in a value. */
-function isInTypePosition(call: Node): boolean {
-  let child: Node = call;
-  let parent = call.parent;
-  while (parent !== null && !VALUE_BOUNDARIES.has(parent.type)) {
-    if (TYPE_CONTEXTS.has(parent.type)) {
-      // `type X = …` names its type in the `value` field; its type parameters are types too.
-      return parent.type !== 'type_alias_declaration' || child.id !== parent.childForFieldName('name')?.id;
-    }
-    if (TYPE_TAIL_EXPRESSIONS.has(parent.type) && parent.namedChild(0)?.id !== child.id) return true;
-    child = parent;
-    parent = parent.parent;
-  }
-  return false;
+function augmentationSpecifier(moduleNode: Node, inModuleFile: boolean): string | undefined {
+  const name = moduleNode.childForFieldName('name');
+  if (name === null || name.type !== 'string') return undefined;
+  const spec = specifierFromStringNode(name);
+  if (spec === undefined || isWildcardModuleName(spec)) return undefined;
+  if (spec.startsWith('.') || inModuleFile) return spec;
+  return undefined;
 }
 
 function uses(file: ParsedFile): DetectedDep[] {
@@ -310,13 +234,13 @@ function uses(file: ParsedFile): DetectedDep[] {
   const emit = (specifier: string | undefined, node: Node): void =>
     emitAt(specifier, node.startPosition.row + 1);
 
+  const inModuleFile = isModuleFile(file.tree.rootNode);
+
   walk(file.tree.rootNode, (node) => {
     switch (node.type) {
       case 'import_statement': {
-        // Whole-statement `import type …` — including `import type x = require('./e')` —
-        // is erased; so is a clause whose every named specifier is inline `type` and
-        // that binds no default or namespace.
-        if (isWholeStatementTypeImport(node, 'import_clause')) break;
+        // Every form gives its edge, type-only ones included (`import type …`,
+        // `import { type A }`, `import type x = require('./e')`).
         // `import x = require('./e')` — the source sits on import_require_clause. Every
         // other form carries its source on the statement itself.
         const requireClause = node.namedChildren.find(
@@ -326,22 +250,13 @@ function uses(file: ParsedFile): DetectedDep[] {
           emit(specifierFromSource(requireClause), node);
           break;
         }
-        const importClause = node.namedChildren.find(
-          (c): c is Node => c !== null && c.type === 'import_clause',
-        );
-        if (importClause && isAllTypeImportClause(importClause)) break;
         emit(specifierFromSource(node), node);
         break;
       }
       case 'export_statement': {
         // A `source` field is present ONLY on re-exports (`export ... from '...'`,
         // `export * from '...'`). A local export has none. `export type { … } from`,
-        // `export type * from` and an all-inline-type clause are erased.
-        if (isWholeStatementTypeImport(node, 'export_clause')) break;
-        const exportClause = node.namedChildren.find(
-          (c): c is Node => c !== null && c.type === 'export_clause',
-        );
-        if (exportClause && isAllInlineTypeClause(exportClause, 'export_specifier')) break;
+        // `export type * from` and an all-inline-type clause give their edge too.
         emit(specifierFromSource(node), node);
         break;
       }
@@ -353,14 +268,19 @@ function uses(file: ParsedFile): DetectedDep[] {
         const isDynamicImport = fn.type === 'import';
         const isRequire = fn.type === 'identifier' && fn.text === 'require';
         if (!isDynamicImport && !isRequire) break;
-        // An import type (`typeof import('./x')`, `let v: import('./x').T`) is erased.
-        if (isDynamicImport && isInTypePosition(node)) break;
+        // An import type (`typeof import('./x')`, `let v: import('./x').T`) is a
+        // dependency like a value-position import() and gives the same edge.
         const arg = argumentAt(node, 0);
         if (arg === null) break;
         // A plain string literal OR a no-substitution template literal yields a
         // static specifier; an interpolated template literal / identifier / other
         // expression is non-literal and skipped (specifierFromCallArg returns undefined).
         emit(specifierFromCallArg(arg), node);
+        break;
+      }
+      case 'module': {
+        // `declare module './x' { … }` augments ./x (see augmentationSpecifier).
+        emit(augmentationSpecifier(node, inModuleFile), node);
         break;
       }
       case 'new_expression': {
@@ -425,10 +345,11 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
 
 export const typescriptExtractor: DependencyExtractor = {
   languages: new Set(['typescript', 'tsx', 'javascript']),
-  // rev 2: type-position import() and `import type = require` are silent like every other
-  // type-only form; bare/`#`/root-absolute specifiers emit (the resolver decides);
+  // rev 3: every type-only reference gives its edge (statement forms, type-position
+  // import(), `import type = require`) and a module augmentation names its module.
+  // rev 2: bare/`#`/root-absolute specifiers emit (the resolver decides);
   // `new URL(…, import.meta.url)`; ERROR-region recovery.
-  rev: 2,
+  rev: 3,
   declarations,
   uses,
 };
