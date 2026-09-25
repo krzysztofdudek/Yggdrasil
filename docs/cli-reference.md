@@ -309,7 +309,7 @@ The document carries what the report says: the project's counts, the exit code
 with the reason for it, `coverage` (files, covered, the node-owned, type-covered
 and excluded-by-design counts — those three `null` when type-level coverage is
 off — and whether anything is required to be covered at all), the `totals` by
-severity and by verdict plus how many expected pairs a draft rule dropped
+severity (counted in findings, the unit the verdict line counts; `groups` holds the blocks the text report shows) and by verdict plus how many expected pairs a draft rule dropped
 (`draftSkipped`, a count of draft rules — how many pairs each would have fanned out to is never enumerated) and the same verified split the text header shows
 (`verified: { deterministic, llm }`), every expected pair, every finding as
 structured `what` / `why` / `next`, who judged outside the configured reviewer,
@@ -493,7 +493,7 @@ yg check --approve --dry-run
 Every report `yg check` prints has one shape, the same in a terminal, a pipe, an agent and CI:
 
 ```text
-yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
+yg check: FAIL  34 errors in 4 blocks · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
 
 error[refused] no-todo — 8 violations in 8 nodes
   at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
@@ -525,13 +525,13 @@ next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fi
 then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
 ```
 
-**The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
+**The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors in 4 blocks · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A count is of **findings** — one per node, pair, file group or repository fact a check reports, the same unit as the JSON document's `totals` — while the report below groups findings into **blocks**; whenever the two numbers differ the count says how many blocks hold them (`34 errors in 4 blocks`: 24 unverified pairs, 8 refusals, one broken relation and one unmapped-file finding, in four blocks), so a count never reads as the number of blocks under it. The JSON document carries the blocks as `groups`. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
 
 **Blocks** follow, one per finding group. The heading is `error[<label>] <subject>` or `warning[<label>] <subject>`; below it come lowercase, labelled fields — a line with no label continues the field above it:
 
 - `at:` — where: one line per member. A refusal lists `<unit>  <file>:<line>  <message>` per violation (a reviewer refusal: the unit and the reviewer's reason); a coverage block lists files; an unverified block lists one line per rule (`readable-names  24 pairs · 24 nodes · reviewer`, or `<aspect> @ <unit>` for a single pair). At most 12 members are listed, then `… +K more  (<command>)` names the view that lists the rest — `yg check --aspect <id>` for a block about one rule, `yg check --details` otherwise.
-- `why:` — the reason, stated once per block. Members whose reason differs are split into blocks of their own.
-- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid — ask the user to approve it first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
+- `why:` — the reason, stated once per block. Members whose reason differs are split into blocks of their own. A reason every member gives but for its own node is stated once as a shared fact (`so the component was not loaded`, `the node's yg-node.yaml`) — never with a `<node>` placeholder or a path the node was substituted into; the members themselves are listed under `at:`.
+- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; one that also names one path of each member's own (the file a node maps, for `yg type-suggest --file`) is stated once with `<path>` in it too, ends `for each node above, <path> as listed beside it`, and `at:` lists each member's `<path> = …`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid — ask the user to approve it first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
 
 The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
 
@@ -600,7 +600,7 @@ yg check --approve --quiet  # suppress fill progress during --approve (stderr)
 `--summary` rolls the blocks up by label, one line per severity, with an unverified count split into what is free to fill and what needs the reviewer:
 
 ```text
-yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
+yg check: FAIL  34 errors in 4 blocks · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
 
 errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 reviewer)
 warnings  uncovered 4

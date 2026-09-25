@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
 import { buildBlocks, renderBlocks } from '../../../src/cli/check-render-groups.js';
 import { MEMBER_CAP } from '../../../src/cli/output.js';
@@ -553,7 +556,7 @@ describe('check render — counts reconcile', () => {
       } as CheckIssue,
     ];
     const out = report(issues);
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors in 2 blocks   1 node');
     // Code and graph errors (T1) before pending pairs (T3).
     expect(headings(out)).toEqual(['error[refused] y — refused on svc/a', 'error[unverified] 2 pairs with no verdict yet']);
     expect(out).toContain('  at:   x  2 pairs · 2 nodes · reviewer');
@@ -588,7 +591,7 @@ describe('check render — --details view', () => {
     } as CheckIssue;
     const issues = [...three.slice(0, 2), forbidden];
     const out = report(issues, { kind: 'details' });
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node   view: details');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors in 2 blocks   1 node   view: details');
     const nextOf = (text: string): string[] => text.split('\n').filter((l) => /^(next|then): /.test(l));
     expect(nextOf(out)).toEqual(nextOf(report(issues)));
     expect(nextOf(out)[0]).toBe('next: Change the relation type for a/x  (relation-target-forbidden)');
@@ -663,5 +666,115 @@ describe('prompt-too-large remedy tells the truth about cost (issue 208, m12)', 
     expect(msg.next).toContain('raising it re-verifies nothing');
     expect(msg.next).toContain('re-reviews every pair of the aspect, because the tier name is part of each pair\'s hash');
     expect(msg.next).not.toContain('cascade re-verification across every aspect');
+  });
+});
+
+// ── Grouped headings, whys and fixes state a shared fact once (issue 231) ──
+describe('check render — a grouped block never shows a placeholder or a fake path', () => {
+  /** Every finding code the engine emits, read from the source that emits it. */
+  function emittedCodes(): string[] {
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'src');
+    const codes = new Set<string>();
+    const walk = (dir: string): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name.endsWith('.ts')) for (const m of readFileSync(p, 'utf-8').matchAll(/\bcode: '([a-z][a-z0-9-]+)'/g)) codes.add(m[1]);
+      }
+    };
+    walk(root);
+    return [...codes].sort();
+  }
+
+  /** The words a heading or a why may never carry after grouping. */
+  function assertSaidOnce(text: string, nodes: string[]): void {
+    expect(text).not.toMatch(/<node>/);
+    expect(text).not.toMatch(/each node\/|\/each node|the node\//);
+    for (const n of nodes) expect(text).not.toContain(`/${n}/`);
+  }
+
+  it('every code: the heading and the why of a block grouped over three nodes carry no <node> and no path with a node substituted into it', () => {
+    const nodes = ['billing', 'orders/api', 'shared'];
+    const codes = emittedCodes();
+    expect(codes.length).toBeGreaterThan(40);
+    for (const code of codes) {
+      const issues: CheckIssue[] = nodes.map((n) => ({
+        severity: 'error', code, rule: code, nodePath: n,
+        messageData: {
+          what: `yg-node.yaml in ${n} breaks the node schema: yg-node.yaml at /tmp/x/.yggdrasil/model/${n}/yg-node.yaml: mapping is bad`,
+          why: `Node '${n}' matters: component '${n}' was not loaded, see .yggdrasil/model/${n}/yg-node.yaml, and ${n} reads as missing.`,
+          next: `Correct .yggdrasil/model/${n}/yg-node.yaml.`,
+        },
+      } as CheckIssue));
+      for (const b of buildBlocks(issues)) {
+        if (b.members.length < 2) continue;
+        assertSaidOnce(b.subject, nodes);
+        if (b.why !== undefined) assertSaidOnce(b.why, nodes);
+      }
+    }
+  });
+
+  it('yaml-invalid in three nodes, as the loader words it: one heading with the shared reason, the why about "the component", the fix templated', () => {
+    const issues: CheckIssue[] = ['billing', 'orders', 'shared'].map((n) => ({
+      severity: 'error', code: 'yaml-invalid', rule: 'yaml-invalid', nodePath: n,
+      messageData: {
+        what: `yg-node.yaml in ${n} breaks the node schema: mapping must be an array of file/directory paths`,
+        why: `The file is valid YAML but does not match the node schema, so component '${n}' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.`,
+        next: `Correct what the reason above names in .yggdrasil/model/${n}/yg-node.yaml (yg schemas read node lists the allowed fields).`,
+      },
+    } as CheckIssue));
+    const out = blocks(issues);
+    expect(headings(out)).toEqual(['error[yaml-invalid] 3 nodes: yg-node.yaml in each node breaks the node schema: mapping must be an array of file/directory paths']);
+    expect(out).toContain('  why:  The file is valid YAML but does not match the node schema, so the component was not loaded:');
+    expect(out).toContain('  fix:  Correct what the reason above names in .yggdrasil/model/<node>/yg-node.yaml (yg schemas read node lists the allowed fields).  for each node above');
+  });
+
+  it('a why templated over a node path says "the node\'s <file>", never a path with the node substituted', () => {
+    const issues: CheckIssue[] = ['a', 'b'].map((n) => ({
+      severity: 'error', code: 'some-code', rule: 'some-code', nodePath: n,
+      messageData: { what: `Node '${n}' is broken`, why: `Node '${n}' reads .yggdrasil/model/${n}/yg-node.yaml.`, next: 'Fix it.' },
+    } as CheckIssue));
+    const out = blocks(issues);
+    expect(headings(out)).toEqual(['error[some-code] 2 nodes are broken']);
+    expect(out).toContain("  why:  The node reads the node's yg-node.yaml.");
+  });
+
+  it('type-undefined-pending over two nodes: ONE templated fix for each node above, each node\'s own path beside it', () => {
+    // Worded as core/checks/architecture.ts words it; the golden corpus state
+    // grouped-templates runs the real producer end to end.
+    const issues: CheckIssue[] = ['billing', 'orders'].map((n) => ({
+      severity: 'warning', code: 'type-undefined-pending', rule: 'type-undefined-pending', nodePath: n,
+      messageData: {
+        what: "Node type 'module' is not defined — yg-architecture.yaml declares no node types yet.",
+        why: 'While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error, and a type whose nodes map files must declare when:.',
+        next: `Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file src/${n} can help design it.`,
+      },
+    } as CheckIssue));
+    const out = report(issues);
+    const fix = fieldLines(out, 'fix');
+    expect(fix).toEqual([
+      "  fix:  Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file <path> can help design it.  for each node above, <path> as listed beside it",
+    ]);
+    expect(out).toContain('  at:   billing  <path> = src/billing');
+    expect(out).toContain('        orders   <path> = src/orders');
+    expect(out).not.toMatch(/^\s+billing: Define/m);
+  });
+
+  it('a fix that differs by more than one path word stays per member', () => {
+    const issues: CheckIssue[] = ['a', 'b'].map((n, i) => ({
+      severity: 'warning', code: 'some-code', rule: 'some-code', nodePath: n,
+      messageData: { what: 'Something is off', why: 'Because.', next: i === 0 ? 'Run yg x --file src/a now.' : 'Run yg y --file src/b now.' },
+    } as CheckIssue));
+    const out = blocks(issues);
+    expect(fieldLines(out, 'fix')).toEqual(['  fix:  a: Run yg x --file src/a now.', '        b: Run yg y --file src/b now.']);
+  });
+
+  it('the verdict line says how many blocks hold the findings when the two numbers differ', () => {
+    const issues: CheckIssue[] = [
+      ...['a', 'b', 'c'].map((n) => ({ severity: 'error', code: 'yaml-invalid', rule: 'yaml-invalid', nodePath: n, messageData: { what: `yg-node.yaml in ${n} does not parse: x`, why: 'w', next: 'f' } } as CheckIssue)),
+      ...['d', 'e'].map((n) => ({ severity: 'error', code: 'description-missing', rule: 'description-missing', nodePath: n, messageData: { what: 'Node has no description', why: 'w', next: 'f' } } as CheckIssue)),
+      { severity: 'warning', code: 'some-warning', rule: 'some-warning', nodePath: 'a', messageData: { what: 'One thing', why: 'w', next: 'f' } } as CheckIssue,
+    ];
+    expect(report(issues).split('\n')[0]).toBe('yg check: FAIL  5 errors in 2 blocks · 1 warning   1 node');
   });
 });

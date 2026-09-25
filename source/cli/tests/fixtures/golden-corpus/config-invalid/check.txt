@@ -1,7 +1,7 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  5 errors   4 nodes · 3/8 files covered
+yg check: FAIL  5 errors in 3 blocks   4 nodes · 3/8 files covered
 
 partial: yg-config.yaml did not load, so its defaults were used — the findings below were computed without it and may be symptoms of it; fix it first.
 

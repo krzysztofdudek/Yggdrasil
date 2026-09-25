@@ -191,15 +191,20 @@ export function renderCoverageRequiresNothingNotice(result: CheckResult): string
  *
  * `yg check: <STATUS>` first — the one anchor an external parser keys on —
  * then the finding counts (none on a clean PASS), then the size of what was
- * checked. A count of zero is never printed as a segment. `view` names a
+ * checked. A count is of findings — one per node, pair, file or repository
+ * fact a check reports, the unit the JSON document's `totals` count too — and
+ * the report groups findings into blocks: where the two differ, the count
+ * says how many blocks hold them (`5 errors in 2 blocks`), so the number
+ * never reads as the number of blocks below it. A count of zero is never printed as a segment. `view` names a
  * narrowed view (`top 2`, `aspect no-todo`), so a shortened report can never
  * read as the whole one; the counts it carries are always the whole run's.
  */
-export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji, view?: string): string {
+export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji, view?: string, blocks?: { errors: number; warnings: number }): string {
   const status = errorCount > 0 ? 'FAIL' : 'PASS';
+  const inBlocks = (n: number, b: number | undefined): string => (b !== undefined && b !== n ? ` in ${count(b, 'block')}` : '');
   const findings = [
-    errorCount > 0 ? count(errorCount, 'error') : '',
-    warningCount > 0 ? count(warningCount, 'warning') : '',
+    errorCount > 0 ? `${count(errorCount, 'error')}${inBlocks(errorCount, blocks?.errors)}` : '',
+    warningCount > 0 ? `${count(warningCount, 'warning')}${inBlocks(warningCount, blocks?.warnings)}` : '',
     // A PASS a configured auto-approve reached by filling first says so; a FAIL never does.
     autoFilled && errorCount === 0 ? 'auto-filled' : '',
   ].filter((p) => p !== '');
