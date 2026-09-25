@@ -109,7 +109,7 @@ rules your change reached and no others. See
 The verdict line gains one segment: how many obligations sit outside your change, what they were measured against, and how many changed files the measurement accounted for.
 
 ```text
-yg check: FAIL  2 errors · 12 warnings   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · 12 obligations outside your changes vs origin/main (7 changed inputs)
+yg check: FAIL  2 errors · 12 warnings in 4 blocks   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · 12 obligations outside your changes vs origin/main (7 changed inputs)
 ```
 
 Findings your change reached are unchanged — same label, same severity, same `fix:` line, still red. Findings it did not reach read exactly like the finding they mirror, with `-outside` on the label and one phrase added to the heading:
@@ -134,7 +134,7 @@ And on a checkout that carries no change at all, the header says so in words
 rather than with a zero:
 
 ```text
-yg check: PASS  12 warnings   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · nothing in scope; 12 obligations outside your changes vs origin/main
+yg check: PASS  12 warnings in 4 blocks   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · nothing in scope; 12 obligations outside your changes vs origin/main
 ```
 
 That "nothing in scope" wording appears only when nothing is blocking; a run with

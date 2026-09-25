@@ -323,7 +323,12 @@ async function scanModelDirectory(
       // excerpt it quotes); WHY says what not loading the component costs —
       // every finding that names it downstream is a symptom of this one.
       const isSyntaxError = (err as Error).name === 'YAMLParseError';
-      const [reason, ...excerpt] = (err as Error).message.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
+      const [said, ...excerpt] = (err as Error).message.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
+      // The schema reader names the file it read (`yg-node.yaml at <absolute
+      // path>: …`); the finding already names its node, so the reason is what
+      // follows — an absolute path is this machine's, never the repository's.
+      const ownFile = `yg-node.yaml at ${nodeYamlPath}: `;
+      const reason = said?.startsWith(ownFile) ? said.slice(ownFile.length) : said;
       nodeParseErrors.push({
         nodePath: graphPath,
         messageData: {

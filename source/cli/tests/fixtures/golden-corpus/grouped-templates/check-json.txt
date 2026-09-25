@@ -1,0 +1,196 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 2,
+    "aspects": 0,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "4 blocking findings and 3 warnings."
+  },
+  "coverage": {
+    "files": 9,
+    "covered": 2,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 4,
+    "warnings": 3,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 0,
+      "refused": 0,
+      "unverified": 0,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 0,
+      "llm": 0
+    }
+  },
+  "pairs": [],
+  "issues": [
+    {
+      "code": "yaml-invalid",
+      "severity": "error",
+      "what": "yg-node.yaml in billing breaks the node schema: mapping must be an array of file/directory paths.",
+      "why": "The file is valid YAML but does not match the node schema, so component 'billing' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.",
+      "next": "Correct what the reason above names in .yggdrasil/model/billing/yg-node.yaml (yg schemas read node lists the allowed fields).",
+      "node": "billing",
+      "label": "yaml-invalid"
+    },
+    {
+      "code": "yaml-invalid",
+      "severity": "error",
+      "what": "yg-node.yaml in orders breaks the node schema: mapping must be an array of file/directory paths.",
+      "why": "The file is valid YAML but does not match the node schema, so component 'orders' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.",
+      "next": "Correct what the reason above names in .yggdrasil/model/orders/yg-node.yaml (yg schemas read node lists the allowed fields).",
+      "node": "orders",
+      "label": "yaml-invalid"
+    },
+    {
+      "code": "yaml-invalid",
+      "severity": "error",
+      "what": "yg-node.yaml in shared breaks the node schema: mapping must be an array of file/directory paths.",
+      "why": "The file is valid YAML but does not match the node schema, so component 'shared' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.",
+      "next": "Correct what the reason above names in .yggdrasil/model/shared/yg-node.yaml (yg schemas read node lists the allowed fields).",
+      "node": "shared",
+      "label": "yaml-invalid"
+    },
+    {
+      "code": "type-undefined-pending",
+      "severity": "warning",
+      "what": "Node type 'module' is not defined — yg-architecture.yaml declares no node types yet.",
+      "why": "While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error, and a type whose nodes map files must declare when:.",
+      "next": "Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file src/catalog can help design it.",
+      "node": "catalog",
+      "label": "type-undefined-pending"
+    },
+    {
+      "code": "type-undefined-pending",
+      "severity": "warning",
+      "what": "Node type 'module' is not defined — yg-architecture.yaml declares no node types yet.",
+      "why": "While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error, and a type whose nodes map files must declare when:.",
+      "next": "Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file src/search can help design it.",
+      "node": "search",
+      "label": "type-undefined-pending"
+    },
+    {
+      "code": "unmapped-files",
+      "severity": "error",
+      "what": "3 source files not covered by any node.\nsrc/billing/index.ts\nsrc/orders/index.ts\nsrc/shared/index.ts",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "files": [
+        "src/billing/index.ts",
+        "src/orders/index.ts",
+        "src/shared/index.ts"
+      ],
+      "label": "unmapped"
+    },
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "4 coverage-visible files outside any required coverage root.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "label": "uncovered"
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "edit .yggdrasil/model/billing/yg-node.yaml  (yaml-invalid — 4 errors need a code or graph fix)",
+  "groups": [
+    {
+      "code": "yaml-invalid",
+      "label": "yaml-invalid",
+      "aspect": null,
+      "severity": "error",
+      "subject": "3 nodes: yg-node.yaml in each node breaks the node schema: mapping must be an array of file/directory paths",
+      "why": "The file is valid YAML but does not match the node schema, so the component was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.",
+      "next": "Correct what the reason above names in .yggdrasil/model/<node>/yg-node.yaml (yg schemas read node lists the allowed fields).",
+      "members": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "code": "unmapped-files",
+      "label": "unmapped",
+      "aspect": null,
+      "severity": "error",
+      "subject": "3 files belong to no node",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "members": [
+        5
+      ]
+    },
+    {
+      "code": "type-undefined-pending",
+      "label": "type-undefined-pending",
+      "aspect": null,
+      "severity": "warning",
+      "subject": "Node type 'module' is not defined — yg-architecture.yaml declares no node types yet",
+      "why": "While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error, and a type whose nodes map files must declare when:.",
+      "next": "Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file <path> can help design it.",
+      "members": [
+        3,
+        4
+      ]
+    },
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "subject": "4 files belong to no node — not under coverage.required, so they never block",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "members": [
+        6
+      ]
+    }
+  ],
+  "next": {
+    "command": null,
+    "text": "edit .yggdrasil/model/billing/yg-node.yaml",
+    "target": {
+      "node": "billing",
+      "file": ".yggdrasil/model/billing/yg-node.yaml"
+    },
+    "cost": {
+      "free": 0,
+      "reviewerPairs": 0
+    },
+    "remaining": {
+      "needsFix": 4,
+      "fillable": 0,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
+    },
+    "requiresUser": false,
+    "then": null
+  },
+  "banner": "partial: 3 component files did not parse (billing, orders, shared), so those components were left out — the findings below were computed without it and may be symptoms of it; fix it first.",
+  "notes": []
+}
+--- stderr

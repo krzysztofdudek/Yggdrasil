@@ -169,9 +169,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // Cold lock → every (node, shared) pair unverified → exit 1.
       expect(status).toBe(1);
 
-      // Single group (one (code, aspectId) → no " in M groups" segment): the true
-      // total is the number of pairs (one per node), NOT a group count.
-      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length} errors · `, 'm'));
+      // Single group (one (code, aspectId)): the true total is the number of
+      // pairs (one per node), NOT a group count — and the verdict says the
+      // pairs sit in one block.
+      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length} errors in 1 block · `, 'm'));
       // No section sub-headers in the one grammar.
       expect(out).not.toMatch(/^Errors \(/m);
 
@@ -219,7 +220,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // importer = 4 unverified pairs) and the relation-undeclared-dependency
       // group (1 error). Total N = 5 errors in M = 2 groups.
       // 4 unverified pairs (one per node) + 1 relation error = 5 errors, in two blocks.
-      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length + 2 + 1} errors · `, 'm'));
+      expect(out).toMatch(new RegExp(`^yg check: FAIL  ${nodes.length + 2 + 1} errors in 2 blocks · `, 'm'));
       expect((out.match(/^error\[/gm) ?? []).length).toBe(2);
 
       // ONE block for the shared unverified code, spanning all 4 nodes.
@@ -334,7 +335,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
 
       // Both pairs unverified → 2 errors, exit 1.
       expect(status).toBe(1);
-      expect(out).toMatch(/^yg check: FAIL {2}2 errors · /m);
+      expect(out).toMatch(/^yg check: FAIL {2}2 errors in 1 block · /m);
 
       // ONE block — the heading carries no aspect (unverified collapses by code).
       const headers = out.match(/^error\[unverified\] .*$/gm) ?? [];

@@ -43,3 +43,23 @@ describe.skipIf(!existsSync(binPath()))('golden output corpus', () => {
     }, 180_000);
   }
 });
+
+// A block that groups findings across nodes states their shared fact once:
+// its heading and its why never carry the `<node>` placeholder (only a fix
+// may, with `for each node above`), and never a path the placeholder's words
+// were substituted into (`…/model/each node/yg-node.yaml` names no file).
+describe('golden output corpus — grouped headings and whys', () => {
+  it('no heading, why, JSON subject or JSON why in the corpus carries <node> or a path with "each node" in it', () => {
+    const offending: string[] = [];
+    for (const state of readdirSync(CORPUS)) {
+      for (const f of readdirSync(path.join(CORPUS, state))) {
+        const lines = readFileSync(path.join(CORPUS, state, f), 'utf-8').split('\n');
+        lines.forEach((l, i) => {
+          const said = /^(error|warning)\[|^ {2}why: /.test(l) || /^\s*"(subject|why)": /.test(l);
+          if ((said && l.includes('<node>')) || /each node\/|\/each node|the node\//.test(l)) offending.push(`${state}/${f}:${i + 1}: ${l.trim()}`);
+        });
+      }
+    }
+    expect(offending).toEqual([]);
+  });
+});
