@@ -34,7 +34,10 @@ export const ZERO_CLASSIFYING_TYPES_NOTICE =
  * something around it failed, and re-running changes nothing until that is
  * fixed. `reviewer-missing` is known from the config alone; the other four are
  * facts only a recording run witnesses, so they appear on that run's own
- * report. The last three are the ordinary states of a pair waiting for a fill.
+ * report. The last four are the ordinary states of a pair waiting for a fill;
+ * `keyed-by-earlier-release` is a script verdict whose inputs did not move but
+ * which an earlier release (or an earlier parser grammar) keyed differently, so
+ * an upgrade re-opens it once — free to re-record.
  */
 export type UnverifiedCause =
   | 'reviewer-missing'
@@ -43,6 +46,7 @@ export type UnverifiedCause =
   | 'check-failed-to-run'
   | 'suppress-marker-invalid'
   | 'stale'
+  | 'keyed-by-earlier-release'
   | 'never-reviewed'
   | 'deterministic-not-run';
 
@@ -58,6 +62,7 @@ export type UnverifiedCause =
  */
 export const UNVERIFIED_CAUSE_ORDER: readonly UnverifiedCause[] = [
   'stale',
+  'keyed-by-earlier-release',
   'never-reviewed',
   'deterministic-not-run',
   'reviewer-missing',

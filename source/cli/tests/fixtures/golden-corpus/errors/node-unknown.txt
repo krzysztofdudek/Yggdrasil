@@ -2,6 +2,6 @@ $ yg node nope
 exit: 1
 --- stdout
 --- stderr
-error[node-not-found]: Node 'nope' does not exist in the graph.
+error[node-not-found]: node 'nope' is not in the graph
   why:  The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.
-next: Browse the graph with yg tree, or locate one with yg find "<keywords>", then retry with a valid path.
+next: yg find "nope"

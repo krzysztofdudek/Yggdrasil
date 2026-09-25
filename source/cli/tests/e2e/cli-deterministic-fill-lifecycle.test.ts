@@ -504,10 +504,12 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // even though LLM pairs were left unverified. It must NOT claim that here.
       expect(det.all).not.toContain('all expected pairs hold valid verdicts');
       // Instead it must state the skip honestly and point at the full approve:
-      // the closing fill line counts the reviewer pairs it left for a full approve.
-      expect(det.stderr).toMatch(
-        /^fill {2}done in .* · 2 reviewer pairs left alone\nnext: yg check --approve {2}\(reviews the pairs left alone\)$/m,
-      );
+      // the closing fill line counts the reviewer pairs it left, and the
+      // report names the paid run for them (here the one block's fix is that
+      // step) — the fill prints no next: of its own (a run shows one step, the report's).
+      expect(det.stderr).toMatch(/^fill {2}done in .* · 2 reviewer pairs left alone$/m);
+      expect(det.stderr).not.toMatch(/^next: /m);
+      expect(det.stdout).toMatch(/^ {2}fix: {2}yg check --approve {2}\(2 reviewer pairs · paid — ask the user to approve it first\)$/m);
       // And the report keeps them red as unverified reviewer pairs.
       expect(det.stdout).toContain('error[unverified] 2 pairs with no verdict yet');
       expect(det.stdout).toMatch(/^ {2}at: +has-doc-comment {2}2 pairs · 2 nodes · reviewer$/m);

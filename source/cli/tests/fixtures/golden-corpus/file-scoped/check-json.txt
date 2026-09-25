@@ -413,10 +413,14 @@ exit: 1
     },
     "remaining": {
       "needsFix": 0,
-      "fillable": 10
+      "fillable": 10,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": null
   },
-  "banner": null
+  "banner": null,
+  "notes": []
 }
 --- stderr

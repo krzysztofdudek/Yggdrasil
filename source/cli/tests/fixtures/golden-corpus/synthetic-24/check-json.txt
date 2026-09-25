@@ -1359,7 +1359,7 @@ exit: 1
       "severity": "error",
       "subject": "1 file belongs to no node",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
-      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file src/tools/gen.ts lists candidate owners.",
       "members": [
         33
       ]
@@ -1426,10 +1426,14 @@ exit: 1
     },
     "remaining": {
       "needsFix": 10,
-      "fillable": 24
+      "fillable": 24,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
-    "then": "yg check --approve  (24 reviewer pairs · paid)"
+    "requiresUser": false,
+    "then": "yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)"
   },
-  "banner": null
+  "banner": null,
+  "notes": []
 }
 --- stderr

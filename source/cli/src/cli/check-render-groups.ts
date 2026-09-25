@@ -105,12 +105,29 @@ function templateOf(text: string, m: CheckIssue): string {
   // Only where the path stands as a whole path: a short node name ('a') must
   // not rewrite every letter of the sentence around it.
   const escaped = node.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(new RegExp(`(?<![\\w/.-])${escaped}(?![\\w/-])`, 'g'), '<node>');
+  // The node's own directory under the graph is the node too: a fix naming
+  // `.yggdrasil/model/<node>/yg-node.yaml` is the same fix for every member.
+  return text
+    .split(`.yggdrasil/model/${node}/`).join('.yggdrasil/model/<node>/')
+    .replace(new RegExp(`(?<![\\w/.-])${escaped}(?![\\w/-])`, 'g'), '<node>');
 }
 
-/** The first line of a text, without a closing full stop (a heading carries none). */
+/** The first line of a text, without a closing full stop or colon (a heading carries neither). */
 function headline(text: string): string {
-  return text.split('\n')[0].trim().replace(/\.$/, '');
+  return text.split('\n')[0].trim().replace(/[.:]$/, '');
+}
+
+/**
+ * A heading every member says but for its own node, said once for all of them
+ * — never with a literal `<node>` in it: `Node '<node>' has undeclared
+ * dependencies` reads `2 nodes have undeclared dependencies`, and any other
+ * sentence names `each node` where it named one.
+ */
+function sharedSubject(template: string, nodes: number): string {
+  const lead = /^Node '<node>' (has|is|does) (.*)$/.exec(template);
+  if (lead !== null) return `${count(nodes, 'node')} ${nodes === 1 ? lead[1] : { has: 'have', is: 'are', does: 'do' }[lead[1] as 'has' | 'is' | 'does']} ${lead[2]}`;
+  const said = template.replace(/\b[Nn]ode '<node>'|'<node>'|<node>/g, 'each node');
+  return `${count(nodes, 'node')}: ${said.charAt(0).toLowerCase()}${said.slice(1)}`;
 }
 
 /** The distinct units a block's members name, and how many are nodes and how many files. */
@@ -134,6 +151,7 @@ const CAUSE_SUBJECT: Record<UnverifiedCause, (pairs: string) => string> = {
   stale: (p) => `${p} whose inputs changed since the verdict`,
   'deterministic-not-run': (p) => `${p} whose script check has not run on this checkout — free to run`,
   'reviewer-missing': (p) => `${p} with no reviewer configured to judge them`,
+  'keyed-by-earlier-release': (p) => `${p} whose script verdicts an earlier Yggdrasil release keyed — nothing changed; free to re-record`,
   'reviewer-unreachable': (p) => `${p} left unjudged — the reviewer was unreachable this run`,
   'reviewer-failed': (p) => `${p} left unjudged — the reviewer returned no verdict this run`,
   'check-failed-to-run': (p) => `${p} whose check.mjs failed to run`,
@@ -174,7 +192,10 @@ function subjectOf(b: Omit<CheckBlock, 'subject'>, violations: number): string {
   // All of them say the same thing but for their own node: say it once, with
   // <node> standing for each member listed below.
   const templates = new Set(members.map((m) => headline(templateOf(m.messageData.what, m))));
-  if (templates.size === 1) return `${count(unitCounts(members).nodes || members.length, unitCounts(members).nodes > 0 ? 'node' : codeInfo(b.code).noun)}: ${[...templates][0]}${outside}`;
+  if (templates.size === 1) {
+    const nodes = unitCounts(members).nodes;
+    return nodes > 0 ? `${sharedSubject([...templates][0], nodes)}${outside}` : `${count(members.length, codeInfo(b.code).noun)}: ${[...templates][0]}${outside}`;
+  }
   const where = whereWords(members);
   return `${count(members.length, codeInfo(b.code).noun)}${where !== '' ? ` ${where}` : ''}${outside}`;
 }
@@ -192,6 +213,16 @@ export function costWords(cost: BlockCost): string {
   const free = cost.free > 0 ? `${count(cost.free, 'script pair')} · free` : '';
   const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · paid` : '';
   return [free, paid].filter((p) => p !== '').join(' + ');
+}
+
+/**
+ * A fill's cost as a step states it: the words, and — when it calls the paid
+ * reviewer — that running it is the user's decision (the agent protocol asks
+ * before any paid run).
+ */
+export function costNote(cost: BlockCost): string {
+  const words = costWords(cost);
+  return words !== '' && cost.reviewerPairs > 0 ? `${words} — ask the user to approve it first` : words;
 }
 
 /** The command that lists every member of a block. */
@@ -255,6 +286,16 @@ function toBlock(members: CheckIssue[], aspectId: string | undefined): CheckBloc
     outside,
   };
   if (outside) delete block.fix;
+  // A fill of script pairs alone is the free lane: `yg check --approve` would
+  // also bill every reviewer pair pending anywhere else in the run.
+  if (base === 'unverified' && block.fix === 'yg check --approve' && block.cost !== undefined && block.cost.reviewerPairs === 0) {
+    block.fix = 'yg check --approve --only-deterministic';
+  }
+  // A coverage fix about one file names that file, not a placeholder for it.
+  if (isCoverage && block.fix !== undefined) {
+    const files = members.flatMap((m) => m.uncoveredFiles ?? []);
+    if (files.length === 1) block.fix = block.fix.replace(/<(?:uncovered-)?path>/g, toPosixPath(files[0]));
+  }
   return { ...block, subject: subjectOf(block, violations) };
 }
 
@@ -482,11 +523,13 @@ function atLines(b: CheckBlock, opts: GroupRenderOptions): string[] {
 function fixLines(b: CheckBlock): string[] {
   if (b.fix !== undefined) {
     const [first, ...rest] = b.fix.split('\n');
-    const cost = b.cost !== undefined ? costWords(b.cost) : '';
+    const cost = b.cost !== undefined ? costNote(b.cost) : '';
     const suffix = b.templated ? '  for each node above' : cost !== '' && first.startsWith('yg check --approve') ? `  (${cost})` : '';
+    // A line introducing a snippet keeps its colon last: the note goes before it.
+    const head = b.templated && first.endsWith(':') ? `${first.slice(0, -1)} — for each node above:` : `${first}${suffix}`;
     // Later lines keep their own indentation: a snippet (a YAML relation to
     // add) is only correct as written.
-    return [`${first}${suffix}`, ...rest.map((l) => l.trimEnd())];
+    return [head, ...rest.map((l) => l.trimEnd())];
   }
   return b.divergentFix ?? [];
 }

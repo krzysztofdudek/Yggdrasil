@@ -140,17 +140,36 @@ export interface CheckJsonGroup {
 /**
  * The one step the run points at first, as data: the same step the text
  * report's `next:` line prints (and `suggestedNext` carries as that line's
- * text). `command` is set when the step is a runnable command, as argv.
+ * text). `command` is set when the step is a runnable command, as argv — the
+ * same form `yg-error/1`'s `next.command` takes.
  */
 export interface CheckJsonNext {
   command: string[] | null;
   text: string;
   /** What the step is about: the node or file it names, when it names one. */
   target: { node?: string; file?: string };
-  /** What running it costs, when it is a fill: script pairs are free, reviewer pairs are paid. */
+  /**
+   * What running `command` costs — the whole command, never one block's share
+   * of it: script pairs are free, reviewer pairs are paid. Zero for a step that
+   * is not a fill. A fill whose pending pairs are all script pairs is named as
+   * `yg check --approve --only-deterministic`, which cannot call the reviewer.
+   */
   cost: { free: number; reviewerPairs: number };
-  /** Errors left once this step is done: those that need a code or graph fix, and pairs a fill can record. */
-  remaining: { needsFix: number; fillable: number };
+  /**
+   * The errors the run leaves, each in exactly one bucket by what clears it:
+   * `needsFix` a code or graph fix, `fillable` pairs a recording run records,
+   * `needsUser` a decision only the user makes (configuring a reviewer), and
+   * `waitingOnReviewer` pairs no run can judge until a reviewer is configured
+   * or reachable. (`needsUser` and `waitingOnReviewer` added in 6.1.0.)
+   */
+  remaining: { needsFix: number; fillable: number; needsUser?: number; waitingOnReviewer?: number };
+  /**
+   * True when the step needs the user's approval before it runs: a fill that
+   * calls the paid reviewer, or a decision that is the user's (configuring a
+   * reviewer sends code to that provider). Such a step is asked for, never run
+   * blindly; a decision's `command` is null.
+   */
+  requiresUser?: boolean;
   /** The step after this one, as the text report's `then:` line prints it, or null. */
   then: string | null;
 }
@@ -193,7 +212,12 @@ export interface CheckJsonDocument {
   schema: typeof CHECK_JSON_SCHEMA;
   project: { name: string; nodes: number; aspects: number; flows: number };
   /** Whether the run blocks, and the exit code it leaves — the same one the text run leaves. */
-  exit: { code: 0 | 1; status: 'pass' | 'fail' | 'aborted'; reason: string };
+  /**
+   * `preview` on `yg check --approve --dry-run --json`: a cost preview always
+   * exits 0, so `code` is 0 whatever the tree holds; `reason` still says what
+   * the tree's own gate would say.
+   */
+  exit: { code: 0 | 1; status: 'pass' | 'fail' | 'aborted' | 'preview'; reason: string };
   coverage: {
     files: number;
     covered: number;
@@ -209,7 +233,11 @@ export interface CheckJsonDocument {
   totals: {
     errors: number;
     warnings: number;
-    /** Pairs removed from the expected set entirely by a draft rule. */
+    /**
+     * How many rules stand at draft — each one's pairs are removed from the
+     * expected set entirely. A count of rules, not of pairs (it always was;
+     * the description said pairs until 6.1.0).
+     */
     draftSkipped: number;
     /** Pair counts by what the lock says, summing to `pairs.length`. */
     verdicts: Record<CheckJsonVerdict, number>;
@@ -239,9 +267,48 @@ export interface CheckJsonDocument {
   banner?: string | null;
   /** Present only when a recording run stopped at a gate (exit.status `aborted`). */
   aborted?: CheckJsonAbort;
+  /** The text report's standing `note:` lines, in its order — facts that are not findings (added by the command layer). */
+  notes?: string[];
+  /**
+   * Present (true) only on `yg check --json --compact`: the same document with
+   * what a reader can recompute left out — `pairs` lists only the pairs that
+   * are not approved (`totals.verdicts.approved` still counts them all), an
+   * issue omits its `why` and `next` when its group (`groups[]`) states them,
+   * its `label` (its group's) and its `unitRef` (its `unit`, parsed), and the
+   * JSON is not indented. Every other field keeps its shape.
+   */
+  compact?: true;
 }
 
 /** Render one check document as pretty-printed JSON with a trailing newline. */
 export function formatCheckJson(doc: CheckJsonDocument): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+/**
+ * The compact form of a check document (`--json --compact`), for a reader that
+ * pays per token: approved pairs left out of `pairs` (their count stays in
+ * `totals.verdicts`), each issue's `why` and `next` left out where its group
+ * states them once, its `label` and `unitRef` (its group's label, its `unit`
+ * parsed), and no indentation. The full document is often 15–40 times
+ * the size of the text report, and a gate read by an agent on every change
+ * pays for all of it.
+ */
+export function formatCompactCheckJson(doc: CheckJsonDocument): string {
+  const groupOf = new Map<number, CheckJsonGroup>();
+  for (const g of doc.groups ?? []) for (const m of g.members) groupOf.set(m, g);
+  const issues = doc.issues.map((issue, i) => {
+    const g = groupOf.get(i);
+    // `label` is its group's, `unitRef` is `unit` parsed: both recomputable.
+    const { why, next, label, unitRef, ...rest } = issue;
+    return {
+      ...rest,
+      ...(g !== undefined && g.label === label ? {} : label !== undefined ? { label } : {}),
+      ...(unitRef !== undefined && issue.unit === undefined ? { unitRef } : {}),
+      ...(g?.why !== undefined && g.why !== null && g.why === why ? {} : { why }),
+      ...(g?.next !== undefined && g.next !== null && g.next === next ? {} : { next }),
+    };
+  });
+  const compact = { ...doc, pairs: doc.pairs.filter((p) => p.verdict !== 'approved'), issues, compact: true as const };
+  return `${JSON.stringify(compact)}\n`;
 }

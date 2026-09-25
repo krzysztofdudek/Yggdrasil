@@ -9,8 +9,10 @@ import {
   count, plural, list, overflowLine, block, verdict, next, fixPointer,
   fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA, MEMBER_CAP,
   writeOut, writeErr, paint,
+  commandArgv,
 } from '../../../src/cli/output.js';
 import { count as utilCount, plural as utilPlural } from '../../../src/utils/count.js';
+import { withoutColourFlags } from '../../../src/cli/help.js';
 import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/cli/output-diagnostic.js';
 
 afterEach(() => {
@@ -129,8 +131,33 @@ describe('fail / failAndExit / notice', () => {
       code: 'node-not-found',
       what: 'Node nope not found.',
       why: 'It must exist.',
-      next: { command: 'yg tree', text: 'yg tree' },
+      // argv, the same form yg-check/1's next.command takes.
+      next: { command: ['yg', 'tree'], text: 'yg tree' },
     });
+  });
+
+  it('the yg-error/1 step: argv with quotes stripped, no `Run:` prose, and a null why when there is none', () => {
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    setJsonOutput(true);
+    fail({ what: 'x', why: 'y', next: 'yg find "nope"' }, 'node-not-found');
+    fail({ what: 'x', why: '', next: 'Run: yg tree — to list all nodes.' }, 'usage');
+    const docs = out.mock.calls.map((c) => String(c[0])).join('').trim().split(/\n(?=\{)/).map((t) => JSON.parse(t));
+    expect(docs[0].next).toEqual({ command: ['yg', 'find', 'nope'], text: 'yg find "nope"' });
+    expect(docs[1].why).toBeNull();
+    expect(docs[1].next).toEqual({ command: null, text: 'yg tree — to list all nodes.' });
+  });
+
+  it('commandArgv takes only a command a reader can run as given', () => {
+    expect(commandArgv("yg log add --node a --reason 'why it moved'")).toEqual(['yg', 'log', 'add', '--node', 'a', '--reason', 'why it moved']);
+    expect(commandArgv('yg init --provider <name> [--model <m>]')).toBeNull();
+    expect(commandArgv('edit src/a.ts:1')).toBeNull();
+    expect(commandArgv(undefined)).toBeNull();
+  });
+
+  it('colour flags are accepted on every command and never reach the argument parser', () => {
+    expect(withoutColourFlags(['check', '--no-color', '--color=never', '--color', '--json'])).toEqual(['check', '--json']);
+    expect(withoutColourFlags(['aspect-test', '--', '--no-color'])).toEqual(['aspect-test', '--', '--no-color']);
   });
 
   it('failAndExit exits 1 after writing', () => {
@@ -143,7 +170,9 @@ describe('fail / failAndExit / notice', () => {
   it('notice writes a prefixed block to stderr', () => {
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     notice({ what: 'w', why: 'y', next: 'n' });
-    expect(err.mock.calls.map((c) => String(c[0])).join('')).toContain('note: w\n  why:  y\nnext: n');
+    // A notice is said while a command goes on: its remedy is a fix: field;
+    // next: is only ever the last line of the output.
+    expect(err.mock.calls.map((c) => String(c[0])).join('')).toContain('note: w\n  why:  y\n  fix:  n');
   });
 
   it('errorDocument carries a null command when the fix is prose', () => {

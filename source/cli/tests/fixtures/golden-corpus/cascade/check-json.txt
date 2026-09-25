@@ -154,7 +154,7 @@ exit: 1
       "label": "yaml-invalid",
       "aspect": null,
       "severity": "error",
-      "subject": "yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:",
+      "subject": "yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1",
       "why": "The file is not valid YAML, so component 'app/svc-02' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it parses.",
       "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.",
       "members": [
@@ -180,7 +180,7 @@ exit: 1
       "severity": "error",
       "subject": "1 file belongs to no node",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
-      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file src/svc-02/index.ts lists candidate owners.",
       "members": [
         4
       ]
@@ -225,10 +225,14 @@ exit: 1
     },
     "remaining": {
       "needsFix": 3,
-      "fillable": 2
+      "fillable": 2,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": "yg check --approve --only-deterministic  (2 script pairs · free)"
   },
-  "banner": "partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first."
+  "banner": "partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first.",
+  "notes": []
 }
 --- stderr

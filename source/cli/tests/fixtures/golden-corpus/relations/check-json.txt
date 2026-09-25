@@ -129,7 +129,7 @@ exit: 1
       "label": "relation-undeclared-dependency",
       "aspect": null,
       "severity": "error",
-      "subject": "Node 'app/svc-01' has undeclared dependencies on other nodes:",
+      "subject": "Node 'app/svc-01' has undeclared dependencies on other nodes",
       "why": "A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.",
       "next": "Declare the missing relations in .yggdrasil/model/app/svc-01/yg-node.yaml (or remove the dependency if it is not legitimate):\napp/svc-02: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.\napp/svc-03: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.",
       "members": [
@@ -162,10 +162,14 @@ exit: 1
     },
     "remaining": {
       "needsFix": 1,
-      "fillable": 0
+      "fillable": 0,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": null
   },
-  "banner": null
+  "banner": null,
+  "notes": []
 }
 --- stderr

@@ -1,5 +1,5 @@
 import { access, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { existsSync, readFileSync, constants as fsConstants } from 'node:fs';
+import { existsSync, readFileSync, statSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
 import { atomicWriteFile } from './atomic-write.js';
@@ -7,6 +7,15 @@ import { atomicWriteFile } from './atomic-write.js';
 export async function readSortedDir(dirPath: string): Promise<Dirent[]> {
   const entries = await readdir(dirPath, { withFileTypes: true });
   return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Whether a path (a symbolic link) leads to a directory; false for a file, a dangling link, or an error. */
+export function isDirectoryLink(linkPath: string): boolean {
+  try {
+    return statSync(linkPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 export async function readTextFile(filePath: string): Promise<string> {

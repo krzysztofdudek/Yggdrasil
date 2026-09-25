@@ -150,7 +150,8 @@ describe('every line of a finding is rendered', () => {
 
   it('a finding with a multi-line what keeps its continuation lines', () => {
     const out = stripAnsi(formatOutput(result([typeIssue('app/x')]), { kind: 'full' }, false, false));
-    expect(out).toContain("error[type-without-when-with-mapping] Node 'app/x' has type 'service' but mapping is not empty:");
+    // A heading carries no closing colon (nor full stop).
+    expect(out).toContain("error[type-without-when-with-mapping] Node 'app/x' has type 'service' but mapping is not empty\n");
     expect(out).toContain('  at:   app/x');
     expect(out).toContain('          - src/x.ts');
   });
@@ -160,7 +161,9 @@ describe('every line of a finding is rendered', () => {
     // only its node — the heading must then carry what they all say, or the
     // finding's sentence is on no line of the report at all.
     const out = stripAnsi(formatOutput(result([typeIssue('app/x'), typeIssue('app/z')]), { kind: 'full' }, false, false));
-    expect(out).toContain("has type 'service' but mapping is not empty");
+    // Said once for both, never with a literal <node> in the heading.
+    expect(out).toContain("error[type-without-when-with-mapping] 2 nodes have type 'service' but mapping is not empty\n");
+    expect(out).not.toContain('<node>');
     expect(out).toContain('          - src/x.ts');
     expect(out).toContain('          - src/z.ts');
   });
@@ -216,7 +219,7 @@ describe('a graph that did not load as written leads the report', () => {
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[unverified]'));
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[flow-node-broken]'));
     expect(out).toContain('next: edit .yggdrasil/model/model/cart/yg-node.yaml  (yaml-invalid — 2 errors need a code or graph fix)');
-    expect(out).toContain('then: yg check --approve  (1 reviewer pair · paid)');
+    expect(out).toContain('then: yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
   });
 
   it('a config that does not parse outranks everything else in Next', () => {
@@ -258,7 +261,9 @@ describe('the gate abort is a report', () => {
     const structural = { severity: 'error', code: 'config-reviewer-missing', rule: 'config-reviewer-missing', messageData: { what: 'No reviewer.', why: 'w', next: 'yg init --provider <name>' } } as CheckIssue;
     const out = stripAnsi(formatAbort({ stage: 'structural', issues: [structural], retry: 'yg check --approve --dry-run' }, false));
     expect(out.split('\n')[0]).toBe('yg check: ABORTED  nothing ran — 1 problem must be fixed first');
-    expect(out).toContain('next: yg init --provider <name>\nthen: yg check --approve --dry-run');
+    // Configuring a reviewer is the user's decision: the step is asked for,
+    // with --model and the draft alternative, never a bare command to run.
+    expect(out).toContain('next: ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft\nthen: yg check --approve --dry-run');
   });
 
   it('writes a yg-check/1 document with exit.status "aborted" and the gating findings', () => {
@@ -276,13 +281,13 @@ describe('counts agree with their nouns, and the fill command names its cost', (
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r')]), { kind: 'full' }, false, false));
     expect(out.split('\n')[0]).toBe('yg check: FAIL  1 error   1 node');
     expect(out).toContain('error[unverified] 1 pair with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
   });
 
   it('the unverified block\'s fill says what it costs, free and paid apart', () => {
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r'), unverified('app/b', 's', 'node:app/b', 'deterministic')]), { kind: 'full' }, false, false));
     expect(out).toContain('error[unverified] 2 pairs with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · paid)');
+    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · paid — ask the user to approve it first)');
   });
 });
 
@@ -326,7 +331,7 @@ describe('yg-check/1 carries the structure next to the prose', () => {
     expect(doc.suggestedNext).toBe('edit src/a.ts:3  (refused — 2 errors need a code or graph fix)');
     expect(doc.next?.text).toBe('edit src/a.ts:3');
     expect(doc.next?.target).toEqual({ node: 'app', file: 'src/a.ts' });
-    expect(doc.next?.remaining).toEqual({ needsFix: 2, fillable: 0 });
+    expect(doc.next?.remaining).toEqual({ needsFix: 2, fillable: 0, needsUser: 0, waitingOnReviewer: 0 });
   });
 
   it('the undeclared-dependency edges', () => {

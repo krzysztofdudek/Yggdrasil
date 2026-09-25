@@ -97,6 +97,7 @@ export function emitPairIssue(
       const cause: UnverifiedCause =
         cannotRunReasonFor(rtRows, pair.aspectId, pair.unitKey) !== undefined ? 'check-failed-to-run'
         : pair.kind === 'llm' && ctx.reviewerConfigured === false ? 'reviewer-missing'
+        : vp.keyedByEarlierRelease === true ? 'keyed-by-earlier-release'
         : vp.stale === true ? 'stale'
         : pair.kind === 'deterministic' ? 'deterministic-not-run'
         : 'never-reviewed';

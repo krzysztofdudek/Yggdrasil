@@ -820,7 +820,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     expect(stderr).toContain(
       "note: No pairs for aspect 'llm-a' on node 'N' — the aspect has an empty subject set or does not apply to this node.",
     );
-    expect(stderr).toContain('next: yg context --node N lists the rules that apply to it');
+    expect(stderr).toContain('  fix:  yg context --node N lists the rules that apply to it');
     expect(stdout).not.toContain('No pairs for aspect');
     expect(stderr).not.toContain('may be draft');
     expect(exitCode).toBeUndefined();

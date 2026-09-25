@@ -144,7 +144,7 @@ exit: 1
       "enforcedOutside": 1
     }
   },
-  "suggestedNext": "yg check --approve",
+  "suggestedNext": "yg check --approve --only-deterministic",
   "groups": [
     {
       "code": "unverified",
@@ -154,7 +154,7 @@ exit: 1
       "subject": "1 pair whose inputs changed since the verdict",
       "cause": "stale",
       "why": "A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.",
-      "next": "yg check --approve",
+      "next": "yg check --approve --only-deterministic",
       "members": [
         0
       ]
@@ -188,9 +188,10 @@ exit: 1
     "command": [
       "yg",
       "check",
-      "--approve"
+      "--approve",
+      "--only-deterministic"
     ],
-    "text": "yg check --approve",
+    "text": "yg check --approve --only-deterministic",
     "target": {
       "node": "alpha"
     },
@@ -200,10 +201,16 @@ exit: 1
     },
     "remaining": {
       "needsFix": 0,
-      "fillable": 1
+      "fillable": 1,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": null
   },
-  "banner": null
+  "banner": null,
+  "notes": [
+    "1 enforced finding held outside it stands on code this change did not touch — that is the baseline this repository already had, not a result of your change."
+  ]
 }
 --- stderr

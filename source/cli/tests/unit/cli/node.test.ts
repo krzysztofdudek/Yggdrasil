@@ -92,8 +92,9 @@ describe('yg node — the component document', () => {
       const { status, stdout, stderr } = run(['node', 'services/ghost'], dir);
       expect(status).toBe(1);
       expect(stdout).toBe('');
-      expect(stderr).toContain("Node 'services/ghost' does not exist in the graph.");
-      expect(stderr).toContain('yg tree');
+      // The one node-not-found error every command answers with, and its runnable step.
+      expect(stderr).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
+      expect(stderr).toContain('next: yg find "services/ghost"');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

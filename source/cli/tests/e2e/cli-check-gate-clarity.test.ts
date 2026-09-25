@@ -70,7 +70,7 @@ function git(args: string[], cwd: string): string {
 }
 
 interface JsonIssue { code: string; severity: string; cause?: string; next: string; what: string; why: string }
-interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; next: { command: string[] } | null; exit: { code: number } }
+interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; next: { command: string[] | null; requiresUser?: boolean } | null; exit: { code: number } }
 
 function json(r: Run): JsonDoc {
   return JSON.parse(r.stdout) as JsonDoc;
@@ -158,7 +158,10 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       const dir = project('keyless-next', { keyless: true });
       try {
         const doc = json(run(['check', '--json'], dir));
-        expect(doc.suggestedNext).toMatch(/^yg init --provider <name>/);
+        // Configuring a reviewer is the user's decision: asked for, never a command to run.
+        expect(doc.suggestedNext).toMatch(/^ask the user to approve configuring a reviewer — yg init --provider <name> \[--model <m>\]/);
+        expect(doc.next?.command).toBeNull();
+        expect(doc.next?.requiresUser).toBe(true);
         const llm = doc.issues.filter((i) => i.code === 'unverified' && i.cause === 'reviewer-missing');
         expect(llm.length).toBeGreaterThan(0);
         expect(llm[0].next).toMatch(/^yg init --provider <name>/);
@@ -282,7 +285,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(readFileSync(logPath, 'utf-8')).toMatch(/^<{7}/m);
 
         const doc = json(run(['check', '--json'], dir));
-        expect(doc.next?.command.join(' ')).toBe('yg log merge-resolve --node services/payments');
+        expect(doc.next?.command?.join(' ')).toBe('yg log merge-resolve --node services/payments');
     expect(doc.suggestedNext).toMatch(/^yg log merge-resolve --node services\/payments(\s|$)/);
 
         const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
@@ -357,7 +360,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
     }
     const doc = json(run(['check', '--json'], dir));
     expect(doc.issues.some((i) => i.code === 'log-conflict')).toBe(true);
-    expect(doc.next?.command.join(' ')).toBe('yg log merge-resolve --node services/payments');
+    expect(doc.next?.command?.join(' ')).toBe('yg log merge-resolve --node services/payments');
     expect(doc.suggestedNext).toMatch(/^yg log merge-resolve --node services\/payments(\s|$)/);
     const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
     git(['add', '-A'], dir);

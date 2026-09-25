@@ -32,7 +32,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
-import { fail, plural, writeErr, writeOut } from './output.js';
+import { fail, nodeNotFound, note, plural, writeErr, writeOut } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -243,11 +243,7 @@ export function registerImpactCommand(program: Command): void {
           const nodePath = options.node!.trim().replace(/\/$/, '');
 
           if (!graph.nodes.has(nodePath)) {
-            fail({
-              what: `Node not found: ${nodePath}`,
-              why: 'The node path must match a node in the graph.',
-              next: 'Run: yg tree — to list all nodes.',
-            }, 'node-not-found');
+            fail(nodeNotFound(nodePath, "Impact is measured from a node, so the node must exist in the graph."), 'node-not-found');
             process.exit(1);
           }
 
@@ -454,9 +450,9 @@ export function registerImpactCommand(program: Command): void {
             writeOut(renderNodeFillCost(await computeNodeFillCost(graph, nodePath, lock), 'node'));
           }
           if (allAffected.size >= 10) {
-            writeOut(`  High blast radius.\nnext: review the direct dependents above before changing this node\n`);
+            writeOut(`${note('high blast radius — read the direct dependents above before changing this node')}\n`);
           } else if (allAffected.size > 0) {
-            writeOut(`next: review the direct dependents above before changing this node\n`);
+            writeOut(`${note('read the direct dependents above before changing this node')}\n`);
           }
           writeOut(
             '\n' + buildIssueMessage({

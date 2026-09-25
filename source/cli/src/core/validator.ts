@@ -140,13 +140,16 @@ export async function validate(
     });
   }
 
-  for (const { code, messageData } of graph.aspectParseErrors ?? []) {
+  for (const { aspectId, code, messageData } of graph.aspectParseErrors ?? []) {
     issues.push({
       severity: 'error',
       code,
       rule: code,
       ...issueMsg(messageData),
       messageData,
+      // The rule it is about, so a reader scoped to some nodes (yg context)
+      // can tell whether those nodes use it.
+      aspectId,
     });
   }
 

@@ -165,7 +165,7 @@ exit: 1
       "label": "config-invalid",
       "aspect": null,
       "severity": "error",
-      "subject": "yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:",
+      "subject": "yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1",
       "why": "Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.",
       "next": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
       "members": [
@@ -212,10 +212,14 @@ exit: 1
     },
     "remaining": {
       "needsFix": 2,
-      "fillable": 3
+      "fillable": 3,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": "yg check --approve --only-deterministic  (3 script pairs · free)"
   },
-  "banner": "partial: yg-config.yaml did not load, so its defaults were used — the findings below were computed without it and may be symptoms of it; fix it first."
+  "banner": "partial: yg-config.yaml did not load, so its defaults were used — the findings below were computed without it and may be symptoms of it; fix it first.",
+  "notes": []
 }
 --- stderr

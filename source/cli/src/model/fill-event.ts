@@ -98,7 +98,7 @@ export type FillEvent =
   /** Judgment pairs counted in the header that no configured reviewer can judge. */
   | { type: 'no-reviewer'; message: IssueMessage }
   /** A cost preview's per-subject breakdown. */
-  | { type: 'dry-run'; nodes: Array<{ nodePath: string; pairs: DryRunPair[] }>; files: DryRunPair[]; reviewerCallBudget: number }
+  | { type: 'dry-run'; nodes: Array<{ nodePath: string; pairs: DryRunPair[] }>; files: DryRunPair[]; reviewerCallBudget: number; /** False when no reviewer is configured, so a real fill could record the script pairs only. */ reviewerConfigured?: boolean }
   /** Verdicts the garbage collector removed. */
   | { type: 'prune'; entries: PrunedEntry[]; billedCount: number; freeCount: number; unknownCount: number }
   /** A rule's standing moved since the last run, and the move was written into its log. */
