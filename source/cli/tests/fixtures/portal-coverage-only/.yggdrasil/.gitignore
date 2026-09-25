@@ -9,3 +9,6 @@ yg-secrets.yaml
 .yg-fill-divergence.log*
 *.tmp
 .yg-packages-versions.json
+.family-candidates.json
+.family-candidates.*.json
+.yg-*.lock

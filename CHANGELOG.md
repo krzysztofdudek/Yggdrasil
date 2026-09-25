@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-09-25
+
 This release breaks things for adopters, for scripts and CI that read the CLI, for agent instructions, for package authors and for the family tools. Read **Breaking** first, then follow **Upgrading from 6.0.0** in order.
 
 **A minor number with breaking changes.** Semantic Versioning would number this release 7.0.0; it is 6.1.0 on purpose, and this note says so rather than let the number imply a safe upgrade. The core of the family — Yggdrasil, Grain and Horde — ships together under one number, so that a version names one set of tools tested against each other, and the family keeps that one number rather than let each tool's own compatibility story move it (the reasoning is in docs/family-contracts.md, under "One number for the family"). What it costs you: the number alone does not tell you whether an upgrade is safe. Pin the exact CLI version in CI (step 2 of **Upgrading from 6.0.0**), read **Breaking** before you raise the pin, and never let a caret or `npx @chrisdudek/yg` without a version pick up a release for you.
