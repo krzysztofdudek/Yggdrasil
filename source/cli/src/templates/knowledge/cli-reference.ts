@@ -40,7 +40,7 @@ Exit 0 = clean. Exit 1 = errors found. CI runs it cheap and keyless.
 Every report has one shape:
 
 \`\`\`text
-yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
+yg check: FAIL  34 errors in 4 blocks · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
 
 error[refused] no-todo — 8 violations in 8 nodes
   at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
@@ -58,14 +58,19 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve
 \`\`\`
 
 - The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
-  size of what was checked. A zero count is never printed. A narrowed view ends
+  size of what was checked. A zero count is never printed. A count is of
+  findings (one per node, pair, file group or repository fact — the unit of the
+  JSON \`totals\`); where the blocks below group them differently it says how
+  many blocks hold them: \`34 errors in 4 blocks\`. A narrowed view ends
   with \`view: top 2\` / \`view: aspect <id>\` / \`view: summary\` / \`view: details\`;
   its counts are always the whole run's.
 - One block per finding group: \`error[<label>] <subject>\` or
   \`warning[<label>] <subject>\`, then \`at:\` (members, at most 12, then
   \`… +K more  (<command that lists them all>)\`), \`why:\` (once per block) and
   \`fix:\`. A fix that differs only by node is printed once with \`<node>\` and ends
-  \`for each node above\`; a fill names its cost (\`(24 script pairs · free)\`,
+  \`for each node above\` (one that also names each node's own path adds
+  \`<path>\`, listed per member under \`at:\` as \`<path> = …\`); a heading or why
+  shared but for the node states the fact once, never with \`<node>\` in it; a fill names its cost (\`(24 script pairs · free)\`,
   \`(24 reviewer pairs · paid — ask the user to approve it first)\`).
 - Labels: \`refused\` (a rule refused the code — error if enforced, warning if
   advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside

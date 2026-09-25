@@ -1,7 +1,7 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  48 errors · 1 warning   25 nodes · 24/28 files covered
+yg check: FAIL  48 errors in 2 blocks · 1 warning   25 nodes · 24/28 files covered
 
 error[log-entry-missing] 24 nodes changed with no log entry
   at:   app/svc-01

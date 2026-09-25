@@ -179,7 +179,7 @@ function fourErrorResult(): CheckResult {
 describe('check render — --top view', () => {
   it('full view renders the true count and every block', () => {
     const out = render(fourErrorResult(), { kind: 'full' });
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors   1 node');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors in 2 blocks   1 node');
     // Unverified collapses by CODE → 1 block; mapping-path-missing → 1 block.
     expect(headings(out)).toHaveLength(2);
     // The three unverified pairs are named on the member lines, not in the heading.
@@ -191,7 +191,7 @@ describe('check render — --top view', () => {
   it('{kind:top,n:1} keeps the true count, renders exactly one block, counts the rest, and keeps next', () => {
     const out = render(fourErrorResult(), { kind: 'top', n: 1 });
     // The verdict keeps the TRUE total — a truncated view must never read as fewer errors — and names the view.
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors   1 node   view: top 1');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors in 2 blocks   1 node   view: top 1');
     expect(headings(out)).toHaveLength(1);
     expect(out).toContain('… +1 more block  (yg check)');
     expect(out).toMatch(/\nnext: /);
@@ -229,7 +229,7 @@ describe('check render — --top view', () => {
 describe('check render — --summary view', () => {
   it('renders one line per severity, each label with its count and the script/reviewer split, no blocks, and the true verdict', () => {
     const out = render(fourErrorResult(), { kind: 'summary' });
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors   1 node   view: summary');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  4 errors in 2 blocks   1 node   view: summary');
     expect(out).toContain('errors    mapping-path-missing 1 · unverified 3 (1 script · 2 reviewer)');
     // No per-finding blocks: no headings, no why:/fix: fields.
     expect(headings(out)).toHaveLength(0);
@@ -515,7 +515,7 @@ describe('check render — --aspect drill-in view', () => {
   it('filters to aspect x: the true verdict line naming the view, no y-issue content', () => {
     const out = render(baseResult(aspectDrillIssues()), { kind: 'aspect', id: 'x' });
     // The verdict line keeps the TRUE counts and names the view.
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node   view: aspect x');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors in 2 blocks   1 node   view: aspect x');
     expect(headings(out)).toEqual(['error[refused] x — refused on 2 nodes']);
     // y-issue content must NOT appear.
     expect(out).not.toContain('node-c');
@@ -554,7 +554,7 @@ describe('check render — --aspect drill-in view', () => {
   // surface the run's next step — never dead-end the agent.
   it('aspect with zero matching issues says so and falls through to the run\'s next step', () => {
     const out = render(baseResult(aspectDrillIssues()), { kind: 'aspect', id: 'z' });
-    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node   view: aspect z');
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors in 2 blocks   1 node   view: aspect z');
     expect(out).toContain("note: rule 'z' has no findings in this run.");
     expect(headings(out)).toHaveLength(0);
     expect(steps(out)).toEqual(steps(render(baseResult(aspectDrillIssues()))));

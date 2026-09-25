@@ -444,6 +444,33 @@ scope:
       { name: 'tree', args: ['tree'] },
     ],
   },
+  {
+    // Findings that group across nodes: three nodes whose yg-node.yaml breaks
+    // the node schema the same way (a `mapping:` written as an object), and
+    // two valid nodes of a type the empty architecture does not declare yet —
+    // the heading, why and fix each block states once for all of its members.
+    name: 'grouped-templates',
+    build(): string {
+      const root = freshDir('grouped');
+      gitInit(root);
+      write(root, '.yggdrasil/yg-config.yaml', configYaml());
+      write(root, '.yggdrasil/yg-architecture.yaml', 'node_types: {}\n');
+      for (const n of ['billing', 'orders', 'shared']) {
+        write(root, `src/${n}/index.ts`, 'export const x = 1;\n');
+        write(root, `.yggdrasil/model/${n}/yg-node.yaml`, `name: ${n}\ntype: module\ndescription: The ${n} module.\nmapping:\n  paths:\n    - src/${n}\n`);
+      }
+      for (const n of ['catalog', 'search']) {
+        write(root, `src/${n}/index.ts`, 'export const x = 1;\n');
+        write(root, `.yggdrasil/model/${n}/yg-node.yaml`, `name: ${n}\ntype: module\ndescription: The ${n} module.\nmapping:\n  - src/${n}\n`);
+      }
+      installRules(root);
+      return root;
+    },
+    cases: [
+      { name: 'check', args: ['check'] },
+      { name: 'check-json', args: ['check', '--json'] },
+    ],
+  },
 ];
 
 /** The compiled CLI the corpus is recorded from. */

@@ -1,7 +1,7 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  10 errors · 1 warning   3 nodes · 8/12 files covered
+yg check: FAIL  10 errors in 1 block · 1 warning   3 nodes · 8/12 files covered
 
 error[unverified] 10 pairs whose script check has not run on this checkout — free to run
   at:   no-todo  2 pairs · 2 nodes · script

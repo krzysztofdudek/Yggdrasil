@@ -72,6 +72,12 @@ export interface CheckBlock {
   templated: boolean;
   /** Per-member fixes that differ by more than the node: `<member>: <fix>` lines. */
   divergentFix?: string[];
+  /**
+   * A templated fix whose members also differ by one path of their own (the
+   * file a node maps): the placeholder standing for it in `fix`, and each
+   * member's value, listed beside the member under `at:`.
+   */
+  slot?: { placeholder: string; values: Map<CheckIssue, string> };
   /** A fill's cost, when the fix is a fill. */
   cost?: BlockCost;
   /** The command that lists every member of this block. */
@@ -118,6 +124,29 @@ function headline(text: string): string {
 }
 
 /**
+ * A path the node was templated into — `.yggdrasil/model/<node>/yg-node.yaml`,
+ * relative or absolute — as one whitespace-delimited token: `$1` is what
+ * follows the node's directory, `$2` the punctuation that closes the sentence.
+ */
+const NODE_PATH = /[^\s'"`(]*\.yggdrasil\/model\/<node>\/([^\s'"`)]*?)([.,;:)]*)(?=[\s'"`]|$)/g;
+
+/**
+ * A sentence every member says but for its own node, said once for all of
+ * them — never with a literal `<node>` in it, and never with a path the
+ * placeholder was substituted into (`…/model/each node/yg-node.yaml` names a
+ * file that exists nowhere). `det` is the determiner the node takes: `each`
+ * in a heading that counts the nodes, `the` in a why that explains one fact.
+ * The members themselves are listed under `at:`.
+ */
+function sayOnce(text: string, det: 'each' | 'the'): string {
+  const cap = (w: string): string => `${w.charAt(0).toUpperCase()}${w.slice(1)}`;
+  return text
+    .replace(NODE_PATH, (_m, rest: string, close: string) => `${det} node's ${rest !== '' ? rest : 'directory'}${close}`)
+    .replace(/\b([Nn]ode|[Cc]omponent) '<node>'/g, (_m, noun: string) => (noun.charAt(0) === noun.charAt(0).toUpperCase() ? `${cap(det)} ${noun.toLowerCase()}` : `${det} ${noun}`))
+    .replace(/'<node>'|<node>/g, `${det} node`);
+}
+
+/**
  * A heading every member says but for its own node, said once for all of them
  * — never with a literal `<node>` in it: `Node '<node>' has undeclared
  * dependencies` reads `2 nodes have undeclared dependencies`, and any other
@@ -125,8 +154,8 @@ function headline(text: string): string {
  */
 function sharedSubject(template: string, nodes: number): string {
   const lead = /^Node '<node>' (has|is|does) (.*)$/.exec(template);
-  if (lead !== null) return `${count(nodes, 'node')} ${nodes === 1 ? lead[1] : { has: 'have', is: 'are', does: 'do' }[lead[1] as 'has' | 'is' | 'does']} ${lead[2]}`;
-  const said = template.replace(/\b[Nn]ode '<node>'|'<node>'|<node>/g, 'each node');
+  if (lead !== null) return `${count(nodes, 'node')} ${nodes === 1 ? lead[1] : { has: 'have', is: 'are', does: 'do' }[lead[1] as 'has' | 'is' | 'does']} ${sayOnce(lead[2], 'each')}`;
+  const said = sayOnce(template, 'each');
   return `${count(nodes, 'node')}: ${said.charAt(0).toLowerCase()}${said.slice(1)}`;
 }
 
@@ -244,6 +273,8 @@ function fixOf(members: CheckIssue[]): Pick<CheckBlock, 'fix' | 'templated' | 'd
   if (texts.every((t) => t === texts[0])) return { fix: texts[0] !== '' ? texts[0] : undefined, templated: false };
   const templates = new Set(members.map((m) => templateOf(m.messageData.next ?? '', m)));
   if (templates.size === 1) return { fix: [...templates][0], templated: true };
+  const slotted = slotOf(members);
+  if (slotted !== undefined) return slotted;
   // Each member's own fix, whole (a heading-introduced list keeps its items),
   // capped like the member list, the rest counted.
   const shown = members.slice(0, MEMBER_CAP);
@@ -255,6 +286,33 @@ function fixOf(members: CheckIssue[]): Pick<CheckBlock, 'fix' | 'templated' | 'd
   return { fix: undefined, templated: false, divergentFix: lines };
 }
 
+/** The placeholder a fix's per-member path is stated with. */
+const PATH_SLOT = '<path>';
+
+/**
+ * A fix every member states but for its own node and ONE path of its own (the
+ * file it maps, named for a command to run on): stated once, with `<node>`
+ * and `<path>` in it, and each member's path listed beside it under `at:` —
+ * the same collapsing a fix that differs only by the node gets, instead of
+ * one near-identical sentence per member. Only a block whose members are all
+ * nodes (the fix then applies `for each node above`) and only a path-shaped
+ * word: a fix that differs in what it asks for stays per member.
+ */
+function slotOf(members: CheckIssue[]): Pick<CheckBlock, 'fix' | 'templated' | 'slot'> | undefined {
+  if (members.some((m) => m.nodePath === undefined)) return undefined;
+  const words = members.map((m) => templateOf(m.messageData.next ?? '', m).split(/(\s+)/));
+  const length = words[0].length;
+  if (words.some((w) => w.length !== length)) return undefined;
+  const differ = [...Array(length).keys()].filter((i) => words.some((w) => w[i] !== words[0][i]));
+  if (differ.length !== 1) return undefined;
+  const at = differ[0];
+  const split = words.map((w) => /^(.*?)([.,;:)]*)$/.exec(w[at])!);
+  // The word differs in its path, never in the punctuation that closes it.
+  if (split.some((p) => p[2] !== split[0][2] || !/^[\w@.-]*\/[\w@./-]*$|^[\w@-]+\.[\w.-]+$/.test(p[1]) || p[1].includes('<'))) return undefined;
+  const fix = [...words[0].slice(0, at), `${PATH_SLOT}${split[0][2]}`, ...words[0].slice(at + 1)].join('');
+  return { fix, templated: true, slot: { placeholder: PATH_SLOT, values: new Map(members.map((m, i) => [m, split[i][1]])) } };
+}
+
 /** One block from members that share a code, a rule and a why. */
 function toBlock(members: CheckIssue[], aspectId: string | undefined): CheckBlock {
   const first = members[0];
@@ -263,12 +321,14 @@ function toBlock(members: CheckIssue[], aspectId: string | undefined): CheckBloc
   const isCoverage = COVERAGE_GROUP_EXCLUDED_CODES.has(code);
   const violations = members.reduce((n, m) => n + (issueViolations(m)?.filter((v) => v.line !== null).length ?? 0), 0);
   // One why for the block: the members' own when they all say the same,
-  // else the one they all say but for their own node, with `<node>` in it.
+  // else the one they all say but for their own node, said once (`the
+  // component`, `the node's yg-node.yaml`) — a why states a shared fact, and
+  // a placeholder in it is a word the reader cannot resolve.
   // A why is a reason, never a stack trace: frames a crash message carries are left to the JSON.
   const whyOf = (m: CheckIssue): string => (m.messageData.why ?? '').split('\n').filter((l) => !/^\s+at\s.*(?:\(|:\d+:\d+)/.test(l)).join('\n');
   const ownWhys = new Set(members.map(whyOf));
   const whys = new Set(members.map((m) => templateOf(whyOf(m), m)));
-  const why = ownWhys.size === 1 ? [...ownWhys][0] : whys.size === 1 ? [...whys][0] : undefined;
+  const why = ownWhys.size === 1 ? [...ownWhys][0] : whys.size === 1 ? sayOnce([...whys][0], 'the') : undefined;
   const base = baseCodeOfOutsideTwin(code) ?? code;
   const block: Omit<CheckBlock, 'subject'> = {
     severity: first.severity === 'error' ? 'error' : 'warning',
@@ -467,14 +527,15 @@ function genericEntries(b: CheckBlock): AtEntry[] {
     const lines = m.messageData.what.split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim() !== '');
     const [head = '', ...rest] = lines;
     const headSaid = single || headline(head) === headline(b.subject);
-    const repeat = list.length > 1 ? `  (${count(list.length, 'issue')})` : '';
+    const own = b.slot?.values.get(m);
+    const repeat = `${list.length > 1 ? `  (${count(list.length, 'issue')})` : ''}${own !== undefined ? `  ${b.slot!.placeholder} = ${own}` : ''}`;
     let entryLines: string[];
     if (unit === '') {
       // A repository-level finding names no member: what it says IS the entry.
       // Said by the heading, it has nothing left to list but its detail.
       entryLines = headSaid ? rest.map((l) => l.trim()) : [`${head}${repeat}`, ...rest.map((l) => `  ${l.trim()}`)];
     } else {
-      const first = headSaid ? `${unit}${repeat}` : `${padUnit(unit, width)}  ${head}${repeat}`;
+      const first = headSaid ? `${own !== undefined ? padUnit(unit, width) : unit}${repeat}` : `${padUnit(unit, width)}  ${head}${repeat}`;
       entryLines = [first, ...rest.map((l) => `  ${l.trim()}`)];
     }
     if (entryLines.length > 0) out.push({ lines: entryLines.map((l) => escapeControls(l)), members: list.length, units: new Set([unit]) });
@@ -524,9 +585,10 @@ function fixLines(b: CheckBlock): string[] {
   if (b.fix !== undefined) {
     const [first, ...rest] = b.fix.split('\n');
     const cost = b.cost !== undefined ? costNote(b.cost) : '';
-    const suffix = b.templated ? '  for each node above' : cost !== '' && first.startsWith('yg check --approve') ? `  (${cost})` : '';
+    const each = b.slot !== undefined ? `for each node above, ${b.slot.placeholder} as listed beside it` : 'for each node above';
+    const suffix = b.templated ? `  ${each}` : cost !== '' && first.startsWith('yg check --approve') ? `  (${cost})` : '';
     // A line introducing a snippet keeps its colon last: the note goes before it.
-    const head = b.templated && first.endsWith(':') ? `${first.slice(0, -1)} — for each node above:` : `${first}${suffix}`;
+    const head = b.templated && first.endsWith(':') ? `${first.slice(0, -1)} — ${each}:` : `${first}${suffix}`;
     // Later lines keep their own indentation: a snippet (a YAML relation to
     // add) is only correct as written.
     return [head, ...rest.map((l) => l.trimEnd())];
