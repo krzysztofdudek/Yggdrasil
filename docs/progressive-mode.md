@@ -418,10 +418,10 @@ merge into asks for the whole project.
     fetch-depth: 0                # see the trap below
 
 - name: Rebuild the local cache (free, no keys)
-  run: npx @chrisdudek/yg check --approve --only-deterministic
+  run: npx @chrisdudek/yg@6.1.0 check --approve --only-deterministic
 
 - name: Check
-  run: npx @chrisdudek/yg check --no-approve
+  run: npx @chrisdudek/yg@6.1.0 check --no-approve
 ```
 
 **On the branch you merge into** — the leg that answers for everything:
@@ -430,7 +430,7 @@ merge into asks for the whole project.
 - uses: actions/checkout@v4
 
 - name: Check the whole project (free, no keys)
-  run: npx @chrisdudek/yg check --full --approve --only-deterministic
+  run: npx @chrisdudek/yg@6.1.0 check --full --approve --only-deterministic
 ```
 
 `--full` skips the measurement entirely, so that leg needs no extra history and
