@@ -2,8 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version numbers follow the Yggdrasil family's one-number policy, not Semantic Versioning: the core of the family (Yggdrasil, Grain and Horde) ships together under one number, so a release may carry breaking changes under a minor number (docs/family-contracts.md, "One number for the family"). Read a release's **Breaking** and **Upgrading** sections before you upgrade.
 
 ## [Unreleased]
 
