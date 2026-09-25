@@ -1,0 +1,37 @@
+$ yg check
+exit: 1
+--- stdout
+yg check: FAIL  4 errors in 2 blocks · 3 warnings in 2 blocks   2 nodes · 2/9 files covered
+
+partial: 3 component files did not parse (billing, orders, shared), so those components were left out — the findings below were computed without it and may be symptoms of it; fix it first.
+
+error[yaml-invalid] 3 nodes: yg-node.yaml in each node breaks the node schema: mapping must be an array of file/directory paths
+  at:   billing
+        orders
+        shared
+  why:  The file is valid YAML but does not match the node schema, so the component was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.
+  fix:  Correct what the reason above names in .yggdrasil/model/<node>/yg-node.yaml (yg schemas read node lists the allowed fields).  for each node above
+
+error[unmapped] 3 files belong to no node
+  at:   src/billing/index.ts
+        src/orders/index.ts
+        src/shared/index.ts
+  why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
+
+warning[type-undefined-pending] Node type 'module' is not defined — yg-architecture.yaml declares no node types yet
+  at:   catalog  <path> = src/catalog
+        search   <path> = src/search
+  why:  While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error, and a type whose nodes map files must declare when:.
+  fix:  Define 'module' under node_types in yg-architecture.yaml with a when: predicate matching its files (an architecture change — ask the user to approve it first). yg type-suggest --file <path> can help design it.  for each node above, <path> as listed beside it
+
+warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
+  at:   .clinerules/yggdrasil.md
+        .gitattributes
+        AGENTS.md
+        CLAUDE.md
+  why:  Not under a coverage.required root — shown, but it never blocks.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error.
+
+next: edit .yggdrasil/model/billing/yg-node.yaml  (yaml-invalid — 4 errors need a code or graph fix)
+--- stderr

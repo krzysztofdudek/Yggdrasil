@@ -1,7 +1,7 @@
 $ yg check --details
 exit: 1
 --- stdout
-yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: details
+yg check: FAIL  34 errors in 4 blocks · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: details
 
 error[refused] no-todo — 8 violations in 8 nodes
   at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker

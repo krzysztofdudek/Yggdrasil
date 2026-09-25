@@ -180,6 +180,9 @@ function fillPlaceholders(text: string, b: CheckBlock): string {
   const first = b.members[0];
   let out = text;
   if (first.nodePath !== undefined) out = out.split('<node>').join(toPosixPath(first.nodePath));
+  // A path each member states for itself is the first member's, like its node.
+  const own = b.slot?.values.get(first);
+  if (b.slot !== undefined && own !== undefined) out = out.split(b.slot.placeholder).join(own);
   const file = b.members.flatMap((m) => m.uncoveredFiles ?? []).find(isCodeFile);
   if (file !== undefined) out = out.replace(/<(?:uncovered-)?path>/g, toPosixPath(file));
   return out;
@@ -411,7 +414,10 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   const step = computeNext(all, result);
 
   const viewTag = view.kind === 'top' ? `top ${view.n}` : view.kind === 'aspect' ? `aspect ${view.id}` : view.kind === 'summary' ? (view.by === 'nodes' ? 'summary by node' : 'summary') : view.kind === 'details' ? 'details' : undefined;
-  const lines: string[] = [renderHeader(result, errors.length, warnings.length, autoFilled, emoji, viewTag)];
+  // How many blocks the report groups those findings into — the whole run's,
+  // whatever the view shows — so the verdict's counts read against the blocks.
+  const blockCount = { errors: all.filter((b) => b.severity === 'error').length, warnings: all.filter((b) => b.severity === 'warning').length };
+  const lines: string[] = [renderHeader(result, errors.length, warnings.length, autoFilled, emoji, viewTag, blockCount)];
 
   // The graph did not load as written: say so before anything else, in every
   // view, because everything below was computed without the part that failed.

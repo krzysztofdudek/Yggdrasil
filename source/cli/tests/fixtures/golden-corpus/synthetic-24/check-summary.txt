@@ -1,7 +1,7 @@
 $ yg check --summary
 exit: 1
 --- stdout
-yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
+yg check: FAIL  34 errors in 4 blocks · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
 
 errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 reviewer)
 warnings  uncovered 4

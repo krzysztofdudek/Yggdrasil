@@ -50,6 +50,14 @@ A check fails when this page and the code disagree — in either direction, in a
 
 `before 6.0.0` means the document already existed when the family started releasing together; 6.0.0 is the first joint release, so it is the first version this column can name precisely.
 
+## One number for the family
+
+**6.1.0 is a minor number with breaking changes.** Under Semantic Versioning they would make it 7.0.0: the gate can turn red on a repository that passed under 6.0.0, the text report and two JSON fields changed, and a Horde 6.0.0 cannot drive this Yggdrasil. The changelog lists every break under **Breaking** and the way through them under **Upgrading from 6.0.0**; read both before upgrading.
+
+The number stays 6.1.0 because the core of the family — Yggdrasil, Grain and Horde — ships together under one number. A version then names one set of tools that were built and tested against each other, and a consumer that reads another tool's document can say which one it expects by naming that version. Numbering each tool by its own breaks would split that number three ways within a release or two, and the documents in the register above already carry their own compatibility signal: their schema id, under the rule below. The version number is therefore not a compatibility promise, and this page says so instead of letting it read as one.
+
+What that asks of you: **pin the exact CLI version in CI** (`npx @chrisdudek/yg@6.1.0`, or an exact version in `package.json`, never a caret range and never `npx @chrisdudek/yg` without a version), and raise the pin in a commit of its own after reading the changelog's **Breaking** section. The same holds for the other family tools a pipeline runs.
+
 ## What each producer fills
 
 A document can declare more than its producers write. The register says who produces a document; this section says which of its declared kinds each producer actually fills, so a consumer does not have to rediscover the gap. `grain-advice/1` declares four kinds:

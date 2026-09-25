@@ -251,7 +251,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate: 5 errors total (3 aspect-one + 1 aspect-two + 1 mapping-path-missing).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · 1 warning .* {3}view: details$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · 1 warning .* {3}view: details$/m);
 
     // --details keeps one block per rule-and-cause but lists EVERY pair: the
     // default capped view summarises aspect-one as "3 pairs · 3 nodes".
@@ -291,7 +291,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
     // The verdict line keeps the TRUE total N = 5 and names the view; the one
     // block shown carries K = 3 (alpha, beta, gamma for aspect-one).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: aspect aspect-one$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: aspect aspect-one$/m);
     expect(countBlocks(out)).toBe(1);
     expect(out).toMatch(/^error\[unverified\] 3 pairs with no verdict yet$/m);
 
@@ -317,7 +317,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // K = 1 (alpha only for aspect-two); N = 5 (true total).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: aspect aspect-two$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: aspect aspect-two$/m);
     expect(out).toMatch(/^error\[unverified\] 1 pair with no verdict yet$/m);
 
     // Only alpha listed (it has aspect-two attached).
@@ -339,7 +339,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate header is always shown: 5 errors.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: top 1$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: top 1$/m);
 
     // --top 1 renders only 1 block, and says how many it hid.
     const blockCount = countBlocks(out);
@@ -360,7 +360,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // GUARDRAIL: the narrowed view never hides the true aggregate counts.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · /m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · /m);
 
     // Bare --top = --top 1: exactly ONE block renders.
     expect(countBlocks(out)).toBe(1);
@@ -390,7 +390,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True total still visible.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors · .* {3}view: top 2$/m);
+    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: top 2$/m);
 
     // Both error blocks (mapping-path-missing + unverified) render; only the
     // rules-digest-stale warning is left behind the footer.

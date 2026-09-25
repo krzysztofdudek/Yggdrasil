@@ -118,7 +118,7 @@ describe('check command', () => {
         });
         // Header format: "yg check: PASS|FAIL  <counts>   N nodes · X/Y files covered[ · …]"
         expect(result.stdout).toMatch(/yg check: (PASS|FAIL)/);
-        expect(stripAnsi(result.stdout)).toMatch(/^yg check: FAIL {2}4 errors · 1 warning {3}9 nodes · 5\/5 files covered$/m);
+        expect(stripAnsi(result.stdout)).toMatch(/^yg check: FAIL {2}4 errors in 2 blocks · 1 warning {3}9 nodes · 5\/5 files covered$/m);
       });
     });
 
@@ -354,7 +354,7 @@ describe('check command', () => {
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // Header preserves the TRUE total even though only one block prints.
-        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        expect(out).toContain('yg check: FAIL  4 errors in 2 blocks · 1 warning');
         expect(out).toContain('view: top 1');
         expect(countBlocks(out)).toBe(1);
         expect(out).toContain('… +2 more blocks  (yg check)');
@@ -367,7 +367,7 @@ describe('check command', () => {
         const result = spawnSync('node', [BIN_PATH, 'check', '--summary'], { cwd, encoding: 'utf-8' });
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
-        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        expect(out).toContain('yg check: FAIL  4 errors in 2 blocks · 1 warning');
         // One count line per severity, with the unverified script/reviewer split; no per-issue detail.
         expect(out).toMatch(/^errors {4}mapping-path-missing 1 · unverified 3 \(3 reviewer\)$/m);
         expect(out).toMatch(/^warnings {2}rules-digest-stale 1$/m);
@@ -391,7 +391,7 @@ describe('check command', () => {
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // TRUE aggregate header always shown.
-        expect(out).toContain('yg check: FAIL  4 errors · 1 warning');
+        expect(out).toContain('yg check: FAIL  4 errors in 2 blocks · 1 warning');
         // Bare --top = --top 1: the single first block renders.
         expect(countBlocks(out)).toBe(1);
         // The rendered block is the one the next: line draws from — blocks
@@ -413,7 +413,7 @@ describe('check command', () => {
         expect(result.status).toBe(1);
         const out = stripAnsi(result.stdout);
         // True aggregate: 4 errors (3 unverified + 1 mapping-path-missing).
-        expect(out).toContain('yg check: FAIL  4 errors   ');
+        expect(out).toContain('yg check: FAIL  4 errors in 2 blocks ');
         // --top N renders N highest-priority BLOCKS, not N individual issues.
         // The fixture collapses into 2 blocks: mapping-path-missing and unverified.
         expect(countBlocks(out)).toBe(2);

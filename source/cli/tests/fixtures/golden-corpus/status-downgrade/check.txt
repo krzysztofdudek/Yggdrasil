@@ -1,7 +1,7 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  5 errors · 5 warnings   5 nodes · 4/8 files covered
+yg check: FAIL  5 errors in 2 blocks · 5 warnings in 2 blocks   5 nodes · 4/8 files covered
 
 error[aspect-status-downgrade] Aspect 'header-comment': node type 'service' in yg-architecture.yaml declares status 'advisory', but the aspect already reaches the 4 nodes it attaches to there (app/svc-01, app/svc-02, app/svc-03, …) as 'enforced' from the aspect default (enforced, because the aspect's yg-aspect.yaml sets no status:)
   why:  An explicit attach-site status cannot relax (downgrade) what already cascades — that would silently weaken enforcement. An attach site can only raise the status above the aspect default and the other sites, never lower it.
