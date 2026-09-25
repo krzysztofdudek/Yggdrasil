@@ -31,8 +31,6 @@ export interface CheckResult {
   coveredFiles: number;
   totalFiles: number;
   issues: CheckIssue[];
-  /** Suggested next command based on highest-priority error */
-  suggestedNext: string | null;
   /** Count of aspect-violation-advisory warnings (subset of issues). Surfaced as a footer tally. */
   advisoryWarnings: number;
   /**

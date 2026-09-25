@@ -19,7 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,7 +89,7 @@ function commitAll(dir: string, message: string): void {
   git(['commit', '-q', '-m', message], dir);
 }
 
-describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
+describe.skipIf(!distExists)('CLI E2E — yg advise unguarded hot spot', () => {
   it('1. nominates a churning zero-aspect node with evidence; a covered churner is absent (exit 0)', () => {
     const dir = makeFixture('fires');
     try {
@@ -116,7 +116,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(stdout).toContain('propose an aspect or a coverage node');
       expect(stdout).toContain('to the user. Evidence: ');
       expect(stdout).toContain('Ask the user to approve it first.');
-      expect(stdout).toContain('nomination[uncovered-hot-spot] ' + HOT_WHAT('hot'));
+      expect(stdout).toContain('nomination[unguarded-hot-spot] ' + HOT_WHAT('hot'));
 
       // A node covered by an enforced rule is NEVER an uncovered hot spot, however
       // much it churns.
@@ -127,6 +127,13 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(stdout.indexOf('\nattention\n')).toBeLessThan(stdout.indexOf('\nnominations\n'));
       expect(stdout.indexOf('\nnominations\n')).toBeLessThan(stdout.indexOf(HOT_WHAT('hot')));
 
+      // The class was once named uncovered-hot-spot: that id still names the item
+      // for a dismiss, and the decision is recorded under the current id.
+      const dismissed = run(['advise', 'dismiss', 'uncovered-hot-spot:hot', '--reason', 'a one-off migration'], dir);
+      expect(dismissed.status).toBe(0);
+      const ledger = readFileSync(path.join(dir, '.yggdrasil', 'advise-decisions.jsonl'), 'utf-8');
+      expect(ledger).toContain('"id":"unguarded-hot-spot:hot"');
+      expect(run(['advise'], dir).stdout).not.toContain(HOT_WHAT('hot'));
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

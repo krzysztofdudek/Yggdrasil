@@ -237,6 +237,12 @@ export async function checkReviewerPresence(
  *     and is intentionally parked; nothing to warn about.
  *   - the aspect id is in NO node's effective-aspect set.
  *
+ * The dead rule this reports is also, when nothing attaches it at all, an
+ * `orphaned-aspect`; the orphan check is handed this check's output and stays
+ * silent for every aspect reported here, so one dead rule is one finding. Where
+ * this check is silent (a draft, the bootstrap carve-out below), the orphan
+ * finding still stands.
+ *
  * Bootstrap carve-out: while the model tree has zero nodes AND no file is
  * enforced by its architecture type either, this is COMPLETELY silent — a
  * graph-before-code project legitimately authors aspects before any node or

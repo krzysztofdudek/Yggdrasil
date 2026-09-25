@@ -27,20 +27,23 @@
  *
  * Source tiers (spec §7.2):
  *   T0 structural (live, from the graph): drill MISS (T0-local), suppress-marker
- *     anomalies, dead-attach (aspect-effective-nowhere), orphaned aspects,
- *     overdue review_by.
+ *     anomalies, aspect-effective-nowhere (a rule source that applies to no
+ *     node — once named dead-attach, still accepted as an alias), orphaned
+ *     aspects (only those effective-nowhere does not already report — a bundle,
+ *     a draft, a graph with no code yet), overdue review_by.
  *   T1 (from local telemetry, thin-data honesty labels — RZ-21): promotion
  *     (an advisory rule with a clean recorded record), sharpen (a rule the
  *     reviewer judged the SAME input inconsistently under --repeat), decorative-rule
  *     (an enforceable rule never once violated at exposure, whose independent
  *     corroborating signals agree it may be safe to demote — under the anti-Goodhart
- *     covenant), uncovered-hot-spot (a node whose mapped source churns yet has no
- *     rule beyond drafts covering it — churn signal from git history, injected), and
+ *     covenant), unguarded-hot-spot (a node whose mapped source churns yet has no
+ *     rule beyond drafts guarding it — churn signal from git history, injected;
+ *     once named uncovered-hot-spot, still accepted as an alias), and
  *     type-covered-churn (a type-covered file — no owning node — that has been
  *     EDITED since the commit that created it, and whose matched type genuinely
  *     enforces something on it; since it has no node, no node-level rule can
  *     ever attach to it, so the type tier alone carries its enforcement. Ranked
- *     just below uncovered-hot-spot; within the class, ranked by churn
+ *     just below unguarded-hot-spot; within the class, ranked by churn
  *     descending — the busiest file first, never id-alphabetical). Every T1
  *     class ranks BELOW every T0 class.
  *   T2 (below all of T0/T1, sharing T1's decision stream and the joint cap):
@@ -113,6 +116,15 @@ export interface Nomination {
    * which is what makes its presence meaningful rather than decorative.
    */
   provenance?: { source: string; at: string | null };
+  /**
+   * The identities this item carried before its class was renamed — each a
+   * retired id and the evidence hash the retired class bound for the SAME
+   * evidence. A decision stored on disk under a retired identity still governs
+   * the item (core/advise-feed), and a dismiss or defer naming a retired id
+   * still finds it; a new decision is always recorded under the current `id`.
+   * Absent on every class that was never renamed.
+   */
+  aliases?: ReadonlyArray<{ id: string; evidenceHash: string }>;
 }
 
 /**
@@ -241,7 +253,7 @@ export interface NominationSources {
    * Per-node churn (window commit counts + a capped file sample) assembled at the
    * CLI boundary from git history, paired with `churnWindow` (the window those
    * counts were measured over). BOTH absent → churn is UNKNOWN (no git / shallow
-   * clone) → the uncovered-hot-spot class is SILENT, never fabricated as
+   * clone) → the unguarded-hot-spot class is SILENT, never fabricated as
    * zero-and-fired or churn-present. Both present → the class runs.
    */
   churnByNode?: Map<string, { churn: number; files: string[] }>;
@@ -263,10 +275,10 @@ export interface NominationSources {
   /**
    * The type-level classification lattice (coverage.type_level), classified once
    * for this `yg advise` invocation — the SAME object `gatherCurrentUnits` feeds
-   * into its own `computeExpectedPairs` call. Threaded into the dead-attach
+   * into its own `computeExpectedPairs` call. Threaded into the effective-nowhere
    * source (`checkAspectEffectiveNowhere`) so it agrees with `yg check`: a rule
    * effective only on files enforced by their architecture type (no owning
-   * component) is live law, not a false dead-attach nomination that would offer
+   * component) is live law, not a false effective-nowhere nomination that would offer
    * to park a rule `yg check` reports enforced. Absent (flag off, or
    * classification failed) ⇒ the one-argument call every existing caller made,
    * unchanged.
@@ -327,21 +339,21 @@ export interface NominationSources {
 
 /**
  * Class precedence per source (lower = higher priority). Spec §7.2:
- *   drill-MISS > suppress anomaly > dead-attach > orphaned > overdue review_by,
- * with EVERY T1 class (promotion, sharpen, decorative-rule, uncovered-hot-spot)
+ *   drill-MISS > suppress anomaly > effective-nowhere > orphaned > overdue review_by,
+ * with EVERY T1 class (promotion, sharpen, decorative-rule, unguarded-hot-spot)
  * below EVERY T0 class.
  */
 export const CLASS_RANK = {
   drillMiss: 10,
   suppressAnomaly: 20,
-  deadAttach: 30,
+  effectiveNowhere: 30,
   orphaned: 40,
   overdueReviewBy: 50,
   // --- T1: below all T0 ---
   promotion: 60,
   sharpen: 70,
   decorativeRule: 80,
-  uncoveredHotSpot: 90,
+  unguardedHotSpot: 90,
   typeCoveredChurnCluster: 95,
   // --- T2: below all T0 and all T1 (spec §7.2). Both classes share T1's decision
   //     stream (λ) and the joint cap; family ranks above architecture-cut. ---
@@ -770,17 +782,19 @@ function decorativeRuleNominations(
 }
 
 // ---------------------------------------------------------------------------
-// T1 — uncovered hot spot (a node that changes often but has no rule covering it)
+// T1 — unguarded hot spot (a node that changes often but has no rule guarding it)
 // ---------------------------------------------------------------------------
 
 /**
- * Nominate a node as an "uncovered hot spot" when its mapped source changed in the
+ * Nominate a node as an "unguarded hot spot" when its mapped source changed in the
  * window (churn > 0) yet it has ZERO effective non-draft aspects — the code most in
  * motion has the least protection. The zero-aspect test reuses the single canonical
  * effective-aspect query (hasNonDraftEffectiveAspects), so the full 7-channel
  * cascade, every `when` predicate, and draft semantics are honoured exactly as the
- * verifier sees them: a node whose ONLY aspect is draft still counts as uncovered
- * (draft enforces nothing). Self-clearing — the item disappears the moment a rule or
+ * verifier sees them: a node whose ONLY aspect is draft still counts as unguarded
+ * (draft enforces nothing). The class was once named uncovered-hot-spot; the
+ * retired id and its evidence hash ride along as an alias, so a decision stored
+ * under the old name still governs the item. Self-clearing — the item disappears the moment a rule or
  * coverage lands (the node stops being zero-aspect) OR its churn ages out of the
  * window. The churn evidence (count, capped file sample, provenance) is rendered as
  * QUOTED DATA (RZ-5), never as an instruction. The signature stays human — the item
@@ -805,8 +819,8 @@ function hotSpotNominations(
     const evidence = fileSample !== '' ? `${fileSample} (${provenance})` : provenance;
 
     out.push({
-      id: `uncovered-hot-spot:${nodeId}`,
-      classRank: CLASS_RANK.uncoveredHotSpot,
+      id: `unguarded-hot-spot:${nodeId}`,
+      classRank: CLASS_RANK.unguardedHotSpot,
       what: `Node '${nodeQ}' is changing but has no rule guarding it.`,
       why:
         `${churn} of the last ${window} commits touched this node's files, yet no rule beyond ` +
@@ -819,13 +833,13 @@ function hotSpotNominations(
       // window, or a changed file set moves the hash, so a dismissed hot spot returns
       // when the evidence moves; a landed rule removes the item outright (it stops
       // being emitted, never re-surfaced by a stale decision).
-      evidenceHash: hashEvidence({
-        source: 'uncovered-hot-spot',
-        nodeId,
-        churn,
-        window,
-        files: files.join('|'),
-      }),
+      evidenceHash: hashEvidence({ source: 'unguarded-hot-spot', nodeId, churn, window, files: files.join('|') }),
+      aliases: [
+        {
+          id: `uncovered-hot-spot:${nodeId}`,
+          evidenceHash: hashEvidence({ source: 'uncovered-hot-spot', nodeId, churn, window, files: files.join('|') }),
+        },
+      ],
       evidenceTs: todayIso,
     });
   }
@@ -1048,16 +1062,20 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     });
   }
 
-  // --- dead-attach: a rule source effective on zero nodes (looks enforced, isn't) ---
+  // --- aspect-effective-nowhere: a rule source effective on zero nodes (looks enforced, isn't) ---
   // sources.typeCoverage is the SAME classification `yg check` and `gatherCurrentUnits`
   // use — without it, a rule effective ONLY on files enforced by their architecture
-  // type would read as dead here while yg check reports it enforced.
-  for (const issue of checkAspectEffectiveNowhere(graph, sources.typeCoverage)) {
+  // type would read as dead here while yg check reports it enforced. The id and the
+  // evidence source reuse the check code, so the feed and `yg check` name the dead
+  // rule the same way; the class was once named dead-attach, and that id with its
+  // evidence hash rides along as an alias so a decision stored under it still holds.
+  const effectiveNowhere = checkAspectEffectiveNowhere(graph, sources.typeCoverage);
+  for (const issue of effectiveNowhere) {
     const aspectId = aspectIdFromIssue(issue);
     if (aspectId === undefined) continue;
     nominations.push({
-      id: `dead-attach:${aspectId}`,
-      classRank: CLASS_RANK.deadAttach,
+      id: `aspect-effective-nowhere:${aspectId}`,
+      classRank: CLASS_RANK.effectiveNowhere,
       // Validator messages embed the aspect id (dir-name-constrained, so bounded)
       // amid authored prose. On the always-on feed every repo-derived string is
       // uniformly neutralized — control-byte-only (no length bound), so the full
@@ -1065,13 +1083,17 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
       what: neutralizeControls(issue.messageData.what),
       why: neutralizeControls(issue.messageData.why),
       next: asApprovalNext(neutralizeControls(issue.messageData.next)),
-      evidenceHash: hashEvidence({ source: 'dead-attach', aspectId }),
+      evidenceHash: hashEvidence({ source: 'aspect-effective-nowhere', aspectId }),
+      aliases: [{ id: `dead-attach:${aspectId}`, evidenceHash: hashEvidence({ source: 'dead-attach', aspectId }) }],
       evidenceTs: todayIso,
     });
   }
 
   // --- orphaned aspect: defined but referenced by no node / type / flow ---
-  for (const issue of checkOrphanedAspects(graph)) {
+  // Handed the effective-nowhere findings above, so a dead rule is nominated once:
+  // an orphan is nominated here only where effective-nowhere is silent (a bundle,
+  // a draft, a graph with no code yet), exactly as `yg check` reports it.
+  for (const issue of checkOrphanedAspects(graph, effectiveNowhere)) {
     const aspectId = aspectIdFromIssue(issue);
     if (aspectId === undefined) continue;
     nominations.push({
@@ -1124,7 +1146,7 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     );
   }
 
-  // --- T1: uncovered hot spot (churn × zero-aspect nodes) — runs only when the CLI
+  // --- T1: unguarded hot spot (churn × zero-aspect nodes) — runs only when the CLI
   //     supplied BOTH the churn map and the window it was measured over; no git /
   //     shallow clone ⇒ omitted ⇒ SILENT (never fabricated as zero-and-fired) ---
   if (sources.churnByNode !== undefined && sources.churnWindow !== undefined) {
@@ -1133,7 +1155,7 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
     );
   }
 
-  // --- T1.5: type-covered churn (below uncovered-hot-spot, above T2) — runs only
+  // --- T1.5: type-covered churn (below unguarded-hot-spot, above T2) — runs only
   //     when the CLI supplied BOTH a churn-by-file map AND which of those files
   //     their matched type actually enforces; no git / flag off / unresolved
   //     enforcement classification ⇒ omitted ⇒ SILENT (never fabricated as

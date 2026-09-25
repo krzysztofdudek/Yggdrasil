@@ -62,7 +62,6 @@ function makeCheckResult(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: null,
     advisoryWarnings: 0,
     draftSkipped: 0,
     verifiedDet: 0,

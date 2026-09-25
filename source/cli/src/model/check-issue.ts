@@ -52,6 +52,13 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
    */
   pairKind?: 'llm' | 'deterministic';
   /**
+   * For an `unverified` reviewer pair (and its outside twin): how many reviewer
+   * calls filling it costs — its tier's consensus, or 1 when no tier resolves,
+   * the same count a fill's cost preview budgets for it. Absent on a script
+   * pair (free) and on every other issue.
+   */
+  reviewerCalls?: number;
+  /**
    * For `unverified` (and its outside twin): WHY the pair has no valid verdict
    * — see {@link UnverifiedCause}. Decides the group it renders in, its label,
    * and the fix it names; carried into the `yg-check/1` document as `cause`.

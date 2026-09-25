@@ -28,6 +28,14 @@ import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 import type { Graph } from '../../../src/model/graph.js';
+import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { buildCheckJson } from '../../../src/core/check-json.js';
+import type { CheckResult as ReportedResult } from '../../../src/core/check.js';
+
+/** The `next:` line a report of this result prints — the one Next engine lives where the report is rendered. */
+function reportNext(result: ReportedResult): string | null {
+  return enrichCheckJson(buildCheckJson(result), result).suggestedNext;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -338,14 +346,15 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
   it('suggestedNext for an ambiguous file names the file and the two-exit guidance, not the generic ".yggdrasil" structural fallback', async () => {
     const dir = copyFixture();
     const result = await runOnFixture(dir);
-    expect(result.suggestedNext).not.toBeNull();
-    expect(result.suggestedNext).not.toContain('.yggdrasil');
-    expect(result.suggestedNext).toContain('Two exits');
-    expect(result.suggestedNext).toContain('svc');
-    expect(result.suggestedNext).toContain('util');
-    // Exactly the ambiguous issue's own messageData.next, verbatim.
+    expect(reportNext(result)).not.toBeNull();
+    expect(reportNext(result)).not.toContain('.yggdrasil');
+    expect(reportNext(result)).toContain('svc');
+    expect(reportNext(result)).toContain('util');
+    // The step is the first of the ambiguous issue's own two exits (a heading
+    // introducing a list is not a step; its first item is).
     const amb = result.issues.find((i) => i.code === 'ambiguous-node-type');
-    expect(result.suggestedNext).toBe(amb!.messageData.next);
+    const firstExit = amb!.messageData.next.split('\n')[1].replace(/^1\.\s*/, '').replace(/\.$/, '');
+    expect(reportNext(result)!.startsWith(firstExit)).toBe(true);
   });
 });
 

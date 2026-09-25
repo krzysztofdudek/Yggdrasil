@@ -126,3 +126,7 @@ The reason on the existing silent-missing-files waiver no longer addresses the r
 Unknown top-level configuration keys are reported as their own blocking config-unknown-key findings, one per key, naming the file, the key and the likely intended key. They are separate from a configuration that did not load, so the schema-independent checks keep running against the configuration that is actually in effect.
 ## [2026-09-24T14:30:35.521Z]
 A rule that failed to load now carries its rule id on the finding, so a reader scoped to some nodes — yg context — can tell whether those nodes use the rule. Without it, one broken or symlinked rule anywhere in the repository refused the context of every node, locking agents out of their required pre-edit step over a rule their node never attaches.
+## [2026-09-25T21:14:08.102Z]
+The effective-nowhere linter now runs before the orphan check so its findings can be handed over and a dead rule is reported once rather than twice; its findings are still emitted at their old place in the issue order.
+## [2026-09-25T21:50:54.593Z]
+A configuration, architecture, component or rule file that does not parse now hands the report the file to correct as data, with the parser's own instruction as the words for the configuration, instead of leaving the report to find the file in the sentence.

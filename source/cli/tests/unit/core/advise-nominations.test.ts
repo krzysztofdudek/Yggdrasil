@@ -7,10 +7,12 @@ import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   buildNominations,
   buildAttention,
+  hashEvidence,
   quoteData,
   type SuppressAnomaly,
 } from '../../../src/core/advise-nominations.js';
 import { ruleHashFor } from '../../../src/core/pair-inputs.js';
+import { applyDecisions } from '../../../src/core/advise-feed.js';
 import type { DrillResultLine } from '../../../src/io/drill-results-store.js';
 import type { VerdictEvent } from '../../../src/io/events-store.js';
 
@@ -416,9 +418,9 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
   });
 });
 
-// ── Task 5 (wave-6): T1 uncovered hot spot (churn × zero-aspect nodes) ──
+// ── Task 5 (wave-6): T1 unguarded hot spot (churn × zero-aspect nodes) ──
 
-describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, below all T0)', () => {
+describe('buildNominations — T1 unguarded hot spot (churn × zero-aspect, below all T0)', () => {
   let projectRoot: string;
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-hotspot-'));
@@ -434,7 +436,7 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     // own aspects, module parent with none).
     const churnByNode = new Map([['checkout/controller', CH(3, ['src/checkout/controller.ts'])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    const hot = noms.find((n) => n.id === 'uncovered-hot-spot:checkout/controller');
+    const hot = noms.find((n) => n.id === 'unguarded-hot-spot:checkout/controller');
     expect(hot).toBeDefined();
     expect(hot!.classRank).toBe(90); // below every T0 (10..50) and the other T1s (60..80)
     expect(hot!.what).toBe("Node 'checkout/controller' is changing but has no rule guarding it.");
@@ -459,14 +461,14 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     // orders/order-service carries requires-audit (enforced llm) in the fixture.
     const churnByNode = new Map([['orders/order-service', CH(9, ['src/orders/order.service.ts'])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    expect(noms.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+    expect(noms.find((n) => n.id.startsWith('unguarded-hot-spot:'))).toBeUndefined();
   });
 
   it('does NOT nominate a zero-aspect node whose churn is 0 in the window', async () => {
     const graph = await loadGraph(projectRoot);
     const churnByNode = new Map([['users/user-repo', CH(0, [])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    expect(noms.find((n) => n.id === 'uncovered-hot-spot:users/user-repo')).toBeUndefined();
+    expect(noms.find((n) => n.id === 'unguarded-hot-spot:users/user-repo')).toBeUndefined();
   });
 
   it('DOES nominate a node whose ONLY aspect is draft (draft enforces nothing) when it churns', async () => {
@@ -479,7 +481,7 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     const graph = await loadGraph(projectRoot);
     const churnByNode = new Map([['auth/auth-api', CH(2, ['src/auth/auth.controller.ts'])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    expect(noms.find((n) => n.id === 'uncovered-hot-spot:auth/auth-api')).toBeDefined();
+    expect(noms.find((n) => n.id === 'unguarded-hot-spot:auth/auth-api')).toBeDefined();
   });
 
   it('does NOT nominate a node covered only by a live ADVISORY aspect, even with high churn (issue 016)', async () => {
@@ -495,17 +497,17 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     const graph = await loadGraph(projectRoot);
     const churnByNode = new Map([['auth/auth-api', CH(9, ['src/auth/auth.controller.ts'])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    expect(noms.find((n) => n.id === 'uncovered-hot-spot:auth/auth-api')).toBeUndefined();
+    expect(noms.find((n) => n.id === 'unguarded-hot-spot:auth/auth-api')).toBeUndefined();
   });
 
   it('is SILENT when the churn source is unknown (no git / shallow clone → undefined)', async () => {
     const graph = await loadGraph(projectRoot);
     // No churnByNode at all → the class must not appear (never fabricated as 0-and-fired).
     const noms = buildNominations(graph, { todayUtc: TODAY });
-    expect(noms.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+    expect(noms.find((n) => n.id.startsWith('unguarded-hot-spot:'))).toBeUndefined();
     // Also silent when the window is present but the map is absent (both-or-neither).
     const noms2 = buildNominations(graph, { todayUtc: TODAY, churnWindow: 200 });
-    expect(noms2.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+    expect(noms2.find((n) => n.id.startsWith('unguarded-hot-spot:'))).toBeUndefined();
   });
 
   it('moves the evidence hash when churn changes, so a dismissed hot spot returns', async () => {
@@ -515,8 +517,31 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
         todayUtc: TODAY,
         churnByNode: new Map([['checkout/controller', CH(churn, ['src/checkout/controller.ts'])]]),
         churnWindow: 200,
-      }).find((n) => n.id === 'uncovered-hot-spot:checkout/controller')!.evidenceHash;
+      }).find((n) => n.id === 'unguarded-hot-spot:checkout/controller')!.evidenceHash;
     expect(hashAt(4)).not.toBe(hashAt(3));
+  });
+
+  it('carries its retired uncovered-hot-spot id as an alias, so a decision stored under that name still hides it', async () => {
+    const graph = await loadGraph(projectRoot);
+    const files = ['src/checkout/controller.ts'];
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      churnByNode: new Map([['checkout/controller', CH(3, files)]]),
+      churnWindow: 200,
+    });
+    const hot = noms.find((n) => n.id === 'unguarded-hot-spot:checkout/controller')!;
+    expect(hot.aliases?.map((a) => a.id)).toEqual(['uncovered-hot-spot:checkout/controller']);
+    // Exactly the record an earlier release wrote for this evidence.
+    const stored = {
+      v: 1 as const,
+      ts: '2026-07-01T00:00:00.000Z',
+      id: 'uncovered-hot-spot:checkout/controller',
+      action: 'dismiss' as const,
+      evidenceHash: hashEvidence({ source: 'uncovered-hot-spot', nodeId: 'checkout/controller', churn: 3, window: 200, files: files.join('|') }),
+      reason: 'churn is a one-off migration',
+    };
+    const { hidden } = applyDecisions(noms, [stored], TODAY);
+    expect(hidden.map((n) => n.id)).toContain('unguarded-hot-spot:checkout/controller');
   });
 });
 
@@ -964,14 +989,14 @@ describe('buildNominations — T1 uncovered hot spot: defensive unknown-node ski
     const graph = await loadGraph(projectRoot);
     const churnByNode = new Map([['nonexistent/node', { churn: 5, files: ['src/ghost.ts'] }]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    expect(noms.find((n) => n.id.startsWith('uncovered-hot-spot:'))).toBeUndefined();
+    expect(noms.find((n) => n.id.startsWith('unguarded-hot-spot:'))).toBeUndefined();
   });
 
   it('renders evidence as plain provenance (no parens / file list) when the churn file sample is empty', async () => {
     const graph = await loadGraph(projectRoot);
     const churnByNode = new Map([['checkout/controller', { churn: 2, files: [] }]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
-    const hot = noms.find((n) => n.id === 'uncovered-hot-spot:checkout/controller');
+    const hot = noms.find((n) => n.id === 'unguarded-hot-spot:checkout/controller');
     expect(hot).toBeDefined();
     expect(hot!.next).toContain('Evidence: last 200 commits, from git history.');
   });
@@ -987,7 +1012,7 @@ describe('buildNominations — T1.5 type-covered churn (a churning file the type
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
-  it('sits below uncovered-hot-spot (T1) and above family-without-law (T2)', () => {
+  it('sits below unguarded-hot-spot (T1) and above family-without-law (T2)', () => {
     // Pure rank check — no graph/source needed.
     expect(90).toBeLessThan(95);
     expect(95).toBeLessThan(100);

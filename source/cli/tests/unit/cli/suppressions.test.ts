@@ -31,6 +31,9 @@ vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
 import { registerSuppressionsCommand } from '../../../src/cli/suppressions.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from '../../../src/cli/preamble.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { suppressionWarningText } from '../../../src/cli/suppressions.js';
+/** The scan's warnings in the words the inventory prints them in. */
+const warningTexts = (r: { warningRecords?: Parameters<typeof suppressionWarningText>[0][] }): string[] => (r.warningRecords ?? []).map(suppressionWarningText);
 
 const mockLoadGraph = vi.mocked(loadGraphOrAbort);
 const mockWalkRepoFiles = vi.mocked(walkRepoFiles);
@@ -140,7 +143,7 @@ describe('runSuppressionsScan', () => {
     const report = await runSuppressionsScan('/does-not-matter', [], makeKnownAspects('my-aspect'));
     expect(report.fileEntries).toHaveLength(0);
     expect(report.totalMarkers).toBe(0);
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 
   it('detects markers from fixture-like in-memory scan', () => {
@@ -201,7 +204,7 @@ describe('runSuppressionsScan: comment-only scoping for AST languages', () => {
     const report = await runSuppressionsScan(root, ['doc.ts'], new Set(['some-aspect']));
     expect(report.fileEntries).toHaveLength(0);
     expect(report.totalMarkers).toBe(0);
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 
   it('a file whose comments only MENTION the syntax mid-prose yields zero markers and zero warnings', async () => {
@@ -226,7 +229,7 @@ describe('runSuppressionsScan: comment-only scoping for AST languages', () => {
     const report = await runSuppressionsScan(root, ['prose.ts'], new Set(['some-aspect']));
     expect(report.fileEntries).toHaveLength(0);
     expect(report.totalMarkers).toBe(0);
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 
   it('a genuine comment marker in a TS file IS still inventoried (no regression)', async () => {
@@ -329,7 +332,7 @@ describe('runSuppressionsScan: warns when a waiver targets an errs: under check'
       [],
       new Set(['no-false-positives']), // errs: under
     );
-    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(true);
+    expect(warningTexts(report).some((w) => w.includes(EXACT))).toBe(true);
   });
 
   it('does NOT warn when the aspect is not under-approximating', async () => {
@@ -342,7 +345,7 @@ describe('runSuppressionsScan: warns when a waiver targets an errs: under check'
       [],
       new Set(), // no under-approximating aspects
     );
-    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(false);
+    expect(warningTexts(report).some((w) => w.includes(EXACT))).toBe(false);
   });
 
   it('does NOT warn on an enable terminator (not a waiver) even for an under aspect', async () => {
@@ -355,7 +358,7 @@ describe('runSuppressionsScan: warns when a waiver targets an errs: under check'
       [],
       new Set(['no-false-positives']),
     );
-    expect(report.warnings.some((w) => w.includes(EXACT))).toBe(false);
+    expect(warningTexts(report).some((w) => w.includes(EXACT))).toBe(false);
   });
 });
 
@@ -363,7 +366,7 @@ describe('runSuppressionsScan: warns when a waiver targets an errs: under check'
 
 describe('formatSuppressionsOutput', () => {
   it('shows "no active suppressions" when no markers', () => {
-    const report = { fileEntries: [], totalMarkers: 0, warnings: [] };
+    const report = { fileEntries: [], totalMarkers: 0 };
     const out = formatSuppressionsOutput(report);
     expect(out).toContain('No active suppression markers found.');
   });
@@ -379,7 +382,6 @@ describe('formatSuppressionsOutput', () => {
         },
       ],
       totalMarkers: 1,
-      warnings: [],
     };
     const out = formatSuppressionsOutput(report);
     expect(out).toContain('src/handler.ts');
@@ -400,7 +402,6 @@ describe('formatSuppressionsOutput', () => {
         },
       ],
       totalMarkers: 2,
-      warnings: [],
     };
     const out = formatSuppressionsOutput(report);
     expect(out).toContain('2 markers');
@@ -418,7 +419,7 @@ describe('formatSuppressionsOutput', () => {
         },
       ],
       totalMarkers: 1,
-      warnings: ['Warning: ghost-aspect does not exist'],
+      warningRecords: [{ code: 'unknown-aspect' as const, file: 'src/a.ts', line: 3, aspect: 'ghost-aspect', messageData: { what: 'ghost-aspect does not exist', why: 'y', next: 'n' } }],
     };
     const out = formatSuppressionsOutput(report);
     expect(out).toMatch(/^warning\b.*ghost-aspect does not exist$/m);

@@ -301,7 +301,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
     try {
       const r = run(['drill', '--aspect', 'no-such-aspect'], dir);
       expect(r.status).toBe(1);
-      expect(r.all).toContain("yg drill requires an aspect declared in .yggdrasil/aspects/ (got 'no-such-aspect')");
+      expect(r.all).toContain("error[aspect-not-found]: rule 'no-such-aspect' is not in the graph");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

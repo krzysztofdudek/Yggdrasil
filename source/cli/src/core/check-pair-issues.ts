@@ -38,6 +38,15 @@ function withCompanionNotRun(vp: VerifiedPair, md: IssueMessage): IssueMessage {
   return vp.companionNotRun === true ? { ...md, why: `${md.why} ${COMPANION_NOT_RUN_WHY}` } : md;
 }
 
+/**
+ * An over-limit prompt's first remedy, the safest one, as data: narrow the
+ * rule's `scope.files` in its own yg-aspect.yaml.
+ */
+function withSizeStep(aspectId: string, md: IssueMessage): IssueMessage {
+  const file = `.yggdrasil/aspects/${aspectId}/yg-aspect.yaml`;
+  return { ...md, step: { file, text: `narrow scope.files in ${file}` } };
+}
+
 /** Fallback text when a refused verdict carries no stored reason. Single source of truth. */
 const NO_REASON_FALLBACK = 'no violation details recorded';
 
@@ -59,7 +68,12 @@ const NO_REASON_FALLBACK = 'no violation details recorded';
 export function emitPairIssue(
   vp: VerifiedPair,
   rtRows: TypeVisibilityReport['rows'],
-  ctx: { reviewerConfigured?: boolean; ruleIntent?: (aspectId: string) => string | undefined } = {},
+  ctx: {
+    reviewerConfigured?: boolean;
+    ruleIntent?: (aspectId: string) => string | undefined;
+    /** A tier's consensus by tier name — how many reviewer calls one pair on it costs. */
+    consensusOf?: (tierName: string) => number | undefined;
+  } = {},
 ): CheckIssue[] {
   const { pair, state } = vp;
   const issues: CheckIssue[] = [];
@@ -111,6 +125,10 @@ export function emitPairIssue(
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         pairKind: pair.kind,
+        // What filling it bills: the resolved tier's consensus, else one call —
+        // the same count the fill's own budget uses, so a step's stated cost
+        // and the preview of running it are one number.
+        ...(pair.kind === 'llm' ? { reviewerCalls: (vp.tierName !== undefined ? ctx.consensusOf?.(vp.tierName) : undefined) ?? 1 } : {}),
         unitKey: pair.unitKey,
       });
       break;
@@ -120,13 +138,13 @@ export function emitPairIssue(
         severity: 'error',
         code: 'prompt-too-large',
         rule: 'prompt-too-large',
-        messageData: promptTooLargeMessage({
+        messageData: withSizeStep(pair.aspectId, promptTooLargeMessage({
           aspectId: pair.aspectId,
           unitKey: pair.unitKey,
           tierName: state.tierName,
           chars: state.chars,
           limit: state.limit,
-        }),
+        })),
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         unitKey: pair.unitKey,
@@ -140,7 +158,8 @@ export function emitPairIssue(
         severity: enforced ? 'error' : 'warning',
         code: 'aspect-companion-runtime-error',
         rule: 'aspect-companion-runtime-error',
-        messageData: state.messageData,
+        // The hook that failed is the rule's own, and it is fixed where it is.
+        messageData: state.messageData.step !== undefined ? state.messageData : { ...state.messageData, step: { file: `.yggdrasil/aspects/${pair.aspectId}/companion.mjs` } },
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         unitKey: pair.unitKey,
@@ -155,13 +174,13 @@ export function emitPairIssue(
       severity: 'error',
       code: 'prompt-too-large',
       rule: 'prompt-too-large',
-      messageData: promptTooLargeMessage({
+      messageData: withSizeStep(pair.aspectId, promptTooLargeMessage({
         aspectId: pair.aspectId,
         unitKey: pair.unitKey,
         tierName: vp.oversized.tierName,
         chars: vp.oversized.chars,
         limit: vp.oversized.limit,
-      }),
+      })),
       nodePath: pair.nodePath,
       aspectId: pair.aspectId,
       unitKey: pair.unitKey,

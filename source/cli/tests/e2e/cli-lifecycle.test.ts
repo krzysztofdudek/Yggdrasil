@@ -206,7 +206,7 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
   it('yg aspect-test with unknown aspect returns exit 1', () => {
     const { status, stderr } = run(['aspect-test', '--aspect', 'nonexistent-aspect-xyz', '--node', 'orders/order-service']);
     expect(status).toBe(1);
-    expect(stderr).toContain('not found');
+    expect(stderr).toContain("error[aspect-not-found]: rule 'nonexistent-aspect-xyz' is not in the graph");
   });
 
   it('yg aspect-test on an LLM aspect with no reachable reviewer returns exit 1', () => {

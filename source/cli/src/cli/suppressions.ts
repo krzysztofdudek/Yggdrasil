@@ -4,9 +4,11 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
-import { runSuppressionsScan, formatSuppressionsOutput } from '../portal/api/suppress-scan.js';
-import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
+import { runSuppressionsScan } from '../core/suppressions/scan.js';
+import type { SuppressionsReport, SuppressionMarkerInfo } from '../core/suppressions/scan.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
+import { count } from '../utils/count.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -31,16 +33,97 @@ async function computeTypeCoveredFilesForSuppressions(graph: Graph, repoFiles: s
   return collectTypeCoveredFiles(result.covered);
 }
 
-// Re-export the relocated scan + formatter so existing importers (and tests) that
-// reference them via this command module keep resolving to the same implementation.
-export { runSuppressionsScan, formatSuppressionsOutput };
+// ── The inventory's words ─────────────────────────────────
+//
+// The scan is engine code and words nothing: each warning comes back as a
+// structured what / why / next. The inventory is rendered here, in the command
+// layer, for the same reason the JSON builder below is: it reaches into the
+// scan's own report type, which a formatter may not.
+
+/** One scan warning in the CLI's what / why / next grammar — the text the inventory and its JSON both carry. */
+export function suppressionWarningText(record: NonNullable<SuppressionsReport['warningRecords']>[number]): string {
+  return buildIssueMessage(record.messageData);
+}
+
+/**
+ * The lines a marker actually waives, as `yg check` resolves them: a single
+ * marker waives the next line, or its own line when it trails code; a disable
+ * waives from the line after it (its own line when trailing) up to the line
+ * before its matching enable (the enable's own line when that trails code), or
+ * to the end of the file when nothing closes it. Empty for an enable.
+ */
+function describeWaivedLines(file: string, m: SuppressionMarkerInfo, report: SuppressionsReport, markers: SuppressionMarkerInfo[]): string {
+  const from = m.trailing ? m.line : m.line + 1;
+  if (m.kind === 'single') return ` → waives line ${from}`;
+  if (m.kind !== 'disable') return '';
+  const range = report.ranges?.find((r) => r.file === file && r.aspect === m.aspectId && r.from === m.line);
+  if (range === undefined) return '';
+  if (range.to === null) return ` → waives lines ${from}-end of file`;
+  const enable = markers.find((e) => e.kind === 'enable' && e.aspectId === m.aspectId && e.line === range.to);
+  const to = enable?.trailing ? range.to : range.to - 1;
+  return to >= from ? ` → waives lines ${from}-${to}` : ' → waives nothing (the enable closes it at once)';
+}
+
+/**
+ * The `yg suppressions` text inventory. `highlight` decorates the wildcard tag
+ * and the warning headings; the command passes the output layer's colour, so
+ * this module decides the words and never imports a colour library itself.
+ * Left out, the text is plain.
+ */
+export function formatSuppressionsOutput(report: SuppressionsReport, highlight: (text: string) => string = (text) => text): string {
+  const lines: string[] = [];
+
+  if (report.fileEntries.length === 0) {
+    lines.push('No active suppression markers found.');
+    return lines.join('\n') + '\n';
+  }
+
+  // Inventory section
+  lines.push('Active suppression markers:');
+  lines.push('');
+
+  for (const { file, markers } of report.fileEntries) {
+    lines.push(`  ${file}`);
+    for (const m of markers) {
+      const wildcardTag = m.wildcard ? highlight(' [wildcard]') : '';
+      // A file-head unclosed disable renders as the sanctioned whole-file form.
+      const isFileLevel = report.fileLevelKeys?.has(`${file}:${m.line}`) ?? false;
+      const kindTag = isFileLevel ? 'file-level' : m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
+      const reasonPart = m.reason ? `  — ${m.reason}` : '';
+      lines.push(`    line ${m.line}: ${kindTag}(${m.aspectId})${wildcardTag}${describeWaivedLines(file, m, report, markers)}${reasonPart}`);
+    }
+    lines.push('');
+  }
+
+  // Tally
+  const fileCount = report.fileEntries.length;
+  lines.push(`Total: ${count(report.totalMarkers, 'marker')} across ${count(fileCount, 'file')}.`);
+
+  // Warnings
+  // Each warning as a block of the one grammar: `warning[<code>] <what>`,
+  // then its labelled why and its fix.
+  for (const w of report.warningRecords ?? []) {
+    const [what, ...rest] = suppressionWarningText(w).split('\n');
+    lines.push('');
+    lines.push(highlight(`warning[${w.code}] ${what}`));
+    for (const l of rest) {
+      lines.push(l.startsWith('next: ') ? `  fix:  ${l.slice('next: '.length)}` : l.startsWith('      ') ? `  ${l}` : l);
+    }
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+// Re-export the scan so existing importers (and tests) that reference it via
+// this command module keep resolving to the same implementation.
+export { runSuppressionsScan };
 
 /**
  * Build the `yg-suppressions/1` document from a scan report — pure, no I/O, so
  * it is testable without a scan. Lives here rather than in
  * `formatters/suppressions-json.ts` because it reaches into `SuppressionsReport`
- * (the portal facade's domain type): a `formatter`-type node may only `uses` a
- * plain data type and `calls` a utility, never reach into a facade, so the
+ * (the suppression scan's own type): a `formatter`-type node may only `uses` a
+ * plain data type and `calls` a utility, never reach into the engine, so the
  * builder sits in the command layer instead — the same reason `yg aspects
  * --json`'s `buildAspectsJson` lives in `cli/aspects.ts` rather than in
  * `formatters/aspects-json.ts`.
@@ -92,7 +175,7 @@ export function buildSuppressionsJson(report: SuppressionsReport): SuppressionsJ
     file: toPosixPath(w.file),
     line: w.line,
     aspect: w.aspect,
-    message: w.message,
+    message: suppressionWarningText(w),
   }));
 
   return {
@@ -110,11 +193,10 @@ export function buildSuppressionsJson(report: SuppressionsReport): SuppressionsJ
 /**
  * `yg suppressions` — read-only inventory of active yg-suppress waivers.
  *
- * The scan implementation now lives behind the portal facade
- * (`portal/api/suppress-scan.ts`) so the facade is the single owner of the
- * suppression scan (the portal's live inventory reuses the exact same scan). This
- * command is a thin shell: it loads the graph, walks the repo, runs the relocated
- * scan, and renders its output unchanged. Always exits 0 — purely informational.
+ * The scan is the engine's own, the one every surface reads — the portal's
+ * live inventory and `yg check`'s reason-less marker warning among them. This
+ * command is a thin shell: it loads the graph, walks the repo, runs the scan,
+ * and renders it. Always exits 0 — purely informational.
  */
 export function registerSuppressionsCommand(program: Command): void {
   program

@@ -52,6 +52,8 @@ relations:
     type: calls
   - target: cli/portal/engine-api
     type: calls
+  - target: cli/core/suppressions
+    type: calls
   - target: cli/formatters
     type: calls
   - target: cli/preamble

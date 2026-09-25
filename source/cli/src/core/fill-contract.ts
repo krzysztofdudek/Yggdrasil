@@ -87,6 +87,12 @@ export interface RunFillOptions {
    *  purity: core reads no files). Read-only — never writes the lock or gates the fill.
    *  Typed off RunCheckOptions so the field cannot drift from the option it forwards. */
   rulesArtifacts?: RunCheckOptions['rulesArtifacts'];
+  /**
+   * The suppression scan's reason-less markers, handed to every runCheck this
+   * fill runs — the same seam as rulesArtifacts, so `yg check --approve` warns
+   * about the markers the plain check warns about.
+   */
+  reasonlessSuppressMarkers?: RunCheckOptions['reasonlessSuppressMarkers'];
   /** Whether the write sink is an interactive TTY. Required: the engine probes no
    *  terminal itself. When true, the progress tracker rewrites a single line with \r
    *  instead of emitting milestone lines. */

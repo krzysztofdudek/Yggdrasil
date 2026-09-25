@@ -179,7 +179,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // enter the block), and its member line names that pair.
       expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
       expect(after.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/checkout\.md$/m);
-      expect(after.all).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+      expect(after.all).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);

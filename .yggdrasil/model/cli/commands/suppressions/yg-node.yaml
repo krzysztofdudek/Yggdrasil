@@ -3,11 +3,10 @@ type: command
 description: >-
   Read-only inventory of active yg-suppress markers across git-tracked files via
   yg suppressions; warns on unknown aspect id, wildcard, or unbounded disable range.
-  Always exits 0. The scan implementation now lives behind the portal facade
-  (cli/portal/engine-api, file portal/api/suppress-scan.ts); this command is a thin shell
-  that loads the graph, walks the repo, runs the relocated scan via the facade, and
-  renders its output unchanged — so it CALLS the facade rather than the ast / formatter /
-  language-registry subsystems directly. Under coverage.type_level it also classifies
+  Always exits 0. The scan is the engine's own (cli/core/suppressions), the one every
+  surface reads; this command is a thin shell that loads the graph, walks the repo, runs
+  the scan, and renders it — the text inventory and each warning's what / why / next are
+  worded here, since the scan words nothing and a formatter may not reach its report type. Under coverage.type_level it also classifies
   the type-level lattice itself (uncovered-file scan, type classification, its own
   content-read cache) so a live waiver on a file enforced by its architecture type
   alone — no owning node — is exempted from the scan's noise filter the same way a
@@ -23,7 +22,7 @@ aspects: []
 relations:
   - target: cli/output
     type: calls
-  - target: cli/portal/engine-api
+  - target: cli/core/suppressions
     type: calls
   - target: cli/tests/unit/cli
     type: uses

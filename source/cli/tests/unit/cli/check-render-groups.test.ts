@@ -50,7 +50,6 @@ function fieldLines(out: string, label: 'at' | 'why' | 'fix'): string[] {
  */
 
 function baseResult(issues: CheckIssue[]): CheckResult {
-  const hasError = issues.some((i) => i.severity === 'error');
   return {
     projectName: 'test',
     nodeCount: 1,
@@ -60,7 +59,6 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: hasError ? 'yg check --approve' : null,
     advisoryWarnings: issues.filter((i) => i.code === 'aspect-violation-advisory').length,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -207,7 +205,7 @@ describe('check render — advisory warnings', () => {
     // member line names the pair.
     expect(out).toContain('warning[unverified] 1 pair with no verdict yet');
     expect(out).toContain('  at:   audit-logging @ orders/handler');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
   });
 
   it('a fix with nothing to cost never prints an empty cost', () => {

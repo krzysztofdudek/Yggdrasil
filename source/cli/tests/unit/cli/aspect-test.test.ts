@@ -251,7 +251,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     mockLoadGraph.mockResolvedValue(makeGraph({ aspects: [] }) as never);
     await runCommand(['--aspect', 'missing', '--node', 'N']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain("'missing' not found");
+    expect(stderr).toContain("rule 'missing' is not in the graph");
   });
 
   // ── Deterministic: --node routes to structure runner ─────────────────────────

@@ -5,8 +5,10 @@
  * currently sees.
  *
  * A decision applies to a nomination ONLY when it names the same `id` AND its
- * `evidenceHash` still matches the nomination's current evidence. That single
- * rule delivers the whole contract:
+ * `evidenceHash` still matches the nomination's current evidence — or names one
+ * of the nomination's retired identities (`aliases`: the id and hash a renamed
+ * class bound for the same evidence), so a decision stored before a class was
+ * renamed keeps governing it. That single rule delivers the whole contract:
  *   - dismiss + same hash → HIDDEN (surfaced only under `--all`).
  *   - defer   + same hash → HIDDEN until `until`; on/after `until` (per the
  *                           injected `todayUtc`) it RETURNS with note
@@ -41,17 +43,18 @@ function bareUtcDate(date: Date): string {
  * The decision that governs a nomination: the latest (by `ts`, then by append
  * order) decision that both names the nomination's `id` AND still matches its
  * `evidenceHash`. A decision whose hash no longer matches is stale and never
- * governs, so its nomination returns as new. Returns undefined when nothing
- * applies.
+ * governs, so its nomination returns as new. A retired identity in the
+ * nomination's `aliases` counts exactly like its current one. Returns undefined
+ * when nothing applies.
  */
 function governingDecision(
   nomination: Nomination,
   decisions: AdviseDecision[],
 ): AdviseDecision | undefined {
+  const identities = [{ id: nomination.id, evidenceHash: nomination.evidenceHash }, ...(nomination.aliases ?? [])];
   let governing: AdviseDecision | undefined;
   for (const decision of decisions) {
-    if (decision.id !== nomination.id) continue;
-    if (decision.evidenceHash !== nomination.evidenceHash) continue;
+    if (!identities.some((k) => k.id === decision.id && k.evidenceHash === decision.evidenceHash)) continue;
     // Later ts wins; equal ts falls to append order (this later element).
     if (governing === undefined || decision.ts >= governing.ts) {
       governing = decision;

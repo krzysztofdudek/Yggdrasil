@@ -179,7 +179,8 @@ exit: 1
     },
     "cost": {
       "free": 0,
-      "reviewerPairs": 0
+      "reviewerPairs": 0,
+      "reviewerCalls": 0
     },
     "remaining": {
       "needsFix": 4,

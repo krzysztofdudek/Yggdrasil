@@ -16,3 +16,5 @@ The motivation: the three-way split was drawn on the wrong axis. It described HO
 The language a programmatic check infers for a source file is determined solely from that file's extension, so a check no longer declares which languages it targets. A rule's verification kind being deterministic is also no longer carried as a separate synthetic identity signal — a deterministic rule's identity is fully covered by the files it already tracks — which keeps re-verification of such rules free.
 ## [2026-09-23T20:10:27.186Z]
 The description listed a verdict command and described verdict tests proving the external-judge channel, but that command and its tests were removed with the channel. It now names the commands whose tests this node actually maps, including the rule log beside aspects and the owner lookup the which tests exercise.
+## [2026-09-25T21:14:18.483Z]
+Assertions follow the one shared aspect-not-found refusal for an unknown rule id, which replaced this command's own wording.

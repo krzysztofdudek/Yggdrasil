@@ -20,7 +20,6 @@ function stripAnsi(s: string): string {
  */
 
 function baseResult(issues: CheckIssue[]): CheckResult {
-  const hasError = issues.some((i) => i.severity === 'error');
   return {
     projectName: 'test',
     nodeCount: 1,
@@ -30,7 +29,6 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: hasError ? 'yg check --approve' : null,
     advisoryWarnings: issues.filter((i) => i.code === 'aspect-violation-advisory').length,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -52,7 +50,6 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       coveredFiles: 5,
       totalFiles: 5,
       issues: [],
-      suggestedNext: null,
       advisoryWarnings: 0,
       draftSkipped: 0,
       verifiedDet: 0,
@@ -78,7 +75,6 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       coveredFiles: 0,
       totalFiles: 0,
       issues: [w],
-      suggestedNext: 'fix it',
       advisoryWarnings: 1,
       draftSkipped: 0,
       verifiedDet: 0,
@@ -384,7 +380,7 @@ describe('check render — decoration (glyphs and colour)', () => {
     expect(fail.split('\n')[0]).toMatch(/^(✗ )?yg check: FAIL {2}1 error/);
     const pass = stripAnsi(formatOutput(baseResult([]), { kind: 'full' }, false, true));
     expect(pass.split('\n')[0]).toMatch(/^(✓ )?yg check: PASS/);
-    const warned = stripAnsi(formatOutput({ ...baseResult([advisory]), suggestedNext: null, advisoryWarnings: 1 }, { kind: 'full' }, false, true));
+    const warned = stripAnsi(formatOutput({ ...baseResult([advisory]), advisoryWarnings: 1 }, { kind: 'full' }, false, true));
     expect(warned.split('\n')[0]).toMatch(/^(✓ )?yg check: PASS {2}1 warning/);
     expect(warned).not.toContain('FAIL');
   });

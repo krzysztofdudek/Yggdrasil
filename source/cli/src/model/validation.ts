@@ -4,6 +4,17 @@
 
 export type IssueSeverity = 'error' | 'warning';
 
+/**
+ * The first step of a remedy, as data — set by the module that knows the
+ * remedy, so a report never has to fish a command or a file out of the words
+ * of `next`. `command` is a whole `yg …` command the reader can run as it
+ * stands (a `<node>` or `<path>` in it is filled by the report with the
+ * finding's own node or first file); `file` is the repository file the step
+ * is about, repo-relative POSIX — edited, unless `text` words the step
+ * otherwise (a lock is restored, never edited by hand).
+ */
+export type IssueStep = { command: string } | { file: string; text?: string };
+
 export interface IssueMessage {
   /** What happened — facts, one line or short block */
   what: string;
@@ -11,6 +22,8 @@ export interface IssueMessage {
   why: string;
   /** Concrete command or instruction to resolve */
   next: string;
+  /** The first step of `next`, as data, when the emitter knows it. */
+  step?: IssueStep;
 }
 
 export interface ValidationIssue {

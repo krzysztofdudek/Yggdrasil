@@ -339,6 +339,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
       runCompanionHooks: false,
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
+      reasonlessSuppressMarkers: opts.reasonlessSuppressMarkers,
       trackedFiles: opts.trackedFiles,
       precomputedTypeCoverage: typeCoverageResult,
       // A preview writes nothing — it returns before the verdict writer is even
@@ -592,6 +593,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,
     rulesArtifacts: opts.rulesArtifacts,
+    reasonlessSuppressMarkers: opts.reasonlessSuppressMarkers,
     trackedFiles: opts.trackedFiles,
     precomputedTypeCoverage: typeCoverageResult,
     // Same pass, reused: a fill writes lock and log files, never source, so what

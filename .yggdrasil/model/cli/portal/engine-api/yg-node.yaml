@@ -6,8 +6,10 @@ description: >-
   readAndVerifyLock, computePortalPairs, scanPortalUncovered, readNodeLog, the
   effective-aspect/status helpers, the FULL live boundary (api/boundary.ts: phantom +
   declared-only + forbidden-type, joined from the relation pass and the architecture
-  matrix), and the live suppression inventory (api/suppress-scan.ts: the relocated
-  yg-suppress scan). This ONE node concentrates the entire portal→engine coupling (the
+  matrix), and the live suppression inventory (the engine's own yg-suppress scan, adapted
+  into the portal's marker shape by api/suppress-adapt.ts). Its check report
+  hands runCheck the same scan's reason-less markers the command line hands it,
+  so the worklist and yg check state the same warning. This ONE node concentrates the entire portal→engine coupling (the
   single seam) so the extraction pipeline never reaches an engine subsystem directly — it
   imports only this facade and the data contract. Read-only by construction: no lock
   writer is imported and the graph is loaded committed-only. The boundary join changes no
@@ -29,7 +31,7 @@ aspects:
   - runcheck-injected-input-parity
   - portal/worklist-mirrors-groups
 max_direct_relations:
-  limit: 22
+  limit: 20
   reason: >-
     Reviewed architectural seam. This node is the portal's SINGLE auditable
     read-only gateway to the engine — its whole purpose is to concentrate the
@@ -58,6 +60,11 @@ max_direct_relations:
     (cli/core/loader, already declared) instead of the command-line preamble, whose
     failure path exits the process — the portal server must survive a graph that
     briefly stops loading — so the cli/preamble edge was dropped.
+    Lowered from 22 to 20: the yg-suppress scan moved out of this facade into the
+    engine (the check itself now reports its reason-less markers, so the gate no
+    longer depends on the portal), which took with it the parser, the language
+    registry and the formatter this node reached only for that scan, and added one
+    edge, to the engine's suppression scan the facade now calls.
 relations:
   - target: cli/rules-artifacts
     type: calls
@@ -66,6 +73,8 @@ relations:
   - target: cli/io/lock-store
     type: calls
   - target: cli/core/check
+    type: calls
+  - target: cli/core/suppressions
     type: calls
   - target: cli/core/verify-lock
     type: calls
@@ -85,15 +94,9 @@ relations:
     type: calls
   - target: cli/core/reviewer-tiers
     type: calls
-  - target: cli/language-registry
-    type: calls
   - target: cli/group-issues
     type: calls
   - target: cli/relations/core
-    type: calls
-  - target: cli/ast/runtime
-    type: calls
-  - target: cli/formatters
     type: calls
   - target: cli/utils
     type: calls
@@ -107,11 +110,7 @@ mapping:
   - source/cli/src/portal/engine-api.ts
   - source/cli/src/portal/api/attestation.ts
   - source/cli/src/portal/api/boundary.ts
-  - source/cli/src/portal/api/suppress-scan.ts
   - source/cli/src/portal/api/suppress-adapt.ts
-  - source/cli/src/portal/api/suppress-eligibility.ts
-  - source/cli/src/portal/api/suppress-coverage.ts
-  - source/cli/src/portal/api/suppress-format.ts
   - source/cli/src/portal/api/type-coverage.ts
   - source/cli/src/portal/api/freshness.ts
   - source/cli/src/portal/api/source-file-counts.ts

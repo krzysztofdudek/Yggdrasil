@@ -17,7 +17,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { fail, plural, writeOut, count } from './output.js';
+import { aspectNotFound, fail, plural, writeOut, count } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -94,11 +94,7 @@ export async function handleAspectImpact(
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
-    fail({
-      what: `Aspect not found: ${aspectId}`,
-      why: 'The aspect id must match a directory name under .yggdrasil/aspects/.',
-      next: 'Run: yg aspects — to list all defined aspects.',
-    });
+    fail(aspectNotFound(aspectId, 'Impact is measured from a rule, so the rule must exist in the graph.'), 'aspect-not-found');
     process.exit(1);
   }
 

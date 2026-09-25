@@ -99,7 +99,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // A rule nobody has such a command for.
       const unknown = run(['aspects', 'log', 'read', '--aspect', 'no-such-rule'], dir);
       expect(unknown.status).toBe(1);
-      expect(unknown.stderr).toContain("No rule 'no-such-rule' in this graph");
+      expect(unknown.stderr).toContain("error[aspect-not-found]: rule 'no-such-rule' is not in the graph");
 
       // A rule nothing has been said about yet is not an error.
       const quiet = run(['aspects', 'log', 'read', '--aspect', 'no-todo-comments'], dir);

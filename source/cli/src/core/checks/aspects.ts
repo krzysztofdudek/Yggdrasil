@@ -235,9 +235,31 @@ export function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
  * orphaned-aspect
  * An aspect defined in aspects/ is not referenced by any node, architecture type, or flow.
  * Implied aspects are exempt when the aspect that implies them is itself referenced.
+ *
+ * One dead rule, one finding. An unreferenced aspect that ships a rule source is
+ * also effective on zero nodes, so `aspect-effective-nowhere` reports the same
+ * dead rule — and says more (it names the real cause). `effectiveNowhere` is that
+ * check's output for the same graph: every aspect it already reports is skipped
+ * here, so a dead rule surfaces once. The skip is keyed on what effective-nowhere
+ * ACTUALLY reported rather than on "has a rule source", because effective-nowhere
+ * is deliberately silent in cases this check is not — a draft rule (parked, no
+ * expected pairs) and a graph-before-code project with no node and no
+ * type-covered file yet. An unreferenced rule in either case still gets this
+ * finding, so no dead rule is left with zero. A bundle (no rule source, only
+ * `implies`) is never reported by effective-nowhere, so it keeps this finding
+ * always. Absent ⇒ every orphan is reported, as before.
  */
-export function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
+export function checkOrphanedAspects(
+  graph: Graph,
+  effectiveNowhere: readonly ValidationIssue[] = [],
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  const alreadyDead = new Set<string>();
+  for (const issue of effectiveNowhere) {
+    if (issue.code === 'aspect-effective-nowhere' && issue.nodePath?.startsWith('aspects/') === true) {
+      alreadyDead.add(issue.nodePath.slice('aspects/'.length));
+    }
+  }
   // A node or architecture file that failed to load may be exactly what
   // references the aspect — see graphLoadIncomplete. Withhold until it loads.
   if (graphLoadIncomplete(graph)) return issues;
@@ -281,7 +303,7 @@ export function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
   }
 
   for (const aspect of graph.aspects) {
-    if (!referenced.has(aspect.id)) {
+    if (!referenced.has(aspect.id) && !alreadyDead.has(aspect.id)) {
       issues.push({
         severity: 'warning',
         code: 'orphaned-aspect',

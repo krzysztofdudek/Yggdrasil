@@ -36,3 +36,5 @@ The warning for an unmapped file outside coverage.required said to bring an area
 The advisory for files outside every required coverage root now says plainly that such files are shown but never block, matching the Glossary's wording, and keeps its count through count() so the number and noun agree. The two release lines had each changed one half of the same message; both halves are kept.
 ## [2026-09-25T17:43:44.393Z]
 Type-only imports now count as dependencies between components, the same as value imports. This module builds check issues and named their type through the check orchestrator, which calls it, a cycle between the two components; it now names the type from the model layer.
+## [2026-09-25T21:50:21.120Z]
+A file no component owns now hands the report its first step as data: find the component whose mapping it belongs in, by asking which components are candidate owners of that file. The report used to read the step out of the sentence, and for a single unmapped file it told the agent to edit that very file, which is never the remedy; a file is given an owner, not edited.

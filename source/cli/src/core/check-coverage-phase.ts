@@ -70,6 +70,9 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
       ...issue.messageData,
       why: `${issue.messageData.why} Your architecture has no type for this file yet.`,
       next: nextLines.join('\n'),
+      // With no type and no node for the file, no component is a candidate
+      // owner to name, so the first step is the type that would cover it.
+      step: { command: 'yg type-suggest --file <path>' },
     },
   };
 }

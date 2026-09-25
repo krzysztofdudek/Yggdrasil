@@ -20,8 +20,11 @@ max_direct_relations:
     the suite already named types of the graph model, the lock verifier, the rule-health
     signals and the portal engine facade, and those imports are now declared relations,
     taking it one over the project default. No new behaviour is tested through them.
+    The facade edge became one to the engine's suppression scan when the scan moved
+    out of the portal; the count is unchanged.
 relations:
   [
+    { target: cli/core/suppressions, type: uses },
     { target: cli/commands/aspects, type: uses },
     { target: cli/commands/find, type: uses },
     { target: cli/commands/flows, type: uses },
@@ -41,8 +44,7 @@ relations:
     { target: cli/tests/support, type: uses },
     { target: cli/core/aspect-health-signals, type: uses },
     { target: cli/core/verify-lock, type: uses },
-    { target: cli/model/graph, type: uses },
-    { target: cli/portal/engine-api, type: uses }
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts

@@ -122,8 +122,8 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain("'nonexistent' not found");
-    expect(stderr).toContain('yg aspect-test');
+    expect(stderr).toContain("error[aspect-not-found]: rule 'nonexistent' is not in the graph");
+    expect(stderr).toContain('next: yg aspects');
   });
 
   it('rejects --files with an llm aspect id (LLM needs graph context)', () => {

@@ -11,7 +11,7 @@ import {
 } from '../../../src/cli/aspects.js';
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
 import type { TypeCoverageInput } from '../../../src/core/pairs.js';
-import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
+import type { SuppressionsReport } from '../../../src/core/suppressions/scan.js';
 import { nodeUnit, fileUnit } from '../../../src/model/lock.js';
 import type {
   AspectHealthSignal,
@@ -364,7 +364,7 @@ function report(
   entries: Array<{ file: string; markers: SuppressionsReport['fileEntries'][number]['markers'] }> = [],
 ): SuppressionsReport {
   const totalMarkers = entries.reduce((n, e) => n + e.markers.length, 0);
-  return { fileEntries: entries, totalMarkers, warnings: [] };
+  return { fileEntries: entries, totalMarkers };
 }
 
 describe('renderRefusedCell', () => {

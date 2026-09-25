@@ -3,8 +3,11 @@ type: test-suite
 description: Unit tests for the core validator pipeline — the main validator
   suite (scope handling, dangling/duplicate aspect refs, mapping overlaps,
   relations, flows, schemas), structural-aspect validation, the
-  review-cadence overdue linter, and the two dead-attach linters' real-fixture
-  type-coverage tier-awareness cases
+  review-cadence overdue linter, the two dead-attach linters' real-fixture
+  type-coverage tier-awareness cases, and one dead rule surfacing as exactly one
+  finding in the check and one nomination in the advise feed (the orphan finding
+  kept only where effective-nowhere is silent), with a decision stored under the
+  retired dead-attach name still governing the renamed nomination
 aspects: []
 relations:
   [
@@ -14,6 +17,7 @@ relations:
     { target: cli/core/check-codes, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
+    { target: cli/core/advise, type: uses },
     { target: cli/formatters, type: uses },
     { target: cli/core/check, type: uses },
     { target: cli/core/type-coverage, type: uses },
@@ -34,3 +38,4 @@ mapping:
   - source/cli/tests/unit/core/checks-credentials.test.ts
   - source/cli/tests/unit/core/aspect-errs-contract.test.ts
   - source/cli/tests/unit/core/aspect-review-overdue.test.ts
+  - source/cli/tests/unit/core/dead-rule-one-finding.test.ts

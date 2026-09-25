@@ -1422,7 +1422,8 @@ exit: 1
     },
     "cost": {
       "free": 0,
-      "reviewerPairs": 0
+      "reviewerPairs": 0,
+      "reviewerCalls": 0
     },
     "remaining": {
       "needsFix": 10,
@@ -1431,7 +1432,7 @@ exit: 1
       "waitingOnReviewer": 0
     },
     "requiresUser": false,
-    "then": "yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)"
+    "then": "yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)"
   },
   "banner": null,
   "notes": []

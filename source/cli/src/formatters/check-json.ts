@@ -150,11 +150,16 @@ export interface CheckJsonNext {
   target: { node?: string; file?: string };
   /**
    * What running `command` costs — the whole command, never one block's share
-   * of it: script pairs are free, reviewer pairs are paid. Zero for a step that
+   * of it: every pending pair it would fill, advisory ones included. Script
+   * pairs are free; reviewer pairs are paid, and `reviewerCalls` is what they
+   * bill — each pair its tier's consensus — so the three numbers equal the
+   * `dryRunBudget` of `command --dry-run --json` on the same tree (`free` its
+   * `deterministic`, `reviewerCalls` its `reviewerCalls`). Zero for a step that
    * is not a fill. A fill whose pending pairs are all script pairs is named as
    * `yg check --approve --only-deterministic`, which cannot call the reviewer.
+   * (`reviewerCalls` added in 6.1.0.)
    */
-  cost: { free: number; reviewerPairs: number };
+  cost: { free: number; reviewerPairs: number; reviewerCalls: number };
   /**
    * The errors the run leaves, each in exactly one bucket by what clears it:
    * `needsFix` a code or graph fix, `fillable` pairs a recording run records,

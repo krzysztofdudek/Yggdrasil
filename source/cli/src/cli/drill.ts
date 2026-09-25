@@ -22,7 +22,7 @@ import {
   type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { fail, paint, writeErr, writeOut } from './output.js';
+import { aspectNotFound, fail, paint, writeErr, writeOut } from './output.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { formatDrillJson, DRILL_JSON_SCHEMA, type DrillJsonDocument } from '../formatters/drill-json.js';
@@ -81,11 +81,7 @@ export function registerDrillCommand(program: Command): void {
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          fail({
-              what: `yg drill requires an aspect declared in .yggdrasil/aspects/ (got '${opts.aspect}').`,
-              why: `yg drill runs an aspect's rule over its violates-*/satisfies-* case corpus.`,
-              next: `List aspects with yg aspects, then retry with --aspect <id>.`,
-            });
+          fail(aspectNotFound(opts.aspect, "A drill replays a rule over its own case corpus, so the rule must exist in the graph."), 'aspect-not-found');
           process.exit(1);
           return;
         }
