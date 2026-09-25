@@ -3,35 +3,36 @@ export const summary =
 
 export const content = `# Verification and the lock
 
-Every verdict — an LLM reviewer's judgment and a deterministic check's result
+Every verdict — the reviewer's judgment of a reviewer rule and a script rule's result
 alike — is stored as a content-addressed entry in the lock. The lock is a TRIAD of
-files under \`.yggdrasil/\`: \`yg-lock.nondeterministic.json\` (committed — LLM
+files under \`.yggdrasil/\`: \`yg-lock.nondeterministic.json\` (committed — reviewer
 verdicts) and \`yg-lock.logs.json\` (committed — the per-node log/closure baseline),
-plus \`.yg-lock.deterministic.json\` (a gitignored local cache — deterministic-check
+plus \`.yg-lock.deterministic.json\` (a gitignored local cache — script
 verdicts, rebuilt for free on demand; committing them adds nothing but noise). The
 in-memory lock is unified \`{ version, verdicts, nodes, aspects? }\`; the split is
-only at the I/O boundary, partitioned by aspect KIND. A verdict is valid exactly
+only at the I/O boundary, partitioned by rule KIND. A verdict is valid exactly
 while the inputs that produced it hash to the stored value. Any input change makes the pair
-**unverified**; a status flip never does. States are: **verified / unverified /
+**unverified**; a status flip never does. A verdict is **passed** or **refused**; a pair's state is **verified / unverified /
 refused**.
 
 \`yg check\` writes nothing by default — it recomputes each pair's hash and
-reports, running no aspect reviewers and making no LLM calls (it does recompute
+reports, calling no reviewer, running no script rule and making no LLM calls (it does recompute
 relation conformance live; see below). Exception: if \`auto_approve\` is set in
 \`yg-config.yaml\`, bare \`yg check\` auto-fills — \`deterministic\` mode behaves like
 \`--approve --only-deterministic\` (free, keyless, local fills only), \`full\` mode
 like \`--approve\` (may call the reviewer). Explicit CLI flags (\`--approve\`,
 \`--no-approve\`, \`--only-deterministic\`) ALWAYS override \`auto_approve\`. CI and
 pre-commit should always use the explicit flag form to stay key-free and
-deterministic regardless of project config. \`yg check --approve\` fills every
+deterministic regardless of project config. \`yg check --approve\` (a fill, not a
+human approval) fills every
 unverified pair it answers for and then reports (the whole project, or — under
 progressive mode — every free check plus the reviewer work your change is
 accountable for). With \`--only-deterministic\` it fills ONLY
-deterministic pairs (free, keyless) and writes the gitignored cache; it
+script pairs (free, keyless) and writes the gitignored cache; it
 records no verdict in a committed file and closes no cycle — so it is the CI /
 pre-commit gate (a fresh checkout has no
-deterministic cache, so this rematerializes it; it also re-hashes the committed
-LLM verdicts, catching a stale one). These are the only writers of verdicts (with
+script-verdict cache, so this rematerializes it; it also re-hashes the committed
+reviewer verdicts, catching a stale one). These are the only writers of verdicts (with
 \`yg log merge-resolve\` writing the per-node log baseline into
 \`yg-lock.logs.json\`).
 
@@ -45,7 +46,7 @@ verification, set by the aspect's \`scope\`:
 - \`scope.per: file\` — one unit per subject file. One verdict each.
 
 The **subject set** is the node's mapped files (child carve-out applied) narrowed
-by \`scope.files\` (absent filter = all mapped files; LLM aspects additionally drop
+by \`scope.files\` (absent filter = all mapped files; reviewer rules additionally drop
 binary files, which cannot enter a prompt). An empty subject set produces no
 pairs on that node — a legitimate vacuous pass, no verdict, no entry.
 \`yg context --node\` shows the per-aspect subject-file count so a mis-written
@@ -59,13 +60,13 @@ coverage and to mapping alike, no matter what directory or glob mapping it
 falls under: it ships in the repository, yet nothing that reads the disk walk
 ever sees it. \`yg check\` catches this — the ONE remaining git consumer in the
 whole coverage surface, comparing real \`git ls-files\` output against the disk
-walk — as \`tracked-file-gitignored\`, mirroring the coverage tiers exactly
+walk — as \`tracked-file-gitignored\`, mirroring the coverage levels exactly
 (same absolute-exclusion authority, \`partitionByCoverageTier\`): error under a
 \`coverage.required\` root, warning otherwise, and no issue at all under a
 \`coverage.excluded\` root — the same exclusion authority every other coverage
 check honors, so an excluded area never gets flagged here either. Either
 un-ignore the file or untrack it (\`git rm --cached\`). One exemption beyond the
-tiers: a file named DIRECTLY in a mapping entry (not swept in via a directory
+coverage levels: a file named DIRECTLY in a mapping entry (not swept in via a directory
 or glob) is hashed and reviewed regardless of gitignore status — expansion
 only consults \`.gitignore\` when expanding a directory or glob, never for a
 literal file entry — so it was never actually invisible, and
@@ -102,37 +103,38 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
     }
   },
   "aspects": {                                // OPTIONAL fourth section — each rule's last-seen
-    "billing-rules": { "status": "enforced" } // standing; lives in the GITIGNORED file only
+    "billing-rules": { "status": "enforced" } // status; lives in the GITIGNORED file only
   }
 }
 \`\`\`
 
 - The unit key is prefixed: \`node:<model-relative path>\` or
-  \`file:<repo-relative POSIX path>\`. The entry's aspect determines its reviewer
-  kind — entries carry no kind marker.
+  \`file:<repo-relative POSIX path>\`. The entry's aspect determines its rule
+  kind — entries carry no kind marker. (\`approved\` is the stored token for a
+  passing verdict.)
 - \`reason\` is stored only on a \`refused\` entry (the reviewer's violation report,
-  or a deterministic check's recorded violations) so plain \`yg check\` renders the
+  or a script rule's recorded violations) so plain \`yg check\` renders the
   violation without re-running anything.
-- \`touched\` appears on deterministic entries AND on companion-bearing LLM
+- \`touched\` appears on script entries AND on companion-bearing reviewer
   entries, recording observations OUTSIDE the subject set (see the observation
-  fold below). Every deterministic entry carries it — possibly \`[]\` when the
-  check observed nothing beyond its subject files. A companion-bearing LLM
+  fold below). Every script entry carries it — possibly \`[]\` when the
+  check observed nothing beyond its subject files. A companion-bearing reviewer
   entry carries \`touched\` only when the hook observed files beyond the subject
-  set (length > 0); plain LLM entries without \`companion.mjs\` omit the key
+  set (length > 0); plain reviewer entries without \`companion.mjs\` omit the key
   entirely.
 - \`judge\` appears only on a verdict an earlier release recorded through its
   external-judge channel (since removed — the configured reviewer is the only
-  judge): who decided, and that the decision did not come
+  one that judges now): who decided, and that the decision did not come
   from a configured provider. Such an entry is still read and still holds while
   its inputs do; nothing writes a new one. Absent on every
-  provider-produced and every deterministic entry. NOT a hash ingredient — it
+  provider-produced and every script entry. NOT a hash ingredient — it
   records who decided, never an input of the decision — so the verdict is bound
   to the same inputHash a provider's would have been, which is exactly what lets
-  CI re-prove it by hashing with no key and no judge present.
+  CI re-prove it by hashing with no key and no reviewer present.
 - \`filledAt\` and \`filledSha\` record WHEN \`--approve\` wrote the verdict (ISO
-  timestamp) and the commit it ran at. Both are written on NON-deterministic
-  entries only — an LLM verdict (or an earlier release's external judge's) — because filling a
-  deterministic pair costs nothing and there is nothing to attribute;
+  timestamp) and the commit it ran at. Both are written on reviewer
+  entries only — a reviewer verdict (or an earlier release's external judge's) — because filling a
+  script pair costs nothing and there is nothing to attribute;
   \`filledSha\` is independently optional on top of that, absent when no commit
   resolved (no repository, no first commit yet, git missing from \`PATH\`).
   Like \`reason\` and \`judge\`, neither is a hash ingredient — they record
@@ -145,33 +147,33 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   \`log_required\` nodes — a non-log_required node gets a \`nodes\` entry only when it
   owns a \`log.md\` (then holding just the \`log\` baseline, no \`source\`).
 - \`aspects\` is an OPTIONAL FOURTH top-level section, aspectId → \`{ status? }\`:
-  the standing (\`draft\` / \`advisory\` / \`enforced\`) each rule was last seen at by
-  an approving run. It is REMEMBERED state, not a verdict — nothing in it is a
+  the status (\`draft\` / \`advisory\` / \`enforced\`) each rule was last seen at by
+  a fill. It is REMEMBERED state, not a verdict — nothing in it is a
   hash ingredient, and writing or reading it invalidates no pair. It exists so a
-  standing changed BY HAND (the only way a status changes today) can be noticed
+  status changed BY HAND (the only way a status changes today) can be noticed
   once and written into that rule's own log, instead of going unrecorded or
   being re-announced on every run. Absent in a lock written before rules had a
-  remembered standing, and absent on a checkout that has never run an approve —
-  "no memory yet" and "seen, standing nowhere" are different facts, and only the
+  remembered status, and absent on a checkout that has never run a fill —
+  "no memory yet" and "seen, with no status anywhere" are different facts, and only the
   first is represented. Present, it is validated as strictly as every other
   section: \`status\` must be a string and any other key inside an entry is
   \`lock-invalid\`.
 - Empty section ⇒ no file. Each of the three split files is written ONLY when the
   sections it OWNS are non-empty; when they are all empty it is not written at all
-  (an existing empty husk is removed). So a repo with no LLM aspects has no
+  (an existing empty husk is removed). So a repo with no reviewer rules has no
   \`yg-lock.nondeterministic.json\`, and one with no \`log_required\` node and no
-  \`log.md\` has no \`yg-lock.logs.json\`. The deterministic file owns TWO sections,
+  \`log.md\` has no \`yg-lock.logs.json\`. The script-verdict file owns TWO sections,
   so its test is wider — it is omitted only when its \`verdicts\` AND its \`aspects\`
-  section are both empty. Since \`aspects\` records the standing of EVERY rule in
-  the graph, unfiltered by reviewer kind, a repo with zero deterministic aspects
-  but at least one LLM aspect still gets a \`.yg-lock.deterministic.json\` once an
-  approving run has recorded those standings: empty \`verdicts\`, populated
+  section are both empty. Since \`aspects\` records the status of EVERY rule in
+  the graph, unfiltered by rule kind, a repo with zero script rules
+  but at least one reviewer rule still gets a \`.yg-lock.deterministic.json\` once a
+  fill has recorded those statuses: empty \`verdicts\`, populated
   \`aspects\`. readLock treats an absent file as empty state, so this is
   transparent to every reader — a repo only carries the lock files it actually
   needs.
 - The built-in relation-conformance check is NOT stored in the lock — it is
   recomputed live on every \`yg check\`. The lock holds only aspect \`verdicts\`,
-  per-node \`nodes\` facts and remembered rule standings (\`aspects\`); there is no
+  per-node \`nodes\` facts and remembered rule statuses (\`aspects\`); there is no
   relation section. See "Relation
   conformance — computed live" below.
 - Serialization is canonical: code-point-sorted keys, stable formatter, trailing
@@ -180,21 +182,21 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 **On-disk triad (the split).** The object above is the UNIFIED in-memory lock;
 on disk it is partitioned across three files, read back into one and split again
 only at the I/O boundary:
-- \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of LLM aspects.
+- \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of reviewer rules.
 - \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines).
-- \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of deterministic
-  aspects, PLUS the whole \`aspects\` section. The remembered standings ride with
+- \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of script
+  rules, PLUS the whole \`aspects\` section. The remembered statuses ride with
   the rebuildable cache rather than a committed file because they record what
   THIS CHECKOUT has witnessed, not a fact the team shares; committing them would
   churn a file on a change the rule's own history already records.
 
-The partition key is the aspect's KIND, NOT the entry's \`touched\` field: a
-companion-bearing LLM entry also carries \`touched\`, so partitioning by \`touched\`
-would misfile an expensive committed LLM verdict into the throwaway cache. An
+The partition key is the rule's KIND, NOT the entry's \`touched\` field: a
+companion-bearing reviewer entry also carries \`touched\`, so partitioning by \`touched\`
+would misfile an expensive committed reviewer verdict into the throwaway cache. An
 aspect is wholly one kind, so the two verdict files hold disjoint \`aspectId\`
 namespaces and merge-on-read is a plain union. The committed files keep the same
 take-a-side merge story as the old single file; the gitignored cache never
-conflicts. A fresh checkout has no deterministic cache, so those pairs read as
+conflicts. A fresh checkout has no script-verdict cache, so those pairs read as
 \`unverified\` until \`yg check --approve --only-deterministic\` rematerializes them
 (free, keyless).
 
@@ -211,13 +213,13 @@ files:   [ [path, sha256(bytes)], ... ]     // subject files, sorted
 verdict: "approved" | "refused"             // the discrete token — tamper evidence
 \`\`\`
 
-LLM pairs additionally fold their prompt inputs: the aspect description, each
+Reviewer pairs additionally fold their prompt inputs: the aspect description, each
 reference \`[path, sha256(bytes), description]\`, and the resolved tier's NAME.
 The tier's config (provider, model, endpoint, temperature, consensus, api_key,
 timeout) is NOT a verdict input — only the name folds in, so a named tier can be
 re-pointed at a different reviewer without invalidating any recorded verdict.
 
-LLM pairs that ship \`companion.mjs\` additionally fold:
+Reviewer pairs that ship \`companion.mjs\` additionally fold:
 \`\`\`
 companionHash: sha256(companion.mjs bytes)   // present when aspect ships companion.mjs,
                                              // independent of whether the hook resolved files
@@ -234,7 +236,7 @@ folds that node's entire content into the pair, widening invalidation across
 the node; read the single needed file via \`ctx.fs.read\` to keep per-unit
 isolation.
 
-Deterministic pairs additionally fold the **observation set** — everything the
+Script pairs additionally fold the **observation set** — everything the
 check observed through \`ctx\` beyond its subject files, recorded by the runner:
 
 \`\`\`
@@ -253,7 +255,7 @@ grammar:<language>     → sha256 of the grammar wasm and the web-tree-sitter ru
                          scan) read — a grammar upgrade re-opens exactly those
 \`\`\`
 
-Observation-completeness is load-bearing: a deterministic verdict is reusable
+Observation-completeness is load-bearing: a script verdict is reusable
 only if NO observed value changed — including negative \`exists\` probes, negative
 node lookups (a node that was absent and is later created), directory listings,
 and SET membership (an aspect that asks "which nodes are children of X / of type
@@ -289,7 +291,7 @@ recorded only when the check reads it.
   reviewer's private business, so re-pointing a named tier at a different model or
   provider does not invalidate a verdict.
 - **\`max_prompt_chars\`** — a gate, not an input; lowering it can trip the gate on
-  an already-verified pair without invalidating the verdict. An LLM verdict
+  an already-verified pair without invalidating the verdict. A reviewer verdict
   records the SIZE of the prompt that produced it (\`promptChars\`), which is
   likewise not hashed: it is a record of inputs the hash already covers, so a
   still-valid verdict's size is answered from the lock instead of by resolving
@@ -341,15 +343,15 @@ This differs from aspect verdicts in two ways:
 
 - **Both verdicts are cached, for both kinds.** A \`refused\` entry for unchanged
   inputs is FINAL — re-running \`yg check --approve\` does NOT re-verify it (for a
-  deterministic pair a re-run is pointless; for an LLM pair it would be a
+  script pair a re-run is pointless; for a reviewer pair it would be a
   re-roll). The three exits from a refusal:
   1. **Fix the code** — changes a subject file, invalidates the pair, re-verifies.
   2. **Sharpen the aspect's \`content.md\`** — changes the \`rule\` hash and
      re-verifies EVERY node using the aspect. Run \`yg impact --aspect <id>\` first.
-  3. **\`yg-suppress\` with the user's approval** — a documented file-level waiver.
+  3. **\`yg-suppress\` with the user's approval** — a documented, line-scoped waiver.
 
   There is deliberately no force / re-judge / verdict-drop command. Do NOT make a
-  cosmetic edit to the aspect text or a source file purely to force an LLM
+  cosmetic edit to the aspect text or a source file purely to force a reviewer
   re-roll — that is the same laundering the absent command refuses to offer.
 - **Verdicts survive status flips**, including a \`draft\` round-trip: an entry for
   unchanged inputs stays valid when the aspect returns to enforced. To park an
@@ -358,7 +360,7 @@ This differs from aspect verdicts in two ways:
   no fresh look.
 - **Fail-closed**: an entry is written only on a real verdict. Every infra
   disposition (provider unreachable, no reviewer configured, reference-load
-  failure, unparseable response; for deterministic pairs a \`check.mjs\` import
+  failure, unparseable response; for script pairs a \`check.mjs\` import
   failure or thrown error; companion-assembly failure — hook throws, bad return
   shape, path outside allowed-reads, or missing path) writes nothing — the pair
   stays unverified. There is no "infra" verdict state.
@@ -372,14 +374,14 @@ false) are pruned, and \`nodes\` entries for node paths that no longer exist are
 pruned. The pair universe for GC ignores status — **draft pairs keep their
 entries**, which is what makes a draft round-trip free. Under
 \`--only-deterministic\` the rewrite is scoped to the gitignored cache, so a
-deterministic-only / CI run never rewrites (or GC-prunes) the committed files.
+script-only / CI run never rewrites (or GC-prunes) the committed files.
 
 An entry is pruned only when it can be POSITIVELY proven detached — the retain
-family covers every case where the graph cannot prove that this run: a node
+set covers every case where the graph cannot prove that this run: a node
 whose own rule set could not be computed (e.g. an implies cycle, reported
 separately), a file whose subject was unreadable this run, and a file the
 type-level classifier could not decide a type for this run (reported
-ambiguous). Every entry in that family keeps its stored result untouched.
+ambiguous). Every entry in that set keeps its stored result untouched.
 \`--approve\` and \`--dry-run\` (a preview, computed over a disposable copy — it
 writes nothing) both print a summary whenever something is actually pruned:
 \`fill  pruned 3 stale verdicts (1 reviewer · 2 script)\`, then one
@@ -389,7 +391,7 @@ was pruned.
 ## Merge conflict in a committed lock file
 
 Only the COMMITTED files can conflict (\`yg-lock.nondeterministic.json\`,
-\`yg-lock.logs.json\`); the gitignored deterministic cache is never committed, so it
+\`yg-lock.logs.json\`); the gitignored script-verdict cache is never committed, so it
 never conflicts. \`verdicts\` entries are self-validating, so resolution is trivial
 and safe by construction:
 
@@ -430,7 +432,7 @@ top-level key is \`lock-invalid\`. There is no separate relation section and no
 migration to perform: relation conformance is computed live (see above), so
 nothing about it ever lands in the lock. The addition of \`companion.mjs\` support
 (including \`companionHash\` in the inputHash and \`touched\` on companion-bearing
-LLM entries) does NOT bump the format version either — existing lock entries hash
+reviewer entries) does NOT bump the format version either — existing lock entries hash
 byte-identically when no \`companion.mjs\` is present, and the format remains
 \`{ version: 1, verdicts, nodes, aspects? }\`.
 
@@ -444,8 +446,8 @@ the next \`yg check --approve\`.
 ## Absent or garbled lock
 
 Each triad file is independently optional; an absent file contributes empty
-state. So a fresh checkout (gitignored deterministic cache absent) reads its
-deterministic pairs as unverified until \`yg check --approve --only-deterministic\`
+state. So a fresh checkout (gitignored script-verdict cache absent) reads its
+script pairs as unverified until \`yg check --approve --only-deterministic\`
 rematerializes them. Garbled or unparseable content, or an unrecognized
 \`version\` (neither 1 nor 2 — 2 is accepted only for the backward-compat drop
 above), is treated differently in the two kinds of file.
@@ -468,7 +470,7 @@ unreadable mount, still propagates from either kind of file.)
 
 ## See also
 
-- [[aspects-overview]] — reviewer kinds, scope, cost model
+- [[aspects-overview]] — rule kinds, scope, cost model
 - [[aspect-status]] — severity-by-status, verdict reuse across flips
 - [[log-management]] — the log gate, positive closure, revert recipe
 - [[writing-deterministic-aspects]] — the observation surface

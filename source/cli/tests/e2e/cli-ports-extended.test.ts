@@ -287,7 +287,7 @@ mapping:
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check`/`yg check --approve` here.
-      expect(stderr).toMatch(/^fill {2}done in .* — 0 approved · 1 refused · 0 failed/m);
+      expect(stderr).toMatch(/^fill {2}done in .* — 0 passed · 1 refused · 0 failed/m);
       expect(stdout).toContain('yg check: PASS  2 warnings');
       expect(stdout).toContain('warning[refused] audit-required — 1 violation in services/orders');
       expect(stdout).toContain('rules-digest-stale');
@@ -397,7 +397,7 @@ mapping:
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       // Fill-time progress goes to STDERR (its closing line counts the refusal).
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — 0 approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — 0 passed · 1 refused · 0 failed/m);
       // The enforced refusal is an error block naming the aspect and the
       // consumer node it refuses on.
       expect(fill.stdout).toContain('error[refused] audit-required — 1 violation in services/orders');

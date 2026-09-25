@@ -24,7 +24,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Earn-rate: high.** This is the foundation. Without `path:` predicates you have no automatic classification, no strict coverage, and no type-default aspects.
 
-**Recommendation:** Start here. `path:` predicates are what [type-level coverage](/configuration#coverage-config) matches files against too, so they start paying off the moment the first one exists — but a taxonomy that thin has little to say yet. Every project needs at least five type definitions with `path:` predicates before either `enforce: strict` or type-level coverage becomes genuinely useful, rather than a lattice with one or two buckets.
+**Recommendation:** Start here. `path:` predicates are what [type-level coverage](/configuration#coverage-config) matches files against too, so they start paying off the moment the first one exists — but a taxonomy that thin has little to say yet. Every project needs at least five type definitions with `path:` predicates before either `enforce: strict` or type-level coverage becomes genuinely useful, rather than a classification with one or two buckets.
 
 ---
 
@@ -72,7 +72,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Used as:** Opted in (`log_required: true`) on the twelve production-code types whose changes carry business intent worth recording — `engine`, `command`, `reviewer-dispatch`, the persistence/parser/AST/relations adapters, `migration`, `template`, and the portal backend types (`portal-pipeline`, `portal-engine-api`, `portal-server`). Documentation, schemas, test suites, fixtures, and CI configs leave it off (the default), so no log entry is demanded before their changes are verified.
 
-**Earn-rate: high.** Targeting the gate at code an LLM reviewer scrutinizes captures the *why* behind real changes where it matters, without accumulating meaningless log entries on config files and test suites.
+**Earn-rate: high.** Targeting the gate at code the reviewer scrutinizes captures the *why* behind real changes where it matters, without accumulating meaningless log entries on config files and test suites.
 
 **Recommendation:** Enable `log_required` only on types whose changes a future maintainer would need explained — domain logic, command handlers, anything with non-obvious business rules. Leave it off (the default) for documentation, schemas, test data, and CI configs.
 
@@ -106,7 +106,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Recommendation:** Use `implies:` when one aspect logically entails another with no exceptions. Keep chains short — depth > 3 is a code smell indicating the aspect boundaries need rethinking.
 
-> **Terminology note:** Implied aspects are sometimes called "companions" informally in the context of an implies bundle. This is unrelated to **companion files** (`companion.mjs`) — an optional hook on an LLM aspect that resolves per-unit files for the reviewer prompt. When you see the word "companion" in this codebase, check the context: in `implies:` + `status_inherit:` prose it refers to an implied sibling aspect; in the reviewer and aspects docs it refers to the `companion.mjs` hook.
+> **Terminology note:** Implied aspects are sometimes called "companions" informally in the context of an implies bundle. This is unrelated to **companion files** (`companion.mjs`) — an optional hook on a reviewer rule that resolves per-unit files for the reviewer prompt. When you see the word "companion" in this codebase, check the context: in `implies:` + `status_inherit:` prose it refers to an implied sibling aspect; in the reviewer and aspects docs it refers to the `companion.mjs` hook.
 
 ---
 
@@ -188,7 +188,7 @@ inherit its implier's level.
 
 **Used as:** Eighteen flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
-**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all eighteen flows, covering 42 distinct participant nodes — a handful of flow-level declarations instead of dozens of node-level ones.
+**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all eighteen flows, reaching 42 distinct participant nodes — a handful of flow-level declarations instead of dozens of node-level ones.
 
 **Recommendation:** Think of flows as the "cross-cutting concern" layer. If an aspect should apply to every node that participates in a named business process (authentication, payment, approval), put it on the flow. If an aspect applies only to a specific code layer (engine, formatter), use a type default instead.
 
@@ -216,11 +216,11 @@ Deferred does not mean unsupported — these features are tested and documented.
 
 ## Summary Verdict
 
-| Tier | Features |
+| Stage | Features |
 |---|---|
 | **Use from day one** | `path:` when, combinators (`all_of`/`not`), `parents:`, `log_required`, type-level `aspects:`, `when:` on aspects |
 | **Introduce when you have 5+ nodes** | `enforce: strict`, node-level aspects, `implies:`, flow-level aspects |
 | **Introduce when a specific problem arises** | `content:` when, named ports, `when: descendants:` |
 | **Defer until the schema demands it** | Event relations, `implements`, multi-port, conditional implies |
 
-The biggest ROI in our dogfood came from three things: type-level aspect defaults (one YAML line covers all current and future nodes of a type), flow-level aspects (one YAML block covers all participants in a business process), and `enforce: strict` (zero uncovered files at merge time). Everything else is additive.
+The biggest ROI in our dogfood came from three things: type-level aspect defaults (one YAML line applies to all current and future nodes of a type), flow-level aspects (one YAML block applies to all participants in a business process), and `enforce: strict` (zero uncovered files at merge time). Everything else is additive.

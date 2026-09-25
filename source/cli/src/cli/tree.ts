@@ -203,9 +203,9 @@ async function typeCoveredCounts(graph: Graph): Promise<TypeCoveredCounts | unde
  * uncomputable, because a bare "N files covered" cannot tell those apart.
  */
 function typeCoveredSummaryLine(c: TypeCoveredCounts, scopedToRoot: boolean): string {
-  const noun = c.total === 1 ? 'file is' : 'files are';
+  const noun = c.total === 1 ? 'type-covered file' : 'type-covered files';
   const scopeNote = scopedToRoot ? ' (repo-wide — type coverage has no subtree of its own to scope this to)' : '';
-  const head = `\n${c.total} ${noun} covered by their architecture type alone, with no component of their own${scopeNote}`;
+  const head = `\n${c.total} ${noun}, with no component of their own${scopeNote}`;
   if (c.total === 0) return `${head}.`;
   const enforcedNote = c.unverifiedEnforced > 0 ? ` (${c.unverifiedEnforced} with no recorded verdict for at least one of its rules)` : '';
   const parts = [`${c.enforced} checked by at least one rule${enforcedNote}`, `${c.unenforced} with nothing that applies`];

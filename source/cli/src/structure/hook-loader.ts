@@ -755,7 +755,7 @@ export async function runCompanionHook(params: RunCompanionHookParams): Promise<
       const target = unit.kind === 'file' ? unit.file : unit.nodePath;
       return companionInfra(
         `companion.mjs for aspect '${aspectId}' on '${target}' accessed ctx.${err.member}: this paired-file rule needs a component to work.`,
-        `The file is enforced by its architecture type alone — there is no owning component, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
+        `The file is a type-covered file — there is no owning component, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
         `Give the file a component of its own (a yg-node.yaml mapping it) so ctx.node/ctx.graph become available, or rewrite the companion to use only ctx.subject/ctx.fs over files the architecture already permits this file's type to reach.`,
       );
     }

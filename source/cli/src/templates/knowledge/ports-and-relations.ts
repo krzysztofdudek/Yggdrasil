@@ -11,7 +11,7 @@ a call, model it with a port.
 
 ## Relation types
 
-Six types split into two families:
+Six types split into two groups:
 
 **Structural** — how code is composed:
 - \`calls\` — node A invokes a function/method of B
@@ -239,8 +239,8 @@ contracts visible at the consumer side.
 
 ## Aspect status in port aspects
 
-Port aspects (channel 6) may declare \`status:\` to control enforcement level.
-A consumer inheriting a draft port aspect is not subject to reviewer enforcement
+Port aspects (channel 6) may declare \`status:\` to set their status.
+A consumer inheriting a draft port aspect is not subject to enforcement
 for that aspect. Advisory and enforced port aspects propagate enforcement
 level along with the aspect via the channel 6 path. See:
 \`yg knowledge read aspect-status\`.

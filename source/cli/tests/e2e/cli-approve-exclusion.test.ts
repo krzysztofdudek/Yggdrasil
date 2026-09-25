@@ -36,7 +36,7 @@ describe.skipIf(!distExists)('yg check --approve exclusion (e2e)', () => {
     );
     const r = spawnSync(process.execPath, [BIN_PATH, 'check', '--approve', '--only-deterministic'], { cwd: root, encoding: 'utf-8' });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/Another approval is already running in this repository/);
+    expect(r.stderr).toMatch(/Another fill is already running in this repository/);
     expect(r.stderr).not.toMatch(/This is a bug/);
     expect(existsSync(path.join(root, '.yggdrasil', '.yg-lock.deterministic.json'))).toBe(false);
   }, 60_000);

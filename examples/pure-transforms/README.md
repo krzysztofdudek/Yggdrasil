@@ -1,17 +1,17 @@
-# pure-transforms — reproducible ETL transforms (deterministic check over Python)
+# pure-transforms — reproducible ETL transforms (script rule over Python)
 
 **Scenario:** an analytics/ETL data pipeline written in **Python**. The functions
 in the `transforms` package must be *reproducible* — replaying the pipeline over
 the same source data must always yield the same result.
 
-**Capability demonstrated:** a **deterministic** aspect (`deterministic-transforms`)
+**Capability demonstrated:** a **script rule** (`deterministic-transforms`)
 that ships a `check.mjs` and runs a robust line scan over the node's `.py` files.
 It refuses any line in `src/transforms/*.py` that reads the wall clock
 (`datetime.now(`, `datetime.utcnow(`, `time.time(`) or draws randomness
 (`random.*`). Reading the clock makes a run depend on *when* it ran; randomness
 makes it depend on a seed — either one breaks replayability and back-fills.
 
-This runs at **zero LLM cost and needs no API key**. It also shows that
+This runs at **zero reviewer cost and needs no API key**. It also shows that
 Yggdrasil's checks work across many languages, not just TypeScript — the same
 `check(ctx)` contract here drives a plain text scan of Python source.
 
@@ -25,10 +25,10 @@ src/
     aggregate.py         pure aggregation transforms (deterministic)
 .yggdrasil/
   yg-architecture.yaml   one node type: pipeline (maps src/**)
-  yg-config.yaml         keyless — deterministic-only, no reviewer is ever contacted
+  yg-config.yaml         keyless — script rules only, no reviewer is ever contacted
   model/pipeline/        the node mapping all src/**/*.py
   aspects/deterministic-transforms/
-    yg-aspect.yaml       deterministic aspect (reviewer.type: deterministic)
+    yg-aspect.yaml       script rule (reviewer.type: deterministic)
     check.mjs            the line scan (scoped to transforms/*.py only)
 ```
 
@@ -44,8 +44,8 @@ CLI at `source/cli/dist/bin.js`.
 ```bash
 cd examples/pure-transforms
 
-# 1) Free, keyless fill of the deterministic verdict cache (no LLM, no key).
-#    On a fresh clone the deterministic pair is UNVERIFIED until this runs.
+# 1) Free, keyless fill of the script verdict cache (no reviewer, no key).
+#    On a fresh clone the script pair is UNVERIFIED until this runs.
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
 
 # 2) Plain check re-hashes the cached verdict and runs the built-in checks live.
@@ -58,7 +58,7 @@ Expected final output (exit 0):
 yg check: PASS  1 nodes · 8/8 files · 1 aspects · 0 flows · 1 verified (1 deterministic, 0 LLM)
 ```
 
-> The deterministic verdict is cached in the **gitignored**
+> The script verdict is cached in the **gitignored**
 > `.yggdrasil/.yg-lock.deterministic.json`. It is rebuilt for free by the
 > `--approve --only-deterministic` step above and is never committed.
 

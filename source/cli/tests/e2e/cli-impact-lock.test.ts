@@ -213,7 +213,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     expect(status).toBe(0);
     expect(stdout).toContain('Directly affected (2):');
     expect(stdout).toContain('2 affected nodes (2 pairs)');
-    expect(stdout).toContain('re-verified for free by yg check --approve (deterministic, no reviewer calls)');
+    expect(stdout).toContain('re-verified for free by yg check --approve (script rule, no reviewer calls)');
     expect(stdout).not.toMatch(/reviewer calls? \(consensus included\)/);
     expect(stdout.toLowerCase()).not.toContain('drift');
   });
@@ -516,7 +516,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     // 1 LLM pair (has-doc-comment) at consensus 1 = 1 reviewer call.
     expect(stdout).toMatch(/1 reviewer pair = 1 reviewer call/);
     // 2 deterministic pairs (no-todo-comments, requires-named-export) are free.
-    expect(stdout).toContain('2 deterministic = free');
+    expect(stdout).toContain('2 script = free');
     // Cold lock → nothing green yet.
     expect(stdout).toMatch(/0 currently-green verdicts re-rolled/);
     // Lock vocabulary — never "drift".
@@ -530,7 +530,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     expect(status).toBe(0);
     // 1 LLM pair × consensus 3 = 3 reviewer calls.
     expect(stdout).toMatch(/1 reviewer pair = 3 reviewer calls/);
-    expect(stdout).toContain('2 deterministic = free');
+    expect(stdout).toContain('2 script = free');
   });
 
   it('seeded green verdicts surface as currently-green re-rolled', () => {
@@ -562,7 +562,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     const { stdout, status } = run(['impact', '--node', 'services/orders'], dir);
     expect(status).toBe(0);
     expect(stdout).toMatch(/0 reviewer pairs = 0 reviewer calls/);
-    expect(stdout).toContain('2 deterministic = free');
+    expect(stdout).toContain('2 script = free');
   });
 
   it('--file shows the unified Total to re-verify block (not the old "Editing this file" line)', () => {
@@ -576,7 +576,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     // 1 LLM pair (has-doc-comment) at consensus 1 = 1 reviewer call.
     expect(stdout).toMatch(/1 reviewer call\b/);
     // 2 deterministic pairs (no-todo-comments, requires-named-export) are free.
-    expect(stdout).toMatch(/2 deterministic pairs/);
+    expect(stdout).toMatch(/2 script pairs/);
     // The old single-line framing is gone.
     expect(stdout).not.toMatch(/Editing this file re-verifies:/);
   });

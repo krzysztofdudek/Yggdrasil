@@ -22,7 +22,7 @@ error[unmapped] 5 files belong to no node
 
 error[unverified] 3 pairs whose script check has not run on this checkout — free to run
   at:   no-todo  3 pairs · 3 nodes · script
-  why:  Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+  why:  Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
   fix:  yg check --approve --only-deterministic  (3 script pairs · free)
 
 next: edit .yggdrasil/yg-config.yaml  (config-invalid — 2 errors need a code or graph fix)

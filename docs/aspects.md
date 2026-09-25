@@ -4,12 +4,13 @@ title: Aspects
 
 An aspect is one rule the reviewer enforces on your code. You write the rule once; the reviewer checks every change against it before your agent moves on. Aspects are where you say what "correct" means for your codebase — "every mutation logs an audit event", "no UI file imports the database client", "exported classes are PascalCase".
 
-A rule comes in one of two flavors:
+A rule comes in one of three [kinds](/glossary#rule-kind):
 
-- **Plain Markdown** (`content.md`) — a rule written in prose, judged by an LLM. Use this for anything that takes reading and judgment, the kind of call a human reviewer makes.
-- **A script** (`check.mjs`) — a small check that runs on your machine. Free and identical every time. Use this for mechanical rules a script can decide.
+- **A reviewer rule** (`content.md`) — a rule written in plain Markdown prose, judged by the [reviewer](/glossary#reviewer), the model you configure. Use this for anything that takes reading and judgment, the kind of call a human reviewer makes.
+- **A script rule** (`check.mjs`) — a small check that runs on your machine. Free and identical every time. Use this for mechanical rules a script can decide.
+- **A bundle** (only `implies:`) — no rule text of its own; it attaches a group of other rules at once and has no verdict of its own. See [Bundling rules](#bundling-rules-implies).
 
-You pick the flavor per rule. Most teams use both.
+You pick the kind per rule. Most teams use both reviewer rules and script rules.
 
 ## Anatomy of an aspect
 
@@ -40,14 +41,15 @@ The event must include: user ID, action, timestamp, affected resource ID.
 
 Specific rules produce reproducible verdicts. "Audit logging should be appropriate and comprehensive" gives the reviewer nothing to check against; the version above tells it exactly what to look for.
 
-## Two kinds of reviewer, at a glance
+## Three rule kinds, at a glance
 
-| Reviewer | Use it for | Cost |
+| Kind | Use it for | Cost |
 |---|---|---|
-| **LLM** (`content.md`) | judgment calls a human reviewer would make — "mutations must emit audit events", "this handler validates its input semantically" | one call per check (paid) |
-| **Deterministic** (`check.mjs`) | mechanical rules — forbidden API calls, naming conventions, import restrictions | runs locally, free, identical every run |
+| **Reviewer rule** (`content.md`) | judgment calls a human reviewer would make — "mutations must emit audit events", "this handler validates its input semantically" | one call per check (paid) |
+| **Script rule** (`check.mjs`) | mechanical rules — forbidden API calls, naming conventions, import restrictions | runs locally, free, identical every run |
+| **Bundle** (only `implies:`) | attaching several rules as one named group | none of its own — each implied rule is checked as its own kind |
 
-You don't set the kind in a config field — it's inferred from which file is present (`content.md` → LLM, `check.mjs` → deterministic, or neither file plus a non-empty `implies:` → an aggregating bundle that has no own reviewer and produces no own verdict). An LLM aspect may also ship an optional `companion.mjs` hook that resolves per-unit companion files — see [Reviewers](/reviewers) for authoring depth. See [Reviewers](/reviewers) to write either kind.
+You don't set the kind in a config field — it's inferred from which file is present (`content.md` → reviewer rule, `check.mjs` → script rule, or neither file plus a non-empty `implies:` → a bundle, which produces no verdict of its own). Only a reviewer rule is judged by the reviewer; a script rule has no reviewer. A reviewer rule may also ship an optional `companion.mjs` hook that resolves per-unit companion files — see [Reviewers](/reviewers) for authoring depth. See [Reviewers](/reviewers) to write a reviewer rule or a script rule.
 
 ## Status, at a glance
 
@@ -58,7 +60,7 @@ Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full 
 ## A rule keeps its own history
 
 Beside the rule's files sits `log.md` — the same log a component has, for the same
-reason. It holds why the rule exists, every change of its standing, and every real
+reason. It holds why the rule exists, every change of its status, and every real
 failure taken into its corpus:
 
 ```bash
@@ -67,12 +69,12 @@ yg aspects log add --aspect no-raw-sql --status enforced --evidence "a month adv
 yg aspects log read --aspect no-raw-sql
 ```
 
-Recording a change of standing does not make one: you edit `status:` in the rule's
-own file, and the command refuses to record a standing the file does not carry, or
-one the rule already stood at, so the history never shows a promotion that moved nothing.
+Recording a change of status does not make one: you edit `status:` in the rule's
+own file, and the command refuses to record a status the file does not carry, or
+one the rule already had, so the history never shows a promotion that moved nothing.
 What justified the move is required, because it is the part nobody can reconstruct
 later. If you move a rule and record nothing, `yg check` says so, and the next
-approving run writes the bare fact into that rule's log so the change is not lost.
+fill (`yg check --approve`) writes the bare fact into that rule's log so the change is not lost.
 
 See [`yg aspects log`](/cli-reference#yg-aspects-log).
 
@@ -80,9 +82,9 @@ See [`yg aspects log`](/cli-reference#yg-aspects-log).
 
 Both are optional, both live in `yg-aspect.yaml`, and neither is part of a verdict's identity — adding or changing either one re-verifies nothing.
 
-**`review_by:`** — a standing request to re-examine whether the rule still earns its place, written as a plain calendar day (`review_by: 2027-01-15`). Once the day has passed, `yg check` raises one warning per rule saying it is running unreviewed. That is all it does: it never blocks a build, never changes a verdict, and never moves the date by itself. Renewing or retiring the rule is a decision its owner makes. A date that is not a real day (`2027-02-30`) is a blocking error on that rule. Valid on any kind of rule.
+**`review_by:`** — a request to re-examine whether the rule still earns its place, written as a plain calendar day (`review_by: 2027-01-15`). Once the day has passed, `yg check` raises one warning per rule saying it is running unreviewed. That is all it does: it never blocks a build, never changes a verdict, and never moves the date by itself. Renewing or retiring the rule is a decision its owner makes. A date that is not a real day (`2027-02-30`) is a blocking error on that rule. Valid on any kind of rule.
 
-**`errs:`** — the honest error direction of a *script* rule, one of `over`, `under`, or `exact`. `under` means the check only ever fires on a provable violation, so it has no false positives by design; `over` means it may flag code the rule does not actually forbid; `exact` means neither. It is a label for readers and for reporting — the waiver inventory uses it to warn when someone waives an `under` check, which by definition has no false positive to waive. Declaring it on a judgment rule or an aggregating rule is an error.
+**`errs:`** — the honest error direction of a *script* rule, one of `over`, `under`, or `exact`. `under` means the check only ever fires on a provable violation, so it has no false positives by design; `over` means it may flag code the rule does not actually forbid; `exact` means neither. It is a label for readers and for reporting — the waiver inventory uses it to warn when someone waives an `under` check, which by definition has no false positive to waive. Declaring it on a reviewer rule or a bundle is an error.
 
 ## Retiring a rule that blocks wrongly
 
@@ -113,9 +115,9 @@ The first keeps you from turning a one-off into a rule. The second is the line t
 
 ## How a rule reaches your code
 
-You attach a rule once, and it can cover a single component or many. You never copy-paste a rule onto each file by hand. Attach `audit-logging` to a parent component and every component beneath it inherits it. Attach it to a node type and every component of that type picks it up. The tool computes where each rule lands, and `yg context` shows you, for any file, which rules apply and where each one came from.
+You attach a rule once, and it can apply to a single component or many. You never copy-paste a rule onto each file by hand. Attach `audit-logging` to a parent component and every component beneath it inherits it. Attach it to a node type and every component of that type picks it up. The tool computes where each rule lands, and `yg context` shows you, for any file, which rules apply and where each one came from.
 
-That's all you need day to day. Below is the full list, for when you need it — the seven ways a rule can reach a component:
+That's all you need day to day. Below is the full list, for when you need it — the seven channels through which a rule can reach a component. This table is the one complete list; other pages link here:
 
 | Channel | A rule reaches a component when… |
 |---|---|
@@ -135,14 +137,14 @@ A rule can pull in others. Declare `implies: [other-rule]` and every component t
 
 ## Reference files and companion files
 
-An LLM rule has two ways to bring in supporting material:
+A reviewer rule has two ways to bring in supporting material:
 
 - **Static references (`references:`)** — a lookup table, an error-code catalogue, an API contract. Listed in `yg-aspect.yaml`; the same files go to the reviewer for every unit. Your agent sees them under the `read:` paths in `yg context`.
 - **Per-unit companion files (`companion.mjs`)** — a hook that resolves different files for each unit under review. Use this when each file being reviewed has a unique counterpart in another node — a scenario document paired with its matching test spec, a migration paired with its schema. The hook returns paths; the runner reads the files and injects them into that unit's prompt only. A companion's verdict folds everything it reads to decide, so read narrowly (one file via `ctx.fs.read`). See [Reviewers — Per-unit companion files](/reviewers#per-unit-companion-files).
 
 The two mechanisms are independent. Static references are identical for every unit; companion files vary per unit. Both count toward the tier's `max_prompt_chars` prompt-size limit. See [Reviewers](/reviewers) for authoring depth on both.
 
-Both are for LLM rules only. A rule with a `check.mjs` has no reviewer to put supporting material in front of, so `references:` on one is refused. A deterministic rule that needs a value from outside itself takes it through `ctx.config` — see [Packages](/packages#settings-a-rule-reads-ctx-config), where a rule's settings are declared by its package and set by the repository installing it, and where reading one makes it part of that rule's verdict.
+Both are for reviewer rules only. A script rule (a rule with a `check.mjs`) has no reviewer to put supporting material in front of, so `references:` on one is refused. A script rule that needs a value from outside itself takes it through `ctx.config` — see [Packages](/packages#settings-a-rule-reads-ctx-config), where a rule's settings are declared by its package and set by the repository installing it, and where reading one makes it part of that rule's verdict.
 
 A rule can also **name** its companion instead of shipping one beside itself, with a repo-relative `companion:` path in `yg-aspect.yaml`:
 
@@ -158,4 +160,4 @@ A rule's id is its folder path under the rules directory, so ids can nest: `logg
 
 ## Positive and negative rules
 
-A rule can require something to be present ("every handler validates its input") or forbid something ("nothing reaches the data store directly") — that's just how the rule is worded. A powerful shape is a broad **negative** rule attached to a parent so it covers every component beneath it, with the one component type that's legitimately allowed to do the forbidden thing carved out — that type carries its own **positive** rules ensuring it does it correctly. The carve-out is a [conditional rule](/conditional-aspects): `when: { not: { node: { type: data-access } } }`. The pattern is general — "no raw outbound HTTP except the gateway", and so on.
+A rule can require something to be present ("every handler validates its input") or forbid something ("nothing reaches the data store directly") — that's just how the rule is worded. A powerful shape is a broad **negative** rule attached to a parent so it applies to every component beneath it, with the one component type that's legitimately allowed to do the forbidden thing carved out — that type carries its own **positive** rules ensuring it does it correctly. The carve-out is a [conditional rule](/conditional-aspects): `when: { not: { node: { type: data-access } } }`. The pattern is general — "no raw outbound HTTP except the gateway", and so on.

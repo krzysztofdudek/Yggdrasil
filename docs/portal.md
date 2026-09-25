@@ -9,10 +9,10 @@ verified against the code as it stands right now.
 
 ![The Yggdrasil portal — the overview, with the plain-language verdict and the honest state of the whole repo](/portal-overview.png)
 
-It is built for a glance and for a drill-down. The overview gives you a
+It is built for a glance and for a closer look. The overview gives you a
 plain-language verdict — "no failures, a few advisories worth a look" — and the
 counts behind it. From there you can open any component to see why it passed (or
-what it still needs) — rule by rule, each one marked with its enforcement level
+what it still needs) — rule by rule, each one marked with its status
 (blocking the build, advisory only, or still in draft and not yet enforced) — or
 open any rule to read its actual text and every place it lands.
 
@@ -25,8 +25,8 @@ yg portal
 This serves the portal on a local address that only your own machine can reach,
 and prints the link. It is **read-only** in the sense that matters: browsing it
 never touches your source, your graph, or the lock file. The one action that can
-act on the project is a single, clearly-labelled approve — and even that just
-runs the same verification you would run from the command line; you can turn it
+act on the project is a single, clearly-labelled Approve button — and even that just
+runs the same fill you would run from the command line (`yg check --approve`); you can turn it
 off entirely with `yg portal --no-write` for a shared screen or a wall display.
 The page's other controls write nothing at all: a `↻ Refresh` button that
 re-fetches the live data for free, a `⌕` button opening a ⌘K-style command
@@ -51,7 +51,7 @@ other program; on a shared host, prefer `yg portal --static` or
 Loading the page and pressing `↻ Refresh` read the project the same way, and
 share that read: a request that arrives while one is running waits for it, and
 one that finds nothing changed since the last read — the same commit, the same
-changed and untracked files as git reports them, the same local deterministic
+changed and untracked files as git reports them, the same local script-rule
 cache — gets that result back at once instead of re-reading a large project.
 Outside a git repository every refresh reads afresh.
 
@@ -79,8 +79,8 @@ A row of views down the side, each answering a different question:
 - **Overview** — where the repo stands, in one sentence, counting what actually
   stops the build apart from what is only a heads-up, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
-  active waivers. With `coverage.type_level` on, a file satisfied by the
-  type-level lattice is never counted in "not mapped to anything" — a file whose
+  active waivers. With `coverage.type_level` on, a file satisfied by
+  type-level coverage is never counted in "not mapped to anything" — a file whose
   matched type actually has a rule that applies to it gets its own "satisfied"
   line instead, so a checked file is never called unguarded. "Satisfied" here
   means accounted for, not that a verdict has already been reached: the file's
@@ -95,8 +95,8 @@ A row of views down the side, each answering a different question:
   the honest answer is that what checks this file could not be worked out, never
   that nothing does.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
-  with a single honest bar: the only green is a check a reviewer actually ran and
-  approved against the current code. Every non-empty band on that bar stays
+  with a single honest bar: the only green is a check that actually ran and
+  passed against the current code. Every non-empty band on that bar stays
   visible, however small its slice, so a handful of refusals is never too thin to
   see. Free local checks and reviewer-judged checks are shown apart, and a
   needs-attention worklist gathers what still needs fixing: findings that stop
@@ -185,7 +185,7 @@ travels to someone who has no checkout of their own.
 The portal never rounds up. A state is shown with colour **and** a glyph **and** a
 word, so it reads the same to everyone, and the distinct states are kept
 distinct: verified, refused, not-yet-verified, advisory warning, waived,
-no-rule-yet. The absence of red is not a pass — green means a reviewer checked
-that code and approved it against the inputs it has now. The numbers on every
+no-rule-yet. The absence of red is not a pass — green means the rule's check ran
+on that code and passed against the inputs it has now. The numbers on every
 view are the same numbers `yg check` reports; the portal is a window onto that
 result, never a second opinion.

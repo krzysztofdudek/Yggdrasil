@@ -277,7 +277,7 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // summary no longer echoes individual violation messages such as "BANNED
       // token found." — that per-violation detail now lives in `yg aspect-test`.)
       // Fill-time progress goes to STDERR; its closing line counts the refusal.
-      expect(stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -304,7 +304,7 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // text "FIXME token found." moved to `yg aspect-test`; the fill summary
       // reports the pair-level refusal only.)
       // Fill-time progress goes to STDERR; its closing line counts the refusal.
-      expect(stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

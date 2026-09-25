@@ -171,7 +171,7 @@ export function registerImpactCommand(program: Command): void {
             if (!ownerResult.nodePath && set!.pairs.length === 0 && set!.unresolved.length === 0) {
               fail({
                 what: `${repoRelative} -> no graph coverage`,
-                why: 'file is not mapped to any node, is not referenced by any aspect, and is not observed by any deterministic or companion-backed aspect in the graph.',
+                why: 'file is not mapped to any node, is not referenced by any aspect, and is not observed by any script rule or companion-backed reviewer rule in the graph.',
                 next: 'Add the file to an existing node mapping, or create a new node.',
               });
               await exitAfterFlush(1);

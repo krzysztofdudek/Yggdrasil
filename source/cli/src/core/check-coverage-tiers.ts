@@ -205,7 +205,7 @@ export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue
     rule: 'uncovered-advisory',
     messageData: {
       what: `${count(uncoveredFiles.length, 'coverage-visible file')} outside any required coverage root.\n${body}`,
-      why: 'Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.',
+      why: 'Not under a coverage.required root — shown, but it never blocks.',
       next: 'Map these files to a node, or add their root to coverage.required to make this an error.',
     },
     uncoveredFiles,

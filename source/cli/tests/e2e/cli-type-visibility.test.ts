@@ -162,7 +162,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       const { stdout, status } = run(['check', '--coverage'], dir);
       expect([0, 1]).toContain(status); // may FAIL on unrelated fixture issues; the render surface is what's pinned
       expect(stdout).toContain('Type coverage:');
-      expect(stdout).toMatch(/bundle: file-level part applies; whole-unit part needs a component/);
+      expect(stdout).toMatch(/bundle: its per: file part applies; its per: node part needs a component/);
       expect(stdout.match(/inherited rules stop at a fork \(mid \| top\)/g)).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });

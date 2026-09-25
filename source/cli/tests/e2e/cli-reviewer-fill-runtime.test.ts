@@ -102,7 +102,7 @@ describe.skipIf(!runnable)('CLI E2E — a claude-code fill: telemetry, prompt sh
       expect(res.status).toBe(0);
       // Closing line: 2 reviewer calls (orders + payments), a duration, and the
       // summed usage the fake reported (2 x (100 + 20) input, 2 x 10 output).
-      expect(out).toMatch(/^fill {2}done in \d+s — 6 approved · 0 refused · 0 failed · 2 reviewer calls · 240 input \/ 20 output tokens, ~\$0\.00 at list price$/m);
+      expect(out).toMatch(/^fill {2}done in \d+s — 6 passed · 0 refused · 0 failed · 2 reviewer calls · 240 input \/ 20 output tokens, ~\$0\.00 at list price$/m);
 
       // The approval reason is on the local events line …
       const events = readFileSync(path.join(dir, '.yggdrasil', '.yg-events.jsonl'), 'utf-8')

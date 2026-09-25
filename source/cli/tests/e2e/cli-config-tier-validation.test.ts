@@ -646,7 +646,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-config.yaml reviewer/tier + global-
       // The per-aspect `what` ("reviewer.type: deterministic together with
       // reviewer.tier: 'standard'") is gone from the grouped view; assert the now-visible
       // why + Fix that explains why tiers do not apply to deterministic aspects.
-      expect(stdout).toContain('Deterministic aspects run locally without an LLM; tiers do not apply');
+      expect(stdout).toContain('Script rules run locally without a reviewer; tiers do not apply');
       expect(stdout).toContain('  fix:  remove tier: from the aspect');
     } finally {
       rmSync(dir, { recursive: true, force: true });

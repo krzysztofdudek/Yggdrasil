@@ -73,8 +73,8 @@ exit: 1
     {
       "code": "unverified",
       "severity": "error",
-      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-01.",
-      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "what": "No local result for script rule 'no-todo' on node:app/svc-01.",
+      "why": "Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
       "next": "yg check --approve --only-deterministic",
       "aspect": "no-todo",
       "node": "app/svc-01",
@@ -89,8 +89,8 @@ exit: 1
     {
       "code": "unverified",
       "severity": "error",
-      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-03.",
-      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "what": "No local result for script rule 'no-todo' on node:app/svc-03.",
+      "why": "Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
       "next": "yg check --approve --only-deterministic",
       "aspect": "no-todo",
       "node": "app/svc-03",
@@ -134,7 +134,7 @@ exit: 1
       "code": "uncovered-advisory",
       "severity": "warning",
       "what": "4 coverage-visible files outside any required coverage root.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "files": [
         ".clinerules/yggdrasil.md",
@@ -192,7 +192,7 @@ exit: 1
       "severity": "error",
       "subject": "2 pairs whose script check has not run on this checkout — free to run",
       "cause": "deterministic-not-run",
-      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "why": "Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
       "next": "yg check --approve --only-deterministic",
       "members": [
         0,
@@ -205,7 +205,7 @@ exit: 1
       "aspect": null,
       "severity": "warning",
       "subject": "4 files belong to no node — not under coverage.required, so they never block",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "members": [
         5

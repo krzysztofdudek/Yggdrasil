@@ -1,22 +1,22 @@
 <!-- yggdrasil:start -->
-<!-- yggdrasil:digest cli=5.9.0 sha256=a9a184f863d90731a1b385a6dca22073a7eee708920b992d8717b6632b7eb938 -->
+<!-- yggdrasil:digest cli=6.0.0 sha256=7f693ffa5729a5f62118e18f92137b194273675e185fc77d12da7f5604b9193d -->
 ## Yggdrasil
 
 This repository is managed by Yggdrasil — continuous architecture enforcement.
-An architecture graph in `.yggdrasil/` defines the rules; a reviewer verifies
+An architecture graph in `.yggdrasil/` defines the rules; the reviewer and local scripts verify
 source code against them, and `yg check` blocks CI whenever an enforced rule
 is violated or unverified.
 
 **Required first step:** run `yg prime` and follow the protocol it prints
 before making any change. The full, current operating manual comes from the
-installed CLI — this block is only the standing summary. If `yg prime` is not
+installed CLI — this block is only the short summary. If `yg prime` is not
 a recognized command, the installed Yggdrasil CLI predates this integration:
 update the `@chrisdudek/yg` package before proceeding.
 
 Non-negotiable invariants (they hold even before reading the manual):
 
 - Never write a `yg-suppress` marker without the user's explicit
-  confirmation. The reviewer honors suppressions unconditionally — an
+  confirmation. Every rule honors suppressions unconditionally — an
   unauthorized suppress silently disables a rule.
 - Never change a rule's `review_by:` date; renewing or retiring a rule is
   the user's decision.

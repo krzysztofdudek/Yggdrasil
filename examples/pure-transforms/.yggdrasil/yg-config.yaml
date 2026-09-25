@@ -12,6 +12,6 @@ coverage:
   required: ["src"]
   excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
-# This example is KEYLESS: its only rules are deterministic, and a script-only
+# This example is KEYLESS: its only rules are script rules, and a script-only
 # project needs no reviewer: section at all. Add one (yg init --provider ...)
-# when you add the first judgment rule.
+# when you add the first reviewer rule.

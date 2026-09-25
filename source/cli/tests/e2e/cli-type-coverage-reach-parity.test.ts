@@ -63,7 +63,7 @@ describe.skipIf(!distExists)("CLI E2E — a type-covered file's read allowance m
       // entry is written for the pair.
       expect(lock.verdicts['reach-child-file-rule']?.['file:src/reach/leaf/a.ts']).toBeUndefined();
       expect(fill.all).toContain(
-        "Deterministic check 'reach-child-file-rule' failed to run on file:src/reach/leaf/a.ts — left unverified (aspect-check-runtime-error).",
+        "Script rule 'reach-child-file-rule' failed to run on file:src/reach/leaf/a.ts — left unverified (aspect-check-runtime-error).",
       );
       expect(fill.all).toContain("Aspect tried to read undeclared path 'src/reach/parent/child.ts'");
       // The real remedy is an architecture or graph change — widen the type's

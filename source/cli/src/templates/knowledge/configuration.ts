@@ -1,4 +1,4 @@
-export const summary = 'yg-config.yaml fields: version, reviewer tiers, quality thresholds, parallelism, auto_approve (auto-approval mode), rules_artifacts (which agent-rules files this project carries), progressive (measure changes against a branch)';
+export const summary = 'yg-config.yaml fields: version, reviewer tiers, quality thresholds, parallelism, auto_approve (automatic fill mode — not a human approval), rules_artifacts (which agent-rules files this project carries), progressive (measure changes against a branch)';
 
 export const content = `# Configuration (yg-config.yaml)
 
@@ -41,9 +41,9 @@ coverage:                           # Optional — controls which files must be 
 quality:
   max_direct_relations: 10        # Max out-edges per node before high-fan-out warning
 
-parallel: 1                       # Concurrent LLM pair verifications (default: 1)
+parallel: 1                       # Concurrent reviewer-pair verifications (default: 1)
                                   # Applies to the reviewer (LLM) fill phase during yg check --approve
-                                  # (or an auto_approve fill). Deterministic checks ignore it — they
+                                  # (or an auto_approve fill). Script rules ignore it — they
                                   # run across an auto-sized worker-thread pool (see "Parallel vs consensus").
 
 auto_approve: false               # Controls the behavior of bare yg check (with no explicit flags).
@@ -63,11 +63,11 @@ signals:                          # Optional — attention-layer switches. Absen
                                   #   yg context --file. Set false to silence it. Must be a boolean; an
                                   #   unknown key under signals: is rejected (a typo would silently leave it on).
 
-events:                           # Optional — committed-events opt-in. Absent ⇒ every LLM-fill event stays LOCAL.
-  committed_llm: true             #   committed_llm (default false): route LLM verification-fill events to a
+events:                           # Optional — committed-events opt-in. Absent ⇒ every reviewer-fill event stays LOCAL.
+  committed_llm: true             #   committed_llm (default false): route reviewer verification-fill events to a
                                   #   COMMITTED, union-merged, team-shared file (.yggdrasil/yg-events.llm.jsonl)
                                   #   with the refusal reason stripped, instead of the local gitignored sidecar.
-                                  #   Deterministic/drill/diag events always stay local (keyless CI = zero churn).
+                                  #   Script/drill/diag events always stay local (keyless CI = zero churn).
                                   #   Must be a boolean; an unknown key under events: is rejected. Never folds
                                   #   into any verdict hash — flipping it invalidates nothing.
 
@@ -159,7 +159,7 @@ re-reviews its pairs. The trade-off is per tier, not global.
 
 ### reviewer.tiers.<name>.max_prompt_chars
 
-Optional cap on the assembled LLM prompt for any pair resolving to this tier —
+Optional cap on the assembled reviewer prompt for any pair resolving to this tier —
 scaffold + content.md + references + resolved companion files (when
 \`companion.mjs\` is present) + the unit's subject files + node descriptor.
 Absent defaults to 50000. \`yg init\` writes \`50000\` into the generated config so
@@ -267,13 +267,13 @@ coverage:
 Controls which coverage-visible files must be mapped to a node.
 
 - \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default.
-- \`excluded\` — roots that are silently ignored. Default: \`[]\`; a fresh \`yg init\` writes the agent-rules files it installed plus \`.gitattributes\` here, since they are Yggdrasil's own plumbing rather than project source. This is a supreme, global filter, not just a coverage-tiering rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
-- Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking tier to a pattern. \`/\` still means the whole repo.
-- Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning.
-- \`type_level\` — boolean, default \`false\` (a fresh \`yg init\` writes \`true\`). When on, a file matched by exactly ONE classifying type's \`when\` counts as covered by that type, with no node of its own — only a \`scope: { per: file }\` rule can ever produce a verdict on such a file (a \`per: node\` rule has no whole unit to run against there). Committed-config only: a \`yg-secrets.yaml\` overlay can never change this key, since it changes what counts as covered for everyone. Does nothing until some type declares \`when:\`. Applicability facts and volatility for type-covered files: \`yg knowledge read conditional-aspects\`.
+- \`excluded\` — roots that are silently ignored. Default: \`[]\`; a fresh \`yg init\` writes the agent-rules files it installed plus \`.gitattributes\` here, since they are Yggdrasil's own plumbing rather than project source. This is a supreme, global filter, not just a coverage-level rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
+- Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking level to a pattern. \`/\` still means the whole repo.
+- Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning (the \`-advisory\` suffix only means non-blocking; it is unrelated to the rule status \`advisory\`).
+- \`type_level\` — boolean, default \`false\` (a fresh \`yg init\` writes \`true\`). When on, a file matched by exactly ONE classifying type's \`when\` counts as covered by that type, with no node of its own — a type-covered file. Only a \`scope: { per: file }\` rule can ever produce a verdict on such a file (a \`per: node\` rule has no node to run against there). Committed-config only: a \`yg-secrets.yaml\` overlay can never change this key, since it changes what counts as covered for everyone. Does nothing until some type declares \`when:\`. Applicability facts and volatility for type-covered files: \`yg knowledge read conditional-aspects\`.
 - The excluded set has a second source beyond the config list above: a subtree that is its own separate project — carrying its own nested \`.yggdrasil/\` graph, or its own \`.git\` (a checkout, submodule, or linked worktree) — is a DEFAULT member of the excluded set, whether or not any \`excluded\` line mentions it; membership is read off the real filesystem, not guessed from a directory name, so an ordinary dependency directory (e.g. \`node_modules\`) with no graph or git checkout of its own is never skipped by name alone — exclude it explicitly via \`excluded\` if desired.
 - A mapping entry that resolves to nothing because everything it would have reached is excluded says so, naming exclusion as the reason: \`file-mapping-excluded\` fires for an entry naming one file exactly; the aggregate \`mapping-path-missing\` check fires when a node's mapping entries, taken as a whole, resolve to nothing this node can enforce because every file they reached is excluded — the same code a stale glob or a deleted file produces. A glob or exact entry's own per-entry existence check stays silent when it resolves to real, on-disk content that happens to be excluded — that content is not stale or broken, so blaming it there would be wrong; the aggregate check is what reports the "nothing left to enforce" fact.
-- Exclusion is absolute: any excluded-root match drops a file before it is ever sorted into the blocking or advisory tier, independent of whether a more specific required root also matches it; \`yg check\` warns (\`coverage-required-shadowed\`) when a plain required root sits fully inside a plain excluded root.
+- Exclusion is absolute: any excluded-root match drops a file before it is ever sorted into the blocking or advisory level, independent of whether a more specific required root also matches it; \`yg check\` warns (\`coverage-required-shadowed\`) when a plain required root sits fully inside a plain excluded root.
 
 ## Quality thresholds
 
@@ -283,7 +283,7 @@ quality:
 \`\`\`
 
 \`max_direct_relations\` fires a warning when a node exceeds it (out-edges).
-Node size is bounded by the LLM prompt-size gate (\`max_prompt_chars\` per tier),
+Node size is bounded by the reviewer prompt-size gate (\`max_prompt_chars\` per tier),
 not by a per-node character budget — there is no node-level size limit and no
 per-node size exemption.
 
@@ -310,25 +310,25 @@ number and its justification, keeping the exception auditable.
 
 ## Parallel vs consensus
 
-\`parallel\` (top-level) controls how many **LLM** pair verifications run
+\`parallel\` (top-level) controls how many **reviewer** pair verifications run
 concurrently during \`yg check --approve\`. It governs ONLY the reviewer (LLM)
 fill phase — the phase whose cost is network latency, where overlapping requests
 is the win. It defaults to \`1\`; \`yg init\` writes \`4\` for a CLI reviewer
 (claude-code, codex, gemini-cli, copilot-cli) when the config has none — each
 call is its own local process under the user's subscription, and four stay
-inside its rate limit. Raise it to verify more LLM pairs at once, within the
+inside its rate limit. Raise it to verify more reviewer pairs at once, within the
 provider's rate limit. Each verification runs its tier's \`consensus\` calls
 concurrently within its slot, and lock writes are serialized in-process. Cross-tier traffic
 shares one queue: an expensive tier saturating the queue starves a cheap tier.
 Tune \`parallel\` conservatively when mixing tier costs.
 
-Deterministic checks do NOT use \`parallel\`. They are CPU-bound (source parsing),
+Script rules do NOT use \`parallel\`. They are CPU-bound (source parsing),
 so they run across a worker-thread pool sized automatically from the machine's
 available cores — no configuration, and it never affects verdicts, only speed.
 This is why the free, keyless \`yg check --approve --only-deterministic\` gate
 parallelizes with no \`parallel\` setting at all.
 
-Each deterministic check runs under a wall-clock budget (default 120 seconds;
+Each script rule's check runs under a wall-clock budget (default 120 seconds;
 set the \`YG_DET_TASK_TIMEOUT_MS\` environment variable, in milliseconds, to
 change it, or to \`0\` to switch it off). A check still running past it — an
 endless loop, runaway regex backtracking — is stopped and reported as
@@ -352,17 +352,17 @@ to the \`.yggdrasil/\` directory):
 yg-secrets.yaml               # provider API keys
 .symbols-cache/               # the relation pass's legacy per-language symbol-index cache
 .ast-cache/                   # the relation pass's content-addressed per-file AST fact cache
-.type-class-cache/            # the type-level classification lattice's path-and-content-keyed cache
+.type-class-cache/            # type-level coverage's path-and-content-keyed classification cache
 .debug.log                    # the opt-in command debug log
-.yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
+.yg-lock.deterministic.json   # the free script-verdict cache (rebuilt keyless)
 .yg-events.jsonl*             # the local verdict-events telemetry sidecar (and its .1 rotation)
 .yg-fill-divergence.log*      # forensic dump written only on a fill convergence divergence (and its .1 rotation)
 .feature-field.json           # the local structural-deviation attention index
-.family-candidates.json       # family-candidate analysis, the shared file earlier releases wrote
-.family-candidates.*.json     # family-candidate analysis, one file per producer
+.family-candidates.json       # look-alike group analysis (file name keeps the older word "family"), the shared file earlier releases wrote
+.family-candidates.*.json     # look-alike group analysis, one file per producer
 .yg-packages-versions.json    # what each installed package's source was last seen to publish
 *.tmp                         # an atomic write's half-finished temp file, orphaned by a hard kill
-.yg-*.lock                     # the run-exclusion lock files held while an approval or a log write runs
+.yg-*.lock                     # the run-exclusion lock files held while a fill or a log write runs
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`
@@ -395,7 +395,7 @@ repository root only. Review the diff before committing.
 ### Prompt size, not reference caps
 
 There is no node-level size budget and no per-tier reference byte cap. The
-assembled LLM prompt is bounded by \`max_prompt_chars\` (above), which covers the
+assembled reviewer prompt is bounded by \`max_prompt_chars\` (above), which covers the
 same payload — content.md, references, resolved companion files (when
 \`companion.mjs\` is present), and the unit's subject files — where it actually
 matters. A pair whose prompt exceeds the tier limit is reported as
@@ -404,12 +404,13 @@ matters. A pair whose prompt exceeds the tier limit is reported as
 ## auto_approve
 
 Controls what bare \`yg check\` (with no explicit \`--approve\` / \`--no-approve\` /
-\`--only-deterministic\` flag) does. Three modes:
+\`--only-deterministic\` flag) does: whether it runs a fill by itself. A fill is
+not a human approval. Three modes:
 
 | Value | Behavior |
 |---|---|
 | \`false\` (default) | Read-only. No writes, no LLM calls, no API keys. |
-| \`"deterministic"\` | Behaves as \`yg check --approve --only-deterministic\` — fills only deterministic pairs (free, keyless, local). |
+| \`"deterministic"\` | Behaves as \`yg check --approve --only-deterministic\` — fills only script pairs (free, keyless, local). |
 | \`"full"\` | Behaves as \`yg check --approve\` — fills the unverified pairs that run answers for, and may call the reviewer (requires keys). |
 
 **Precedence:** Explicit CLI flags (\`--approve\`, \`--no-approve\`,
@@ -449,7 +450,7 @@ or \`"full"\`) is a hard \`config-invalid\` error from \`yg check\`.
 
 ## events
 
-Optional. Controls WHERE LLM verification-fill events are recorded. Its only key
+Optional. Controls WHERE reviewer verification-fill events are recorded. Its only key
 today is \`committed_llm\` (default \`false\`). Absent \`events\`, or absent
 \`events.committed_llm\`, both mean OFF — every fill event stays in the LOCAL,
 gitignored sidecar \`.yggdrasil/.yg-events.jsonl\` (see "Local state" above).
@@ -457,16 +458,16 @@ gitignored sidecar \`.yggdrasil/.yg-events.jsonl\` (see "Local state" above).
 | Value | Behavior |
 |---|---|
 | \`committed_llm: false\` (default) | Every fill event goes to the local, gitignored sidecar. |
-| \`committed_llm: true\` | LLM verification-fill events go to a COMMITTED, shared file \`.yggdrasil/yg-events.llm.jsonl\` instead. |
+| \`committed_llm: true\` | Reviewer verification-fill events go to a COMMITTED, shared file \`.yggdrasil/yg-events.llm.jsonl\` instead. |
 
 When ON, the committed stream is:
 
-- **LLM-fill ONLY.** Only \`source: 'fill'\` + \`kind: 'llm'\` events graduate.
-  Deterministic checks, drill runs (\`yg drill\`), and diagnostic runs
+- **Reviewer-fill ONLY.** Only \`source: 'fill'\` + \`kind: 'llm'\` events graduate.
+  Script rules, drill runs (\`yg drill\`), and diagnostic runs
   (\`yg aspect-test\`) always stay in the local sidecar. So the keyless CI gate
   (\`yg check --approve --only-deterministic\`) leaves the committed file
   byte-unchanged — zero churn.
-- **Single-home.** An LLM-fill event goes to the committed file and NOT the local
+- **Single-home.** A reviewer-fill event goes to the committed file and NOT the local
   one — no double-write, no double-count.
 - **Union-merged.** \`yg init\` (and every \`--upgrade\`) marks the file
   \`merge=union\` in the repo-root \`.gitattributes\`, so events appended on
@@ -570,8 +571,8 @@ Three properties of the key itself:
 
 What stays blocking whatever the measurement says: the graph's own INTEGRITY (a
 node naming an aspect that does not exist, a cycle, an unhonoured port contract,
-malformed YAML, an unreadable lock), anything that aborts a recording run before
-it writes, the log gate at recording time, and any finding the run cannot
+malformed YAML, an unreadable lock), anything that aborts a fill before
+it writes, the log gate at fill time, and any finding the run cannot
 attribute to a file or a component ("cannot tell" is never read as "not yours").
 Everything else is eligible — INCLUDING the drift findings that are reported as
 architecture-level errors but are really code-versus-graph disagreements:

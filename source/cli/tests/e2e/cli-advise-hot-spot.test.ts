@@ -31,7 +31,7 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const distExists = existsSync(BIN_PATH);
 
 /** The verbatim hot-spot WHAT line for a node id (only the id varies). */
-const HOT_WHAT = (id: string) => `Node '${id}' is changing but has no rule covering it.`;
+const HOT_WHAT = (id: string) => `Node '${id}' is changing but has no rule guarding it.`;
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const result = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
@@ -139,7 +139,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       w(dir, 'src/bare/a.ts', 'export const a = 1;\n');
       const { status, stdout } = run(['advise'], dir);
       expect(status).toBe(0);
-      expect(stdout).not.toContain('is changing but has no rule covering it');
+      expect(stdout).not.toContain('is changing but has no rule guarding it');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -153,7 +153,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       const { status, stdout } = run(['advise'], dir);
       expect(status).toBe(0);
       // No git ⇒ churn UNKNOWN ⇒ the class is omitted, never fabricated as 0-and-fired.
-      expect(stdout).not.toContain('is changing but has no rule covering it');
+      expect(stdout).not.toContain('is changing but has no rule guarding it');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -191,7 +191,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(status).toBe(0);
       // Shallow ⇒ history is truncated ⇒ churn UNKNOWN ⇒ SILENT (never a partial-window
       // count that would undercount churn while the provenance overstates the window).
-      expect(stdout).not.toContain('is changing but has no rule covering it');
+      expect(stdout).not.toContain('is changing but has no rule guarding it');
     } finally {
       rmSync(src, FIXTURE_RM_OPTIONS);
       rmSync(dst, FIXTURE_RM_OPTIONS);

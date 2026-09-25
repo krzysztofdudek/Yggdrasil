@@ -1,11 +1,11 @@
 export const summary =
-  'How to write content.md for the LLM reviewer: rule structure, scope (per-file is file-local only), prompt limits, false-positive path with aspect-test as the sanctioned diagnostic';
+  'How to write reviewer rules (content.md, judged by the reviewer): rule structure, scope (per-file is file-local only), prompt limits, false-positive path with aspect-test as the sanctioned diagnostic';
 
-export const content = `# Writing LLM aspects
+export const content = `# Writing reviewer rules
 
-LLM aspects ship a \`content.md\` describing the rules in prose. The reviewer
+Reviewer rules ship a \`content.md\` describing the rules in prose. The reviewer
 receives \`content.md\` + any reference files + resolved companion files (from
-\`companion.mjs\`, per unit) + the unit's subject files and returns approved or
+\`companion.mjs\`, per unit) + the unit's subject files and returns passed or
 refused. The verdict is cached in the lock keyed by the
 \`(aspect, unit)\` pair.
 
@@ -90,7 +90,7 @@ If the rule cannot be judged from that single file plus references, it is not
 file-local; leave it \`per: node\`. This guidance is load-bearing and cannot be
 enforced deterministically.
 
-### A file enforced by its architecture type alone (no owning component)
+### A type-covered file (no owning node)
 
 When \`coverage.type_level\` is on, a file matched by exactly one architecture
 type's \`when\` — but mapped by no node — is still reviewed against that
@@ -101,7 +101,7 @@ single-file framing paragraph says this file is judged on its own — never "a
 larger component" it does not have. Everything else — the rule text,
 references, companions, suppressed-range handling, the response contract —
 is identical to the component-owned \`per: file\` case.
-A \`per: node\` aspect never runs on a file like this (there is no whole unit
+A \`per: node\` aspect never runs on a type-covered file (there is no node
 to run it against) — it shows as \`whole-unit-rule\` in \`yg check\`'s type
 coverage report, naming the gap rather than silently enforcing nothing.
 Preview or run one of these exactly as you would for a node:
@@ -117,25 +117,25 @@ is still a full re-verification. Run \`yg impact --aspect <id>\` first.
 
 ## Cost considerations
 
-Each effective non-draft LLM pair = at least one reviewer call during
+Each effective non-draft reviewer pair = at least one reviewer call during
 \`yg check --approve\`, multiplied by the tier's consensus count. With \`per: file\`,
 multiply again by the subject-file count, and references are loaded into every
-per-file prompt. Deterministic aspects cost ZERO LLM calls. Draft aspects produce
+per-file prompt. Script rules cost ZERO LLM calls. Draft aspects produce
 no pairs (zero cost, no verdict) — but remain testable with \`yg aspect-test\`
 (\`--dry-run\` is free; a live run makes a real reviewer call).
 
-Before creating a new LLM aspect:
-1. Check if an existing aspect covers the rule (\`yg aspects\`)
+Before creating a new reviewer rule:
+1. Check if an existing aspect already states the rule (\`yg aspects\`)
 2. Run \`yg impact --aspect <id>\` on similar existing aspects to understand
    the scale of review calls this will generate
-3. Consider whether a deterministic aspect would serve the same purpose for free
+3. Consider whether a script rule would serve the same purpose for free
 
 When an aspect touches many pairs, verification is expensive. Prefer narrow,
 precise aspects over broad catch-all ones.
 
 ## Prompt-size gate
 
-Each tier may set \`max_prompt_chars\`. An assembled LLM prompt (scaffold +
+Each tier may set \`max_prompt_chars\`. An assembled reviewer prompt (scaffold +
 content.md + references + resolved companion files + subject files + node
 descriptor) exceeding the resolved tier's limit is a blocking
 \`prompt-too-large\` error — checked deterministically at \`yg check\`, and the
@@ -156,7 +156,7 @@ pair is skipped by \`--approve\`. Remedies, in safety order:
 
 ## False-positive mitigation
 
-LLM reviewers can produce false positives: refusing code that is actually
+The reviewer can produce false positives: refusing code that is actually
 correct. Causes:
 - Rules stated ambiguously — reviewer interprets differently than intended
 - Rules that are too strict — no room for valid alternative implementations
@@ -179,7 +179,7 @@ runs the reviewer live WITHOUT writing the lock.
 yg aspect-test --aspect <id> --node <path>
 \`\`\`
 
-If aspect-test repeatedly approves what the lock refuses, the rule text is
+If aspect-test repeatedly passes what the lock refuses, the rule text is
 ambiguous for this reviewer. Two sanctioned exits: sharpen \`content.md\`
 (cascades — check \`yg impact\`), or propose a \`yg-suppress\` to the user. There is
 deliberately no verdict-drop command, and a cosmetic edit purely to force a
@@ -193,7 +193,7 @@ When a reviewer refuses code you believe is correct:
 
 ## Choosing a reviewer tier
 
-LLM aspects may opt into a specific reviewer tier from \`yg-config.yaml\`:
+Reviewer rules may opt into a specific reviewer tier from \`yg-config.yaml\`:
 
 \`\`\`yaml
 # .yggdrasil/aspects/test-quality/yg-aspect.yaml
@@ -208,11 +208,11 @@ When \`tier:\` is omitted, the aspect uses the tier named by \`reviewer.default\
 (or the sole tier, if only one is configured).
 
 Use a higher-capability tier (e.g. \`deep\`) when the aspect interprets nuanced
-semantics, a false approval is much more costly than the higher per-call price,
+semantics, a false pass is much more costly than the higher per-call price,
 or the rules are ambiguous enough that a cheaper model gives flaky judgments. Use
 the cheaper default tier for narrow, well-defined contracts.
 
-Only the tier's NAME is folded into an LLM pair's hash — not its config. Changing
+Only the tier's NAME is folded into a reviewer pair's hash — not its config. Changing
 \`reviewer.tier:\` on an aspect (pointing it at a differently-named tier) invalidates
 every pair using it and re-verifies on the next \`yg check --approve\`. Editing the
 referenced tier's own \`provider\` / \`consensus\` / \`config\` does NOT invalidate any
@@ -220,15 +220,15 @@ verdict — the config is the reviewer's private business, so a named tier can b
 re-pointed at a different model or provider without re-verifying. Run
 \`yg impact --aspect <id>\` before swapping a tier on a widely-used aspect.
 
-## When to prefer a deterministic aspect over LLM
+## When to prefer a script rule over a reviewer rule
 
 If the rule is expressible as "this identifier must / must not appear" or
-"imports from X are forbidden in Y" — use a deterministic aspect instead. It is
+"imports from X are forbidden in Y" — use a script rule instead. It is
 deterministic, produces no false positives, and costs nothing per call.
 
 ## Companion files (companion.mjs)
 
-An LLM aspect may ship an optional \`companion.mjs\` alongside \`content.md\`.
+A reviewer rule may ship an optional \`companion.mjs\` alongside \`content.md\`.
 The companion hook is a per-unit resolver that selects 0..N companion files
 injected into the reviewer prompt for that unit only. Use it when the files
 relevant to the review differ per unit — for example, each feature file has
@@ -240,7 +240,7 @@ description.
 \`\`\`javascript
 // .yggdrasil/aspects/my-rule/companion.mjs
 export async function companion(ctx) {
-  // ctx is the same ctx a deterministic check.mjs receives, including ctx.subject
+  // ctx is the same ctx a script rule's check.mjs receives, including ctx.subject
   // (that field is shared — both runners build it from one factory, not companion-only).
   // ctx.subject is always File[] (never a bare File).
   //   scope.per:file  → single-element array [file].
@@ -262,7 +262,7 @@ regardless of scope: under \`scope.per: file\` the subject set is that one file,
 under \`scope.per: node\` it is the whole subject set. A per-file hook cannot
 re-inject its own subject as a labelled companion.
 
-**Never mutate a tree \`ctx.parseAst\` hands you.** As with a deterministic
+**Never mutate a tree \`ctx.parseAst\` hands you.** As with a script rule's
 \`check.mjs\` (see the \`writing-deterministic-aspects\` doc), the runner may reuse
 one parsed tree across several subjects of the same rule — for a \`per: file\`
 companion, that means every subject file of the same component shares its
@@ -295,10 +295,10 @@ entire node's content into **every** per-file pair's verdict, so any edit
 anywhere in that node re-verifies (and re-bills) every pair, defeating
 per-unit isolation.
 
-### Companion files for a file with no owning component
+### Companion files for a type-covered file
 
-A companion aspect works the same way on a file enforced by its architecture
-type alone: the subject is the file itself, and the hook may read whatever
+A companion aspect works the same way on a type-covered file (one with no
+owning node): the subject is the file itself, and the hook may read whatever
 the architecture's \`relations:\` allow-list permits that file's TYPE to depend
 on — the same reach \`check.mjs\` gets on a unit like this, computed from
 \`yg-architecture.yaml\` rather than from a node's own mapping and relations.
@@ -310,12 +310,12 @@ A companion written for a component — one that calls \`ctx.node.*\` or
 surface, so any access to them fails closed (nothing written, the pair stays
 unverified) with a message naming both exits: rewrite the hook to use only
 \`ctx.subject\`/\`ctx.fs\` over files the architecture already permits the
-file's type to reach, or give the file a component of its own (map it with a
+file's type to reach, or give the file a node of its own (map it with a
 \`yg-node.yaml\`) so \`ctx.node\`/\`ctx.graph\` become available. A path the hook
 returns that the architecture does not permit the file's type to reach is a
 companion allowed-reads violation, exactly as it is for a component — the
 NEXT then points at widening \`relations:\` in \`yg-architecture.yaml\` or
-giving the file a component of its own, never at a node path (there is none).
+giving the file a node of its own, never at a node path (there is none).
 
 ### Purity requirement
 
@@ -334,8 +334,8 @@ per-pair what/why/next message with the token
 \`aspect-companion-runtime-error\`. A summary line is also emitted at the end
 of the fill run: "N companion resolutions failed to run at fill time —
 left unverified (aspect-companion-runtime-error)." This mirrors the
-deterministic \`aspect-check-runtime-error\` pattern exactly. The hook never
-judges code — any judgment logic belongs in the LLM reviewer via \`content.md\`.
+script rule's \`aspect-check-runtime-error\` pattern exactly. The hook never
+judges code — any judgment logic belongs in the reviewer via \`content.md\`.
 
 ### yg-suppress in companion files
 
@@ -386,17 +386,17 @@ const data = ctx.parseYaml('docs/config.yaml');
 ### Validator errors
 
 - \`aspect-companion-without-content\` — \`companion.mjs\` is present but
-  \`content.md\` is absent. Companion files require an LLM aspect.
+  \`content.md\` is absent. Companion files require a reviewer rule.
 - \`aspect-companion-with-check\` — \`companion.mjs\` is present alongside
-  \`check.mjs\`. Companion files are an LLM add-on only.
+  \`check.mjs\`. Companion files are a reviewer-rule add-on only.
 
 ### Testing companion hooks
 
-Use \`yg aspect-test --aspect <id> --node <path> --dry-run\` (or, for a file
-enforced by its architecture type alone, \`--file <path> --dry-run\`) to run
+Use \`yg aspect-test --aspect <id> --node <path> --dry-run\` (or, for a
+type-covered file, \`--file <path> --dry-run\`) to run
 the hook live and inspect the resolved companion paths and assembled prompt
 without making a reviewer call or writing the lock. (The ad-hoc \`--files\`
-mode is deterministic-only — no LLM aspect can use it, companion or not;
+mode is for script rules only — no reviewer rule can use it, companion or not;
 always use \`--node\` or \`--file\`.)
 
 ### Cost
@@ -412,12 +412,12 @@ always use \`--node\` or \`--file\`.)
 Because the verdict folds everything the hook reads to decide, editing any
 read-to-decide file (not only a returned one) re-verifies its readers.
 \`yg impact --file <path>\` previews this precisely — including cold
-companion-backed pairs with no lock entry yet (it runs the resolver, no LLM
+companion-backed pairs with no lock entry yet (it runs the resolver, no reviewer
 call).
 
 ## Reference files
 
-An LLM aspect may declare \`references:\` in yg-aspect.yaml — supporting
+A reviewer rule may declare \`references:\` in yg-aspect.yaml — supporting
 files (lookup tables, catalogues, contracts) loaded into the reviewer
 prompt alongside content.md. References answer questions like "what's the
 exact list of valid error codes?" without requiring content.md to embed
@@ -446,7 +446,7 @@ references:
 \`\`\`
 
 Two equivalent entry forms. The description (when present) helps both the agent
-and the reviewer understand the reference's role, and it is folded into the LLM
+and the reviewer understand the reference's role, and it is folded into the reviewer
 pair's hash — editing it re-verifies.
 
 ### Composition with implies
@@ -471,10 +471,10 @@ reference byte cap; the prompt limit bounds the whole payload.
 
 ## Aspect status
 
-LLM aspects declare \`status: draft | advisory | enforced\` (default \`enforced\`).
+Reviewer rules declare \`status: draft | advisory | enforced\` (default \`enforced\`).
 Status is rendering only. Draft produces no pairs (zero cost). Advisory and
 enforced both verify; they differ only in how a refused or unverified pair
-renders. The authoring ladder mirrors deterministic aspects: start at \`draft\`,
+renders. The authoring ladder mirrors script rules: start at \`draft\`,
 iterate with \`yg aspect-test\` (\`--dry-run\` previews the prompt for free; a
 live run calls the reviewer), promote when the rule is stable.
 See: \`yg knowledge read aspect-status\`.

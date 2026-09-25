@@ -515,7 +515,7 @@ export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf
  * the log entries the gate will ask for, as blocks under one note line.
  */
 export function formatOwed(owed: CheckIssue[], emoji = useEmoji): string {
-  return [note('a recording run stops before spending this budget until these exist:'), ...renderBlocks(buildBlocks(owed), { capMembers: true }, emoji)].join('\n');
+  return [note('a fill stops before spending this budget until these exist:'), ...renderBlocks(buildBlocks(owed), { capMembers: true }, emoji)].join('\n');
 }
 
 // ── Partial result ─────────────────────────────────────────

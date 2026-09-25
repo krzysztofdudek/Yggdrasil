@@ -42,7 +42,7 @@ node_types:
                                              # a critical aspect (security, audit, regulatory) — a
                                              # per-type graduation dial, not a repo-wide milestone.
                                              # The backward scan accepts only an explicit node's
-                                             # mapping as proof, never coverage.type_level's lattice,
+                                             # mapping as proof, never type-level coverage (coverage.type_level),
                                              # so a strict type's files never coast on automatic
                                              # type coverage the way a non-strict type's files can.
 

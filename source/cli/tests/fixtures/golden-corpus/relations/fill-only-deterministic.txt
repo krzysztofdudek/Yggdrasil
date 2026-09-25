@@ -17,10 +17,10 @@ warning[uncovered] 4 files belong to no node — not under coverage.required, so
         .gitattributes
         AGENTS.md
         CLAUDE.md
-  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+  why:  Not under a coverage.required root — shown, but it never blocks.
   fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
 next: edit .yggdrasil/model/app/svc-01/yg-node.yaml
 --- stderr
 fill  3 pairs · 3 script (free) · 0 reviewer calls
-fill  done in <DUR> — 3 approved · 0 refused · 0 failed · 0 reviewer calls
+fill  done in <DUR> — 3 passed · 0 refused · 0 failed · 0 reviewer calls

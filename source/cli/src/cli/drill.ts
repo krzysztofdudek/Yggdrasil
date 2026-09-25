@@ -45,7 +45,7 @@ export function registerDrillCommand(program: Command): void {
     .command('drill')
     .description(
       "Re-run an aspect's rule over its violates-*/satisfies-* case corpus and report " +
-      'pass / MISS / FALSE-ALARM / unrun / unsupported. Deterministic aspects run free; ' +
+      'pass / MISS / FALSE-ALARM / unrun / unsupported. Script rules run free; ' +
       'reviewer rules go through the real reviewer. The lock is never touched. Drills are ' +
       'regression fixtures for sharpening a rule, not a sensitivity/specificity measurement.',
     )
@@ -55,8 +55,8 @@ export function registerDrillCommand(program: Command): void {
     .option('--corpus <label>', 'label recorded for this run (default: "dev", or the --dir basename)')
     .option(
       '--nodeless',
-      'assemble every reviewer-rule case without a node — the prompt shape a file enforced by its ' +
-      'architecture type alone, with no owning component, receives from the real reviewer',
+      'drill as a type-covered file: assemble every reviewer-rule case without a node — the prompt ' +
+      'shape a file with no owning component receives from the real reviewer',
     )
     .option('--json', `Machine-readable output: one ${DRILL_JSON_SCHEMA} document on stdout (counts, per-case results, the corpus) instead of the case lines. Same exit codes.`)
     .action(async (opts) => {
@@ -92,8 +92,8 @@ export function registerDrillCommand(program: Command): void {
 
         if (aspect.reviewer.type === 'aggregate') {
           fail({
-              what: `aspect '${aspect.id}' is an aggregate (no rule source), so it has no reviewer to drill.`,
-              why: `yg drill re-runs a deterministic check.mjs or a content.md reviewer rule over a case corpus; an aggregate only bundles other aspects.`,
+              what: `aspect '${aspect.id}' is a bundle (no rule source), so it has nothing to drill.`,
+              why: `yg drill re-runs a script rule's check.mjs or a reviewer rule's content.md over a case corpus; a bundle only groups other aspects.`,
               next: `yg drill --aspect ${aspect.implies?.[0] ?? '<one of the rules it implies>'}  (drill one of the rules it bundles instead)`,
             });
           process.exit(1);

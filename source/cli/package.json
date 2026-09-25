@@ -30,7 +30,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.check.json",
     "typecheck:e2e": "tsc -p tests/portal-e2e/tsconfig.json",
-    "golden:update": "YG_GOLDEN_UPDATE=1 vitest run tests/e2e/cli-golden-corpus.test.ts"
+    "golden:update": "YG_GOLDEN_UPDATE=1 vitest run tests/e2e/cli-golden-corpus.test.ts",
+    "glossary:update": "YG_GLOSSARY_UPDATE=1 vitest run tests/unit/repo/glossary-sync.test.ts"
   },
   "keywords": [
     "yggdrasil",

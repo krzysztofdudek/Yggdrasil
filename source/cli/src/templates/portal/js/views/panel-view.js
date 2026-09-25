@@ -4,7 +4,7 @@
  * Turns an opaque checkmark into a citable attestation (§3.2, §3a SHELL-panel). Co-present
  * with any view on node selection, it shows: identity (type + description + mapped globs +
  * mapping-entry count + the real source-file count those entries resolve to); the
- * effective-aspects table (per row: aspect, reviewer kind +
+ * effective-aspects table (per row: aspect, rule kind +
  * tier/consensus, cost, status, the channel-provenance, the honest verdict state, and the
  * folded input set behind a VERIFIED green / the reason behind a REFUSED); relations BOTH
  * directions; the when-filtered-OUT (not-applicable) set as its own list; the per-node log
@@ -31,10 +31,10 @@
     return s;
   }
 
-  /** A plain-language sentence for an aspect's reviewer kind / tier / consensus / cost. */
+  /** A plain-language sentence for an aspect's rule kind / tier / consensus / cost. */
   function kindPlain(a) {
     if (a.kind === 'llm') {
-      var s = 'An AI reviewer';
+      var s = 'The reviewer (an AI model)';
       if (a.tier) s += ' on the “' + a.tier + '” tier';
       if (a.consensus) s += ', voting ' + a.consensus + '×,';
       s += ' judges this rule';
@@ -42,7 +42,7 @@
       return s;
     }
     if (a.kind === 'aggregate') return 'A bundle that groups other rules — it judges nothing of its own.';
-    return 'A free local script checks this rule mechanically — no AI, no cost.';
+    return 'A script rule: a free local script checks it mechanically — no AI, no cost.';
   }
 
   function aspectRow(a, nav) {
@@ -59,10 +59,10 @@
 
     var kindLabel =
       a.kind === 'llm'
-        ? 'LLM' + (a.tier ? ' · ' + a.tier + ' tier' : '') + (a.consensus ? ' · ' + a.consensus + ' opinion' : '') + ' · ' + (a.cost === 'billed' ? 'billed' : 'free')
+        ? 'reviewer rule' + (a.tier ? ' · ' + a.tier + ' tier' : '') + (a.consensus ? ' · ' + a.consensus + ' opinion' : '') + ' · ' + (a.cost === 'billed' ? 'billed' : 'free')
         : a.kind === 'aggregate'
-          ? 'aggregating · judges nothing'
-          : 'deterministic · free';
+          ? 'bundle · no verdict of its own'
+          : 'script rule · free';
     // Plain-language tooltip so the dense kind / tier / cost vocabulary is legible to a non-expert.
     var badge = dom.el('span', 'pan-badge pan-badge-' + a.kind, kindLabel);
     badge.setAttribute('title', kindPlain(a));
@@ -72,7 +72,7 @@
     // the verdict; this one is whether a verdict blocks at all). Status is populated for every
     // effective-aspect row (including indirectly-attached ones), so this never renders blank.
     var statusChip = dom.el('span', 'pan-status pan-status-' + a.status, a.status);
-    statusChip.setAttribute('title', 'Enforcement level: ' + a.status);
+    statusChip.setAttribute('title', 'Status: ' + a.status);
     row.appendChild(statusChip);
     // The provenance / attach channel, with a plain definition (own / ancestor / type / flow / …).
     var chanId = CHANNELS[a.channel] || a.origin || '';
@@ -99,7 +99,7 @@
       }
       // The tier/secrets-overlay caveat is about the LLM reviewer's tier ONLY.
       // A deterministic check has no tier/reviewer, so the note is irrelevant
-      // (and misleading) there — gate it to LLM aspects.
+      // (and misleading) there — gate it to reviewer rules.
       if (a.kind === 'llm') {
         drill.appendChild(dom.el('div', 'pan-caveat', 'Tier config may be locally overridden via a secrets overlay; only the tier name is hashed. Shown values come from committed config only.'));
       }

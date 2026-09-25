@@ -166,7 +166,7 @@ function renderTotals(t: FillOutcomeTotals): string {
     : t.skippedOutsideLlmPairs > 0 ? 'next: yg check --full --approve  (reviews the pairs outside this change)\n' : '';
   if (done === 0 && skipped.length === 0) return '';
   const took = t.elapsedMs !== undefined ? ` in ${formatElapsed(t.elapsedMs)}` : '';
-  const line = `${FILL}done${took} — ${approved} approved · ${refused} refused · ${failed} failed · ${count(t.reviewerCallsMade, 'reviewer call')}${usageWords(t)}`;
+  const line = `${FILL}done${took} — ${approved} passed · ${refused} refused · ${failed} failed · ${count(t.reviewerCallsMade, 'reviewer call')}${usageWords(t)}`;
   return `${line}${skipped.length > 0 ? ` · ${skipped.join(' · ')}` : ''}\n${step}`;
 }
 
@@ -198,7 +198,7 @@ export function renderFillEvent(e: FillEvent): string {
       if (e.verdict === 'approved' && e.votes === undefined) return '';
       // The votes that decided it: satisfied votes for an approval, the
       // others for a refusal.
-      return `${FILL}${e.verdict === 'infra' ? 'not judged' : e.verdict}${
+      return `${FILL}${e.verdict === 'infra' ? 'not judged' : e.verdict === 'approved' ? 'passed' : e.verdict}${
         e.votes !== undefined ? ` by ${e.verdict === 'approved' ? e.votes.satisfied : e.votes.total - e.votes.satisfied} of ${e.votes.total} votes` : ''
       }  ${pairName(e.aspectId, e.unitKey)}\n`;
     case 'milestone':

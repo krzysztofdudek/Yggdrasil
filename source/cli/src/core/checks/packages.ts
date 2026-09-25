@@ -145,7 +145,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
     issues.push(
       issue({
         what: `${repoRelativePackagePath(filePath)} sits among the installed packages, but no installed package put it there.`,
-        why: `Everything under .yggdrasil/aspects/packages/ is a copy of law published elsewhere, recorded file by file in .yggdrasil/${PACKAGES_LOCK_FILENAME}. A file that is not in that record is a rule nobody chose, wearing a package's name.`,
+        why: `Everything under .yggdrasil/aspects/packages/ is a copy of rules published elsewhere, recorded file by file in .yggdrasil/${PACKAGES_LOCK_FILENAME}. A file that is not in that record is a rule nobody chose, wearing a package's name.`,
         next: `Delete ${repoRelativePackagePath(filePath)}. The directory .yggdrasil/aspects/packages/ is reserved for installed packages: to add a rule of your own, put it in .yggdrasil/aspects/ outside packages/; to change one you installed, edit its ${ADAPT_FILENAME}.`,
       }),
     );
@@ -165,7 +165,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
       issues.push(
         issue({
           what: `${repoRelativePackagePath(filePath)} is missing — the package '${packageName}' installed it and it is no longer there.`,
-          why: 'The package is recorded as installed, so this file is part of the law this repository is running. A rule with a piece missing does not fail loudly; it stops applying.',
+          why: 'The package is recorded as installed, so this file is part of the rules this repository is running. A rule with a piece missing does not fail loudly; it stops applying.',
           next: `Restore the copy as it was installed: yg pack update ${packageName} --reinstall. To stop using the package entirely, run: yg pack remove ${packageName}`,
         }),
       );

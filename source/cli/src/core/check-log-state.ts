@@ -240,7 +240,7 @@ function classifyOpenLogCycle(
     messageData: {
       what: `The log requirement on node '${p}' is not measuring changes: its source moved past the last recorded baseline, and its newest entry keeps answering for every edit since.`,
       why: `Node type '${node.meta.type}' has log_required: true, but only a full \`yg check --approve\` records a new baseline once every rule on the node holds a verdict; \`--only-deterministic\` never writes it. Until one runs, a later unexplained edit is not asked for a new entry.`,
-      next: 'yg check --approve (a full run: it records the baseline, and needs a reviewer only if the project has judgment rules)',
+      next: 'yg check --approve (a full run: it records the baseline, and needs a reviewer only if the project has reviewer rules)',
     },
     nodePath,
   });

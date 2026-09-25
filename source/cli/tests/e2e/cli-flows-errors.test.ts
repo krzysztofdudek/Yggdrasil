@@ -511,7 +511,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       expect(batch.status).toBe(1);
       // One node passed, one failed — failures do not abort the clean node. The
       // closing fill line counts both outcomes.
-      expect(batch.stderr).toMatch(/fill {2}done in \S+ — 2 approved · 1 refused · 0 failed/);
+      expect(batch.stderr).toMatch(/fill {2}done in \S+ — 2 passed · 1 refused · 0 failed/);
       // The refusal renders as an enforced finding (error[refused]) naming the
       // violating node.
       expect(batch.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');

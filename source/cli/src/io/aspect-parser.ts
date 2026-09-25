@@ -145,9 +145,9 @@ function parseReferences(
         code: 'aspect-references-on-deterministic',
         messageData: {
           what: `Aspect '${aspectId}' declares 'references:' but reviewer.type is 'deterministic'.`,
-          why: 'reference files are passed to the LLM reviewer in the prompt. Deterministic aspects run a local check.mjs and ignore them.',
+          why: 'reference files are passed to the reviewer in the prompt. A script rule runs a local check.mjs and ignores them.',
           next: packageAdaptPath !== undefined
-            ? `remove 'references:' from ${toPosixPath(packageAdaptPath)} — the adaptation beside the installed copy. A deterministic rule takes its settings through ctx.config instead; the package's own files are not yours to edit.`
+            ? `remove 'references:' from ${toPosixPath(packageAdaptPath)} — the adaptation beside the installed copy. A script rule takes its settings through ctx.config instead; the package's own files are not yours to edit.`
             : `remove 'references:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or embed lookup tables in check.mjs directly, or change reviewer.type to 'llm'.`,
         },
       }],
@@ -160,11 +160,11 @@ function parseReferences(
       errors: [{
         code: 'aspect-references-on-aggregate',
         messageData: {
-          what: `Aspect '${aspectId}' declares 'references:' but it is an aggregating aspect (no content.md, no check.mjs).`,
-          why: 'reference files are passed to the LLM reviewer in the prompt. An aggregating aspect has no own reviewer — it only bundles implied aspects, so references would never be read.',
+          what: `Aspect '${aspectId}' declares 'references:' but it is a bundle (no content.md, no check.mjs).`,
+          why: 'reference files are passed to the reviewer in the prompt. A bundle has no reviewer of its own — it only groups implied aspects, so references would never be read.',
           next: packageAdaptPath !== undefined
             ? `remove 'references:' from ${toPosixPath(packageAdaptPath)} — the adaptation beside the installed copy. A rule that only bundles others has no reviewer to read them.`
-            : `remove 'references:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add a content.md and move the references onto that LLM aspect.`,
+            : `remove 'references:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add a content.md and move the references onto that reviewer rule.`,
         },
       }],
     };
@@ -839,8 +839,8 @@ function parseReviewer(
         code: 'aspect-reviewer-missing',
         messageData: {
           what: `aspect '${aspectId}' has no reviewer: block and no rule source to infer one from`,
-          why: 'an aspect must ship content.md (llm), check.mjs (deterministic), or declare implies (aggregating bundle); otherwise it does nothing',
-          next: 'add `reviewer:\\n  type: llm` with a content.md, add a check.mjs, or add `implies:` to make this an aggregating aspect',
+          why: 'an aspect must ship content.md (reviewer rule), check.mjs (script rule), or declare implies (bundle); otherwise it does nothing',
+          next: 'add `reviewer:\\n  type: llm` with a content.md, add a check.mjs, or add `implies:` to make this a bundle',
         },
       }],
     };
@@ -870,7 +870,7 @@ function parseReviewer(
       code: 'aspect-reviewer-type-missing',
       messageData: {
         what: `aspect '${aspectId}' has reviewer: mapping without type:`,
-        why: 'type: distinguishes LLM and deterministic aspects',
+        why: 'type: distinguishes reviewer rules (llm) from script rules (deterministic)',
         next: 'add `type: llm` or `type: deterministic` under reviewer:',
       },
     });
@@ -933,8 +933,8 @@ function parseReviewer(
           messageData: {
             what: `aspect '${aspectId}' has reviewer.type: ${type} together with reviewer.tier: '${obj.tier}'`,
             why: type === 'deterministic'
-              ? 'Deterministic aspects run locally without an LLM; tiers do not apply'
-              : 'Aggregate aspects have no own reviewer; a tier does not apply',
+              ? 'Script rules run locally without a reviewer; tiers do not apply'
+              : 'A bundle has no reviewer of its own; a tier does not apply',
             next: 'remove tier: from the aspect',
           },
         }],
@@ -972,9 +972,9 @@ function parseScope(
       errors: [{
         code: 'aspect-scope-on-aggregate',
         messageData: {
-          what: `Aspect '${aspectId}' declares 'scope:' but it is an aggregating aspect (no content.md, no check.mjs).`,
-          why: 'Aggregating aspects have no own rule source and produce no own verdict — scope controls review granularity for a rule source, so it has no meaning here.',
-          next: `Remove 'scope:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add content.md / check.mjs to make this a non-aggregating aspect.`,
+          what: `Aspect '${aspectId}' declares 'scope:' but it is a bundle (no content.md, no check.mjs).`,
+          why: 'A bundle has no rule source and no verdict of its own — scope controls review granularity for a rule source, so it has no meaning here.',
+          next: `Remove 'scope:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add content.md / check.mjs to make this a reviewer rule or a script rule.`,
         },
       }],
     };

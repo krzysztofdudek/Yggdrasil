@@ -508,11 +508,11 @@ export function describeTypeVisibilityReason(reason: TypeVisibilityReason): stri
   switch (reason) {
     case 'when-not-satisfied': return 'its attach condition (when:) was not satisfied on this file';
     case 'draft': return 'the rule is still draft (reviewer skipped)';
-    case 'whole-unit-rule': return 'it is whole-unit (per: node) and this file has no component to run it on';
+    case 'whole-unit-rule': return 'it is a per: node rule and this file has no component to run it on';
     case 'scope.files-excluded': return "excluded by the rule's own scope.files filter";
     case 'aspect-undefined': return 'the architecture attaches an aspect id with no matching aspect definition';
     case 'unreadable': return 'the file could not be read, so it cannot be reviewed';
-    case 'binary-subject': return 'a binary file cannot be reviewed by a prose rule';
+    case 'binary-subject': return 'a binary file cannot be reviewed by a reviewer rule';
     case 'read-beyond-architecture': return "it tried to read a file outside what the architecture allows this file's type to depend on";
     case 'node-context-required': return 'it needs component context (ctx.node / ctx.graph) that a type-covered file does not have';
     case 'companion-context-failed': return 'its companion could not resolve a dependency for this file';

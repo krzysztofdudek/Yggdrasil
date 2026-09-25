@@ -18,8 +18,8 @@ export function selectTierForAspect(
     return {
       ok: false,
       error: {
-        what: `Internal error: tried to resolve a reviewer tier for non-LLM aspect '${aspect.id}'.`,
-        why: 'This indicates an internal bug — a deterministic aspect should never need a reviewer tier.',
+        what: `Internal error: tried to resolve a reviewer tier for aspect '${aspect.id}', which is not a reviewer rule.`,
+        why: 'This indicates an internal bug — a script rule should never need a reviewer tier.',
         next: 'Re-run yg check; if it persists, report it.',
       },
     };
@@ -31,7 +31,7 @@ export function selectTierForAspect(
       ok: false,
       error: {
         what: 'reviewer.tiers is empty',
-        why: 'at least one tier must be configured for LLM aspects to run',
+        why: 'at least one tier must be configured for reviewer rules to run',
         next: 'add a tier under reviewer.tiers in yg-config.yaml',
       },
     };

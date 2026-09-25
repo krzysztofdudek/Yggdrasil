@@ -8,6 +8,7 @@ Nodes in the approval call chain — engines, CLI orchestrators, and shared help
 - Code in this node must not write raw LLM response text to any sink before the LLM provider has applied its redaction. The redacted form (e.g. `[REDACTED]`) may be logged.
 - If the node passes prompt or response data to another function, it must do so without locally caching or inspecting the content beyond what is needed for its immediate orchestration purpose.
 - Exception: code that constructs the prompt for debugging purposes (e.g. `--dry-run` mode) may return the prompt to the CLI layer for output, but must not write it to persistent storage.
+- Not covered: copying repository source into the repository's own drill corpus (`yg drill add` writing a past version of a file as a case). That writes the adopter's code back into the adopter's repository as a test fixture; it captures no reviewer prompt and no reviewer response. The rule still applies if such code writes a built prompt or a response.
 
 ## Rationale
 

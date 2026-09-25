@@ -233,18 +233,18 @@ export function registerAspectTestCommand(program: Command): void {
   program
     .command('aspect-test')
     .description(
-      'Run an aspect check without modifying the lock — against a graph node (--node), a file enforced by its architecture ' +
-      'type alone (--file, no owning component), or ad-hoc files (--files, no graph attachment at all). ' +
+      'Run an aspect check without modifying the lock — against a graph node (--node), a type-covered ' +
+      'file (--file, no owning component), or ad-hoc files (--files, no graph attachment at all). ' +
       'For reviewer rules, --dry-run prints the assembled prompts without making any reviewer call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
     .requiredOption('--aspect <id>', 'aspect id to run')
     .option('--node <path>', 'graph node to check (uses the node mapping and graph-aware ctx)')
-    .option('--file <path>', 'source file enforced by its architecture type alone, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
-    .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; NO graph attachment — see --file for a graph-attached, type-covered file)')
-    .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
+    .option('--file <path>', 'a type-covered source file, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
+    .option('--files <paths...>', 'ad-hoc source files to check (script rules only; NO graph attachment — see --file for a graph-attached, type-covered file)')
+    .option('--check-determinism', 'run the check twice and fail if results differ (script rules only)')
     .option('--dry-run', 'for reviewer rules: print the assembled prompts to stdout, make no reviewer call (companion hook runs live)')
-    .option('--repeat <n>', 'for reviewer rules: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
+    .option('--repeat <n>', 'for reviewer rules: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or script rules')
     .option('--tier <name>', 'run the same pairs under a named reviewer tier from the merged config (dry-fit before a model swap); diagnostic — no graph edits, no lock writes')
     .action(async (opts) => {
       const projectRoot = process.cwd();
@@ -275,7 +275,7 @@ export function registerAspectTestCommand(program: Command): void {
         if ([hasNode, hasFile, hasFiles].filter(Boolean).length > 1) {
           fail({
               what: `More than one of --node, --file, --files was provided.`,
-              why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
+              why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
               next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
             });
           process.exit(1);
@@ -296,7 +296,7 @@ export function registerAspectTestCommand(program: Command): void {
             fail({
                 what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
                 why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
-                next: `Pass --repeat 2 (or higher) with an reviewer rule and --node.`,
+                next: `Pass --repeat 2 (or higher) with a reviewer rule and --node.`,
               });
             process.exit(1);
             return;
@@ -313,17 +313,17 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFiles) {
             fail({
                 what: `--repeat cannot be combined with --files.`,
-                why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a deterministic check that returns the same result every time.`,
-                next: `Use --repeat with an reviewer rule and --node <node-path>.`,
+                why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a script rule, which returns the same result every time.`,
+                next: `Use --repeat with a reviewer rule and --node <node-path>.`,
               });
             process.exit(1);
             return;
           }
           if (aspect.reviewer.type !== 'llm') {
             fail({
-                what: `--repeat is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
-                why: `A deterministic check is exactly reproducible — repeating it measures nothing. --repeat measures how consistently an reviewer judges the same prompt.`,
-                next: `Run --repeat against an reviewer rule (content.md), or use --check-determinism to re-run a deterministic aspect.`,
+                what: `--repeat is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
+                why: `A script rule is exactly reproducible — repeating it measures nothing. --repeat measures how consistently a reviewer judges the same prompt.`,
+                next: `Run --repeat against a reviewer rule (content.md), or use --check-determinism to re-run a script rule.`,
               });
             process.exit(1);
             return;
@@ -344,17 +344,17 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFiles) {
             fail({
                 what: `--tier cannot be combined with --files.`,
-                why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a deterministic check with no tier.`,
-                next: `Use --tier with an reviewer rule and --node <node-path>.`,
+                why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a script rule with no tier.`,
+                next: `Use --tier with a reviewer rule and --node <node-path>.`,
               });
             process.exit(1);
             return;
           }
           if (aspect.reviewer.type !== 'llm') {
             fail({
-                what: `--tier is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
-                why: `A deterministic check runs locally with no reviewer tier — there is no tier to swap. --tier re-runs an reviewer rule under a named reviewer tier.`,
-                next: `Run --tier against an reviewer rule (content.md) with --node, or drop --tier for a deterministic aspect.`,
+                what: `--tier is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
+                why: `A script rule runs locally with no reviewer tier — there is no tier to swap. --tier re-runs a reviewer rule under a named reviewer tier.`,
+                next: `Run --tier against a reviewer rule (content.md) with --node, or drop --tier for a script rule.`,
               });
             process.exit(1);
             return;
@@ -368,7 +368,7 @@ export function registerAspectTestCommand(program: Command): void {
             fail({
                 what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
                 why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
-                next: `Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.`,
+                next: `Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.`,
               });
             process.exit(1);
             return;
@@ -376,8 +376,8 @@ export function registerAspectTestCommand(program: Command): void {
           if (!hasNode && !hasFile) {
             fail({
                 what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
-                why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone), or --files (ad-hoc, deterministic only).`,
-                next: `Pass --node <node-path> or --file <path> to run an reviewer rule.`,
+                why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file), or --files (ad-hoc, script rules only).`,
+                next: `Pass --node <node-path> or --file <path> to run a reviewer rule.`,
               });
             process.exit(1);
             return;
@@ -419,7 +419,7 @@ export function registerAspectTestCommand(program: Command): void {
         if (aspect.reviewer.type !== 'deterministic') {
           fail({
               what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
-              why: `yg aspect-test supports deterministic aspects (check.mjs) and reviewer rules (content.md).`,
+              why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
               next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
             });
           process.exit(1);
@@ -429,9 +429,9 @@ export function registerAspectTestCommand(program: Command): void {
         // --dry-run on a deterministic aspect is not meaningful.
         if (opts.dryRun) {
           fail({
-              what: `--dry-run is not supported for deterministic aspect '${opts.aspect}'.`,
-              why: `Deterministic checks run locally without any provider calls — there is no prompt to print.`,
-              next: `Remove --dry-run to run the deterministic check, or use --node / --files as normal.`,
+              what: `--dry-run is not supported for script rule '${opts.aspect}'.`,
+              why: `Script rules run locally without any provider calls — there is no prompt to print.`,
+              next: `Remove --dry-run to run the script rule, or use --node / --files as normal.`,
             });
           process.exit(1);
           return;
@@ -442,7 +442,7 @@ export function registerAspectTestCommand(program: Command): void {
               what: [hasNode, hasFile, hasFiles].filter(Boolean).length > 1
                 ? `More than one of --node, --file, --files was provided.`
                 : `None of --node, --file, --files was provided.`,
-              why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment).`,
+              why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment).`,
               next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
             });
           process.exit(1);
@@ -821,7 +821,7 @@ async function resolveAspectTestFileTarget(
       kind: 'refused',
       messageData: {
         what: `'${repoRelative}' has a component of its own: '${ownerResult.nodePath}'.`,
-        why: `--file addresses a file enforced by its architecture type alone, with no owning component — this path already has one.`,
+        why: `--file addresses a type-covered file, with no owning component — this path already has one.`,
         next: `yg aspect-test --aspect ${aspectId} --node ${ownerResult.nodePath}`,
       },
     };
@@ -1298,7 +1298,7 @@ function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2
   const sorted1 = [...run1].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
   const sorted2 = [...run2].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
   fail({
-      what: `Deterministic aspect '${aspectId}' produced non-deterministic results.`,
+      what: `Script rule '${aspectId}' produced non-deterministic results.`,
       why: `Two consecutive runs returned different violations. This indicates the check.mjs has side effects or depends on non-deterministic state.`,
       next: `Review check.mjs to ensure it depends only on its inputs and produces stable output.`,
     });

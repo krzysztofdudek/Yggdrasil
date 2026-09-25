@@ -122,7 +122,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(unseen.status).toBe(0);
-      expect(readFileSync(logPath(dir), 'utf-8')).toContain('Status: an unrecorded standing → enforced');
+      expect(readFileSync(logPath(dir), 'utf-8')).toContain('Status: an unrecorded status → enforced');
       rmSync(logPath(dir));
 
       // From here on the tool has a memory of where every rule stood.
@@ -180,7 +180,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(notAStanding.status).toBe(1);
-      expect(notAStanding.stderr).toContain('not a standing a rule can have');
+      expect(notAStanding.stderr).toContain('not a status a rule can have');
 
       // Not one of them wrote anything.
       expect(existsSync(logPath(dir))).toBe(false);

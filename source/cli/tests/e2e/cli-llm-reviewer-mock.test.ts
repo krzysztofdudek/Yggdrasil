@@ -92,7 +92,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       pointReviewer(dir, mock.endpoint);
       const r = await runAsync(['check', '--approve'], dir);
       expect(r.status).toBe(1);
-      expect(r.all).toMatch(/^fill {2}done in .* — 4 approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(r.all).toMatch(/^fill {2}done in .* — 4 passed · 2 refused · 0 failed · 2 reviewer calls/m);
       expect(r.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
       expect(mock.chatCount()).toBe(2);
 
@@ -169,7 +169,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       expect(mock.chatCount()).toBe(6);
       expect(r.status).toBe(0);
       // A split consensus is named per pair on the fill's progress stream.
-      expect(r.all).toContain('fill  approved by 2 of 3 votes  has-doc-comment @ services/orders');
+      expect(r.all).toContain('fill  passed by 2 of 3 votes  has-doc-comment @ services/orders');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -243,7 +243,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       expect(r.status).toBe(0);
       // The remaining deterministic aspects still fill — only the LLM aspect is dormant.
       expect(r.all).toMatch(/^fill {2}4 pairs · 4 script \(free\) · 0 reviewer calls$/m);
-      expect(r.all).toMatch(/^fill {2}done in .* — 4 approved · 0 refused · 0 failed · 0 reviewer calls$/m);
+      expect(r.all).toMatch(/^fill {2}done in .* — 4 passed · 0 refused · 0 failed · 0 reviewer calls$/m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

@@ -49,7 +49,7 @@ Positive closure is the moment a \`yg check --approve\` run ends with every
 ENFORCED pair of the node SETTLED. At closure the lock records the node's source
 fingerprint and the log freshness baseline.
 
-A pair is settled when it was approved this run — deterministic and LLM
+A pair is settled when it passed this run — script rules and reviewer rules
 uniformly — or when the run was deliberately told not to buy it. The second case
 arises only under progressive mode: a run measured against a change leaves the
 reviewer work the change is not accountable for, and those pairs stay unverified.
@@ -58,7 +58,7 @@ would let ONE entry answer for every later edit, including edits nobody describe
 
 Corollaries:
 - Advisory refusals do NOT prevent closure.
-- A node with only advisory/deterministic aspects, or no pairs at all, closes
+- A node with only advisory aspects or script rules, or no pairs at all, closes
   vacuously — BUT only once the log requirement is satisfied: a \`log_required\`
   node whose source changed with no fresh entry does not close, and \`yg check\`
   flags it red regardless of its (lack of) pairs.
@@ -71,7 +71,7 @@ Corollaries:
 - Only a run that writes the COMMITTED files can close a cycle at all.
   \`yg check --approve --only-deterministic\` writes just the gitignored cache, so
   it records no closure, for any node, on any project. Where that free gate is a
-  project's ONLY recording run, no cycle ever ends: the node's newest entry keeps
+  project's ONLY fill, no cycle ever ends: the node's newest entry keeps
   satisfying the requirement for every later source change, and a second entry is
   never asked for. Nothing about progressive mode causes this and turning the mode
   off does not change it — but it is worth knowing when a pipeline leans on the
@@ -80,8 +80,8 @@ Corollaries:
 - A node that closes with an unbought pair records a fingerprint that attests
   something correspondingly narrower: every enforced rule the run was ASKED to
   settle saw these bytes — not that every rule on the node did. A node with four
-  approved rules and one unbought one did have its source read, for those four.
-  Only at the extreme — every reviewer-judged rule on the node outside every
+  passed rules and one unbought one did have its source read, for those four.
+  Only at the extreme — every reviewer rule on the node outside every
   change so far — does the fingerprint stand for source no reviewer has read. In
   every one of these cases the unbought rules stay unverified and are still
   reported as such, so nothing about the node reads as green.

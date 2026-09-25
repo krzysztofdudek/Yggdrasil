@@ -1,44 +1,46 @@
-export const summary = 'Aspect definition — reviewer kind, scope, status, review_by, errs, implies, references, companion, when.';
+export const summary = 'Aspect definition — rule kind, scope, status, review_by, errs, implies, references, companion, when.';
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file
-# plus any number of .md content files (for LLM aspects) or a check.mjs
-# (for deterministic aspects).
+# plus any number of .md content files (for reviewer rules) or a check.mjs
+# (for script rules).
 #
 # Aspect identifier = relative path from aspects/ to the directory
 # (e.g. observability/logging). Aspects can be organized in nested
 # directories — the directory structure is for organization only,
 # there is no automatic parent-child inheritance between aspects.
 #
-# The .md content files are what the reviewer checks against source code.
+# The .md content files are what the reviewer checks against source code
+# (for a reviewer rule).
 # They should state WHAT must be satisfied and WHY.
 
 name: CrossCuttingRequirementName  # required — display name
 description: "Short description"   # required — shown in yg aspects output and context packages.
                                    # Validator emits description-missing if absent.
 
-# reviewer:                        # OPTIONAL — reviewer kind is inferred from rule-file presence:
+# reviewer:                        # OPTIONAL — the rule kind is inferred from rule-file presence
+                                   # (reviewer.type value in brackets):
                                    #
-                                   #   content.md present          → llm
-                                   #   check.mjs present           → deterministic
-                                   #   neither + implies declared  → aggregate
+                                   #   content.md present          → reviewer rule (llm)
+                                   #   check.mjs present           → script rule (deterministic)
+                                   #   neither + implies declared  → bundle (aggregate)
                                    #
                                    # The reviewer: block is only required when you need to declare
-                                   # reviewer.tier: for an LLM aspect. When present, an explicit
+                                   # reviewer.tier: for a reviewer rule. When present, an explicit
                                    # reviewer.type must agree with the inferred kind (validator
                                    # error otherwise).
                                    #
-                                   # Three kinds:
-                                   #   llm           — aspect ships content.md; an LLM reads it and
-                                   #                   judges the code against the rule.
-                                   #   deterministic — aspect ships check.mjs; the runner executes it
+                                   # Three rule kinds (reviewer.type value first):
+                                   #   llm           — reviewer rule: ships content.md; the reviewer
+                                   #                   reads it and judges the code against the rule.
+                                   #   deterministic — script rule: ships check.mjs; the runner executes it
                                    #                   locally with graph-aware ctx (files, fs, graph,
                                    #                   parsers). Language-agnostic. No LLM call, zero
                                    #                   token cost.
-                                   #   aggregate     — aspect ships neither rule source but declares
-                                   #                   implies:. A named bundle — expands its implied
+                                   #   aggregate     — bundle: ships neither rule source but declares
+                                   #                   implies:. Expands its implied
                                    #                   aspects onto every node where effective. Has no
-                                   #                   own reviewer and produces no own verdict. An
+                                   #                   reviewer and produces no verdict of its own. An
                                    #                   aspect with no rule source, no implies:, and no
                                    #                   reviewer: block is rejected as
                                    #                   aspect-reviewer-missing.
@@ -53,9 +55,9 @@ description: "Short description"   # required — shown in yg aspects output and
 
 status: enforced                   # optional — aspect-level default. enum: draft | advisory | enforced.
                                    # Absent → 'enforced'.
-                                   # draft     = reviewer skipped, no verdict, no baseline, no drift.
-                                   # advisory  = reviewer runs; refused → warning (no block).
-                                   # enforced  = reviewer runs; refused → error (blocks check).
+                                   # draft     = rule skipped, no verdict, no baseline, no drift.
+                                   # advisory  = rule runs; refused → warning (no block).
+                                   # enforced  = rule runs; refused → error (blocks check).
                                    # This is only the aspect-level default. The effective status on a
                                    # node is max() across cascading channels 1–6; channel 7 (implies)
                                    # carries status_inherit instead. Downgrade attempts are validator
@@ -68,14 +70,14 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # yg check --full blocks on it again. With no such key — the
                                    # default — enforced blocks everywhere, as above.
 
-# review_by: 2027-01-15            # optional — a standing review-by date (bare ISO
+# review_by: 2027-01-15            # optional — a review-by date (bare ISO
                                    # calendar date YYYY-MM-DD). It is the constitution's
                                    # request to re-examine whether this rule still earns
                                    # its place by that day.
-                                   # Valid on ANY aspect kind (llm | deterministic |
-                                   # aggregate) and independent of status — review cadence
+                                   # Valid on ANY rule kind (reviewer rule, script rule,
+                                   # bundle) and independent of status — review cadence
                                    # is about the rule's continued relevance, not its
-                                   # reviewer kind or enforcement level.
+                                   # rule kind or status.
                                    # When present it must be a real calendar date
                                    # (2027-02-30 / 2027-13-01 are rejected); a malformed
                                    # value is a blocking error (aspect-review-by-malformed),
@@ -88,9 +90,9 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # changing review_by re-verifies nothing. Absent →
                                    # undefined (no review-cadence tracking).
 
-# errs: under                      # optional — the error-direction of a DETERMINISTIC check.
-                                   # enum: over | under | exact. Legal ONLY on deterministic aspects
-                                   # (declaring errs on an llm/aggregate aspect is a validator error).
+# errs: under                      # optional — the error-direction of a SCRIPT rule's check.
+                                   # enum: over | under | exact. Legal ONLY on script rules
+                                   # (declaring errs on a reviewer rule or a bundle is a validator error).
                                    # Absent → undefined.
                                    #   over  = the check may flag code the rule does not forbid
                                    #           (false positives possible).
@@ -164,8 +166,8 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #       - relations: { calls: { target_type: service-client } }
                                    #       - descendants: { relations: { calls: { target_type: service-client } } }
 
-# scope:                            # optional — controls review granularity (applies to both LLM
-                                   # and deterministic aspects). Forbidden on aggregate aspects.
+# scope:                            # optional — controls review granularity (applies to both reviewer
+                                   # rules and script rules). Forbidden on bundles.
                                    # Absent → equivalent to { per: node }.
                                    #
                                    # Fields:
@@ -173,11 +175,11 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #     writing scope: with no per: is aspect-scope-invalid. The
                                    #     'node' default applies only when scope: is absent entirely.
                                    #     node — one review over the whole subject set.
-                                   #            LLM: one prompt with all subject files.
-                                   #            Deterministic: one check(ctx) invocation; ctx.files = subject set.
+                                   #            Reviewer rule: one prompt with all subject files.
+                                   #            Script rule: one check(ctx) invocation; ctx.files = subject set.
                                    #     file — one review per subject file.
-                                   #            LLM: one prompt per file.
-                                   #            Deterministic: one check(ctx) invocation per file; ctx.files = [file].
+                                   #            Reviewer rule: one prompt per file.
+                                   #            Script rule: one check(ctx) invocation per file; ctx.files = [file].
                                    #            WARNING: per: file is ONLY for file-local rules — a per-file
                                    #            reviewer cannot see sibling files. Rules that need cross-file
                                    #            context (e.g. "correlation ID propagates across calls") must
@@ -220,15 +222,15 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #         - path: "src/**/*.ts"
                                    #         - not: { path: "**/*.test.ts" }
 
-# references:                      # optional — supporting files for the LLM reviewer.
-                                   # LLM ONLY, and that is a design line rather than a gap:
-                                   # a deterministic aspect has no reviewer to put supporting
+# references:                      # optional — supporting files for the reviewer.
+                                   # Reviewer rules ONLY, and that is a design line rather than a gap:
+                                   # a script rule has no reviewer to put supporting
                                    # material in front of, so references: on one is refused
-                                   # (aspect-references-on-deterministic). A deterministic rule
+                                   # (aspect-references-on-deterministic). A script rule
                                    # that needs a value from outside itself takes it through
                                    # ctx.config, where the value it READS becomes part of that
                                    # rule's verdict — something a reference file cannot offer.
-                                   #   Permitted on LLM aspects ONLY (forbidden on deterministic).
+                                   #   Permitted on reviewer rules ONLY (forbidden on script rules).
                                    #   Each entry is a string (shorthand) OR an object { path, description? }.
                                    #
                                    # Example:
@@ -266,23 +268,23 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # rule's yg-aspect.adapt.yaml is how you point it at a resolver
                                    # that does. See yg knowledge / the Packages guide.
 
-# companion.mjs                   # OPTIONAL — per-unit companion file resolver. LLM aspects ONLY.
+# companion.mjs                   # OPTIONAL — per-unit companion file resolver. Reviewer rules ONLY.
                                    # Requires content.md (validator error aspect-companion-without-content
                                    # if companion.mjs is present without content.md). Forbidden alongside
                                    # check.mjs (validator error aspect-companion-with-check). This is an
-                                   # ADD-ON to the LLM reviewer kind, not a new reviewer kind; reviewer
+                                   # ADD-ON to a reviewer rule, not a fourth rule kind; rule
                                    # kind inference is unchanged.
                                    #
                                    # Contract:
                                    #   export function companion(ctx) { ... }  // may be async
                                    #   // Returns Array<{ path: string, label?: string }>
                                    #
-                                   # The hook runs once per unit, BEFORE the LLM call. It selects 0..N
+                                   # The hook runs once per unit, BEFORE the reviewer call. It selects 0..N
                                    # companion files that are injected into the reviewer prompt for that
                                    # unit only (companion files differ per unit; static supporting files
                                    # use references: instead).
                                    #
-                                   # ctx mirrors the deterministic check ctx PLUS:
+                                   # ctx mirrors a script rule's check ctx PLUS:
                                    #   ctx.subject — the unit's subject files. Always File[].
                                    #     scope.per: file → single-element array [file].
                                    #     scope.per: node → the full subject set (same as ctx.files).
@@ -325,14 +327,14 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #     whether the hook resolves any files for a given unit. Editing
                                    #     companion.mjs re-verifies ALL pairs of the aspect.
                                    #   touched: hook's file observations beyond the subject set —
-                                   #     also appears on companion-bearing LLM entries (not only
-                                   #     deterministic entries). The verdict folds every
+                                   #     also appears on companion-bearing reviewer entries (not only
+                                   #     script entries). The verdict folds every
                                    #     out-of-subject file the hook reads to decide, not only
                                    #     the paths it returns — editing any such file re-verifies
                                    #     its readers.
                                    #
                                    # Lock version remains 1 — no schema/format bump.
                                    # yg impact --file <file> previews the precise companion
-                                   # blast radius, including cold companion-LLM pairs (it runs
-                                   # the resolver, no LLM call).
+                                   # blast radius, including cold companion-bearing reviewer pairs (it runs
+                                   # the resolver, no reviewer call).
 `;

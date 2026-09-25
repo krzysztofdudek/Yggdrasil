@@ -28,7 +28,7 @@ Scaffolding is not there to stop you falling. It is there so that the brake does
 
 ## Five minutes to your first enforced rule
 
-Requires Node.js 22+. You can start without an API key: `yg init` offers **"None for now"** as a real answer, and script rules, dependency control and the CI gate all work from there with no key and no model calls. A judgment rule — prose that a model reads — is the one thing that needs a reviewer; the free gate keeps running script rules while it waits for one.
+Requires Node.js 22+. You can start without an API key: `yg init` offers **"None for now"** as a real answer, and script rules, dependency control and the CI gate all work from there with no key and no model calls. A reviewer rule — prose that a model reads — is the one thing that needs a reviewer; the free gate keeps running script rules while it waits for one.
 
 ```bash
 npm install -g @chrisdudek/yg
@@ -37,7 +37,7 @@ yg init
 yg check
 ```
 
-That first check is green, and honest about why:
+That first check is green, and honest about why. (The report speaks the graph's words: in the graph a rule is an *aspect* and a component is a *node*. See the [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary).)
 
 ```text
 yg check: PASS  1 warning   0 nodes · 4/54 files covered (4 excluded)
@@ -56,7 +56,7 @@ warning[uncovered] 50 files belong to no node — not under coverage.required, s
         src/f18.ts
         src/f19.ts
         … +38 more  (yg check --details)
-  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+  why:  Not under a coverage.required root — shown, but it never blocks. Your architecture has no type for this file yet.
   fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
 note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
@@ -70,9 +70,9 @@ So say one thing to your agent:
 
 > "Every service that handles payments must emit audit events. Create a rule for it and apply it to the payments module."
 
-It writes the rule and maps the module. `yg check` now fails, because that rule has never been verified against your code. `yg check --approve` verifies it. From that point the rule holds, and any change that breaks it comes back to the agent as an error before it reaches you.
+It writes the rule and maps the module. `yg check` now fails, because that rule has never been checked against your code. `yg check --approve` runs that check and records the verdict. From that point the rule holds, and any change that breaks it comes back to the agent as an error before it reaches you.
 
-That rule is a judgment rule, so verifying it takes a reviewer. If you answered "None for now", `yg check` says so and names the fix: `yg init --provider <name>` — an agent CLI you already run, such as Claude Code, needs no API key — or `status: draft` on the rule until you pick one.
+That rule is a reviewer rule, so checking it takes a reviewer. If you answered "None for now", `yg check` says so and names the fix: `yg init --provider <name>` — an agent CLI you already run, such as Claude Code, needs no API key — or `status: draft` on the rule until you pick one.
 
 That is the whole loop, and it is the shortest honest path to seeing it.
 
@@ -103,11 +103,11 @@ You reviewed nothing. That is the loop: the agent writes, the check runs, the ag
 
 You attach a rule once and the tool works out everywhere it lands. You never paste it onto each file, and you never hand the agent the whole rulebook.
 
-## Two kinds of rule
+## Three kinds of rule
 
 **Script rules** ship a `check.mjs` that runs locally, every time, at zero cost. Deterministic, and there is no talking past it. This is the layer to lean on, and it is exactly the kind of rule an agent quietly drops when it is only a line in a rules file.
 
-**Judgment rules** are plain Markdown, read by a separate model, for the calls a script genuinely cannot make.
+**Reviewer rules** are plain Markdown, read by a separate model (the reviewer), for the calls a script genuinely cannot make.
 
 ```markdown
 # Audit every payment mutation
@@ -117,9 +117,9 @@ call `auditLog.emit()` before it returns. A mutation with no
 audit event is a refusal.
 ```
 
-Judgment rules are the higher variance layer, so keep those components small and run new rules as advisory before you enforce them. A rule is one kind or the other, never both.
+Reviewer rules are the higher variance layer, so keep those components small and run new rules as advisory before you enforce them. The third kind, a **bundle**, holds no check of its own: it only pulls in other rules, so you can attach a group of them at once. A rule is exactly one kind.
 
-The rest of the vocabulary, components, flows, ports, statuses and the predicate language, is in the [docs](https://krzysztofdudek.github.io/Yggdrasil/). You do not need any of it to get the first finding.
+The rest of the vocabulary, components, flows, ports, statuses and the predicate language, is in the [docs](https://krzysztofdudek.github.io/Yggdrasil/), and every word is defined once in the [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary). You do not need any of it to get the first finding.
 
 ## Turning it on in a codebase that is not clean
 
@@ -133,7 +133,7 @@ progressive:
   reference: origin/main
 ```
 
-Nothing is hidden and no rule is switched off. `yg check --full` answers for the whole project whenever you want the plain picture, and a recording run pays to review the rules your change reached instead of the whole backlog. Leave the key out and nothing changes at all.
+Nothing is hidden and no rule is switched off. `yg check --full` answers for the whole project whenever you want the plain picture, and a fill (`yg check --approve`) pays to review the rules your change reached instead of the whole backlog. Leave the key out and nothing changes at all.
 
 [Progressive mode](https://krzysztofdudek.github.io/Yggdrasil/progressive-mode) has the rest.
 
@@ -222,7 +222,7 @@ The family has exactly two dependency edges, both onto Yggdrasil. **Horde requir
 
 ## The Yggdrasil family
 
-**Three jobs, one core, in layers.** **Yggdrasil** is the law: the architecture graph and the rails that hold every change to it. **[Grain](https://github.com/krzysztofdudek/Grain)** surveys the terrain: it mines that graph from a repository's own code and history, so there is a rule-backed map before anyone writes a rule by hand. **[Horde](https://github.com/krzysztofdudek/Horde)** is the software house that builds on the law: zero standing roles, a worker per ticket and a one-shot architect who rules the whole plan once, each ticket refined onto the graph and given a tick. Adoption runs Grain first — install it day zero for a soft, draft-only law that never blocks — then Yggdrasil as the core you keep long term, hard law with proof and CI. Work too big for one agent has two doors. Horde is the door for a mission held to Yggdrasil's law, and the add-on **[Jarl](https://github.com/krzysztofdudek/JarlSkill)** is the lighter door beside it: an issue loop, a worker per issue and evidence before each merge, with no law and no landing gate. From 6.0.0 the core ships as one version; the add-ons keep their own. In the family, law is raised by whichever agent does the work in its own territory, and only the client — the one person the whole system answers to — lowers or vetoes it. The three core repositories' shared machine contracts are registered on [one page](https://krzysztofdudek.github.io/Yggdrasil/family-contracts).
+**Three jobs, one core, in layers.** **Yggdrasil** is the law. In this family, *the law* means the rules in the graph and the rails that hold every change to them. **[Grain](https://github.com/krzysztofdudek/Grain)** surveys the terrain: it mines that graph from a repository's own code and history, so there is a rule-backed map before anyone writes a rule by hand. **[Horde](https://github.com/krzysztofdudek/Horde)** is the software house that builds on the law: zero standing roles, a worker per ticket and a one-shot architect who rules the whole plan once, each ticket refined onto the graph and given a tick. Adoption runs Grain first — install it day zero for a soft, draft-only law that never blocks — then Yggdrasil as the core you keep long term, hard law with proof and CI. Work too big for one agent has two doors. Horde is the door for a mission held to Yggdrasil's law, and the add-on **[Jarl](https://github.com/krzysztofdudek/JarlSkill)** is the lighter door beside it: an issue loop, a worker per issue and evidence before each merge, with no law and no landing gate. From 6.0.0 the core ships as one version; the add-ons keep their own. In the family, law is raised by whichever agent does the work in its own territory, and only the client — the one person the whole system answers to — lowers or vetoes it. The three core repositories' shared machine contracts are registered on [one page](https://krzysztofdudek.github.io/Yggdrasil/family-contracts).
 
 | Core | What it holds |
 |---|---|

@@ -396,7 +396,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(fill.status).toBe(1);
       // The fill records the refusal and the check renderer surfaces the enforced
       // refusal as a blocking error naming the aspect.
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // The enforced refusal is an error block naming the aspect; its member line
       // names the node, the file:line and the check's own violation message.
       expect(fill.all).toContain('error[refused] graph-name-match — 1 violation in services/orders');
@@ -582,7 +582,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
         dir,
       );
       expect(test.status).toBe(1);
-      expect(test.all).toContain("Deterministic aspect 'flaky' produced non-deterministic results");
+      expect(test.all).toContain("Script rule 'flaky' produced non-deterministic results");
       // The diagnostic dumps both runs' violation sets.
       expect(test.all).toContain('Run 1:');
       expect(test.all).toContain('Run 2:');

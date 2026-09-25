@@ -126,7 +126,7 @@ describe('flag disable/enable GC round-trip for a deterministic virtual entry', 
     // the assertion that tells a real refill apart from a stale entry
     // masquerading as one.
     expect(second.all).toMatch(/^fill {2}1 pair · 1 script \(free\) · 0 reviewer calls$/m);
-    expect(second.all).toMatch(/^fill {2}done in .* — 1 approved · 0 refused · 0 failed/m);
+    expect(second.all).toMatch(/^fill {2}done in .* — 1 passed · 0 refused · 0 failed/m);
 
   });
 });

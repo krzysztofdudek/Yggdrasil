@@ -77,7 +77,7 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       expect(stdout).not.toMatch(/prose-rule \[enforced\]/);
       // Listed under "attached but not enforced", with the real reason.
       expect(stdout).toContain('Attached to this type but not enforced here:');
-      expect(stdout).toMatch(/prose-rule — a binary file cannot be reviewed by a prose rule/);
+      expect(stdout).toMatch(/prose-rule — a binary file cannot be reviewed by a reviewer rule/);
       // The zero-rules statement fires for this file too — a binary subject
       // dropping its only attached rule still leaves it with no applicable
       // rule at all.

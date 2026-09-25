@@ -50,7 +50,7 @@ describe('approval exclusion', () => {
     const err = (b as PromiseRejectedResult).reason as InstanceType<typeof LockEnvironmentError>;
     expect(err).toBeInstanceOf(LockEnvironmentError);
     expect(err.code).toBe('approve-in-progress');
-    expect(err.messageData.what).toMatch(/Another approval is already running/);
+    expect(err.messageData.what).toMatch(/Another fill is already running/);
     expect(err.messageData.next).toMatch(/yg check --approve/);
     expect(readLock(g1.rootPath).verdicts['det-pass']?.['node:svc']?.verdict).toBe('approved');
     expect(existsSync(path.join(g1.rootPath, APPROVE_LOCK_FILE_NAME))).toBe(false);

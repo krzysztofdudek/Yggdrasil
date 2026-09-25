@@ -365,7 +365,7 @@ export function touchedReferencesFile(
 
 export type ImpactReason =
   | 'own'                           // F is in the pair's subject set
-  | 'reference'                     // an LLM aspect references F (hashed into every pair of the aspect)
+  | 'reference'                     // a reviewer rule references F (hashed into every pair of the aspect)
   | 'observe-companion'             // companion-LLM observation references F (warm lock OR cold-resolved)
   | 'observe-deterministic'         // deterministic check observation references F (warm lock)
   | 'cold-potential-deterministic'  // deterministic, no lock entry, F in allowed-reads (free, upper bound)

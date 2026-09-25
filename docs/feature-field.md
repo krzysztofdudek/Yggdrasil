@@ -10,7 +10,7 @@ When you ask for a file's context ([`yg context --file`](/cli-reference#yg-conte
 
 > This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.
 
-For a file with a matched architecture type but no component of its own ([`coverage.type_level`](/configuration#coverage-config)), the wording says so instead:
+For a [type-covered file](/glossary#type-covered) (a matched architecture type but no component of its own, under [`coverage.type_level`](/configuration#coverage-config)), the wording says so instead:
 
 > This file is structurally unusual among this file's matched type's other TypeScript files — worth a closer read; no action required.
 
@@ -20,14 +20,14 @@ That is the whole thing at the file level — no score, no ranking, no breakdown
 
 Yggdrasil keeps a small, rough shape for each file: how big it is, how deeply nested it gets, and how many functions, classes, imports, branches, calls, and literals it holds. A file is flagged only when that shape sits far from the shape of the **other files it is compared against, written in the same language**.
 
-What a file is compared against is normally its own component's other files. With [`coverage.type_level`](/configuration#coverage-config) on, a file with no component of its own but a matched architecture type is compared against its type's other files instead — its own comparison group, never mixed with any component's.
+What a file is compared against is normally its own component's other files. With [`coverage.type_level`](/configuration#coverage-config) on, a type-covered file is compared against its type's other files instead — its own comparison group, never mixed with any component's.
 
 A few honest limits follow from that, and they matter:
 
 - **It is relative, never absolute.** A file is only ever compared with its own group's other files in the same language — a Python file is never measured against a Java one, and a component's files are never measured against a type's. The line means "this file is unlike its neighbours," not "this file is bad." A perfectly good file can be the odd one out; a genuinely messy file surrounded by equally messy siblings will say nothing.
 - **It needs enough neighbours to compare against.** A comparison group needs at least five files of the same language before the hint can fire at all; with fewer than that there is nothing to stand out from, so it stays quiet.
 - **It only ever speaks about files Yggdrasil already governs.** The comparison runs over the repository's coverage-visible, graph-governed files only. A file with no owning component *and* no matched architecture type is left out of it entirely, and if that coverage-visible file list is unavailable on a run, no hint is computed for anything that run. Silence on such a file means "out of scope," not "looks normal" — this is not a coverage signal and never says anything about whether a file is covered, mapped, or correct.
-- **A measure everyone shares can never make you unusual.** A dimension with no spread across the whole comparison group — every file in it the same on that measure — contributes no deviation at all, so a family that is uniform on, say, import count will never flag that measure for anyone.
+- **A measure everyone shares can never make you unusual.** A dimension with no spread across the whole comparison group — every file in it the same on that measure — contributes no deviation at all, so a comparison group that is uniform on, say, import count will never flag that measure for anyone.
 
 Treat the line as an invitation to look, not a verdict. Often the closer read simply confirms the file is fine — that is a normal, expected outcome.
 

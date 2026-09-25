@@ -92,8 +92,8 @@ export function acquireApproveLock(yggRoot: string, nowMs: number): () => void {
       ? `process ${result.holder.pid} on ${result.holder.host}, running '${result.holder.command}' since ${result.holder.startedAt}`
       : 'a process that has not finished recording who it is';
     throw new LockEnvironmentError('approve-in-progress', {
-      what: `Another approval is already running in this repository (${who}).`,
-      why: 'Two approvals running at once each write their own copy of the verdict lock over the other\'s, so the verdicts of one of them would be lost. Nothing was filled or written by this run.',
+      what: `Another fill is already running in this repository (${who}).`,
+      why: 'Two fills running at once each write their own copy of the verdict lock over the other\'s, so the verdicts of one of them would be lost. Nothing was filled or written by this run.',
       next: `Wait for that run to finish, then re-run: yg check --approve. If no such run exists any more, delete ${toPosixPath(path.relative(path.dirname(yggRoot), filePath))} and re-run.`,
     });
   }
@@ -196,7 +196,7 @@ function recoveryNext(ctx: ParseCtx): string {
   }
   return (
     `delete the file and re-run \`yg check --approve --only-deterministic\` to rematerialize it ` +
-    '(free, no LLM cost — deterministic verdicts are a local cache).'
+    '(free, no reviewer cost — script verdicts are a local cache).'
   );
 }
 

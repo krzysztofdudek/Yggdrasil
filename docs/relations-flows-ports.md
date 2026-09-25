@@ -21,7 +21,7 @@ relations:
     type: uses
 ```
 
-There are six relation types, in two families:
+There are six relation types, in two groups:
 
 - **Structural** — `calls`, `uses`, `extends`, `implements`
 - **Event-based** — `emits`, `listens`
@@ -68,7 +68,7 @@ One caveat on declaring the relation: the four structural relation types (`calls
 
 It also never passes over code it could not read. If a language's parser cannot be loaded, every file in that language would contribute zero detected dependencies — which would look exactly like "this file depends on nothing". Rather than go green over unanalyzed code, the check fails closed with a blocking `relation-parse-failed` naming the language and an affected file.
 
-One detail worth knowing: this check runs on **every** `yg check`, not only `yg check --approve`. Its result is never cached: the resolve-and-verify join runs live on every call, so it is always the current truth of your code against the graph, at zero LLM cost. (Parsing a file is served from a content-addressed cache when its bytes are unchanged, but the resolution and the verdict are always recomputed.) That is what lets a keyless CI `yg check` catch an undeclared dependency even though it makes no LLM calls. When adopting Yggdrasil on an existing codebase, the first run names every file, target, and the exact `relations:` stanza to add.
+One detail worth knowing: this check runs on **every** `yg check`, not only `yg check --approve`. Its result is never cached: the resolve-and-verify join runs live on every call, so it is always the current truth of your code against the graph, at zero reviewer cost. (Parsing a file is served from a content-addressed cache when its bytes are unchanged, but the resolution and the verdict are always recomputed.) That is what lets a keyless CI `yg check` catch an undeclared dependency even though it makes no reviewer calls. When adopting Yggdrasil on an existing codebase, the first run names every file, target, and the exact `relations:` stanza to add.
 
 ### Java and Kotlin
 
@@ -101,7 +101,7 @@ A grammar can turn valid syntax into a parse error that swallows a statement. Wi
 
 Everything above governs edges between two **explicit nodes**, using each node's own declared `relations:` list. With [`coverage.type_level`](/configuration#coverage-config) on, a second, additive gate runs alongside it: every statically-resolved import whose endpoints are both *classified* — an explicit node, a type-covered file, or one of each — is checked against the architecture's relation allow-list for the two node **types** involved, issue code `type-relation-forbidden`. It exists because a type-covered file has no `yg-node.yaml` of its own to declare a relation in, so the ordinary check above has nothing to attach to on that side of the edge. An edge into an ambiguous or unmatched file is never gated — this check can only see edges whose target already resolved to a type.
 
-Like the built-in relation-conformance check, this is not an aspect (no status, no `yg-suppress`) and it is never cached — it runs live, at zero LLM cost, on every `yg check`. It follows that check in the other respect too: it blocks unconditionally by default, and under [progressive mode](/progressive-mode) a refusal your change did not reach is listed as a warning, with `yg check --full` blocking on it again. Clearing a refusal has three exits instead of two, cheapest first: allow the type pair in `yg-architecture.yaml` (clears every edge between those two types at once), give the target file an explicit node with a curated relation (restores ordinary declared-edge semantics for just that file), or remove the dependency.
+Like the built-in relation-conformance check, this is not an aspect (no status, no `yg-suppress`) and it is never cached — it runs live, at zero reviewer cost, on every `yg check`. It follows that check in the other respect too: it blocks unconditionally by default, and under [progressive mode](/progressive-mode) a refusal your change did not reach is listed as a warning, with `yg check --full` blocking on it again. Clearing a refusal has three exits instead of two, cheapest first: allow the type pair in `yg-architecture.yaml` (clears every edge between those two types at once), give the target file an explicit node with a curated relation (restores ordinary declared-edge semantics for just that file), or remove the dependency.
 
 **Be honest with yourself about how much this gate is actually doing.** A node type with no `relations:` table at all has an absent default, and an absent default means *allow* — every relation type, to every target — so the gate is vacuous for that type's edges until you write one. A project with no relation tables anywhere gets zero protection from turning `type_level` on; the gate exists, but nothing is declared for it to enforce against. The free way to see how much a real table would catch: add one deny-default table (`relations: { default: deny, uses: [library] }`, say), run plain `yg check`, read what it names, and decide whether to keep it or revert — no `--approve`, no cost, no commitment. A mature set of deny-default tables converts every silent explicit-to-uncovered-type edge into a blocking error the moment you turn the flag on; an empty or allow-everything architecture converts none of them.
 
@@ -126,7 +126,7 @@ These gaps are known in the shipped grammars, checked on 2026-09-24:
 | JSON | 0.24.8 | An exponent with an explicit plus sign (`1e+5`). | Fixed on master (2026-08-17), not released. |
 | TOML | 0.7.0 | TOML 1.1: multi-line inline tables, the `\e` escape, times without seconds (`07:32`). | No release supports TOML 1.1. |
 
-When a grammar changes, every deterministic verdict that read a syntax tree of that language is re-judged on the next `yg check --approve` (free and keyless for deterministic rules), because each such verdict records which grammar and parser runtime built the trees it read.
+When a grammar changes, every script verdict that read a syntax tree of that language is re-judged on the next `yg check --approve` (free and keyless for script rules), because each such verdict records which grammar and parser runtime built the trees it read.
 
 ---
 
@@ -196,6 +196,6 @@ aspects:
 
 Every aspect on the flow applies to every participant. So `correlation-tracking` above is now a rule each of those three services must satisfy — one place to require it across a whole process, instead of repeating it on every node.
 
-Declaring a parent node as a participant includes all of its descendants. List `orders` and every node under it joins the flow; add a new child later and it is already covered, no edit to the flow file.
+Declaring a parent node as a participant includes all of its descendants. List `orders` and every node under it joins the flow; add a new child later and it is already included, no edit to the flow file.
 
 A flow is not a call chain. It describes the *why* — the business process being served — while relations describe the *how*, what calls what. Both can exist between the same nodes at once. Use a flow when a real-world process spans multiple components and a shared rule applies across them; if you only need to apply a rule to a subset of participants, an aspect can carry a [`when` predicate](/conditional-aspects) per attach site.

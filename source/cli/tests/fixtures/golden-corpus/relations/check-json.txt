@@ -109,7 +109,7 @@ exit: 1
       "code": "uncovered-advisory",
       "severity": "warning",
       "what": "4 coverage-visible files outside any required coverage root.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "files": [
         ".clinerules/yggdrasil.md",
@@ -142,7 +142,7 @@ exit: 1
       "aspect": null,
       "severity": "warning",
       "subject": "4 files belong to no node — not under coverage.required, so they never block",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "members": [
         1

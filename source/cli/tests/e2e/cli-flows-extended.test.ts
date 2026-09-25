@@ -313,7 +313,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       expect(fill.status).toBe(1);
       // Fill-time progress goes to STDERR (its closing line counts exactly two
       // refusals); the report to STDOUT names each one.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 2 refused · 0 failed/m);
       // orders: alpha refused, beta approved.
       expect(fill.stdout).toContain('error[refused] flow-alpha — 1 violation in services/orders');
       expect(fill.stdout).not.toContain('flow-beta — 1 violation in services/orders');
@@ -410,7 +410,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       expect(refused.status).toBe(1);
       // Fill-time progress goes to STDERR (its closing line counts the refusal);
       // the report names it as an enforced error on the child.
-      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders/order-repo');
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -8,8 +8,8 @@ Rendering is the primary effect, and status never changes a verdict's validity �
 but it is NOT rendering only. Two further operational consequences follow from
 \`enforced\`:
 
-1. An enforced DETERMINISTIC refusal seeds \`detEnforcedRefusedNodes\` and makes
-   the LLM phase skip that unit's paid review for the run (fill-det-phase.ts) —
+1. An enforced SCRIPT-RULE refusal seeds \`detEnforcedRefusedNodes\` and makes
+   the reviewer phase skip that unit's paid review for the run (fill-det-phase.ts) —
    an advisory refusal does not. A real spend difference when planning a run.
 2. Only ENFORCED pairs gate positive closure (fill-closure.ts): an enforced
    refusal keeps a node's source fingerprint and log baseline from advancing,
@@ -40,7 +40,7 @@ substitutes for verification.
   identically, and blocks the moment a change reaches it. On a project that names
   no branch, the table above is the whole story.
 - ONE exception to "advisory never blocks": the \`prompt-too-large\` assembly gate
-  is emitted at error severity regardless of status. An advisory LLM pair whose
+  is emitted at error severity regardless of status. An advisory reviewer pair whose
   assembled prompt exceeds the resolved tier's \`max_prompt_chars\` blocks
   \`yg check\` all the same — it can never be verified, so status cannot soften it.
   STATUS is what cannot soften it, not the change scope: the progressive carve-out
@@ -60,7 +60,7 @@ substitutes for verification.
 - Draft dormancy applies to \`yg check\` / \`--approve\` only. Status never gates
   \`yg aspect-test\`: a draft aspect still runs there live (diagnostic only, the
   lock is never written) — the authoring ladder "start at draft, iterate with
-  aspect-test" holds for both reviewer kinds.
+  aspect-test" holds for reviewer rules and script rules alike.
 
 ## Verdict reuse across status flips
 

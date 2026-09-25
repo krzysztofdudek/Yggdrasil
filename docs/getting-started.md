@@ -27,7 +27,7 @@ Run in a terminal, this scaffolds `.yggdrasil/` — config, architecture
 defaults, and the agent-rules files (the `AGENTS.md` digest block, the
 `@AGENTS.md` import line in `CLAUDE.md`, and `.clinerules/yggdrasil.md`),
 identical for every agent — and walks
-you through one topic: which reviewer should verify your code (it asks for a
+you through one topic: which reviewer should judge your code (it asks for a
 provider, then a model, and — for an API provider — checks for a key). If you
 already run an agent CLI — **Claude Code, Codex, Gemini CLI, or GitHub Copilot CLI** — pick it: it
 needs **no API key** and adds no separate API bill, only a check that the
@@ -53,8 +53,8 @@ Picking a reviewer is not required to get going. The last option in that list
 is **"None for now"**, and it is a real answer, not a lesser one: script rules
 (`check.mjs`), dependency control (the built-in relation-conformance check),
 and the `yg check` CI gate all work immediately, for free, with nothing to
-configure. Nothing is judged by an LLM yet, because nothing you've written
-needs judgment yet.
+configure. Nothing is judged by a reviewer yet, because nothing you've written
+needs one yet.
 
 Same thing without answering any question — in a terminal or out of one:
 
@@ -65,20 +65,22 @@ yg init --no-reviewer
 Run the plain `yg init` with no terminal attached — Docker, a devcontainer,
 CI — and it takes that route by itself, since there is nobody to ask.
 
-Add a **judge** at any point, whenever you write your first judgment rule —
-an aspect whose rule is a `content.md` an LLM reads and decides against, as
-opposed to a `check.mjs` script. This one is a flag, not a prompt — it runs
+Add a **[reviewer](/glossary#reviewer)** at any point, whenever you write your first reviewer rule —
+an aspect whose rule is a `content.md` the reviewer model reads and decides against, as
+opposed to a `check.mjs` script rule. This one is a flag, not a prompt — it runs
 identically whether or not you have a terminal:
 
 ```bash
 yg init --provider claude-code
 ```
 
-Until a judge is configured, a judgment rule does not stop the free gate:
+Until a reviewer is configured, a reviewer rule does not stop the free gate:
 `yg check --approve --only-deterministic` still fills every script rule, and
-the judgment pairs stay unverified, each saying it has no reviewer.
-`yg check` names the missing judge as the first thing to fix — blocking when
-the rule is enforced, a warning when every judgment rule is advisory (advisory
+the reviewer pairs stay unverified, each saying it has no reviewer. (Despite its
+name, the `--approve` flag runs a [fill](/glossary#fill): it asks for the missing
+verdicts. It is not a human approval.)
+`yg check` names the missing reviewer as the first thing to fix — blocking when
+the rule is enforced, a warning when every reviewer rule is advisory (advisory
 never blocks). Configuring a reviewer is your call, since it sends code to that
 provider; an agent proposes it rather than doing it unasked, or parks the rule
 at `status: draft`.
@@ -135,7 +137,7 @@ warning[uncovered] 50 files belong to no node — not under coverage.required, s
         src/f18.ts
         src/f19.ts
         … +38 more  (yg check --details)
-  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+  why:  Not under a coverage.required root — shown, but it never blocks. Your architecture has no type for this file yet.
   fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
 note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
@@ -195,7 +197,7 @@ Check detected that the `requires-audit` rule on `src/payments/` has no recorded
 $ yg check --approve
 
 fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
-fill  done in 6s — 1 approved · 0 refused · 0 failed · 1 reviewer call
+fill  done in 6s — 1 passed · 0 refused · 0 failed · 1 reviewer call
 
 yg check: PASS  1 node · 5/5 files covered (1 node-owned · 4 excluded) · 1 pair verified (reviewer)
 ```
@@ -279,7 +281,7 @@ Tell your agent:
 
 Nodes without aspects are cheap in reviewer terms — just a `yg-node.yaml` with
 a directory mapping. They produce no rule pairs, so there is nothing for the
-reviewer to verify and nothing to record, and they count as covered.
+reviewer to judge and nothing to record, and they count as covered.
 
 They are not free of checks, though. Every mapped node takes part in the
 built-in dependency check, which runs live on every `yg check`, keyless and
@@ -343,22 +345,22 @@ blocks only on what it touched, and what it inherited stays visible as warnings.
 
 Add `yg check --no-approve` to your CI pipeline. It recomputes the input hash of
 every expected pair and compares it against the verdict recorded in the lock — no
-LLM calls, no provider keys, runs instantly. Exit code 1 means a pair changed
-without being re-verified. The `--no-approve` flag pins the gate read-only even
+reviewer calls, no provider keys, runs instantly. Exit code 1 means a pair changed
+without being re-checked. The `--no-approve` flag pins the gate read-only even
 when someone commits `auto_approve` to `yg-config.yaml`, which would otherwise
 turn a bare `yg check` into a fill (see [Configuration](/configuration#auto-approve-config)).
 
-The lock's deterministic verdicts live in a gitignored local cache
+The lock's script verdicts live in a gitignored local cache
 (`.yg-lock.deterministic.json`), so a fresh CI checkout starts without them and
 `yg check` would report those pairs as unverified. Rebuild the cache first — it's
 free and needs no key — with `yg check --approve --only-deterministic`, which fills
-only the deterministic pairs and writes the gitignored cache. See
+only the script pairs and writes the gitignored cache. See
 [The lock](/the-lock) for the file layout.
 
 **GitHub Actions:**
 
 ```yaml
-- name: Rebuild the deterministic cache (free, no keys)
+- name: Rebuild the script-rule cache (free, no keys)
   run: npx @chrisdudek/yg check --approve --only-deterministic
 - name: Check architecture
   run: npx @chrisdudek/yg check --no-approve
@@ -385,9 +387,9 @@ as trusted as the run that wrote it, so restore only caches your own branches
 produced — GitHub Actions already keeps a fork's pull request from writing a
 cache the base branch reads.
 
-If check fails, it means a pair's inputs changed without being re-verified.
+If check fails, it means a pair's inputs changed without being re-checked.
 Tell the agent: "resolve all yg check issues" and it will run `yg check
---approve`, fix violations, and re-verify until check passes.
+--approve`, fix violations, and fill again until check passes.
 
 ## 6) Core vs. advanced — what to learn when
 
@@ -397,8 +399,8 @@ productive. Learn the rest the day you actually need it.
 **Core — everything above this point.** Six concepts carry day-to-day work:
 
 - **Node** — maps a set of source files (a `yg-node.yaml` with a `mapping:`).
-- **Aspect** — one enforceable rule (`content.md` for the LLM reviewer, or
-  `check.mjs` for a deterministic one).
+- **Aspect** — one enforceable rule (`content.md` for a reviewer rule, or
+  `check.mjs` for a script rule).
 - **Pair** — one aspect applied to one node (or, for a `per: file` rule, to one
   file). It is what gets verified, cached and paid for: one verdict per pair.
   When the report says "3 pairs", it means three such (rule, subject)
@@ -408,14 +410,14 @@ productive. Learn the rest the day you actually need it.
   verdicts) and `yg-lock.logs.json` (log baselines), plus the gitignored local
   cache of script-rule results. A verdict counts only while its hash still
   matches. [The Lock](/the-lock) has the mechanics.
-- **`yg check`** — the gate. By default hash-only, no LLM, no keys, runs in CI.
-  Red until every changed pair is re-verified. (If `auto_approve` is set in
+- **`yg check`** — the gate. By default hash-only, no reviewer, no keys, runs in CI.
+  Red until every changed pair has a fresh verdict. (If `auto_approve` is set in
   `yg-config.yaml`, bare `yg check` may fill pairs automatically — see
   [Configuration](/configuration#auto-approve-config). The CI recipe above uses
   `--no-approve`, which always wins over the config; and when the `CI`
   variable is set, a bare `yg check` ignores a committed `auto_approve: full`.)
-- **`yg check --approve`** — verifies the unverified pairs (deterministic for
-  free, then LLM) and records the verdicts in the lock so check goes green.
+- **`yg check --approve`** — fills the unverified pairs (script rules for
+  free, then reviewer rules) and records the verdicts in the lock so check goes green.
 
 Plus aspect **status** (`draft` → `advisory` → `enforced`) to control whether a
 rule blocks. That is enough to enforce real rules on a real codebase.
@@ -438,8 +440,8 @@ yg context --file src/payments/charge.ts
 
 It prints every aspect effective on that file and the `read:` path to each
 rule's text. The graph computes the cascade; you read the answer. To see **where
-each rule comes from** — its own node, an ancestor, the architecture type, a
-flow, a port, or an `implies` edge — use `yg context --node <path>`, which adds a
+each rule comes from** — which of the channels it arrived through, seven in all
+(see [Aspects](/aspects#how-a-rule-reaches-your-code)) — use `yg context --node <path>`, which adds a
 `Source:` line to each aspect.
 
 ::: info Zero lock-in

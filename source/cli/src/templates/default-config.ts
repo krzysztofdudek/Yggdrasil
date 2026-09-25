@@ -15,7 +15,7 @@ coverage:
   required: []
   excluded: []
   # Type-level coverage: a file matched by exactly one classifying type's \`when\`
-  # is enforced by that type's per-file rules with no node required. Does
+  # is a type-covered file, enforced by that type's \`per: file\` rules with no node required. Does
   # NOTHING until a type in yg-architecture.yaml declares \`when:\`.
   type_level: true
 
@@ -36,11 +36,11 @@ auto_approve: false
 # alone when you switch it off — delete it yourself.
 # Full reference: yg knowledge read configuration
 
-# Committed, shared record of LLM verification events (opt-in; default OFF).
+# Committed, shared record of reviewer verification events (opt-in; default OFF).
 # When enabled, each time the reviewer verifies a rule the event is appended to a
 # committed, union-merged file (.yggdrasil/yg-events.llm.jsonl) shared across the
 # team instead of a local-only file. Sensitive rationale is stripped from the
-# shared copy. Deterministic checks never write there, so a keyless CI run adds
+# shared copy. Script rules never write there, so a keyless CI run adds
 # nothing to it. Leave this off to keep every verification event local.
 # events:
 #   committed_llm: true

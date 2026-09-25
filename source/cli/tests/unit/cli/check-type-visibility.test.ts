@@ -85,7 +85,7 @@ describe('yg check — type-visibility block', () => {
   it('names the half of a grouped rule set that cannot run on a single file', async () => {
     const dir = copyFixture();
     const out = await renderCheck(dir);
-    expect(out).toMatch(/bundle: file-level part applies; whole-unit part needs a component/);
+    expect(out).toMatch(/bundle: its per: file part applies; its per: node part needs a component/);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -118,7 +118,7 @@ describe('yg check — type-visibility block', () => {
     // The reason is visible right where the count lives, not just implied by
     // its absence from "Enforced:" — grouped by reason, so the phrase is
     // stated once and the affected aspect id follows it with its count.
-    expect(out).toMatch(/A binary file cannot be reviewed by a prose rule: prose-rule \(1\)/);
+    expect(out).toMatch(/A binary file cannot be reviewed by a reviewer rule: prose-rule \(1\)/);
     rmSync(dir, { recursive: true, force: true });
   });
 

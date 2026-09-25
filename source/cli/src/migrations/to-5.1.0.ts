@@ -32,7 +32,7 @@ const STEPS: MigrationStep[] = [removeSchemasDirectory, splitLock];
 
 export const migration: Migration = {
   to: '5.1.0',
-  description: 'Remove the schemas/ directory (now served by `yg schemas`); split the lock into committed LLM + log files and a gitignored deterministic cache.',
+  description: 'Remove the schemas/ directory (now served by `yg schemas`); split the lock into committed reviewer-verdict + log files and a gitignored script-verdict cache.',
   async run(yggRoot: string): Promise<MigrationResult> {
     const actions: string[] = [];
     const warnings: string[] = [];

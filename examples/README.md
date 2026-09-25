@@ -2,9 +2,9 @@
 
 Self-contained example projects — each directory is a standalone app with
 source code and its own `.yggdrasil/` graph. They fall into two groups: the
-**keyless** examples run with no API key (the free, local layer — deterministic
-`check.mjs` rules and the built-in relation check), and the **reviewer**
-examples show the LLM layer.
+**keyless** examples run with no API key (the free, local layer — script
+(`check.mjs`) rules and the built-in relation check), and the **reviewer**
+examples show the reviewer-rule layer.
 
 Each of the five keyless examples has its own `README.md` with the one edit that
 breaks the rule and the exact refusal you will see. The two reviewer examples are
@@ -13,14 +13,14 @@ pair of commands below.
 
 ## Keyless examples — no API key, run in seconds
 
-Only the free, local layer: no reviewer, no key, no network. The deterministic
+Only the free, local layer: no reviewer, no key, no network. The script
 verdicts are cached in a gitignored file, filled for free by
 `yg check --approve --only-deterministic`; the relation check runs live on every
 `yg check`.
 
 ### `no-secrets-in-logs/` — a script rule catches a PCI leak
 
-A fintech payments API. A deterministic rule refuses any log call that
+A fintech payments API. A script rule refuses any log call that
 references a raw secret or cardholder field (`password`, `pan`, `cvv`,
 `token`, …) — a real PCI-DSS concern.
 
@@ -43,7 +43,7 @@ yg check    # PASS — layering respected; break it and check refuses live
 
 ### `pure-transforms/` — the same layer, on Python
 
-An analytics/ETL pipeline written in Python. A deterministic rule keeps
+An analytics/ETL pipeline written in Python. A script rule keeps
 transform functions reproducible (no wall-clock reads, no randomness) — proving
 the checks work beyond TypeScript.
 
@@ -79,9 +79,9 @@ yg check --approve --only-deterministic
 yg check    # PASS
 ```
 
-## Reviewer examples — the LLM layer
+## Reviewer examples — the reviewer-rule layer
 
-These use an LLM aspect, so `yg check --approve` needs a configured reviewer.
+These use a reviewer rule, so `yg check --approve` needs a configured reviewer.
 The verdict is committed in the lock, so plain `yg check` reproduces it with no
 key (exactly what CI sees).
 

@@ -26,22 +26,22 @@ The check runs inside the agent's loop, not in your review afterward. The agent 
 
 **Your agent** turns that into structure. It keeps the graph under `.yggdrasil/` in step with your code: it writes the rules down, says where each one applies, and records which source files belong to which component. You work *with* the agent to build and change this. It knows the schema and the commands; you provide the judgment.
 
-**The reviewer** verifies the code. It is a separate step: either an LLM call that reads your rule and your source and decides whether the code satisfies it, or a free local script for rules that can be checked mechanically (an import ban, a naming convention). The reviewer is the thing that actually says yes or no.
+**The reviewer** checks the code. It is a separate step: the [reviewer](/glossary#reviewer) is the model you configure, which reads a rule written in prose and your source and decides whether the code satisfies it. Rules that can be checked mechanically (an import ban, a naming convention) are script rules instead: a free local script decides them, with no reviewer involved. Between them, they are the thing that actually says yes or no.
 
 ## The loop
 
 From the agent's point of view, every change runs this cycle:
 
 1. **Before editing**, the agent runs `yg context --file <path>`. It gets only the rules in force on that one file, not the whole rulebook, so it writes code that fits them instead of guessing and getting bounced.
-2. **After editing**, it runs `yg check --approve`. The free local scripts run first, then the remaining rules go to the LLM reviewer.
-3. **On a pass**, the verdict is recorded in the lock. The LLM reviewer's verdicts live in a committed file; the free local-script verdicts live in a gitignored local cache that any checkout rebuilds for free.
+2. **After editing**, it runs `yg check --approve`. The free script rules run first, then the reviewer rules go to the reviewer.
+3. **On a pass**, the verdict is recorded in the lock. The reviewer's verdicts live in a committed file; the free script verdicts live in a gitignored local cache that any checkout rebuilds for free.
 4. **On a failure**, the agent gets specific feedback (which rule, which file, what is wrong), fixes it in the same session, and re-runs. It loops here until green.
 5. **In CI**, a free, keyless step rebuilds the local-script cache (`yg check --approve --only-deterministic`), then `yg check --no-approve` confirms the recorded verdicts still hold for the current code.
 
 ::: info CI is free and keyless — and a green build can't lie
-CI does not call the LLM reviewer and needs no API keys. Because the free local-script verdicts live in a gitignored cache, a fresh checkout first rebuilds that cache with `yg check --approve --only-deterministic` (free and keyless), then `yg check --no-approve` confirms every recorded verdict still holds — and re-checks, live and for free, that the code's real dependencies match its declared relations. Each verdict is tied by hash to the exact code it checked, so a file that changed but was never re-verified turns the build red — a stale or unverified change can't ride through as green. The LLM verification happens locally while the agent works; CI just re-proves it was done.
+CI does not call the reviewer and needs no API keys. Because the free script verdicts live in a gitignored cache, a fresh checkout first rebuilds that cache with `yg check --approve --only-deterministic` (free and keyless), then `yg check --no-approve` confirms every recorded verdict still holds — and re-checks, live and for free, that the code's real dependencies match its declared relations. Each verdict is tied by hash to the exact code it checked, so a file that changed but was never re-checked turns the build red — a stale or unverified change can't ride through as green. The reviewer's check happens locally while the agent works; CI just re-proves it was done.
 
-That guarantee rides on the explicit flags, which is why the CI recipe spells them out: they always override the `auto_approve` setting, so a CI script is unaffected by it. As a second line of defence, when the `CI` environment variable is set, a bare `yg check` ignores a committed `auto_approve: full` and stays read-only (it says so on stderr). A bare `yg check` run anywhere else is free, keyless, and read-only only while `auto_approve` is unset or `false` in `yg-config.yaml`. Set `auto_approve: full` and an unqualified `yg check` behaves exactly like `yg check --approve` — it calls the LLM reviewer, needs API keys, and writes fresh verdicts into the committed lock instead of merely re-confirming the ones already there, so a change that was never re-verified gets verified on the spot rather than turning the build red. The mechanics, and the full `auto_approve` story, live in [The lock](/the-lock).
+That guarantee rides on the explicit flags, which is why the CI recipe spells them out: they always override the `auto_approve` setting, so a CI script is unaffected by it. As a second line of defence, when the `CI` environment variable is set, a bare `yg check` ignores a committed `auto_approve: full` and stays read-only (it says so on stderr). A bare `yg check` run anywhere else is free, keyless, and read-only only while `auto_approve` is unset or `false` in `yg-config.yaml`. Set `auto_approve: full` and an unqualified `yg check` behaves exactly like `yg check --approve` — it runs a fill: it calls the reviewer, needs API keys, and writes fresh verdicts into the committed lock instead of merely re-confirming the ones already there, so a change that was never re-checked gets its verdict on the spot rather than turning the build red. The mechanics, and the full `auto_approve` story, live in [The lock](/the-lock).
 :::
 
 ## Nobody restates the rules
@@ -52,13 +52,13 @@ There is a worked example of a refused change and the fix on the [home page](/).
 
 ## You never trace the rules by hand
 
-A file can pick up rules from several places at once: its own component, a parent component, its type, a flow it takes part in. You never work that out yourself by reading the graph. You ask the tool:
+A file can pick up rules through several channels at once, seven in all (see [Aspects](/aspects#how-a-rule-reaches-your-code)). You never work that out yourself by reading the graph. You ask the tool:
 
 ```bash
 yg context --file src/payments/charge.ts
 ```
 
-It prints every rule in force on that file, plus the path to each rule's text. The graph computes it, you read the answer. `yg context --node <path>` gives the same picture from a component's side. Add `--json` to either form and each rule also carries the channel it arrived through — the component's own declaration, a parent, its type, or a flow — as a machine-readable origin.
+It prints every rule in force on that file, plus the path to each rule's text. The graph computes it, you read the answer. `yg context --node <path>` gives the same picture from a component's side. Add `--json` to either form and each rule also carries every channel it arrived through, each with a machine-readable origin token: `own`, `ancestor`, `type`, `ancestor-type`, `flow`, `port:<name>@<node>` or `implies`.
 
 ## What lives next to your code
 

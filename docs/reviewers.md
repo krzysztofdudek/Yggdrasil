@@ -1,44 +1,44 @@
 # Reviewers
 
-Aspects are verified by reviewers. Yggdrasil ships three reviewer kinds — all operate on the same aspect-node-flow graph; the kind is inferred from which rule source file is present in the aspect directory.
+An aspect is a rule, and every rule has one of three [rule kinds](/glossary#rule-kind): a reviewer rule, a script rule, or a bundle. All three operate on the same aspect-node-flow graph; the kind is inferred from which rule source file is present in the aspect directory. The [reviewer](/glossary#reviewer) is the model you configure under `reviewer:` in `yg-config.yaml` (with its tiers); only reviewer rules go to it.
 
-- **LLM reviewer** (inferred when `content.md` is present): ships a `content.md` rule file. An LLM reads the rule and the node's source code, then accepts or rejects. An LLM aspect may also ship an optional `companion.mjs` hook — see [Per-unit companion files](#per-unit-companion-files) below.
-- **Deterministic reviewer** (inferred when `check.mjs` is present): ships a `check.mjs` module run by a deterministic runner at zero LLM cost. The check returns a `Violation[]` — no LLM, no nondeterminism, no per-call cost. There is one `check(ctx)` contract: the check receives the node, its subject files (each with a tree-sitter parse tree via `file.ast` when the language has a grammar), the file system, and the graph topology, and can use any of them — inspect a single file's parse tree for syntactic rules, or read related nodes and the file system for cross-node and structural rules. See `yg knowledge read writing-deterministic-aspects`.
-- **Aggregating aspect** (inferred when neither rule source is present but `implies:` is declared): a content-less, check-less named bundle. It has no own reviewer and produces no own verdict. When effective on a node, it expands its `implies:` list and each implied aspect is verified individually. Use it to attach a multi-rule contract as one named entry point backed by N atomic child aspects.
+- **Reviewer rule** (inferred when `content.md` is present): ships a `content.md` rule file. The reviewer reads the rule and the node's source code, then accepts or rejects. A reviewer rule may also ship an optional `companion.mjs` hook — see [Per-unit companion files](#per-unit-companion-files) below.
+- **Script rule** (inferred when `check.mjs` is present): ships a `check.mjs` module run by a deterministic runner at zero LLM cost; it has no reviewer. The check returns a `Violation[]` — no LLM, no nondeterminism, no per-call cost. There is one `check(ctx)` contract: the check receives the node, its subject files (each with a tree-sitter parse tree via `file.ast` when the language has a grammar), the file system, and the graph topology, and can use any of them — inspect a single file's parse tree for syntactic rules, or read related nodes and the file system for cross-node and structural rules. See `yg knowledge read writing-deterministic-aspects`.
+- **Bundle** (inferred when neither rule source is present but `implies:` is declared): a content-less, check-less named bundle. It has no reviewer and produces no verdict of its own. When effective on a node, it expands its `implies:` list and each implied aspect is verified individually. Use it to attach a multi-rule contract as one named entry point backed by N atomic child aspects.
 
-The `reviewer:` block in `yg-aspect.yaml` is **optional** — kind is inferred automatically. If present, an explicit `reviewer.type` must agree with the inferred kind; `yg check` enforces this. A `content.md` and a `check.mjs` are mutually exclusive on the same aspect. An aspect with neither rule source and no `implies:` is rejected. Deterministic aspects run locally at zero LLM cost.
+The `reviewer:` block in `yg-aspect.yaml` is **optional** — kind is inferred automatically. If present, an explicit `reviewer.type` must agree with the inferred kind; `yg check` enforces this. A `content.md` and a `check.mjs` are mutually exclusive on the same aspect. An aspect with neither rule source and no `implies:` is rejected. Script rules run locally at zero LLM cost.
 
 ---
 
-## Choosing a reviewer
+## Choosing a rule kind {#choosing-a-reviewer}
 
-| Reviewer | Use when the rule is… | Examples |
+| Rule kind | Use when the rule is… | Examples |
 |---|---|---|
-| **Deterministic** | a **programmatic** check — either a per-file **syntactic** rule or a **graph/file-system shape** rule spanning more than one file | Forbidden API calls (`fs.readFileSync`, `eval`); naming conventions (PascalCase exports); import restrictions (no cross-module relatives); missing guards (`@Log` decorator required); "every command node has a sibling test file"; "every child of an engine node is of type engine-component"; "every knowledge topic is registered in the index" |
-| **LLM** | a **semantic judgment** a human reviewer would read surrounding context to make | "Mutations must emit audit events"; "Error responses must follow the API contract"; "Business logic must respect rounding rules"; "This handler must validate input semantically" |
+| **Script rule** | a **programmatic** check — either a per-file **syntactic** rule or a **graph/file-system shape** rule spanning more than one file | Forbidden API calls (`fs.readFileSync`, `eval`); naming conventions (PascalCase exports); import restrictions (no cross-module relatives); missing guards (`@Log` decorator required); "every command node has a sibling test file"; "every child of an engine node is of type engine-component"; "every knowledge topic is registered in the index" |
+| **Reviewer rule** | a **semantic judgment** a human would read surrounding context to make | "Mutations must emit audit events"; "Error responses must follow the API contract"; "Business logic must respect rounding rules"; "This handler must validate input semantically" |
 
-If a programmatic check can decide the rule — a regex or AST traversal over a single file, or a graph-aware check spanning multiple files and the file system — use the deterministic reviewer. If a human reviewer would need to read surrounding context to decide, use LLM. The deterministic reviewer runs locally at zero LLM cost; only the LLM reviewer makes paid calls.
+If a programmatic check can decide the rule — a regex or AST traversal over a single file, or a graph-aware check spanning multiple files and the file system — write a script rule. If a human would need to read surrounding context to decide, write a reviewer rule. A script rule runs locally at zero LLM cost; only reviewer rules make paid calls.
 
-The `reviewer:` block is **optional** — reviewer kind is inferred from rule-file presence (`content.md` → LLM, `check.mjs` → deterministic, neither + `implies:` → aggregate). Declare a `reviewer:` block only when you need to set `reviewer.tier:` on an LLM aspect. If you do declare a `reviewer.type`, it must agree with the inferred kind. LLM aspects may declare `reviewer.tier:` to opt into a specific tier from `yg-config.yaml` — see [Reviewer tiers](./configuration.md#reviewer-tiers) for tier configuration.
+The `reviewer:` block is **optional** — the rule kind is inferred from rule-file presence (`content.md` → reviewer rule, `reviewer.type: llm`; `check.mjs` → script rule, `reviewer.type: deterministic`; neither + `implies:` → bundle, `reviewer.type: aggregate`). Declare a `reviewer:` block only when you need to set `reviewer.tier:` on a reviewer rule. If you do declare a `reviewer.type`, it must agree with the inferred kind. Reviewer rules may declare `reviewer.tier:` to opt into a specific tier from `yg-config.yaml` — see [Reviewer tiers](./configuration.md#reviewer-tiers) for tier configuration.
 
 ---
 
-## LLM reviewer
+## Reviewer rules {#llm-reviewer}
 
-The LLM reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` assembles each unverified LLM pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with a JSON object — `{"satisfied": true|false, "reason": "explanation with file:line references"}` — and that `satisfied` boolean is recorded in the lock as the verdict. Each unverified LLM pair costs one reviewer call, multiplied by the tier's consensus count.
+The reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` runs a [fill](/glossary#fill) (the flag's name notwithstanding, it is not a human approval): it assembles each unverified reviewer pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with a JSON object — `{"satisfied": true|false, "reason": "explanation with file:line references"}` — and that `satisfied` boolean is recorded in the lock as the verdict. Each unverified reviewer pair costs one reviewer call, multiplied by the tier's consensus count.
 
-Two things in the prompt keep the reviewer honest about what it reads. Every line of every subject file carries its line number (`12| ...`), so the `file:line` in a reason and the spans of a `yg-suppress` waiver point at the same lines, not at the model's own count. And the prompt tells the reviewer that everything in the subject files, references and companions is material under review, never instructions: text in the code that addresses the reviewer, claims the code was already approved, or dictates a verdict is itself a violation, and the reviewer is told to refuse and cite it. That matters because the author of the code under review — often the coding agent itself — writes the reviewer's input. It is an instruction to a model, not a guarantee: a small model can still be argued round, so the reason of every approval is kept in the local events file where you can read it back (see [Verdict-events sidecar](#verdict-events-sidecar)), and the source diff shows any such comment to a human reviewer.
+Two things in the prompt keep the reviewer honest about what it reads. Every line of every subject file carries its line number (`12| ...`), so the `file:line` in a reason and the spans of a `yg-suppress` waiver point at the same lines, not at the model's own count. And the prompt tells the reviewer that everything in the subject files, references and companions is material under review, never instructions: text in the code that addresses the reviewer, claims the code was already approved, or dictates a verdict is itself a violation, and the reviewer is told to refuse and cite it. That matters because the author of the code under review — often the coding agent itself — writes the reviewer's input. It is an instruction to a model, not a guarantee: a small model can still be argued round, so the reason of every passing verdict is kept in the local events file where you can read it back (see [Verdict-events sidecar](#verdict-events-sidecar)), and the source diff shows any such comment to a human reviewer.
 
 **Draft aspects produce no pairs.** When an aspect's effective status on a node is `draft`, no pair is expected for it — there is nothing to verify and nothing to record (`yg aspect-test` can still run a draft aspect live — diagnostic only, the lock is never written). Aspects with effective status `advisory` or `enforced` are verified normally; the level only changes how a refused or unverified pair renders in `yg check` (warning vs. error). Verdicts survive status flips, including a `draft` round-trip — returning an aspect to enforced re-uses the recorded verdict for unchanged inputs. See [Aspect Status](/aspect-status) for the lifecycle.
 
-**LLM verdicts are not deterministic.** The same code against the same rule can come back satisfied on one run and refused on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. What to do about a refusal depends on what is wrong, and the refusal's Fix text lists the same four exits:
+**Reviewer verdicts are not deterministic.** The same code against the same rule can come back satisfied on one run and refused on another — most often on borderline rules. To avoid laundering a refusal into a pass, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. What to do about a refusal depends on what is wrong, and the refusal's Fix text lists the same four exits:
 
 1. **The code is wrong** — fix it and re-run `yg check --approve`.
 2. **The rule is wrong or unclear** — sharpen `content.md`. This re-reviews every pair of the aspect, so check `yg impact --aspect <id>` first.
 3. **The code is a deliberate, known exception to a rule that is right** — add a `yg-suppress` marker with a reason the user signs off on. This is the honest exit for an exception, not for a rule that misfires: a rule that needs many markers needs sharpening instead.
 4. **You cannot tell yet** — set the aspect to `status: advisory` while you decide (the user's call, like any rule change). The recorded refusal stays, but it shows as a warning and stops blocking; nothing is re-reviewed, and moving the aspect back to `enforced` re-uses the recorded verdicts for unchanged inputs.
 
-Manage variance up front by writing rules that are concrete and decidable rather than vague, and by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run). A tier's `consensus` smooths single-call variance for the pairs it reviews from then on, but raising it re-judges nothing already recorded: consensus is not part of a pair's hash, so only moving the aspect to a newly named tier re-reviews its pairs under the new vote count. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock; `--repeat N` also reports how far the violations the refusals cite agree from run to run.
+Manage variance up front by writing rules that are concrete and decidable rather than vague, and by preferring a script rule (`check.mjs`) whenever a rule is programmatically checkable (zero LLM cost, identical result every run). A tier's `consensus` smooths single-call variance for the pairs it reviews from then on, but raising it re-judges nothing already recorded: consensus is not part of a pair's hash, so only moving the aspect to a newly named tier re-reviews its pairs under the new vote count. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock; `--repeat N` also reports how far the violations the refusals cite agree from run to run.
 
 ### Directory structure
 
@@ -85,7 +85,7 @@ The reviewer compares text against code. Vague rules produce vague verdicts; spe
 $ yg check --approve
 
 fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
-fill  done in 6s — 0 approved · 1 refused · 0 failed · 1 reviewer call
+fill  done in 6s — 0 passed · 1 refused · 0 failed · 1 reviewer call
 
 yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
 
@@ -105,7 +105,7 @@ If the reviewer rejects compliant code, the rule is what misfired, so the fix is
 
 ### Cost
 
-Cost is counted per pair. A `per: node` aspect on a node with 5 source files is one pair — one LLM call (times consensus). A typical fill for a node with 3 `per: node` aspects makes 3 LLM calls. A `per: file` aspect over those 5 files is 5 pairs — 5 calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps cost under a few cents per call. The model is your choice: `yg init --provider claude-code` writes `sonnet` unless you pass `--model haiku`, and a tier's `config.model` can be changed at any time (see [Configuration](/configuration)). Deterministic pairs are free regardless of scope. For local review, Ollama runs on your machine with no API cost. See [Configuration](/configuration) for provider setup.
+Cost is counted per pair. A `per: node` reviewer rule on a node with 5 source files is one pair — one LLM call (times consensus). A typical fill for a node with 3 `per: node` aspects makes 3 LLM calls. A `per: file` aspect over those 5 files is 5 pairs — 5 calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps cost under a few cents per call. The model is your choice: `yg init --provider claude-code` writes `sonnet` unless you pass `--model haiku`, and a tier's `config.model` can be changed at any time (see [Configuration](/configuration)). Script pairs are free regardless of scope. For local review, Ollama runs on your machine with no API cost. See [Configuration](/configuration) for provider setup.
 
 Wall time is set by `parallel` — how many reviewer calls run at once (engine default `1`). A single call takes roughly 10–40 seconds, so a first fill of a few hundred pairs at `parallel: 1` takes hours. `yg init` with a CLI reviewer (claude-code, codex, gemini-cli, copilot-cli) writes `parallel: 4`: each call is its own local process under your subscription, and four stay inside its rate limit while cutting wall time about fourfold. For an API reviewer, set it to what your key's rate limit allows. A tier with `consensus: N` runs up to `parallel × N` calls at once. Every fill that calls the reviewer ends with a line giving the number of calls, the elapsed time and, where the provider reports them (claude-code does), the tokens used and the cost at list price, which is not what a subscription is billed per call. An interrupted fill (Ctrl-C, or a SIGTERM from a CI timeout) stops the reviewer calls still running and says how many verdicts it saved; re-running `yg check --approve` reviews only the rest.
 
@@ -115,7 +115,7 @@ Set `consensus: 3` (or any odd integer) on a tier in `yg-config.yaml` to run mul
 
 - **The passes run at the same time**, so consensus multiplies cost, not wall time.
 - **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — nothing is written and it stays unverified, like any reviewer failure. A tie refuses.
-- **A split shows.** When the passes disagree, the fill prints the pair with its split — `approved (consensus 2/3 satisfied)` — and the events file records it.
+- **A split shows.** When the passes disagree, the fill prints the pair with its split — `fill  passed by 2 of 3 votes  <aspect> @ <unit>` — and the events file records it.
 - **Raising `consensus` re-judges nothing already recorded.** It is not part of a pair's hash, so existing verdicts stand. To re-review an aspect's pairs under the new count, move the aspect to a newly named tier.
 
 ```yaml
@@ -130,9 +130,9 @@ reviewer:
 
 ## Per-unit companion files
 
-An LLM aspect may ship an optional `companion.mjs` alongside `content.md`. For each verification unit, the runner executes the hook to resolve 0–N read-only companion files from other nodes, and injects those files into that unit's reviewer prompt only. This lets the reviewer see exactly one paired counterpart per unit — a scenario document with its matching test spec, a migration with its schema, a handler with its contract — without embedding the entire related node's source in every prompt.
+A reviewer rule may ship an optional `companion.mjs` alongside `content.md`. For each verification unit, the runner executes the hook to resolve 0–N read-only companion files from other nodes, and injects those files into that unit's reviewer prompt only. This lets the reviewer see exactly one paired counterpart per unit — a scenario document with its matching test spec, a migration with its schema, a handler with its contract — without embedding the entire related node's source in every prompt.
 
-`companion.mjs` is an **add-on to an LLM aspect, not a new reviewer kind**. Reviewer kind inference is unchanged: `companion.mjs` without `content.md` is a validator error (`aspect-companion-without-content`). `companion.mjs` alongside `check.mjs` is also a validator error (`aspect-companion-with-check`) — companions apply to LLM aspects only. Both codes are blocking errors that prevent `yg check` from passing.
+`companion.mjs` is an **add-on to a reviewer rule, not a new rule kind**. Rule kind inference is unchanged: `companion.mjs` without `content.md` is a validator error (`aspect-companion-without-content`). `companion.mjs` alongside `check.mjs` is also a validator error (`aspect-companion-with-check`) — companions apply to reviewer rules only. Both codes are blocking errors that prevent `yg check` from passing.
 
 ### Directory structure
 
@@ -171,7 +171,7 @@ export async function companion(ctx) {
 
 - `ctx.subject` — the unit's subject file(s): per:file → single-element array; per:node → the node's full subject set (same reference as `ctx.files`).
 - `ctx.files` — all subject files for the unit (same as `ctx.subject` for per:node).
-- `ctx.node`, `ctx.graph`, `ctx.fs` — same as the deterministic check context; bounded by the node's allowed-reads.
+- `ctx.node`, `ctx.graph`, `ctx.fs` — same as a script rule's check context; bounded by the node's allowed-reads.
 - `ctx.parseYaml(file)`, `ctx.parseJson(file)`, `ctx.parseToml(file)`, `ctx.parseAst(file, language)` — parse helpers; each accepts a `File` object or a **path string** (they treat the argument as a file path, not raw text). To parse raw frontmatter text extracted from a subject file, use a regex — not `ctx.parseYaml`.
 
 **What the hook returns:**
@@ -212,18 +212,18 @@ The prompt-size check runs wherever a pair is evaluated: at fill time, before th
 
 ### Verdict hashing and invalidation
 
-Two optional ingredients fold into the LLM pair's hash only when present, each under its own independent guard:
+Two optional ingredients fold into the reviewer pair's hash only when present, each under its own independent guard:
 
 1. **`companionHash`** — SHA-256 of `companion.mjs` bytes, present whenever the aspect ships `companion.mjs`. Editing `companion.mjs` re-verifies every pair of the aspect (all pairs, because `companionHash` changes for all).
 2. **`touched`** — the hook's observations (each companion file the hook resolved and the runner read, plus any `ctx.fs`/`ctx.graph` accesses), folded only when `length > 0`. Editing a resolved companion file re-verifies only the pairs that read it.
 
-**Backward-compatibility is load-bearing.** A plain LLM aspect (no `companion.mjs`) passes neither ingredient — the hash is byte-identical to what was stored before this feature existed. There is no lock-format change, no schema-version bump, and no migration.
+**Backward-compatibility is load-bearing.** A plain reviewer rule (no `companion.mjs`) passes neither ingredient — the hash is byte-identical to what was stored before this feature existed. There is no lock-format change, no schema-version bump, and no migration.
 
-Adding `companion.mjs` to an existing LLM aspect introduces `companionHash` on the first fill, which re-verifies that aspect's pairs once (a one-time cost on adoption). After that, edits to companion files cost only the pairs that read them.
+Adding `companion.mjs` to an existing reviewer rule introduces `companionHash` on the first fill, which re-verifies that aspect's pairs once (a one-time cost on adoption). After that, edits to companion files cost only the pairs that read them.
 
 ### What `yg aspect-test --dry-run` shows
 
-`--dry-run` on a companion-bearing LLM aspect runs the hook live and prints the resolved companion paths and the assembled prompt, but makes no reviewer call and does not touch the lock. The `--files` ad-hoc path (testing against an explicit file list with no graph attachment) is not available for any LLM aspect, companion-bearing or not — `--files` works with deterministic aspects only. An LLM review needs graph context an ad-hoc file list cannot supply: a node mapping or an architecture-derived read allowance, the effective aspects, the tier config. Address an LLM aspect with `--node <path>` or `--file <path>` instead.
+`--dry-run` on a companion-bearing reviewer rule runs the hook live and prints the resolved companion paths and the assembled prompt, but makes no reviewer call and does not touch the lock. The `--files` ad-hoc path (testing against an explicit file list with no graph attachment) is not available for any reviewer rule, companion-bearing or not — `--files` works with script rules only. A reviewer rule needs graph context an ad-hoc file list cannot supply: a node mapping or an architecture-derived read allowance, the effective aspects, the tier config. Address a reviewer rule with `--node <path>` or `--file <path>` instead.
 
 ### Failure modes — fail closed
 
@@ -232,16 +232,16 @@ Any failure to assemble a companion is an **infra-fail**: nothing is written to 
 - The hook throws an exception.
 - The hook returns a value that is not an array of `{ path }` objects.
 - A returned path does not exist on disk.
-- A returned path falls outside the node's allowed-reads set. The `what` sentence names the subject unit and the aspect — and for a `per: file` pair that unit *is* the subject file path. The `next` fix suggestion is the part that stays about nodes: it names the reviewed node and the owning node of the companion path, never the subject file, because only a node can hold a relation declaration. Two variants of this message the rest of this page does not otherwise cover: for a nodeless pair (a file enforced by its architecture type alone) it names no owning node at all, only the file's architecture type and the relation allow-list in `yg-architecture.yaml`; for a path excluded from graph coverage it names neither node nor type, only which exclusion put the path out of reach.
+- A returned path falls outside the node's allowed-reads set. The `what` sentence names the subject unit and the aspect — and for a `per: file` pair that unit *is* the subject file path. The `next` fix suggestion is the part that stays about nodes: it names the reviewed node and the owning node of the companion path, never the subject file, because only a node can hold a relation declaration. Two variants of this message the rest of this page does not otherwise cover: for the pair of a [type-covered file](/glossary#type-covered) (one with no owning node) it names no owning node at all, only the file's architecture type and the relation allow-list in `yg-architecture.yaml`; for a path excluded from graph coverage it names neither node nor type, only which exclusion put the path out of reach.
 - `companion.mjs` fails to import (syntax error, missing dependency).
 
-The hook is a resolver, not a judge — it never emits violations.
+The hook is a resolver, not a reviewer — it never emits violations.
 
 ---
 
-## Deterministic reviewer
+## Script rules {#deterministic-reviewer}
 
-The deterministic reviewer ships a `check.mjs` module run locally at zero LLM cost. Whatever `Violation[]` your `check` function returns is the verdict — no LLM, no nondeterminism, no per-call cost. There is **one** `check(ctx)` contract. The `ctx` exposes everything a check might need: `ctx.node` and `ctx.files` (the subject files, each with a `file.ast` parse tree when the language has a grammar), `ctx.fs` (the file system, within an allowed-reads boundary), `ctx.graph` (the graph topology), and `ctx.config` (the rule's settings for this repository). A check uses whichever it needs — inspect a single file's parse tree for a syntactic rule, or read related nodes and the file system for a cross-node structural rule. See `yg knowledge read writing-deterministic-aspects`.
+A script rule ships a `check.mjs` module run locally at zero LLM cost; it has no reviewer. Whatever `Violation[]` your `check` function returns is the verdict — no LLM, no nondeterminism, no per-call cost. There is **one** `check(ctx)` contract. The `ctx` exposes everything a check might need: `ctx.node` and `ctx.files` (the subject files, each with a `file.ast` parse tree when the language has a grammar), `ctx.fs` (the file system, within an allowed-reads boundary), `ctx.graph` (the graph topology), and `ctx.config` (the rule's settings for this repository). A check uses whichever it needs — inspect a single file's parse tree for a syntactic rule, or read related nodes and the file system for a cross-node structural rule. See `yg knowledge read writing-deterministic-aspects`.
 
 The two subsections below illustrate each end of that range: [parse-tree checks](#parse-tree-checks) for per-file syntactic rules, and [graph-aware checks](#graph-aware-checks) for rules spanning more than one node — but both are the same `check.mjs` contract and the same `reviewer.type: deterministic` field.
 
@@ -267,7 +267,7 @@ reviewer:
   type: deterministic
 ```
 
-The `reviewer:` block is optional — the presence of `check.mjs` infers the deterministic kind. If you do declare it, `reviewer.type: deterministic` must agree with the inferred kind. The runner parses each source file by extension — built-in grammars cover TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, Kotlin, JSON, YAML, and TOML — and passes all files to a single `check.mjs` invocation; a file whose extension has no registered grammar is still passed to the check, just without a parse tree. There is no `language:` field on an aspect: the runner derives each file's language from its extension and exposes it as `file.language` (undefined when there is no grammar). To restrict a rule to a subset of files, narrow `scope.files` or filter on `file.path` inside the check. Everything else (`implies`, `when`, `aspects` on nodes) works identically across both reviewer types.
+The `reviewer:` block is optional — the presence of `check.mjs` infers the script-rule kind. If you do declare it, `reviewer.type: deterministic` must agree with the inferred kind. The runner parses each source file by extension — built-in grammars cover TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, Kotlin, JSON, YAML, and TOML — and passes all files to a single `check.mjs` invocation; a file whose extension has no registered grammar is still passed to the check, just without a parse tree. There is no `language:` field on an aspect: the runner derives each file's language from its extension and exposes it as `file.language` (undefined when there is no grammar). To restrict a rule to a subset of files, narrow `scope.files` or filter on `file.path` inside the check. Everything else (`implies`, `when`, `aspects` on nodes) works identically across both reviewer types.
 
 #### Writing `check.mjs`
 
@@ -430,15 +430,15 @@ yg aspect-test --aspect async-fs --files src/utils/config.ts
 # Use a node's mapping as the file list
 yg aspect-test --aspect async-fs --node orders/order-service
 
-# Run against a file covered by its architecture type alone, with no owning component
+# Run against a type-covered file (no owning component)
 yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 ```
 
 `yg aspect-test` addresses exactly one unit per run, and there are three ways to name it — at most one per invocation:
 
 - `--node <path>` — a real component in the graph. The unit is that node's mapping, with the node's own allowed reads.
-- `--file <path>` — a source file enforced by its architecture type alone, with no owning component. It uses the architecture-derived read allowance rather than a node mapping, and it is the only way to test an aspect against a type-covered, nodeless file.
-- `--files <paths...>` — fully ad-hoc, no graph attachment at all. Deterministic aspects only.
+- `--file <path>` — a [type-covered file](/glossary#type-covered) (one with no owning component). It uses the architecture-derived read allowance rather than a node mapping, and it is the only way to test an aspect against a type-covered file.
+- `--files <paths...>` — fully ad-hoc, no graph attachment at all. Script rules only.
 
 `yg aspect-test` exits 0 for clean, 1 for violations, and never writes the lock. Output:
 
@@ -470,7 +470,7 @@ reviewer:
   type: deterministic
 ```
 
-There is no `language:` field on an aspect — the runner invokes `check.mjs` once per unit regardless of file types. Setting `reviewer.tier:` on a deterministic aspect is a validator error; tiers apply only to LLM aspects.
+There is no `language:` field on an aspect — the runner invokes `check.mjs` once per unit regardless of file types. Setting `reviewer.tier:` on a script rule is a validator error; tiers apply only to reviewer rules.
 
 #### Writing `check.mjs`
 
@@ -541,9 +541,9 @@ The same helper exports available to parse-tree checks (`walk`, `report`, `inFil
 
 The graph-aware runner enforces a strict read boundary — reading outside it throws a runtime violation instead of returning data. A node may read its own mapping files, its declared relation targets (and their descendants), its ancestor mappings, and its own descendant mappings. If a check needs to reach a node outside this set, add an explicit relation in `yg-node.yaml` pointing to it — relations are the contract that widens the allowed reads. The boundary is a *discipline*, not a sandbox: `check.mjs` runs with full Node privileges, so keep it machine-independent (no local-only paths, no OS quirks, no line-ending assumptions).
 
-#### The observation model: what invalidates a deterministic verdict
+#### The observation model: what invalidates a script verdict {#the-observation-model-what-invalidates-a-deterministic-verdict}
 
-A deterministic verdict is reusable only while everything the check **observed** still hashes to the value it had when the verdict was recorded. As the check runs, the runner records every observation it makes beyond the subject files: each `ctx.fs.read` (with the content hash), each `ctx.fs.list` (with a hash of the directory's entry names), each `ctx.fs.exists` probe (including negative ones — a `false` result is an observation), each `ctx.graph` access, each read of a node's file list (`ctx.node.files`, or `.files` of a node from `ctx.graph` — the list of paths it holds, even when the check looks only at file names), and each `ctx.config` key the check reads (including a key that reads as `undefined` — its later appearance is itself a change). These observations are folded into the pair's input hash, so a later change to any observed value re-verifies the pair — adding a file the check listed, adding a file to a node whose file list the check walked, making a probed path appear, editing a related node, or changing a setting the rule reads all count. Changing a setting the rule never reads changes nothing.
+A script verdict is reusable only while everything the check **observed** still hashes to the value it had when the verdict was recorded. As the check runs, the runner records every observation it makes beyond the subject files: each `ctx.fs.read` (with the content hash), each `ctx.fs.list` (with a hash of the directory's entry names), each `ctx.fs.exists` probe (including negative ones — a `false` result is an observation), each `ctx.graph` access, each read of a node's file list (`ctx.node.files`, or `.files` of a node from `ctx.graph` — the list of paths it holds, even when the check looks only at file names), and each `ctx.config` key the check reads (including a key that reads as `undefined` — its later appearance is itself a change). These observations are folded into the pair's input hash, so a later change to any observed value re-verifies the pair — adding a file the check listed, adding a file to a node whose file list the check walked, making a probed path appear, editing a related node, or changing a setting the rule reads all count. Changing a setting the rule never reads changes nothing.
 
 The practical consequence: **every observation widens your invalidation surface.** Read and probe only what the rule needs, and the verdict survives longer between re-runs.
 
@@ -557,7 +557,7 @@ yg aspect-test --aspect sibling-test-file --node orders/order-service
 yg aspect-test --aspect sibling-test-file --node orders/order-service --check-determinism
 ```
 
-The same three addressing modes apply here — `--node`, `--file`, `--files`, described under [Testing parse-tree checks](#testing-parse-tree-checks). A rule that governs files covered by their architecture type alone is tested with `--file <path>`; `--node` has no nodeless unit to address.
+The same three addressing modes apply here — `--node`, `--file`, `--files`, described under [Testing parse-tree checks](#testing-parse-tree-checks). A rule that governs type-covered files is tested with `--file <path>`; `--node` has no such unit to address.
 
 `yg aspect-test` exits 1 if violations exist and never writes the lock. Run it against both compliant and non-compliant nodes to confirm no false positives and no false negatives. `--check-determinism` runs the check twice and fails if the violation sets differ — your safeguard against machine-dependent or side-effecting checks.
 
@@ -569,7 +569,7 @@ A rule that has never refused anything is a rule on trust. Four instruments exis
 
 **`yg aspect-test`** — run the rule live, right now, against a node or an explicit file list. The everyday loop while writing a rule: try it on code that should pass and code that should fail, and confirm it says so. Covered above for both kinds.
 
-**A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`; a drill does hand a script rule its case files as `ctx.subject` and its settings as `ctx.config`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call. `--nodeless` assembles a judgment rule's cases in the shape a file enforced by its architecture type alone (no owning component) receives — no `<node>` in the prompt — instead of the default synthetic node; point it at a separate corpus with `--dir`, since a single run cannot mix both shapes.
+**A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or a reviewer rule shipping `companion.mjs`; a drill does hand a script rule its case files as `ctx.subject` and its settings as `ctx.config`). Script rules drill locally and free; a reviewer rule goes through the real reviewer and bills it, with the call budget printed before the first call. `--nodeless` drills a reviewer rule's cases as a [type-covered file](/glossary#type-covered) (no owning component) — no `<node>` in the prompt — instead of the default synthetic node; point it at a separate corpus with `--dir`, since a single run cannot mix both shapes.
 
 A case does not have to be hand-written. `yg drill add` takes a file as it stood
 at a named commit — `--aspect <id> --violates <path>@<commit>` — straight into the
@@ -583,15 +583,15 @@ A rule sees a case file under its path inside the case directory: `drills/violat
 
 `drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
 
-**`yg simulate`** — the "what would this have caught?" question, for script rules only. It replays a candidate `check.mjs` over recent commits in a throwaway clone, one commit at a time, and reports per commit whether it ran clean, how many files it would have refused, or that the commit could not be honestly compared. Read the result with its own caveat in mind: the rules already in place refused code that never landed, so a tightening replay is a *lower* bound on real catches. A judgment rule cannot be replayed this way — a model's verdict is point-in-time testimony, not a reproducible result — so use a drill corpus there instead.
+**`yg simulate`** — the "what would this have caught?" question, for script rules only. It replays a candidate `check.mjs` over recent commits in a throwaway clone, one commit at a time, and reports per commit whether it ran clean, how many files it would have refused, or that the commit could not be honestly compared. Read the result with its own caveat in mind: the rules already in place refused code that never landed, so a tightening replay is a *lower* bound on real catches. A reviewer rule cannot be replayed this way — a model's verdict is point-in-time testimony, not a reproducible result — so use a drill corpus there instead.
 
-**`yg aspect-test --repeat <N>`** — for judgment rules, how consistently the reviewer judges the *same* prompt. It reports `k/N satisfied` per unit with each run forced to a single vote, which measures the reviewer's self-consistency and nothing else: a rule can be consistently wrong, and `3/3` only says the reviewer agreed with itself. A rule that flips its own verdict run to run is a rule whose text reads two ways — sharpen it.
+**`yg aspect-test --repeat <N>`** — for reviewer rules, how consistently the reviewer judges the *same* prompt. It reports `k/N satisfied` per unit with each run forced to a single vote, which measures the reviewer's self-consistency and nothing else: a rule can be consistently wrong, and `3/3` only says the reviewer agreed with itself. A rule that flips its own verdict run to run is a rule whose text reads two ways — sharpen it.
 
 Before pointing a reviewer tier at a different model, there is a fifth thing: a paired before/after comparison, because a model swap invalidates no verdicts and therefore leaves no trace. See [the model-swap protocol](/model-swap-protocol).
 
-## Suppression — shared across reviewer types
+## Suppression — shared across rule kinds {#suppression-shared-across-reviewer-types}
 
-Source code comments can carry a `yg-suppress` marker to waive a specific aspect. All reviewer types honor the same syntax **and the same scope**: a marker's scope is resolved once, deterministically, into exact line ranges, and both reviewer kinds honor those identical ranges.
+Source code comments can carry a `yg-suppress` marker to waive a specific aspect: a line-scoped [waiver](/glossary#waiver), in single-line, bracket or whole-file form. Both reviewer rules and script rules honor the same syntax **and the same scope**: a marker's scope is resolved once, deterministically, into exact line ranges, and both rule kinds honor those identical ranges.
 
 **Format:** `yg-suppress(<aspect-path>) <reason>`
 
@@ -608,10 +608,10 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 const data = fs.readFileSync(path, 'utf-8');
 ```
 
-A single-line marker waives **exactly one line for every reviewer kind — the immediately following line, or, when the marker's comment trails code on the same line (`x(); // yg-suppress(<aspect-path>) <reason>`), that line itself**. The trailing form applies only in files with a registered grammar; in a raw-scanned file (`.sql`, `.sh`, …) a marker that does not begin its line is not a marker, so put it on its own line there. `yg suppressions` prints the lines every marker actually waives. There is no contextual or scope inference: the marker never expands to the surrounding function, class, block, or whole file, and never shrinks. The scope is resolved once, deterministically, into a one-line range that both reviewer kinds honor identically:
+A single-line marker waives **exactly one line for every rule kind — the immediately following line, or, when the marker's comment trails code on the same line (`x(); // yg-suppress(<aspect-path>) <reason>`), that line itself**. The trailing form applies only in files with a registered grammar; in a raw-scanned file (`.sql`, `.sh`, …) a marker that does not begin its line is not a marker, so put it on its own line there. `yg suppressions` prints the lines every marker actually waives. There is no contextual or scope inference: the marker never expands to the surrounding function, class, block, or whole file, and never shrinks. The scope is resolved once, deterministically, into a one-line range that both rule kinds honor identically:
 
-- **Deterministic reviewer:** the `check.mjs` reads the resolved range directly and treats the line inside it as satisfied.
-- **LLM reviewer:** the reviewer receives the pre-resolved spans in its prompt (a `<suppressed-ranges>` block of exact `(start-line, end-line)` pairs into the source files) and is instructed to honor exactly those lines — it does not re-derive the marker's scope, widen it, or narrow it.
+- **Script rule:** the `check.mjs` reads the resolved range directly and treats the line inside it as satisfied.
+- **Reviewer rule:** the reviewer receives the pre-resolved spans in its prompt (a `<suppressed-ranges>` block of exact `(start-line, end-line)` pairs into the source files) and is instructed to honor exactly those lines — it does not re-derive the marker's scope, widen it, or narrow it.
 
 To waive more than one line, use the bracket `disable`/`enable` form below (or a bare `disable`, which runs to end of file) — never a single-line marker.
 
@@ -657,25 +657,25 @@ Agents may propose adding a suppress marker but must **never** write one without
 
 ## Verdicts and the lock — shared
 
-Both reviewer types record their results the same way: one content-addressed entry per `(aspect, unit)` pair in the lock. Each entry stores the verdict and the hash of the inputs that produced it. On disk the lock is partitioned by reviewer kind — LLM verdicts go to the committed `.yggdrasil/yg-lock.nondeterministic.json`, deterministic verdicts to the gitignored `.yggdrasil/.yg-lock.deterministic.json` cache (rebuilt for free on demand, never committed), with the per-node log/closure baseline in the committed `.yggdrasil/yg-lock.logs.json`. The entry format is identical regardless of which file holds it; see [The lock](/the-lock):
+Both reviewer rules and script rules record their results the same way: one content-addressed entry per `(aspect, unit)` pair in the lock. Each entry stores the verdict and the hash of the inputs that produced it. On disk the lock is partitioned by rule kind — reviewer verdicts go to the committed `.yggdrasil/yg-lock.nondeterministic.json`, script verdicts to the gitignored `.yggdrasil/.yg-lock.deterministic.json` cache (rebuilt for free on demand, never committed), with the per-node log/closure baseline in the committed `.yggdrasil/yg-lock.logs.json`. The entry format is identical regardless of which file holds it; see [The lock](/the-lock):
 
-- **LLM pair (without companion):** the hash folds `content.md`, the subject files, the aspect description, the reference files, and the **name** of the resolved tier. The tier's config — provider, model, endpoint, temperature, consensus — is not folded; only its name. Change any folded input → the pair is unverified.
-- **LLM pair (with companion.mjs):** additionally folds `companionHash` (SHA-256 of `companion.mjs`) and, when non-empty, the hook's `touched` observations (the companion files the runner read, plus any `ctx.fs`/`ctx.graph` accesses). Both ingredients are folded only when present — a plain LLM aspect's hash is byte-identical to before, with no lock-format change.
-- **Deterministic pair:** the hash folds `check.mjs`, the subject files, and the observation set — every `ctx.fs` read, listing, and existence probe and every `ctx.graph` access the check made beyond its subject files (see [the observation model](#the-observation-model-what-invalidates-a-deterministic-verdict) below). Change the check, a subject file, or any observed value → the pair is unverified.
+- **Reviewer pair (without companion):** the hash folds `content.md`, the subject files, the aspect description, the reference files, and the **name** of the resolved tier. The tier's config — provider, model, endpoint, temperature, consensus — is not folded; only its name. Change any folded input → the pair is unverified.
+- **Reviewer pair (with companion.mjs):** additionally folds `companionHash` (SHA-256 of `companion.mjs`) and, when non-empty, the hook's `touched` observations (the companion files the runner read, plus any `ctx.fs`/`ctx.graph` accesses). Both ingredients are folded only when present — a plain reviewer rule's hash is byte-identical to before, with no lock-format change.
+- **Script pair:** the hash folds `check.mjs`, the subject files, and the observation set — every `ctx.fs` read, listing, and existence probe and every `ctx.graph` access the check made beyond its subject files (see [the observation model](#the-observation-model-what-invalidates-a-deterministic-verdict) below). Change the check, a subject file, or any observed value → the pair is unverified.
 
 `yg check` by default recomputes each pair's input hash and compares it to the lock — no LLM calls, no provider keys, runs instantly. If `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare `yg check` may fill pairs automatically (see [Configuration](/configuration#auto-approve-config)); explicit CLI flags always override the config. A source edit and an aspect-content edit both surface the same way: the affected pairs no longer match their recorded hash, so check reports them as unverified until `yg check --approve` fills them again.
 
 ### Verdict-events sidecar
 
-Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; when the fill ran inside a git repository, the line also carries the commit it ran at (absent otherwise — never fabricated, and never a hash ingredient); every LLM verdict carries the reviewer's reason — for a refusal the one the lock also keeps, for an approval one that exists only here, so approvals can be read back and audited — and a consensus review carries its vote tally (satisfied of the passes that returned a verdict). A diagnostic `yg aspect-test` line also carries a hash of the exact prompt it judged, which is how `yg advise` tells a split vote on one input (an ambiguous rule) from a refusal and a later approval on two inputs (a fixed bug). By default the file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating rule-health reporting. A failed append is swallowed and can never change a fill's outcome. The file is kept bounded: once it reaches 5 MiB it is moved aside to `.yg-events.jsonl.1`, replacing the previous one, and readers read both.
+Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the rule kind, the disposition (`approved` for a passing verdict, `refused`, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; when the fill ran inside a git repository, the line also carries the commit it ran at (absent otherwise — never fabricated, and never a hash ingredient); every reviewer verdict carries the reviewer's reason — for a refusal the one the lock also keeps, for a pass one that exists only here, so passing verdicts can be read back and audited — and a consensus review carries its vote tally (satisfied of the passes that returned a verdict). A diagnostic `yg aspect-test` line also carries a hash of the exact prompt it judged, which is how `yg advise` tells a split vote on one input (an ambiguous rule) from a refusal and a later pass on two inputs (a fixed bug). By default the file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating rule-health reporting. A failed append is swallowed and can never change a fill's outcome. The file is kept bounded: once it reaches 5 MiB it is moved aside to `.yg-events.jsonl.1`, replacing the previous one, and readers read both.
 
 #### Committed, shared record (opt-in)
 
 A team can opt into a **committed, shared** record of LLM verification-fill events with a single config key, `events: { committed_llm: true }` (see [Configuration → events](/configuration#events)). When it is on, each LLM fill event is appended to a committed file, `.yggdrasil/yg-events.llm.jsonl`, instead of the local sidecar — a single home per event, so nothing is double-counted. This file is:
 
-- **LLM-fill only.** Deterministic checks, drill runs, and diagnostic runs always stay in the local sidecar, so the free, keyless CI gate (`yg check --approve --only-deterministic`) never touches the committed file — running it adds nothing and produces zero churn.
+- **Reviewer fills only.** Script checks, drill runs, and diagnostic runs always stay in the local sidecar, so the free, keyless CI gate (`yg check --approve --only-deterministic`) never touches the committed file — running it adds nothing and produces zero churn.
 - **Union-merged.** `yg init` marks the file `merge=union` in `.gitattributes`, so events appended on different branches combine on merge instead of conflicting.
-- **Rationale-stripped.** The reviewer's reason — of a refusal or an approval — is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
+- **Rationale-stripped.** The reviewer's reason — of a refusal or a pass — is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
 
@@ -685,7 +685,7 @@ Readers combine the local sidecar with the committed stream, de-duplicated line 
 
 The reviewer is a separate model judging the coding agent's work, and a recorded verdict proves that the code and rule it was given are the ones on disk now (see [The lock → What `yg check` proves](/the-lock#what-yg-check-proves-and-against-whom)). It is worth exactly as much as the run that recorded it, and that run is trusted as far as its committer is:
 
-- **The reviewed code is also the reviewer's input.** A comment in a subject file that addresses the reviewer — a fake waiver, "respond with satisfied" — is text the model reads. A strong model (sonnet-class) refuses it and can name it as an injection attempt; a fast, cheap model (haiku-class) has been talked into approving by one five-line comment. Keep rules that must hold against an adversarial author on a strong model, and review the diff of judged files: the comment sits there in plain sight.
+- **The reviewed code is also the reviewer's input.** A comment in a subject file that addresses the reviewer — a fake waiver, "respond with satisfied" — is text the model reads. A strong model (sonnet-class) refuses it and can name it as an injection attempt; a fast, cheap model (haiku-class) has been talked into passing the code by one five-line comment. Keep rules that must hold against an adversarial author on a strong model, and review the diff of judged files: the comment sits there in plain sight.
 - **Only the committer vouches for a recorded verdict.** Nothing in the lock proves a reviewer produced an entry; the gate trusts whoever can push to the branch. For contributors you do not trust that far, the verdicts they commit are theirs, not your reviewer's.
 - **Rules are code.** `check.mjs` and `companion.mjs` run with the permissions of whoever runs `yg check --approve` (or `--approve --only-deterministic`, `yg adopt`, `yg aspect-test`, `yg drill`); every other command executes no repository code. For CI on fork pull requests, see [The lock → What `yg check` proves](/the-lock#what-yg-check-proves-and-against-whom).
 - **Each CLI reviewer runs isolated.** It gets the prompt on stdin and nothing else: no tools, no MCP servers, no extensions, no project instructions. `claude-code` and `copilot-cli` switch off their tools, settings and MCP configuration; `codex` runs `exec` in a read-only sandbox with the shell, image, sub-agent, goal and web-search tools disabled and without `~/.codex/config.toml`; `gemini-cli` runs with a policy that denies every tool, no extensions and no MCP servers. `codex` and `gemini-cli` each run in an empty directory of their own, so no `AGENTS.md`, `GEMINI.md` or project settings can be picked up. What each still reads is the user's own home configuration — the login, and a user-level `~/.codex/AGENTS.md` or `~/.gemini/GEMINI.md` if you keep one — which nothing in the reviewed repository can write. The exact flags are listed under [Configuration → Supported providers](/configuration#supported-providers).
@@ -694,7 +694,7 @@ The reviewer is a separate model judging the coding agent's work, and a recorded
 
 ## Edge cases
 
-### LLM reviewer
+### Reviewer rules
 
 **Borderline rejections.** Compliant code can be rejected by an LLM that misread the rule. Fix: clarify `content.md` (exit 2 above) — a `yg-suppress` marker is for a deliberate exception, not for a rule that misfires. A recorded refusal is final for unchanged inputs — sharpening the rule is the way to overturn it (and it re-verifies every pair of the aspect); `status: advisory` stops it from blocking while you work out the wording.
 
@@ -702,7 +702,7 @@ The reviewer is a separate model judging the coding agent's work, and a recorded
 
 **Companion assembly failure.** If the companion hook throws, returns a bad shape, or resolves a path that does not exist or falls outside the allowed-reads boundary, the pair is an infra-fail: nothing is written, the pair stays unverified, and `yg check` stays red. The error's `what` sentence names the unit being reviewed (for a `per: file` pair, that is the subject file) and the aspect; its `next` fix suggestion instead names the owning nodes, source and target, and never the subject file — a per-file subject cannot hold a relation declaration, only its owning node can. Fix the hook or the relation declarations and re-run `yg check --approve`.
 
-### Deterministic reviewer
+### Script rules
 
 **Imports inside `check.mjs`.** Yggdrasil hashes only `check.mjs` itself. If your check imports a helper from `node_modules`, changes to that helper do **not** invalidate the pair — Yggdrasil does not know about transitive dependencies. Guidance: keep all rule logic inside `check.mjs`. If you import a helper, consciously accept that bumping the helper version does not re-verify on its own.
 

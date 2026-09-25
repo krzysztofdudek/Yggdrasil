@@ -185,7 +185,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain('--dry-run is not supported for deterministic aspect');
+    expect(stderr).toContain('--dry-run is not supported for script rule');
   });
 
   // --- stderr contract: bespoke errors carry the 'error[<code>]: ' prefix ---

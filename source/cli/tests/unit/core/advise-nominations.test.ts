@@ -312,7 +312,7 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     const promo = noms.find((n) => n.id === 'promotion:requires-audit');
     expect(promo).toBeDefined();
     expect(promo!.classRank).toBe(60); // below every T0 class
-    expect(promo!.why).toContain('2 approved and 0 refused');
+    expect(promo!.why).toContain('2 passed and 0 refused');
     expect(promo!.why).toContain('small-N');
     expect(promo!.why).toContain('local telemetry since 2026-07-01T00:00:00.000Z');
     expect(promo!.next).toContain('ask the user to approve it first');
@@ -437,7 +437,7 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     const hot = noms.find((n) => n.id === 'uncovered-hot-spot:checkout/controller');
     expect(hot).toBeDefined();
     expect(hot!.classRank).toBe(90); // below every T0 (10..50) and the other T1s (60..80)
-    expect(hot!.what).toBe("Node 'checkout/controller' is changing but has no rule covering it.");
+    expect(hot!.what).toBe("Node 'checkout/controller' is changing but has no rule guarding it.");
     expect(hot!.why).toContain('3 of the last 200 commits touched this node');
     expect(hot!.why).toContain('the code most in motion has the least protection');
     // issue 016: the WHY must name the gate's actual criterion (no rule beyond drafts — advisory
@@ -681,7 +681,7 @@ describe('buildNominations — T1 promotion: infra dispositions ignored, evidenc
     const promo = noms.find((n) => n.id === 'promotion:requires-audit');
     expect(promo).toBeDefined();
     // Only the one real approved fill counts; the infra event is neither approved nor refused.
-    expect(promo!.why).toContain('1 approved and 0 refused');
+    expect(promo!.why).toContain('1 passed and 0 refused');
   });
 
   it('keeps evidenceTs as the true max timestamp, even when events arrive out of chronological order', async () => {

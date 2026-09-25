@@ -104,7 +104,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced-outside",
       "severity": "warning",
-      "what": "Aspect 'no-todo-comments' is refused on node:beta by a deterministic check.\nViolations:\nsrc/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker.",
+      "what": "Aspect 'no-todo-comments' is refused on node:beta by a script rule.\nViolations:\nsrc/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker.",
       "why": "Source files must not contain TODO comments — track work in the issue tracker, not the code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo-comments",

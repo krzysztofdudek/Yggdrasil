@@ -237,7 +237,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       expect(refused.all).toContain('no-banned-word');
       // The fill's closing line counts the refused deterministic pair, and the
       // report names the aspect and the child node in a blocking refusal block.
-      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // The block's member line names the child node and the violating file.
       expect(refused.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
@@ -272,7 +272,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       expect(refused.all).toContain('no-banned-word');
       // The fill's closing line counts the refused deterministic pair, and the
       // report names the aspect and the child node in a blocking refusal block.
-      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // The block's member line names the child node and the violating file.
       expect(refused.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
@@ -398,7 +398,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       expect(fill.all).toContain('no-banned-word');
       // The fill's closing line counts the refused deterministic pair, and the
       // report names the aspect and the child node in a blocking refusal block.
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // The block's member line names the child node and the violating file.
       expect(fill.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);
@@ -438,7 +438,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       expect(fill.all).toContain('no-banned-word');
       // The fill's closing line counts the refused deterministic pair, and the
       // report names the aspect and the child node in a blocking refusal block.
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // The block's member line names the child node and the violating file.
       expect(fill.all).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+/m);

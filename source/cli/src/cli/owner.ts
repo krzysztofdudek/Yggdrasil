@@ -295,7 +295,7 @@ export function registerOwnerCommand(program: Command): void {
                       }
                     : {
                         what: 'Covered by its architecture type, but nothing from it enforces on this file.',
-                        why: 'No node maps this file, and every rule the matched type attaches is either not a file-level rule or does not apply here — the file satisfies coverage with no enforcement.',
+                        why: 'No node maps this file, and every rule the matched type attaches is either not a per: file rule or does not apply here — the file satisfies coverage with no enforcement.',
                         next: `yg context --file ${result.file}`,
                       },
                 ) +

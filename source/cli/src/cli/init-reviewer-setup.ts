@@ -557,7 +557,7 @@ export async function probeReviewerFromFlags(config: ResolvedReviewerConfig): Pr
   if (result.ok) return undefined;
   return {
     what: `The ${config.provider} reviewer cannot run on this machine: ${result.error ?? 'its CLI did not answer'}.`,
-    why: 'The configuration was written anyway, so the project is set up; until the CLI runs, yg check --approve leaves every judgment-rule pair unverified.',
+    why: 'The configuration was written anyway, so the project is set up; until the CLI runs, yg check --approve leaves every reviewer-rule pair unverified.',
     next: `Install or fix the CLI, then run yg check --approve.`,
   };
 }

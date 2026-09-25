@@ -298,7 +298,7 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       // Every pair is processed — the clean nodes approve.
       // The bad pair refuses — not aborted, its sibling pairs still ran.
       // The closing fill line counts them: five approved, the one bad pair refused.
-      expect(fill.all).toMatch(/fill {2}done in .* — 5 approved · 1 refused · 0 failed/);
+      expect(fill.all).toMatch(/fill {2}done in .* — 5 passed · 1 refused · 0 failed/);
       // The refusal renders as an enforced error block in the post-fill check,
       // one member line per violation: the unit, the file:line, the message.
       expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
@@ -553,7 +553,7 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       const first = run(['check', '--approve'], dir);
       expect(first.status).toBe(0);
       expect(first.all).toContain('fill  4 pairs · 4 script (free) · 0 reviewer calls');
-      expect(first.all).toMatch(/fill {2}done in .* — 4 approved · 0 refused · 0 failed · 0 reviewer calls/);
+      expect(first.all).toMatch(/fill {2}done in .* — 4 passed · 0 refused · 0 failed · 0 reviewer calls/);
 
       // Nothing changed: the second fill is the true no-op.
       const second = run(['check', '--approve'], dir);

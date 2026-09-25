@@ -150,12 +150,12 @@ export function registerCheckCommand(program: Command): void {
     .description('Unified graph gate — verification, coverage, completeness')
     .option('--approve', 'Fill every unverified pair (script rules first, then reviewer rules), then report')
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
-    .option('--only-deterministic', 'Fill ONLY deterministic pairs (implies --approve; keyless, free — runs even with no reviewer configured); committed locks stay untouched. For CI and pre-commit.')
+    .option('--only-deterministic', 'Fill ONLY script-rule pairs (implies --approve; keyless, free — runs even with no reviewer configured); committed locks stay untouched. For CI and pre-commit.')
     .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
     .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count; --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
-    .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
+    .option('--aspect <id>', "Read-only: focus on one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     // The coverage axis — independent of the four view flags above and legal
     // alongside the writer (--approve / --only-deterministic), because it
     // WIDENS a statement of fact rather than narrowing the issue set: no count,
@@ -299,8 +299,8 @@ export function registerCheckCommand(program: Command): void {
           const viewFlag = wantsTop ? '--top' : opts.summary ? '--summary' : opts.details ? '--details' : '--aspect';
           fail({
             what: `${viewFlag} cannot be combined with --only-deterministic.`,
-            why: `${viewFlag} is a READ-ONLY view of the plain \`yg check\` result (it narrows output and writes nothing). --only-deterministic is a FILL flag (it implies --approve, writing the deterministic verdict cache). Mixing a read-only view with the writer would silently drop the fill — the deterministic pairs would NOT be filled.`,
-            next: `Run: yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (read-only view), or yg check --approve --only-deterministic (deterministic fill).`,
+            why: `${viewFlag} is a READ-ONLY view of the plain \`yg check\` result (it narrows output and writes nothing). --only-deterministic is a FILL flag (it implies --approve, writing the script verdict cache). Mixing a read-only view with the writer would silently drop the fill — the script pairs would NOT be filled.`,
+            next: `Run: yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (read-only view), or yg check --approve --only-deterministic (script-rule fill).`,
           }, 'usage');
           await exitAfterFlush(1);
           return;
@@ -326,8 +326,8 @@ export function registerCheckCommand(program: Command): void {
         if (opts.approve === false && opts.onlyDeterministic) {
           fail({
             what: '--no-approve cannot be combined with --only-deterministic.',
-            why: '--no-approve forces a read-only check (no fill); --only-deterministic asks for a deterministic FILL. The two are contradictory.',
-            next: 'Run: yg check --no-approve (read-only), or yg check --approve --only-deterministic (deterministic fill).',
+            why: '--no-approve forces a read-only check (no fill); --only-deterministic asks for a script-rule FILL. The two are contradictory.',
+            next: 'Run: yg check --no-approve (read-only), or yg check --approve --only-deterministic (script-rule fill).',
           }, 'usage');
           await exitAfterFlush(1);
           return;
@@ -337,8 +337,8 @@ export function registerCheckCommand(program: Command): void {
           if (opts.approve) {
             fail({
               what: '--aspect cannot be combined with --approve.',
-              why: '--aspect is a read-only drill-in view (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
-              next: 'Run: yg check --aspect <id> (read-only drill-in), or yg check --approve (fill unverified pairs).',
+              why: '--aspect is a read-only focus view (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
+              next: 'Run: yg check --aspect <id> (read-only focus on one rule), or yg check --approve (fill unverified pairs).',
             }, 'usage');
             await exitAfterFlush(1);
             return;
@@ -348,7 +348,7 @@ export function registerCheckCommand(program: Command): void {
             fail({
               what: `--aspect cannot be combined with ${conflicting}.`,
               why: '--aspect, --top, --summary, and --details are all mutually exclusive read-only views of the same `yg check` result. Asking for more than one at once is ambiguous; pick one.',
-              next: `Run: yg check --aspect <id> (drill-in view), or yg check ${conflicting} (that view alone).`,
+              next: `Run: yg check --aspect <id> (focus view), or yg check ${conflicting} (that view alone).`,
             }, 'usage');
             await exitAfterFlush(1);
             return;

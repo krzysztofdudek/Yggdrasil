@@ -18,8 +18,8 @@ reasons the README walks through below — an ambiguous match, and a rule
 serious enough to demand a name and a reviewable component rather than
 silent automatic coverage.
 
-This example is **keyless**: every rule here is a *deterministic* aspect (a
-local `check.mjs`, no LLM, no API key). All three verdicts are filled for
+This example is **keyless**: every rule here is a *script rule* (a
+local `check.mjs`, no reviewer, no API key). All three verdicts are filled for
 free by `yg check --approve --only-deterministic`.
 
 ## What is in the graph
@@ -42,8 +42,8 @@ free by `yg check --approve --only-deterministic`.
     shared helpers, the same way a hand-written node can carry a mapping
     and no aspects (see `docs/nodes.md`'s minimal-node pattern — this is
     that same idea, at the type level, with zero YAML).
-- **Three aspects**, all deterministic and `scope: { per: file }` — a
-  whole-unit (`per: node`, the default) rule can never produce a verdict on
+- **Three aspects**, all script rules and `scope: { per: file }` — a
+  `per: node` rule (the default) can never produce a verdict on
   a file with no owning node, so every rule here has to be file-scoped to
   reach the type-covered files at all.
 - **Two explicit nodes** — the only `yg-node.yaml` files in the project:
@@ -77,7 +77,7 @@ cd examples/type-level
 # 1. See the unfilled state — 2 nodes, 6 type-covered files, 6 pairs waiting:
 node ../../source/cli/dist/bin.js check
 
-# 2. Fill the deterministic verdicts for free (no API key, no LLM):
+# 2. Fill the script verdicts for free (no API key, no reviewer):
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
 
 # 3. Verify — should print PASS and exit 0:
@@ -114,7 +114,7 @@ Editing this file's prose can never move the counts above — only adding or
 removing a file changes them.
 
 `yg tree` shows the same shape from the graph side — two named components,
-plus everything else folded into the type-level lattice:
+plus everything else folded into type-level coverage:
 
 ```
 $ node ../../source/cli/dist/bin.js tree
@@ -122,7 +122,7 @@ $ node ../../source/cli/dist/bin.js tree
 order-repository [repository] — Order data access — repository is enforce: strict, so this file needs an explicit component even though its rule would otherwise apply automatically
 refund-handler [admin-handler] — Admin-only refund step — its path also matches the ordinary handler type, so it needs a component of its own to say which one it actually is
 
-6 files are satisfied by the type-level lattice, no component of their own: 3 checked by at least one rule, 3 with nothing that applies.
+6 type-covered files, with no component of their own: 3 checked by at least one rule, 3 with nothing that applies.
 ```
 
 And `yg context --file` on a file with no node at all still names the exact
@@ -266,12 +266,12 @@ git mv .yggdrasil/model/order-repository.yg-node.yaml.aside .yggdrasil/model/ord
 node ../../source/cli/dist/bin.js check
 ```
 
-## Re-approve after any source edit
+## Fill again after any source edit
 
 Every one of the demonstrations above ends by restoring the file it
 changed and confirming a plain `yg check` is green again — that is the
 state this directory is committed in. If you make a **lasting** edit to
-anything under `src/`, re-approve before committing it:
+anything under `src/`, fill again before committing it:
 
 ```bash
 cd examples/type-level
@@ -286,12 +286,12 @@ it to make their own point. This is the first one with it explicitly
 `true`. If you are writing tooling that assumes every example has the same
 graph shape (for instance, a script that regenerates every example's
 transcripts), this project is a deliberate exception — it exists to be
-the one example where the type-level lattice, not an explicit node, does
+the one example where type-level coverage, not an explicit node, does
 most of the enforcing.
 
 ## Do not commit the cache
 
-The deterministic verdict cache (`.yggdrasil/.yg-lock.deterministic.json`)
+The script verdict cache (`.yggdrasil/.yg-lock.deterministic.json`)
 and the AST cache (`.yggdrasil/.ast-cache/`) are rebuildable and
 **gitignored** (see `.yggdrasil/.gitignore`). They are recreated for free
 by `yg check --approve --only-deterministic`.

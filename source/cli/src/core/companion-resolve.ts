@@ -131,7 +131,7 @@ export function companionOutsideAllowedReads(
   if (pair.nodePath === undefined) {
     const what = `Companion file '${rel}' for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} is outside what its architecture type may reach.`;
     const why =
-      "A companion for a file enforced by its architecture type alone may only see files the architecture's relation allow-list permits that type to depend on — there is no component whose own allowed-reads could widen this. An out-of-reach companion is an infrastructure fault and the fill fails closed (NOTHING written).";
+      "A companion for a type-covered file may only see files the architecture's relation allow-list permits that type to depend on — there is no component whose own allowed-reads could widen this. An out-of-reach companion is an infrastructure fault and the fill fails closed (NOTHING written).";
     const typeLabel = typeId && typeId !== '' ? `'${typeId}'` : "this file's type";
     const next = `Allow ${typeLabel} to depend on whatever owns '${rel}' in yg-architecture.yaml, or give the file a component of its own (a yg-node.yaml mapping it) so it can declare an explicit relation instead.`;
     return { why: `companion '${rel}' is outside the file's architecture-permitted reach`, messageData: { what, why, next } };

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { findYggRoot, getPackageRoot, resolveFileArg, projectRootFromGraph } from '../io/paths.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
-import { loadGraphOrAbort } from './preamble.js';
+import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { fail, paint, writeOut } from './output.js';
 
@@ -135,6 +135,7 @@ function realpathOfExistingPrefix(target: string): string | null {
         debugWrite(`[simulate] realpath found no existing ancestor of '${target}': ${(err as Error).message}`);
         return null;
       }
+      debugWrite(`[simulate] realpath of '${existing}' failed, walking up: ${(err as Error).message}`);
       remainder.push(path.basename(existing));
       existing = parent;
     }
@@ -497,7 +498,7 @@ export function renderReport(params: {
     paint.bold(
       target.kind === 'node'
         ? `Replay of candidate rule '${candidateId}' over node '${target.nodePath}'`
-        : `Replay of candidate rule '${candidateId}' over file '${target.file}' (enforced by its architecture type alone)`,
+        : `Replay of candidate rule '${candidateId}' over type-covered file '${target.file}'`,
     ),
   );
   lines.push(
@@ -623,7 +624,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
     fail({
       what: `Candidate rule '${candidateId}' was not found.`,
       why: 'simulate replays an existing aspect from this project as the candidate; there is no aspect with that id to replay.',
-      next: 'Pass the id of an existing deterministic aspect (a directory under .yggdrasil/aspects/ with a check.mjs).',
+      next: 'Pass the id of an existing script rule (a directory under .yggdrasil/aspects/ with a check.mjs).',
     });
     return 1;
   }
@@ -633,15 +634,15 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
     fail({
       what: `Candidate '${candidateId}' is a ${kind === 'llm' ? 'reviewer' : 'reviewer-with-companion'} rule, which simulate cannot replay.`,
       why: 'A replay must be deterministic and reproducible; a reviewer\'s verdict is point-in-time testimony, not a value a rerun over history can reproduce.',
-      next: 'Supply a deterministic (check.mjs) candidate to replay here, or use `yg drill` to test a reviewer rule\'s falsifiability against a case corpus.',
+      next: 'Supply a script rule (check.mjs) as the candidate to replay here, or use `yg drill` to test a reviewer rule\'s falsifiability against a case corpus.',
     });
     return 1;
   }
   if (kind === 'none') {
     fail({
-      what: `Candidate '${candidateId}' has no deterministic check to replay.`,
-      why: 'simulate replays a deterministic rule\'s check.mjs; this aspect ships no check.mjs (it may be an aggregate that only bundles other aspects).',
-      next: 'Pass a deterministic aspect that ships a check.mjs, or one of an aggregate\'s atomic children.',
+      what: `Candidate '${candidateId}' has no check.mjs to replay.`,
+      why: 'simulate replays a script rule\'s check.mjs; this aspect ships no check.mjs (it may be a bundle that only groups other aspects).',
+      next: 'Pass a script rule that ships a check.mjs, or one of the rules a bundle implies.',
     });
     return 1;
   }
@@ -798,11 +799,11 @@ export function registerSimulateCommand(program: Command): void {
   program
     .command('simulate')
     .description(
-      'Replay a candidate deterministic rule over the history it can honestly reach (read-only, in an isolated clone; reports per-commit outcomes, never gates)',
+      'Replay a candidate script rule over the history it can honestly reach (read-only, in an isolated clone; reports per-commit outcomes, never gates)',
     )
-    .argument('<candidate>', 'aspect id of the candidate deterministic rule to replay')
+    .argument('<candidate>', 'aspect id of the candidate script rule to replay')
     .option('--node <path>', 'the node whose files the candidate replays over at each commit — mutually exclusive with --file')
-    .option('--file <path>', 'a file enforced by its architecture type alone (no owning component) — replays over its HISTORICAL content, classified against the CURRENT architecture; mutually exclusive with --node')
+    .option('--file <path>', 'a type-covered file (no owning component) — replays over its HISTORICAL content, classified against the CURRENT architecture; mutually exclusive with --node')
     .option('--max-commits <n>', 'how many most-recent commits to consider', '20')
     .action(async (candidate: string, opts: { node?: string; file?: string; maxCommits: string }) => {
       try {
@@ -813,7 +814,7 @@ export function registerSimulateCommand(program: Command): void {
             what: hasNode
               ? 'Both --node and --file were provided.'
               : 'Neither --node nor --file was provided.',
-            why: 'yg simulate replays over exactly one target: --node (a component) or --file (a file enforced by its architecture type alone, no component).',
+            why: 'yg simulate replays over exactly one target: --node (a component) or --file (a type-covered file, no component).',
             next: 'Re-run with exactly one of --node <path> or --file <path>.',
           });
           process.exit(1);
@@ -847,12 +848,7 @@ export function registerSimulateCommand(program: Command): void {
         await exitAfterFlush(code);
       } catch (error) {
         debugWrite(`[simulate] command failed: ${(error as Error).message}`);
-        fail({
-          what: `yg simulate could not complete: ${(error as Error).message}`,
-          why: 'The replay hit an error it does not classify; nothing in the real repository was modified — all work happens in an isolated clone.',
-          next: 'Re-run the command; if it recurs, this is a bug — report it with the command you ran.',
-        });
-        await exitAfterFlush(1);
+        abortOnUnexpectedError(error, 'running yg simulate (nothing in the real repository was modified; all work happens in an isolated clone)');
       }
     });
 }

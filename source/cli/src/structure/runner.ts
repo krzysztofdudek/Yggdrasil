@@ -154,7 +154,7 @@ export async function runStructureAspect(
     if (err instanceof StructureNodeContextUnavailableError) {
       throw new StructureRunnerError('STRUCTURE_NODE_CONTEXT_UNAVAILABLE', {
         what: `check.mjs for aspect '${aspectId}' accessed ctx.${err.member}, which is unavailable here.`,
-        why: `This file has no owning component — it is enforced by its architecture type alone, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
+        why: `This file has no owning component — it is a type-covered file, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
         next: `Rewrite the check to use only ctx.subject / ctx.fs over files the architecture already permits this file's type to reach, or give the file a component of its own (a yg-node.yaml mapping it) so ctx.node / ctx.graph become available.`,
       });
     }

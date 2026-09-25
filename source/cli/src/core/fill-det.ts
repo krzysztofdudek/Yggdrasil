@@ -288,7 +288,7 @@ export async function fillDetPair(
  */
 function detRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
   return {
-    what: `Deterministic check '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
+    what: `Script rule '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
     why: `The check.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`,
     next: originalMessageData?.next ?? `Fix the check.mjs, then re-run: yg check --approve`,
   };

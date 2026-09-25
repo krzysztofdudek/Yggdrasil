@@ -27,7 +27,7 @@ features:
     details: A rule you wrote last week applies to work you start today. Nobody restates it, and the agent does not get to quietly drop it.
   - icon: ⚡
     title: A green build can't lie
-    details: Each verdict is tied by hash to the exact code it checked. Run CI with the explicit flags and it re-proves every rule with no LLM calls and no keys, so a change that was never re-verified can't ride through green.
+    details: Each verdict is tied by hash to the exact code it checked. Run CI with the explicit flags and it re-proves every rule with no reviewer calls and no keys, so a change that was never re-checked can't ride through green.
 ---
 
 ## The same rule, two sessions apart

@@ -25,7 +25,7 @@
 
   /** A kind badge (LLM / deterministic / aggregating) — presentation only, never a verdict. */
   function kindBadge(kind) {
-    var label = kind === 'llm' ? 'LLM' : kind === 'aggregate' ? 'aggregating' : 'deterministic';
+    var label = kind === 'llm' ? 'reviewer rule' : kind === 'aggregate' ? 'bundle' : 'script rule';
     return dom.el('span', 'rb-badge rb-badge-' + kind, label);
   }
 
@@ -134,7 +134,7 @@
       else if (aspects[i].kind === 'aggregate') agg += 1;
       else det += 1;
     }
-    return aspects.length + ' rules · ' + llm + ' LLM · ' + det + ' deterministic · ' + agg + ' aggregating';
+    return aspects.length + ' rules · ' + llm + ' reviewer · ' + det + ' script · ' + agg + ' bundle';
   }
 
   Yg.views.rulebook = function (stage, route, data, ctx) {
