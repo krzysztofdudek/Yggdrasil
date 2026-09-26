@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import type { ArchitectureDef, Graph, GraphNode } from '../model/graph.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
-import { allowedRelationTypes } from '../core/allowed-relation-types.js';
+import { allowedRelationTypes } from '../utils/allowed-relation-types.js';
 // The index is built by the CALLER (core/fill-det.ts calls buildOwnerIndex); this
 // module only names its type, which lives in the model layer.
 import type { OwnerIndex } from '../model/owner-index.js';

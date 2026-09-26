@@ -1,9 +1,8 @@
 /**
- * Relocation test: allowedRelationTypes/RELATION_TYPES moved out of
- * relations/allowed-types.ts into this engine module (core/allowed-relation-types.ts)
- * so both the relation-conformance pass and the live type-relation gate can share one
- * implementation without a relations-adapter-to-relations-adapter edge for logic that
- * is really engine-layer.
+ * Relocation test: allowedRelationTypes moved out of relations/allowed-types.ts
+ * into a pure utility (utils/allowed-relation-types.ts, first an engine module) so
+ * the relation-conformance pass, the live type-relation gate and the architecture
+ * read reach share one implementation without depending on the engine layer.
  *
  * These tests are a COPY of the pre-existing allowedRelationTypes coverage that lived
  * inside tests/unit/relations/messages.test.ts (there is no dedicated allowed-types.test.ts
@@ -17,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, rm, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { allowedRelationTypes } from '../../../src/core/allowed-relation-types.js';
+import { allowedRelationTypes } from '../../../src/utils/allowed-relation-types.js';
 import { parseArchitecture } from '../../../src/io/architecture-parser.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
@@ -71,7 +70,7 @@ function makeGraph(nodes: Array<[string, string]>): Graph {
   };
 }
 
-describe('allowedRelationTypes (relocated: core/allowed-relation-types.ts)', () => {
+describe('allowedRelationTypes (relocated: utils/allowed-relation-types.ts)', () => {
   it('returns the relation types whose target list includes toType, in canonical order', () => {
     const arch = makeGraph([]).architecture;
     expect(allowedRelationTypes(arch, 'service', 'service')).toEqual(['uses', 'calls']);
@@ -193,9 +192,9 @@ describe('allowedRelationTypes — mixed wildcard list (FIX D, relocated)', () =
 });
 
 describe('allowedRelationTypes — compat re-export identity', () => {
-  it('re-exports the SAME function object the engine module defines (relocation compat shim)', async () => {
+  it('re-exports the SAME function object the utility module defines (relocation compat shim)', async () => {
     const fromRelations = await import('../../../src/relations/allowed-types.js');
-    const fromCore = await import('../../../src/core/allowed-relation-types.js');
-    expect(fromRelations.allowedRelationTypes).toBe(fromCore.allowedRelationTypes);
+    const fromUtils = await import('../../../src/utils/allowed-relation-types.js');
+    expect(fromRelations.allowedRelationTypes).toBe(fromUtils.allowedRelationTypes);
   });
 });

@@ -5,6 +5,16 @@
  */
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
+/** Every relation type, in the canonical order messages and tables list them in. */
+export const RELATION_TYPES: readonly RelationType[] = [
+  'uses',
+  'calls',
+  'extends',
+  'implements',
+  'emits',
+  'listens',
+];
+
 /**
  * Applicability filter. Evaluated by the CLI against the graph before an aspect
  * is considered effective on a node. If the predicate evaluates to false, the

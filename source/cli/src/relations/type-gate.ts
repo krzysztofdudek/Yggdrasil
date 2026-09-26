@@ -1,5 +1,5 @@
 import type { ArchitectureDef } from '../model/graph.js';
-import { allowedRelationTypes } from '../core/allowed-relation-types.js';
+import { allowedRelationTypes } from '../utils/allowed-relation-types.js';
 import type { TypedEdgeIndex } from './pass.js';
 
 export interface TypeGateFinding {

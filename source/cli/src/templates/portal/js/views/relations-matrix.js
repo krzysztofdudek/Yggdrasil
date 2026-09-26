@@ -35,7 +35,7 @@
   };
 
   // How many distinct relation types the engine resolves per type (uses / calls / extends /
-  // implements / emits / listens — core/allowed-relation-types.ts RELATION_TYPES.length),
+  // implements / emits / listens — model/when.ts RELATION_TYPES.length),
   // mirrored here as a literal since a browser module cannot import the engine constant.
   var REL_TYPE_COUNT = 6;
 
