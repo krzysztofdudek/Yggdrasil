@@ -170,9 +170,8 @@ describe('classifyFillPairs — what a measured change narrows', () => {
 
     const result = await classify(root, burnOver([['reviewed-rule', 'node:alpha']]));
 
-    // Only alpha: beta's one pending pair is a review this run leaves alone.
-    expect([...result.nodeSet].sort()).toEqual(['alpha']);
-    // What will actually be filled lives on alpha alone.
+    // Only alpha — what will actually be filled, and so what the gate asks about:
+    // beta's one pending pair is a review this run leaves alone.
     expect([...result.reportNodeSet].sort()).toEqual(['alpha']);
     expect([...result.reportFileSet]).toEqual([]);
     // And the classification still reports every unverified pair it found, which

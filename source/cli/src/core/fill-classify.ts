@@ -37,7 +37,7 @@
  * one whose own file had moved.
  *
  * ── The log gate's set is the fill's ────────────────────────────────────────
- * `nodeSet` feeds the mandatory-log gate: the components this run will ACTUALLY
+ * `reportNodeSet` also feeds the mandatory-log gate: the components this run will ACTUALLY
  * fill a pair of. A log entry is owed for a change to a component's own source,
  * and a run records nothing over such a change until the entry exists — so the
  * run stops on the components it would record verdicts for. A component this
@@ -108,12 +108,10 @@ export interface FillPairSets {
    *  billed vs free from where its verdicts actually live, instead of
    *  defaulting to a guess. */
   detAspectIdsOnDisk: Set<string>;
-  /** Distinct components owning at least one pair this run will ACTUALLY fill —
-   *  the mandatory-log gate's set (§9): a run stops before recording anything
-   *  when one of them changed its own source with no entry. */
-  nodeSet: Set<string>;
   /** Distinct components owning at least one pair this run will ACTUALLY fill.
-   *  The number the pre-dispatch header quotes. */
+   *  The number the pre-dispatch header quotes, and the mandatory-log gate's set
+   *  (§9): a run stops before recording anything when one of them changed its
+   *  own source with no entry. */
   reportNodeSet: Set<string>;
   /** Distinct type-covered files owning at least one nodeless pair this run
    *  will actually fill. Several aspects can share one file's unit key, so it
@@ -250,7 +248,6 @@ export async function classifyFillPairs(
     aspectById,
     deterministicAspectIds,
     detAspectIdsOnDisk,
-    nodeSet: reportNodeSet,
     reportNodeSet,
     reportFileSet,
     reviewerCallBudget,

@@ -291,8 +291,8 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
 
   // ── Step 2: Classify pairs through the SAME engine plain check uses. ───────
   // The change scope narrows the PAID half of the fill set and nothing else —
-  // see fill-classify.ts. `nodeSet` below is the log gate's set — the
-  // components this run fills a pair of, the same ones the report counts.
+  // see fill-classify.ts. `reportNodeSet` below is also the log gate's set —
+  // the components this run fills a pair of, the same ones the report counts.
   // companion.mjs runs only where a reviewer pair may be filled: never in a
   // preview, and never under --only-deterministic, whose one piece of
   // repository code is the script rules' check.mjs (the free CI step promises
@@ -303,7 +303,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
-    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet,
+    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk,
     reportNodeSet, reportFileSet, reviewerCallBudget,
   } = classification;
 
@@ -435,7 +435,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // per-node messages tell the user which entries to add, then re-run.
   const blockedNodes = new Set<string>();
   const logGateIssues: CheckIssue[] = [];
-  for (const nodePath of nodeSet) {
+  for (const nodePath of reportNodeSet) {
     const node = graph.nodes.get(nodePath);
     if (!node) continue;
     const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
