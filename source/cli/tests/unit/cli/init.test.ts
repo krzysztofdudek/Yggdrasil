@@ -254,9 +254,25 @@ describe('resolveReviewerConfigFromFlags', () => {
     try {
       const r = resolveReviewerConfigFromFlags({ provider: 'anthropic', model: 'claude-sonnet-5' });
       expect(r.ok).toBe(true);
-      if (r.ok) { expect(r.config.apiKey).toBeUndefined(); expect(r.keyWarning?.what).toContain('No API key'); }
+      if (r.ok) { expect(r.config.keyEnvVar).toBeUndefined(); expect(r.keyWarning?.what).toContain('No API key'); }
     } finally {
       if (hadKey) process.env.ANTHROPIC_API_KEY = savedKey; else delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
+  it('names the variable that holds the key but never returns the key itself', () => {
+    const savedKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-never-returned';
+    try {
+      const r = resolveReviewerConfigFromFlags({ provider: 'anthropic', model: 'claude-sonnet-5' });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.config.keyEnvVar).toBe('ANTHROPIC_API_KEY');
+        expect(r.keyWarning).toBeUndefined();
+        expect(JSON.stringify(r)).not.toContain('sk-ant-never-returned');
+      }
+    } finally {
+      if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = savedKey;
     }
   });
 });

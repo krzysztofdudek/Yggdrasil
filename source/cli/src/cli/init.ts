@@ -29,7 +29,10 @@ import {
   runReviewerConfigFlow,
   writeReviewerConfig,
   probeReviewerFromFlags,
-  writeSecretsFile,
+  readReviewerTarget,
+  type ReviewerChoice,
+  settleStoredKey,
+  storedKeyNotice,
 } from './init-reviewer-setup.js';
 import {
   createYggdrasilStructure,
@@ -273,10 +276,7 @@ async function freshInit(
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
 
   if (reviewerConfig) {
-    await writeReviewerConfig(yggRoot, reviewerConfig);
-    if (reviewerConfig.apiKey) {
-      await writeSecretsFile(yggRoot, reviewerConfig.apiKey);
-    }
+    await writeReviewerWithKey(yggRoot, reviewerConfig);
   }
 
   await ensureGitattributes(projectRoot);
@@ -286,6 +286,24 @@ async function freshInit(
       ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`
       : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`,
   ));
+}
+
+/**
+ * The wizard's write: the tier into yg-config.yaml, then the stored key settled
+ * against it — a typed key written, and a key stored for another reviewer (or
+ * one that would outrank the answer just given) removed, with a line saying so.
+ */
+async function writeReviewerWithKey(yggRoot: string, choice: ReviewerChoice): Promise<void> {
+  const prev = await readReviewerTarget(yggRoot);
+  await writeReviewerConfig(yggRoot, choice);
+  const outcome = await settleStoredKey(yggRoot, prev, {
+    provider: choice.provider,
+    endpoint: choice.endpoint,
+    apiKey: choice.apiKey,
+    keyAnswered: choice.keyAnswered === true,
+  });
+  const notice = storedKeyNotice(outcome, prev, undefined);
+  if (notice) p.log.info(buildIssueMessage(notice));
 }
 
 // ---------------------------------------------------------------------------
@@ -318,9 +336,10 @@ function resolveReviewerOrExit(opts: {
 }
 
 /**
- * Persist a validated reviewer config: write the tier into yg-config.yaml and,
- * when the environment supplied a key, the secret overlay — otherwise surface
- * the key-missing warning. Callers scaffold (fresh) or not (existing) before
+ * Persist a validated reviewer config: write the tier into yg-config.yaml,
+ * settle any key yg-secrets.yaml already holds for it (never writing the
+ * environment's key there), and say truthfully which key the reviewer will
+ * send. Callers scaffold (fresh) or not (existing) before
  * calling this; here we only write the reviewer section, which must already
  * have a yg-config.yaml to merge into.
  */
@@ -328,11 +347,18 @@ async function persistReviewerConfig(
   yggRoot: string,
   resolved: ResolvedReviewerOk,
 ): Promise<void> {
-  const { provider, model, endpoint, apiKey } = resolved.config;
+  const { provider, model, endpoint, keyEnvVar } = resolved.config;
+  // Read where the tier sent its key BEFORE rewriting it: a key stored for the
+  // previous reviewer must not follow the tier to a new one.
+  const prev = await readReviewerTarget(yggRoot);
   await writeReviewerConfig(yggRoot, { provider, model, endpoint });
-  if (apiKey) {
-    await writeSecretsFile(yggRoot, apiKey);
-  } else if (resolved.keyWarning) {
+  // The environment's key is never written: the reviewer reads the variable
+  // itself at run time. Only a stale stored key is settled here.
+  const outcome = await settleStoredKey(yggRoot, prev, { provider, endpoint, keyAnswered: keyEnvVar !== undefined });
+  const notice = storedKeyNotice(outcome, prev, keyEnvVar);
+  if (notice) writeOut(paint.yellow(`${buildIssueMessage(notice)}\n`));
+  // The environment-only warning is true only when no stored key will be sent.
+  if (outcome !== 'kept' && resolved.keyWarning) {
     writeOut(paint.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
   }
   // The same installation check the wizard runs, reported as a warning: a
@@ -349,7 +375,7 @@ async function persistReviewerConfig(
 
 /**
  * Non-interactive fresh bootstrap. Runs the SAME write-path as interactive
- * freshInit (createYggdrasilStructure + writeReviewerConfig [+ writeSecretsFile])
+ * freshInit (createYggdrasilStructure + writeReviewerConfig + the stored-key settle)
  * but takes every choice from flags instead of prompts, and makes NO network
  * call (no model fetch, no API connection test) — so it works in a non-TTY
  * context (Docker, devcontainer, CI) where the wizard cannot run. A CLI
@@ -359,8 +385,9 @@ async function persistReviewerConfig(
  * The caller has already validated that `provider` is a recognized value.
  * Here: claude-code falls back to sonnet when --model is omitted; every other
  * provider requires --model. Ollama defaults its
- * endpoint; openai-compatible requires --endpoint. API keys are read from the
- * provider's env var (never a flag, so they never land in shell history); a
+ * endpoint; openai-compatible requires --endpoint. API keys come only from the
+ * provider's env var (never a flag, so they never land in shell history), and
+ * are never copied to disk — the reviewer reads the variable at run time; a
  * missing key is non-fatal — the config is written and can be fixed later,
  * mirroring the interactive flow's "saved anyway".
  */
@@ -778,10 +805,7 @@ async function existingInit(projectRoot: string): Promise<void> {
         p.outro(paint.green('No reviewer selected — the existing reviewer configuration is unchanged.'));
         break;
       }
-      await writeReviewerConfig(yggRoot, reviewerConfig);
-      if (reviewerConfig.apiKey) {
-        await writeSecretsFile(yggRoot, reviewerConfig.apiKey);
-      }
+      await writeReviewerWithKey(yggRoot, reviewerConfig);
       p.outro(paint.green('Reviewer configured.'));
       break;
     }

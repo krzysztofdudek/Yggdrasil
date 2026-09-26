@@ -14,6 +14,14 @@ const ENV_VAR_MAP: Record<string, string> = {
 /** How long a hosted API call may take when the tier sets no config.timeout. */
 export const DEFAULT_API_TIMEOUT_MS = 60_000;
 
+/**
+ * The key a hosted provider sends. Precedence: the tier's `config.api_key`
+ * (in practice from the gitignored yg-secrets.yaml overlay) outranks the
+ * provider's environment variable. That is why `yg init` never writes an
+ * environment key to the overlay, and removes a stored key whenever the tier
+ * it belongs to is pointed at another provider or endpoint: a key left there
+ * would win over the variable and travel to the new target.
+ */
 export function resolveApiKey(config: LlmConfig): string | undefined {
   if (config.api_key) return config.api_key;
   const envVar = ENV_VAR_MAP[config.provider];
