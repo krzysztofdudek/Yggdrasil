@@ -28,7 +28,7 @@ import { readLock } from '../io/lock-store.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail, writeOut, count } from './output.js';
+import { writeOut, count, failAndExit } from './output.js';
 import { findCandidateOwners } from '../core/graph/files.js';
 
 function normalizeForMatch(inputPath: string): string {
@@ -108,7 +108,7 @@ async function computeRelationEdgesForOwner(graph: Graph, projectRoot: string): 
 }
 
 /** Schema id of `yg owner --json`. */
-export const OWNER_JSON_SCHEMA = 'yg-owner/1';
+const OWNER_JSON_SCHEMA = 'yg-owner/1';
 
 /** Who owns a file, as `yg owner --json` reports it. */
 export interface OwnerJsonDocument {
@@ -158,12 +158,11 @@ export function registerOwnerCommand(program: Command): void {
         if (!options.file) {
           // Emit a structured what/why/next error instead of Commander's bare
           // "required option not specified" line.
-          fail({
+          failAndExit({
                 what: '--file is required.',
                 why: 'yg owner resolves which graph node owns a specific source file, so it needs that file path.',
                 next: 'Re-run as: yg owner --file <path>',
               });
-          process.exit(1);
         }
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
@@ -249,12 +248,11 @@ export function registerOwnerCommand(program: Command): void {
             // via describeCascadeCycle, so the surfaces cannot disagree.
             const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
             if (cascadeCycle) {
-              fail({
+              failAndExit({
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                 why: describeCascadeCycle(cascadeCycle),
                 next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
               });
-              process.exit(1);
             }
             // Enumerates pairs scoped to THIS ONE FILE (a single-entry covered
             // map), never the whole-repo classification map, for the pairs
@@ -373,12 +371,11 @@ export function registerOwnerCommand(program: Command): void {
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
           debugWrite(`[owner] file arg outside project root: ${msg}`);
-          fail({
+          failAndExit({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `yg owner resolves ownership only for files tracked inside the project.`,
-            next: `Pass a path inside the project root (relative to the repo).`,
+            next: 'yg owner --file <a path inside the repository, relative to its root>',
           });
-          process.exit(1);
         }
         abortOnUnexpectedError(error, 'resolving file owner');
       }

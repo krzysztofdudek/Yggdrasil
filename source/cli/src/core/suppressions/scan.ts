@@ -92,7 +92,7 @@ function isBinaryContent(buf: Buffer): boolean {
  * `yg suppressions` inventory and the warning `yg check` raises for the same
  * marker, so the two surfaces word it identically.
  */
-export function reasonlessMarkerMessage(file: string, line: number, aspect: string): IssueMessage {
+function reasonlessMarkerMessage(file: string, line: number, aspect: string): IssueMessage {
   return {
     what: `yg-suppress marker at ${file}:${line} has no reason.`,
     why: 'A reason is required. A marker without one waives nothing: as soon as the check flags a line it covers, the fill rejects the marker (malformed-suppress-marker) and leaves the pair unverified — until then nothing else reports it.',

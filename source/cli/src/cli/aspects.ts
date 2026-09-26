@@ -55,7 +55,7 @@ import {
   type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
-import { fail, paint, writeOut, count, next, note, fillStepFor, fillStepText, NO_FILL_COST, type FillCost } from './output.js';
+import { paint, writeOut, count, next, note, fillStepFor, fillStepText, NO_FILL_COST, type FillCost, failAndExit } from './output.js';
 
 interface AspectUsage {
   architecture: number;
@@ -310,7 +310,7 @@ function reachProvenance(
  * reports them with what/why/next — a subject that cannot be read simply does not
  * appear here, exactly as it does not appear in the usage counts beside it.
  */
-export async function computeAspectReach(
+async function computeAspectReach(
   graph: Graph,
   typeCoverage?: TypeCoverageInput,
 ): Promise<Map<string, AspectsJsonReachUnit[]>> {
@@ -350,7 +350,7 @@ export async function computeAspectReach(
  * document is byte-identical to what it always was, and the caller that only
  * wants the counts pays nothing for the names.
  */
-export async function buildAspectsJson(
+async function buildAspectsJson(
   graph: Graph,
   projectRoot: string,
   typeCoverage?: TypeCoverageInput,
@@ -1040,7 +1040,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
 }
 
 /** The yg-aspects-health/1 document for a computed health view. */
-export function aspectsHealthDocument(health: AspectHealth): AspectsHealthJsonDocument {
+function aspectsHealthDocument(health: AspectHealth): AspectsHealthJsonDocument {
   return {
     schema: ASPECTS_HEALTH_JSON_SCHEMA,
     rules: health.rows.map((r) => ({
@@ -1233,20 +1233,18 @@ export function registerAspectsCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         if (options.reach === true && options.health === true) {
-          fail({
+          failAndExit({
             what: '--reach cannot be combined with --health.',
             why: 'Reach enumerates the units each rule judges and belongs to the rule inventory (yg-aspects/1); the health view is a different projection with its own document (yg-aspects-health/1).',
             next: 'Run: yg aspects --json --reach (the inventory with reach), or yg aspects --health --json (the health document).',
           }, 'usage');
-          process.exit(1);
         }
         if (options.reach === true && options.json !== true) {
-          fail({
+          failAndExit({
             what: '--reach needs --json.',
             why: 'Reach is an enumeration of every unit each rule judges — hundreds of lines on a real graph, and machine input by nature. The listing answers the same question at the resolution a person reads it at: how many places each rule reaches, split by the channel it arrived through.',
             next: 'Run: yg aspects --json --reach (the enumeration), or yg aspects (the listing with the counts).',
           });
-          process.exit(1);
         }
         if (options.json === true && options.health === true) {
           // Its own document, never folded into yg-aspects/1: the inventory keeps

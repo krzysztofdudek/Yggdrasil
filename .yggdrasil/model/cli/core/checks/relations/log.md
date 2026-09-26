@@ -32,3 +32,5 @@ A dependency cycle counts its nodes with count(). Counts are written with count(
 A dependency cycle prints its node paths in POSIX form in what and next, as every other message of this module does, while the members carried on the issue stay graph keys, because yg context matches them against the graph's own node keys. A flow naming a missing node now points at that flow's own yg-flow.yaml and at the node file to create, both of which the check knows, instead of a bare file name.
 ## [2026-09-24T14:12:03.631Z]
 The high fan-out fix names the node file with its path in POSIX form, as every other message of this module does, so a Windows checkout never prints a backslash path.
+## [2026-09-26T21:33:28.100Z]
+Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.

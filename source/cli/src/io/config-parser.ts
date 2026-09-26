@@ -26,7 +26,7 @@ export class ConfigParseError extends Error {
 }
 
 /** The keys `quality:` accepts. */
-export const QUALITY_KEYS = ['max_direct_relations'] as const;
+const QUALITY_KEYS = ['max_direct_relations'] as const;
 
 /** `quality:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
 export const RETIRED_QUALITY_KEYS: RetiredKeys = {
@@ -48,7 +48,7 @@ export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
  * the CLI providers (claude-code, codex, gemini-cli, copilot-cli) take `model`
  * and `timeout` and ignore `temperature` and `endpoint` — but each key is known.
  */
-export const TIER_CONFIG_KEYS = ['model', 'endpoint', 'temperature', 'timeout', 'api_key'] as const;
+const TIER_CONFIG_KEYS = ['model', 'endpoint', 'temperature', 'timeout', 'api_key'] as const;
 
 const DEFAULT_QUALITY: QualityConfig = {
   max_direct_relations: 10,
@@ -77,7 +77,7 @@ export type SchemaVersionField =
   | { kind: 'string'; value: string }
   | { kind: 'not-string'; shown: string };
 
-export function readSchemaVersionField(raw: Record<string, unknown>): SchemaVersionField {
+function readSchemaVersionField(raw: Record<string, unknown>): SchemaVersionField {
   if (!Object.prototype.hasOwnProperty.call(raw, 'version') || raw.version === undefined) {
     return { kind: 'absent' };
   }

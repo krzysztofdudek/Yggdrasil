@@ -42,7 +42,7 @@ import {
   stripRetiredKeys,
   type RetiredKeysResult,
 } from './init-scaffold.js';
-import { fail, next, thenStep, paint, writeOut } from './output.js';
+import { next, thenStep, paint, writeOut, failAndExit } from './output.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
@@ -65,12 +65,11 @@ function isTTY(): boolean {
  */
 function ensureKnownProvider(provider: string): asserts provider is ReviewerProvider {
   if (!ALL_PROVIDERS.includes(provider as ReviewerProvider)) {
-    fail({
+    failAndExit({
       what: `Unknown provider '${provider}'.`,
       why: 'The --provider value must match one of the supported reviewer providers.',
       next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
     });
-    process.exit(1);
   }
 }
 
@@ -331,8 +330,7 @@ function resolveReviewerOrExit(opts: {
 }): ResolvedReviewerOk {
   const resolved = resolveReviewerConfigFromFlags(opts);
   if (!resolved.ok) {
-    fail(resolved.issue);
-    process.exit(1);
+    failAndExit(resolved.issue);
   }
   return resolved;
 }
@@ -625,13 +623,17 @@ async function readUnknownConfigKeys(yggRoot: string): Promise<IssueMessage[]> {
  * What an upgrade says about the retired keys it removed: one line per key and
  * file, then how the files were rewritten, so the owner knows to read the diff.
  */
-export function renderRetiredKeysRemoved(result: RetiredKeysResult): string {
+function renderRetiredKeysRemoved(result: RetiredKeysResult): string {
   return [
     ...result.removed.map((r) => `Removed retired key '${r.key}' from ${r.file} (${r.reason}).`),
     ...(result.removed.length > 0
       ? ['Each file was edited in place: every other key and comment is kept, except a comment on a removed key itself; the writer may normalize indentation. Review with git diff before committing.']
       : []),
-    ...result.untouched.map((u) => `Left ${u.file} untouched: it holds retired keys, but it could not be written back without them (${u.reason}). Delete them by hand; yg check names each one.`),
+    ...result.untouched.map((u) => buildIssueMessage({
+      what: `Left ${u.file} untouched: it holds retired keys, but it could not be written back without them (${u.reason}).`,
+      why: 'The upgrade rewrites a file only when it can drop the retired keys and keep everything else in it; this file it could not, so the keys are still there and yg check refuses them.',
+      next: `Delete the retired keys from ${u.file} by hand, then run yg check, which names each one.`,
+    })),
   ].join('\n');
 }
 
@@ -876,31 +878,28 @@ export function registerInitCommand(program: Command): void {
         const noReviewer = options.reviewer === false;
 
         if (noReviewer && (options.provider || options.model || options.endpoint)) {
-          fail({
+          failAndExit({
             what: '--no-reviewer was combined with reviewer flags (--provider / --model / --endpoint).',
             why: 'They ask for opposite things: --no-reviewer bootstraps with no reviewer at all, while --provider configures one. Honoring both would mean ignoring one silently.',
             next: 'Keep exactly one: yg init --no-reviewer to start without a reviewer, or yg init --provider <name> [--model <m>] to configure one.',
           });
-          process.exit(1);
         }
 
         // Non-interactive upgrade: --upgrade [--platform <name>]
         if (options.upgrade) {
           if (noReviewer) {
-            fail({
+            failAndExit({
               what: '--no-reviewer was combined with --upgrade.',
               why: '--upgrade only refreshes the agent rules of an existing project; it never touches the reviewer configuration, so --no-reviewer would be silently ignored.',
               next: 'Run the upgrade alone: yg init --upgrade.',
             });
-            process.exit(1);
           }
           if (options.provider || options.model || options.endpoint) {
-            fail({
+            failAndExit({
                   what: '--upgrade was combined with reviewer flags (--provider / --model / --endpoint).',
                   why: '--upgrade only refreshes the agent rules files; it does not configure a reviewer, so those flags would be silently ignored.',
                   next: 'Run the upgrade alone (yg init --upgrade), then configure the reviewer separately: yg init --provider <name> [--model <m>].',
                 });
-            process.exit(1);
           }
           noticeDeprecatedPlatform(options.platform);
           // init is the one command that runs before a graph exists; delegate the
@@ -910,16 +909,14 @@ export function registerInitCommand(program: Command): void {
 
           const versionRead = await readSchemaVersion(yggRoot);
           if (versionRead?.kind === 'absent' || versionRead?.kind === 'not-string') {
-            fail(schemaVersionFieldIssue(versionRead));
-            process.exit(1);
+            failAndExit(schemaVersionFieldIssue(versionRead));
           }
           if (versionRead === null) {
-            fail({
+            failAndExit({
               what: '.yggdrasil/yg-config.yaml could not be read as a YAML mapping.',
               why: '--upgrade reads the version field to choose which migrations to run; a missing, unreadable, or unparseable config file has no version to read.',
               next: 'Restore .yggdrasil/yg-config.yaml from version control, then retry yg init --upgrade.',
             });
-            process.exit(1);
           }
           // Flags are resolved against — and written back into — the committed
           // config BEFORE the upgrade installs anything, so `--upgrade
@@ -938,14 +935,13 @@ export function registerInitCommand(program: Command): void {
           // COMPLETED upgrade that merely emitted informational warnings still
           // succeeds (exit 0) but surfaces them rather than swallowing them.
           if (result.withheld) {
-            fail({
+            failAndExit({
                   what:
                     'Migration withheld — the version bump was NOT applied.\n' +
                     result.migrationWarnings.join('\n'),
                   why: 'A migration step could not be safely applied, so the chain stopped and yg-config.yaml was left at its prior version. Reporting success here would hide an incomplete upgrade from agents and CI.',
                   next: 'Fix the listed configuration problems, then re-run yg init --upgrade.',
                 });
-            process.exit(1);
           }
 
           if (result.migrationWarnings.length > 0) {
@@ -982,12 +978,11 @@ export function registerInitCommand(program: Command): void {
         try {
           const statResult = await stat(yggRoot);
           if (!statResult.isDirectory()) {
-            fail({
+            failAndExit({
                   what: '.yggdrasil exists at the project root but is not a directory.',
                   why: 'yg init requires the .yggdrasil path to be a directory it can populate.',
                   next: 'Inspect the path manually; remove or rename the conflicting file, then re-run yg init.',
                 });
-            process.exit(1);
           }
           exists = true;
         } catch (e: unknown) {
@@ -997,12 +992,11 @@ export function registerInitCommand(program: Command): void {
 
         // --model / --endpoint only configure a judge; meaningless without --provider.
         if ((options.model || options.endpoint) && !options.provider) {
-          fail({
+          failAndExit({
             what: '--model/--endpoint given without --provider.',
             why: 'A model or endpoint only configures a reviewer; without --provider there is no reviewer to configure.',
             next: 'Add --provider <name>, or drop --model/--endpoint (and pass --no-reviewer to start without one).',
           });
-          process.exit(1);
         }
 
         if (exists && noReviewer) {
@@ -1010,12 +1004,11 @@ export function registerInitCommand(program: Command): void {
           // one there is nothing it could mean that is not destructive: it
           // would either do nothing at all, or delete a reviewer the user
           // configured deliberately. Say so instead of guessing.
-          fail({
+          failAndExit({
             what: '--no-reviewer was given, but this project already has a .yggdrasil/ graph.',
             why: 'The flag chooses how to bootstrap a NEW project (with no reviewer); it never removes a reviewer an existing project already configured.',
             next: 'Run yg init with no flags to open the menu, or yg init --provider <name> [--model <m>] to change the reviewer. To go back to no reviewer, delete the reviewer: section from .yggdrasil/yg-config.yaml.',
           });
-          process.exit(1);
         }
 
         if (exists) {

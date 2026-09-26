@@ -42,7 +42,7 @@ description: "Assembles and outputs a context package for a node via yg
 aspects:
   - what-why-next
 max_direct_relations:
-  limit: 25
+  limit: 26
   reason: >-
     Reviewed and accepted at exactly this count. Composition is this command's
     entire purpose: it assembles the complete context package a reader needs
@@ -67,6 +67,10 @@ max_direct_relations:
     Raised from 24 to 25 when the candidate owners of an unmapped file moved to the
     graph queries, shared with the owner command, so the two never suggest different
     owners; the edge replaces a private copy of that query.
+    Raised from 25 to 26 when the answers this command gives and then ends on (a path
+    excluded by design, a file governed by its type alone, an unmapped file under
+    --json) began waiting for stdout to drain before the process ends, through the
+    shared drain-then-exit helper, so a long answer read through a pipe is never cut short.
 relations:
   - target: cli/core/graph
     type: calls
@@ -106,6 +110,8 @@ relations:
   - target: cli/io/file-content-cache
     type: calls
   - target: cli/preamble
+    type: calls
+  - target: cli/exit-after-flush
     type: calls
   - target: cli/core/check-coverage-tiers
     type: calls

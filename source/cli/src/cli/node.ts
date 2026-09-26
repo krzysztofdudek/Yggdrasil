@@ -6,7 +6,7 @@ import { NODE_JSON_SCHEMA, formatNodeJson } from '../formatters/node-json.js';
 import type { NodeJsonDocument } from '../formatters/node-json.js';
 import { buildNodeDocument } from '../core/graph/machine-documents.js';
 import { toPosixPath } from '../utils/posix.js';
-import { fail, nodeNotFound, writeOut } from './output.js';
+import { nodeNotFound, writeOut, failAndExit } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -71,8 +71,7 @@ export function registerNodeCommand(program: Command): void {
 
         const nodePath = toPosixPath(pathArg.trim());
         if (!graph.nodes.has(nodePath)) {
-          fail(nodeNotFound(nodePath, 'The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
-          process.exit(1);
+          failAndExit(nodeNotFound(nodePath, 'The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
         }
 
         const doc = buildNodeDocument(graph, nodePath);

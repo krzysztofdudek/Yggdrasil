@@ -17,7 +17,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { aspectNotFound, fail, plural, writeOut, count, fillStepFor, fillStepText } from './output.js';
+import { aspectNotFound, plural, writeOut, count, fillStepFor, fillStepText, failAndExit } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -94,8 +94,7 @@ export async function handleAspectImpact(
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
-    fail(aspectNotFound(aspectId, 'Impact is measured from a rule, so the rule must exist in the graph.'), 'aspect-not-found');
-    process.exit(1);
+    failAndExit(aspectNotFound(aspectId, 'Impact is measured from a rule, so the rule must exist in the graph.'), 'aspect-not-found');
   }
 
   // Nodes currently holding a refused verdict for this aspect (lock scan). Guarded
@@ -530,12 +529,11 @@ export async function handleFlowImpact(
 ): Promise<void> {
   const flow = graph.flows.find((f) => f.name === flowName || f.path === flowName);
   if (!flow) {
-    fail({
+    failAndExit({
       what: `Flow not found: ${flowName}`,
       why: 'The flow name must match a directory name under .yggdrasil/flows/.',
       next: 'Run: yg flows — to list all defined flows.',
     });
-    process.exit(1);
   }
 
   const participants = new Set<string>();
@@ -611,7 +609,7 @@ export interface TypeVerdictImpact {
  * performs — handleTypeImpact calls no other pairs enumeration in the same
  * invocation.
  */
-export async function computeTypeVerdictImpact(
+async function computeTypeVerdictImpact(
   graph: Graph,
   typeId: string,
   tc: TypeCoverageInput,
@@ -647,12 +645,11 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
   // Object.prototype members (constructor, toString, valueOf, hasOwnProperty),
   // fabricating a zero-impact report for a type that does not exist.
   if (!Object.keys(graph.architecture.node_types).includes(typeId)) {
-    fail({
+    failAndExit({
       what: `Type '${typeId}' not found in architecture.`,
       why: 'The type id must match a node_types key in .yggdrasil/yg-architecture.yaml.',
       next: 'Read .yggdrasil/yg-architecture.yaml to see defined types.',
     });
-    process.exit(1);
   }
   const def = graph.architecture.node_types[typeId];
 

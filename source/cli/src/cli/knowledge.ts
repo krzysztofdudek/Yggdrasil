@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { KNOWLEDGE_TOPICS } from '../templates/knowledge/index.js';
 import { abortOnUnexpectedError } from './preamble.js';
-import { fail, paint, writeOut } from './output.js';
+import { paint, writeOut, failAndExit } from './output.js';
 
 export function listKnowledge(): void {
   writeOut('\nAvailable knowledge topics:\n\n');
@@ -15,12 +15,11 @@ export function listKnowledge(): void {
 export function readKnowledge(name: string): void {
   if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE_TOPICS, name)) {
     const available = Object.keys(KNOWLEDGE_TOPICS).sort().join(', ');
-    fail({
+    failAndExit({
           what: `Unknown knowledge topic '${name}'.`,
           why: 'The topic name does not match any entry in the embedded knowledge base.',
           next: `Available: ${available}. Run 'yg knowledge list' for summaries.`,
         });
-    process.exit(1);
   }
   const topic = KNOWLEDGE_TOPICS[name];
   writeOut(topic.content);

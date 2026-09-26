@@ -107,7 +107,7 @@ export interface AspectHealthSignalInputs {
 }
 
 /** Below this many exposures the raw-count range around the estimate is wide ("few observations"). */
-export const THIN_DATA_EXPOSURE = 20;
+const THIN_DATA_EXPOSURE = 20;
 
 /**
  * At or above this exposure, zero catches is a real signal (a `decorative?`

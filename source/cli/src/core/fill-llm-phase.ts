@@ -50,7 +50,7 @@ import { toPosixPath } from '../utils/posix.js';
  * resolved: deterministic lines and unresolved-tier LLM lines carry no judge
  * (regime unknown), so no other module has one to record.
  */
-export function judgeIdentity(tier: LlmConfig): { provider: string; model: string } {
+function judgeIdentity(tier: LlmConfig): { provider: string; model: string } {
   return { provider: tier.provider, model: String(tier.model) };
 }
 

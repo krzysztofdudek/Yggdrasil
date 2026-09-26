@@ -509,7 +509,7 @@ function parseLockProvenance(
 }
 
 /** An empty lock — what a repository with no packages installed reads as. */
-export function emptyPackagesLock(): PackagesLock {
+function emptyPackagesLock(): PackagesLock {
   return { schema: 'yg-packages/1', packages: {} };
 }
 

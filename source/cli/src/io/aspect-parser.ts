@@ -44,7 +44,7 @@ const REVIEW_BY_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * key a later release adds says so through its package's requires.yg, which an
  * install enforces.
  */
-export const ASPECT_KEYS = [
+const ASPECT_KEYS = [
   'name', 'description', 'reviewer', 'status', 'review_by', 'errs', 'implies',
   'when', 'references', 'scope', 'companion', 'config',
 ] as const;

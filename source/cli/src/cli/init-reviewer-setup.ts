@@ -74,7 +74,7 @@ export interface ApiKeyAnswer {
  * retry after the environment key was rejected, where falling back to the same
  * key again would only fail again.
  */
-export async function promptApiKey(
+async function promptApiKey(
   provider: ReviewerProvider,
   opts: { offerEnv?: boolean } = {},
 ): Promise<ApiKeyAnswer> {
@@ -316,7 +316,7 @@ const BOOTSTRAP_TIER_NAME = 'standard';
  * providers are left at the default: their safe concurrency is set by the
  * key's rate-limit tier, which init cannot see.
  */
-export const INIT_CLI_PARALLEL = 4;
+const INIT_CLI_PARALLEL = 4;
 
 const INIT_PARALLEL_COMMENT =
   ` How many reviewer calls run at once (engine default 1). yg init wrote ${INIT_CLI_PARALLEL} for a\n` +
@@ -433,7 +433,7 @@ function isPlainRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-export async function writeSecretsFile(
+async function writeSecretsFile(
   yggRoot: string,
   apiKey: string,
 ): Promise<void> {
@@ -524,7 +524,7 @@ function mergedTarget(
  * yg-config.yaml: yg-secrets.yaml's own provider or endpoint override, when it
  * sets one, still wins over what init writes.
  */
-export async function targetAfterWrite(yggRoot: string, next: ReviewerTarget): Promise<ReviewerTarget> {
+async function targetAfterWrite(yggRoot: string, next: ReviewerTarget): Promise<ReviewerTarget> {
   const overlayTier = tierOf(await readSecretsRaw(path.join(yggRoot, 'yg-secrets.yaml')));
   const committedTier: Record<string, unknown> = {
     provider: next.provider,
@@ -533,7 +533,7 @@ export async function targetAfterWrite(yggRoot: string, next: ReviewerTarget): P
   return mergedTarget(committedTier, overlayTier) ?? next;
 }
 
-export function sameTarget(a: ReviewerTarget | undefined, b: ReviewerTarget | undefined): boolean {
+function sameTarget(a: ReviewerTarget | undefined, b: ReviewerTarget | undefined): boolean {
   if (a === undefined || b === undefined) return false;
   return a.provider === b.provider && (a.endpoint ?? '') === (b.endpoint ?? '');
 }
@@ -611,7 +611,7 @@ export type StoredKeyOutcome =
  * any other override in the file stays exactly as it was, and a file left with
  * nothing in it is removed.
  */
-export async function reconcileSecretsKey(
+async function reconcileSecretsKey(
   yggRoot: string,
   opts: { apiKey?: string; keepStored: boolean },
 ): Promise<StoredKeyOutcome> {

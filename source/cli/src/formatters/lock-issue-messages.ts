@@ -141,7 +141,7 @@ export function detRefusedMessage(params: {
  * across every aspect resolving to that tier", which read as if raising the
  * cap re-billed the whole tier, and pushed adopters to split nodes instead.)
  */
-export function raiseCapRemedy(tierName: string, limit: number): string {
+function raiseCapRemedy(tierName: string, limit: number): string {
   return (
     `4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
     `Or move the aspect to a tier with a higher limit — that re-reviews every pair of the aspect, because the tier name is part of each pair's hash.`

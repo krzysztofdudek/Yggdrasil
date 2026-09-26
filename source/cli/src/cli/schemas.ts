@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { SCHEMA_TOPICS } from '../templates/schemas/index.js';
 import { abortOnUnexpectedError } from './preamble.js';
-import { fail, paint, writeOut } from './output.js';
+import { paint, writeOut, failAndExit } from './output.js';
 
 export function listSchemas(): void {
   writeOut('\nAvailable schemas:\n\n');
@@ -20,12 +20,11 @@ export function readSchema(name: string): void {
   // abort instead of the guided unknown-schema error. Mirror readKnowledge.
   if (!Object.prototype.hasOwnProperty.call(SCHEMA_TOPICS, name)) {
     const available = Object.keys(SCHEMA_TOPICS).sort().join(', ');
-    fail({
+    failAndExit({
           what: `Unknown schema '${name}'.`,
           why: 'The schema name does not match any embedded graph-element schema.',
           next: `Available: ${available}. Run 'yg schemas list' for summaries.`,
         });
-    process.exit(1);
   }
   const topic = SCHEMA_TOPICS[name];
   writeOut(topic.content);

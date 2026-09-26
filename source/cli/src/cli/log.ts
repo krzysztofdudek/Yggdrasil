@@ -11,7 +11,7 @@ import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { Graph } from '../model/graph.js';
-import { fail, count, paint, writeOut, next, thenStep } from './output.js';
+import { count, paint, writeOut, next, thenStep, failAndExit } from './output.js';
 
 /**
  * True when `filePath` (a `file:` unit-key path) is REALLY owned by `nodePath` —
@@ -42,7 +42,7 @@ function handleError(error: unknown): never {
 }
 
 /** Schema id of `yg log read --json`. */
-export const LOG_JSON_SCHEMA = 'yg-log/1';
+const LOG_JSON_SCHEMA = 'yg-log/1';
 
 /**
  * `yg log read --json`: the node's entries, newest first, each with its
@@ -81,12 +81,11 @@ export function registerLogCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
 
         if ((opts.reason !== undefined) === (opts.reasonFile !== undefined)) {
-          fail({
+          failAndExit({
                 what: 'yg log add needs exactly one of --reason or --reason-file',
                 why: 'An entry has one text: given on the command line, or read from a file.',
                 next: `yg log add --node ${opts.node.trim().replace(/\/$/, '')} --reason '<why this change was made>'`,
               }, 'usage');
-          process.exit(1);
         }
 
         let reasonText: string;
@@ -94,23 +93,21 @@ export function registerLogCommand(program: Command): void {
           try {
             const s = await stat(opts.reasonFile);
             if (!s.isFile()) {
-              fail({
+              failAndExit({
                     what: `--reason-file is not a regular file: ${opts.reasonFile}`,
                     why: 'Directory, device, socket, or named pipe is not a valid source for log entry body.',
                     next: `yg log add --node ${opts.node.trim().replace(/\/$/, '')} --reason-file <a text file with the justification>`,
                   });
-              process.exit(1);
             }
           } catch (err) {
             const e = err as NodeJS.ErrnoException;
             if (e.code === 'ENOENT' || !e.code) {
               debugWrite(`[log] reason-file not found: ${e.message}`);
-              fail({
+              failAndExit({
                     what: `Cannot stat --reason-file: ${e.message}`,
                     why: 'File must exist and be accessible.',
                     next: `Check path: ${opts.reasonFile}`,
                   });
-              process.exit(1);
             }
             throw err;
           }
@@ -122,8 +119,7 @@ export function registerLogCommand(program: Command): void {
         const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logAdd({ graph, nodePath, reasonText, nowMs: Date.now() });
         if (!result.ok) {
-          fail(result.error);
-          process.exit(1);
+          failAndExit(result.error);
         }
         writeOut(
           paint.green(
@@ -152,8 +148,7 @@ export function registerLogCommand(program: Command): void {
         const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logRead({ graph, nodePath, top: opts.top, all: opts.all });
         if (!result.ok) {
-          fail(result.error);
-          process.exit(1);
+          failAndExit(result.error);
         }
 
         if (opts.withVerdicts) {
@@ -202,7 +197,7 @@ export function registerLogCommand(program: Command): void {
           if (evResult.gitTracked) {
             writeOut(
               paint.yellow(
-                `verification telemetry since ${since} — NOTE: the events sidecar is git-tracked, ` +
+                `verification telemetry since ${since} — the events sidecar is git-tracked, ` +
                   `so this is shared history, not local-only telemetry.\n`,
               ),
             );
@@ -271,12 +266,11 @@ export function registerLogCommand(program: Command): void {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         if ((opts.ours === undefined) !== (opts.theirs === undefined) || (opts.base !== undefined && opts.ours === undefined)) {
-          fail({
+          failAndExit({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
-                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only to check against a commit other than their merge base), or none of them (during a merge, rebase or cherry-pick in progress, or on the merge commit).',
+                next: `yg log merge-resolve --node ${opts.node.trim().replace(/\/$/, '')} --ours <ref> --theirs <ref>  (add --base <ref> only to check against a commit other than their merge base; pass none of the three during a merge, rebase or cherry-pick, or on the merge commit)`,
               });
-          process.exit(1);
         }
         const repoRoot = path.dirname(graph.rootPath);
         const nodePath = opts.node.trim().replace(/\/$/, '');
@@ -286,8 +280,7 @@ export function registerLogCommand(program: Command): void {
             : undefined;
         const result = await logMergeResolve({ graph, nodePath, repoRoot, ...(sides !== undefined ? { sides } : {}) });
         if (!result.ok) {
-          fail(result.error);
-          process.exit(1);
+          failAndExit(result.error);
         }
         writeOut(
           paint.green(

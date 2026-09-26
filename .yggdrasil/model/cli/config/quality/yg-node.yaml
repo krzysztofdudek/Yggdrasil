@@ -1,6 +1,6 @@
 name: Quality Config
 type: repo-config
-description: "Code quality tooling configuration: Prettier rules and ignore files, npm publish config"
+description: "Code quality tooling configuration: Prettier rules and ignore files, npm publish config, and the package-level quality scripts (the install-drift check, the dead-export gate and its allowlist of test seams)"
 aspects: []
 relations: []
 mapping:

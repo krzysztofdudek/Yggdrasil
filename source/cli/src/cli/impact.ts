@@ -32,7 +32,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
-import { fail, nodeNotFound, note, plural, writeErr, writeOut } from './output.js';
+import { fail, nodeNotFound, note, plural, writeErr, writeOut, failAndExit } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -51,39 +51,35 @@ export function registerImpactCommand(program: Command): void {
         try {
           const asJson = options.json === true;
           if (options.node && options.file) {
-            fail({
+            failAndExit({
                   what: '--node and --file are mutually exclusive.',
                   why: 'yg impact accepts at most one of these target forms per invocation.',
                   next: 'Re-run with only --node <path> OR --file <path>.',
                 }, 'usage');
-            process.exit(1);
           }
 
           const modeCount = [options.node || options.file, options.aspect, options.flow, options.type].filter(Boolean).length;
           if (modeCount === 0) {
-            fail({
+            failAndExit({
                   what: 'No target specified.',
                   why: 'yg impact needs exactly one of --node, --file, --aspect, --flow, or --type.',
                   next: 'Pass one of: --node <path>, --file <path>, --aspect <id>, --flow <name>, --type <id>.',
                 }, 'usage');
-            process.exit(1);
           }
           if (modeCount > 1) {
-            fail({
+            failAndExit({
                   what: 'Multiple targets specified.',
                   why: 'yg impact accepts only one of --node/--file, --aspect, --flow, or --type per invocation.',
                   next: 'Re-run with a single target form.',
                 });
-            process.exit(1);
           }
 
           if (asJson && (options.aspect || options.flow || options.type)) {
-            fail({
+            failAndExit({
                   what: `--json is not available for --aspect, --flow, or --type.`,
                   why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of ONE component — its subject is a component path, and an aspect, a flow, or a type has no such subject. Emitting one for them would mean a second document shape hiding behind the same schema tag.`,
                   next: `For a component's blast radius as a document, run yg impact --node <path> --json (or --file <path> --json). For one rule's reach as a document — every unit it judges, with the effective status there — run yg aspects --json --reach; for what the lock says about each of those units, yg check --json, whose pairs join to it on the same unit. Otherwise drop --json for the aspect/flow/type report.`,
                 });
-            process.exit(1);
           }
 
           const graph = await loadGraphOrAbort(process.cwd());
@@ -243,8 +239,7 @@ export function registerImpactCommand(program: Command): void {
           const nodePath = options.node!.trim().replace(/\/$/, '');
 
           if (!graph.nodes.has(nodePath)) {
-            fail(nodeNotFound(nodePath, "Impact is measured from a node, so the node must exist in the graph."), 'node-not-found');
-            process.exit(1);
+            failAndExit(nodeNotFound(nodePath, "Impact is measured from a node, so the node must exist in the graph."), 'node-not-found');
           }
 
           if (asJson) {
@@ -469,12 +464,11 @@ export function registerImpactCommand(program: Command): void {
           const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
           if (outsideRoot) {
             debugWrite(`[impact] file arg outside project root: ${msg}`);
-            fail({
+            failAndExit({
               what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
               why: 'yg impact resolves impact only for files tracked inside the project.',
               next: 'Pass a path inside the project root (relative to the repo).',
             });
-            process.exit(1);
           }
           debugWrite(`[impact] command failed: ${(error as Error).message}`);
           abortOnUnexpectedError(error, 'running impact');

@@ -128,7 +128,7 @@ export const REGISTERED_CODES: readonly string[] = [...REGISTRY.keys()];
 const DEFAULT_TIER: Tier = 'T1';
 
 /** The suffix a finding put outside a measured change carries on its code and its label. */
-export const OUTSIDE_SUFFIX = '-outside';
+const OUTSIDE_SUFFIX = '-outside';
 
 /**
  * What the registry knows about `code`. An unknown code (every code with no

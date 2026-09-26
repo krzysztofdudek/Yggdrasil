@@ -95,8 +95,13 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // dispatcher working, and its own node carries a reviewed allowance saying so.
     expect(data.hubs.fanOut[2].count).toBe(28);
 
-    expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
+    // cli/commands/build-context joined cli/core/check at 26 when its answers began
+    // draining stdout before the process ends (the shared drain-then-exit helper);
+    // the tie breaks by path, so build-context ranks first.
+    expect(data.hubs.fanOut[3].path).toBe('cli/commands/build-context');
     expect(data.hubs.fanOut[3].count).toBe(26);
+    expect(data.hubs.fanOut[4].path).toBe('cli/core/check');
+    expect(data.hubs.fanOut[4].count).toBe(26);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
     // 20 since the suppression scan moved into the engine: the facade dropped the

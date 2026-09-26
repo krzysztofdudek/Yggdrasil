@@ -16,10 +16,10 @@ import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils
  * would otherwise leave the relation or rule it declares out of the graph, and
  * the check would pass without it.
  */
-export const NODE_KEYS = ['name', 'type', 'description', 'aspects', 'relations', 'mapping', 'ports', 'max_direct_relations'] as const;
-export const NODE_RELATION_KEYS = ['target', 'type', 'portNames', 'consumes', 'event_name'] as const;
-export const NODE_PORT_KEYS = ['description', 'aspects'] as const;
-export const NODE_MAX_DIRECT_RELATIONS_KEYS = ['limit', 'reason'] as const;
+const NODE_KEYS = ['name', 'type', 'description', 'aspects', 'relations', 'mapping', 'ports', 'max_direct_relations'] as const;
+const NODE_RELATION_KEYS = ['target', 'type', 'portNames', 'consumes', 'event_name'] as const;
+const NODE_PORT_KEYS = ['description', 'aspects'] as const;
+const NODE_MAX_DIRECT_RELATIONS_KEYS = ['limit', 'reason'] as const;
 
 /** Node keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
 export const RETIRED_NODE_KEYS: RetiredKeys = {

@@ -1,0 +1,24 @@
+name: NoRawProcessExit
+description: >-
+  A command ends the process through one of two helpers and never through a raw
+  process.exit: failAndExit (cli/output.ts) for an error — the diagnostic in the
+  one error grammar, then exit 1 — and exitAfterFlush (cli/exit-after-flush.ts)
+  for any exit that follows output, which waits for stdout to drain first.
+  DIRECTORY-scoped over every .ts file under source/cli/src/cli/, so a command
+  written tomorrow is covered the day it is written; a call and a bare reference
+  (`.finally(process.exit)`) are both refused. WHY: a raw exit ends the process
+  at once, and when the output goes to a pipe (an agent capturing it, `| head`,
+  CI) whatever the reader has not yet taken — everything past the pipe's buffer,
+  64 KiB on Linux — is dropped silently, exactly when the output is longest; and
+  the command layer had grown two exit conventions side by side (84 raw exits,
+  60 of them the inline error-then-exit pair failAndExit already is), so a
+  reader could not tell which exits were safe. Four sites keep a raw exit, each
+  listed in the rule with its reason and allowed exactly as many as it has, so a
+  second one in the same file is still refused: failAndExit itself, the backstop
+  timer inside exitAfterFlush, the portal's Ctrl+C shutdown of a long-lived
+  server, and a cancelled interactive setup prompt. errs: under — an exit reached
+  through an alias (`const { exit } = process`) is not seen.
+reviewer:
+  type: deterministic
+errs: under
+review_by: 2027-03-26

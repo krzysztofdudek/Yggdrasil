@@ -371,7 +371,7 @@ const sameCost = (a: BlockCost, b: BlockCost | undefined): boolean =>
  * step, there is no `next:`. `then:` names the fill once the fixes are in, or —
  * after a free script-only fill — the paid review it left, with its price.
  */
-export function computeNext(
+function computeNext(
   blocks: CheckBlock[],
   result: Pick<CheckResult, 'issues'>,
   /** The whole run's findings, when `result` is a narrowed view of it: a fill's cost is always the whole command's. */

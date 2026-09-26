@@ -7,4 +7,5 @@ aspects:
   - instrument-import-fence
   - rules-artifact-names-single-source
   - output-through-layer
+  - no-raw-process-exit
 relations: []

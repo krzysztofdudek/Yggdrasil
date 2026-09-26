@@ -25,6 +25,8 @@ relations:
     type: calls
   - target: cli/preamble
     type: calls
+  - target: cli/exit-after-flush
+    type: calls
   - target: cli/utils
     type: calls
   - target: cli/core/type-coverage

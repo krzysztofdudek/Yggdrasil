@@ -129,7 +129,7 @@ export interface PackageFile {
  * law — YAML, markdown, JavaScript, and the case files a rule is drilled against —
  * and nothing here can read, check or diff a binary.
  */
-export function isBinaryPackageContent(bytes: Buffer): boolean {
+function isBinaryPackageContent(bytes: Buffer): boolean {
   return bytes.subarray(0, 8192).includes(0);
 }
 

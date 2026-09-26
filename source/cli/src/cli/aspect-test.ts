@@ -37,7 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
-import { aspectNotFound, fail, field, paint, writeErr, writeOut, notice } from './output.js';
+import { aspectNotFound, fail, field, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -253,9 +253,7 @@ export function registerAspectTestCommand(program: Command): void {
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          fail(aspectNotFound(String(opts.aspect), 'aspect-test runs one rule live, so the rule must exist in the graph.'), 'aspect-not-found');
-          process.exit(1);
-          return;
+          failAndExit(aspectNotFound(String(opts.aspect), 'aspect-test runs one rule live, so the rule must exist in the graph.'), 'aspect-not-found');
         }
 
         const hasNode = typeof opts.node === 'string';
@@ -269,13 +267,11 @@ export function registerAspectTestCommand(program: Command): void {
         // the three may be given — each refusal names the other flags by name
         // so a confusion between --file and --files is never silent.
         if ([hasNode, hasFile, hasFiles].filter(Boolean).length > 1) {
-          fail({
+          failAndExit({
               what: `More than one of --node, --file, --files was provided.`,
               why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
               next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
             });
-          process.exit(1);
-          return;
         }
 
         // ── --repeat validation (LLM stability measurement) ──────────────────
@@ -289,40 +285,32 @@ export function registerAspectTestCommand(program: Command): void {
           const raw = String(opts.repeat).trim();
           const parsed = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
           if (!Number.isInteger(parsed) || parsed < 2) {
-            fail({
+            failAndExit({
                 what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
                 why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
                 next: `Pass --repeat 2 (or higher) with a reviewer rule and --node.`,
               });
-            process.exit(1);
-            return;
           }
           if (opts.dryRun) {
-            fail({
+            failAndExit({
                 what: `--repeat cannot be combined with --dry-run.`,
                 why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
                 next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
               });
-            process.exit(1);
-            return;
           }
           if (hasFiles) {
-            fail({
+            failAndExit({
                 what: `--repeat cannot be combined with --files.`,
                 why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a script rule, which returns the same result every time.`,
                 next: `Use --repeat with a reviewer rule and --node <node-path>.`,
               });
-            process.exit(1);
-            return;
           }
           if (aspect.reviewer.type !== 'llm') {
-            fail({
+            failAndExit({
                 what: `--repeat is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
                 why: `A script rule is exactly reproducible — repeating it measures nothing. --repeat measures how consistently a reviewer judges the same prompt.`,
                 next: `Run --repeat against a reviewer rule (content.md), or use --check-determinism to re-run a script rule.`,
               });
-            process.exit(1);
-            return;
           }
           repeatN = parsed;
         }
@@ -338,22 +326,18 @@ export function registerAspectTestCommand(program: Command): void {
         // runLlmAspectTest (direct reviewer.tiers lookup, unknown-tier error).
         if (typeof opts.tier === 'string') {
           if (hasFiles) {
-            fail({
+            failAndExit({
                 what: `--tier cannot be combined with --files.`,
                 why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a script rule with no tier.`,
                 next: `Use --tier with a reviewer rule and --node <node-path>.`,
               });
-            process.exit(1);
-            return;
           }
           if (aspect.reviewer.type !== 'llm') {
-            fail({
+            failAndExit({
                 what: `--tier is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
                 why: `A script rule runs locally with no reviewer tier — there is no tier to swap. --tier re-runs a reviewer rule under a named reviewer tier.`,
                 next: `Run --tier against a reviewer rule (content.md) with --node, or drop --tier for a script rule.`,
               });
-            process.exit(1);
-            return;
           }
         }
 
@@ -361,44 +345,36 @@ export function registerAspectTestCommand(program: Command): void {
         if (aspect.reviewer.type === 'llm') {
           // --files is not supported for LLM aspects: they need graph context.
           if (hasFiles) {
-            fail({
+            failAndExit({
                 what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
                 why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
                 next: `Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.`,
               });
-            process.exit(1);
-            return;
           }
           if (!hasNode && !hasFile) {
-            fail({
+            failAndExit({
                 what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
                 why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file), or --files (ad-hoc, script rules only).`,
                 next: `Pass --node <node-path> or --file <path> to run a reviewer rule.`,
               });
-            process.exit(1);
-            return;
           }
 
           let target: AspectTestTarget;
           if (hasFile) {
             const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
             if (resolved.kind === 'refused') {
-              fail(resolved.messageData);
-              process.exit(1);
-              return;
+              failAndExit(resolved.messageData);
             }
             target = { kind: 'file', file: resolved.file, typeId: resolved.typeId, typeCoverage: resolved.typeCoverage };
           } else {
             const nodePath = (opts.node as string).trim().replace(/\/$/, '');
             const node = graph.nodes.get(nodePath);
             if (!node) {
-              fail({
+              failAndExit({
                   what: `Node '${nodePath}' not found.`,
                   why: `--node requires an existing node path in the graph.`,
                   next: `Run 'yg tree' to list nodes.`,
                 });
-              process.exit(1);
-              return;
             }
             target = { kind: 'node', nodePath };
           }
@@ -413,36 +389,30 @@ export function registerAspectTestCommand(program: Command): void {
 
         // ── Deterministic aspect path ────────────────────────────────────────
         if (aspect.reviewer.type !== 'deterministic') {
-          fail({
+          failAndExit({
               what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
               why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
               next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
             });
-          process.exit(1);
-          return;
         }
 
         // --dry-run on a deterministic aspect is not meaningful.
         if (opts.dryRun) {
-          fail({
+          failAndExit({
               what: `--dry-run is not supported for script rule '${opts.aspect}'.`,
               why: `Script rules run locally without any provider calls — there is no prompt to print.`,
               next: `Remove --dry-run to run the script rule, or use --node / --files as normal.`,
             });
-          process.exit(1);
-          return;
         }
 
         if ([hasNode, hasFile, hasFiles].filter(Boolean).length !== 1) {
-          fail({
+          failAndExit({
               what: [hasNode, hasFile, hasFiles].filter(Boolean).length > 1
                 ? `More than one of --node, --file, --files was provided.`
                 : `None of --node, --file, --files was provided.`,
               why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment).`,
               next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
             });
-          process.exit(1);
-          return;
         }
 
         const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
@@ -453,13 +423,11 @@ export function registerAspectTestCommand(program: Command): void {
           const nodePath = (opts.node as string).trim().replace(/\/$/, '');
           const node = graph.nodes.get(nodePath);
           if (!node) {
-            fail({
+            failAndExit({
                 what: `Node '${nodePath}' not found.`,
                 why: `--node requires an existing node path in the graph.`,
                 next: `Run 'yg tree' to list nodes.`,
               });
-            process.exit(1);
-            return;
           }
           // The ad-hoc run below is legitimately useful (test-before-attach), but
           // it runs against the node's files even when the aspect is NOT effective
@@ -502,9 +470,7 @@ export function registerAspectTestCommand(program: Command): void {
         if (hasFile) {
           const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
           if (resolved.kind === 'refused') {
-            fail(resolved.messageData);
-            process.exit(1);
-            return;
+            failAndExit(resolved.messageData);
           }
           const unit: StructureUnit = { kind: 'file', file: resolved.file, typeId: resolved.typeId, allowedReads: resolved.allowedReads };
           const runOnce = () =>
@@ -528,40 +494,34 @@ export function registerAspectTestCommand(program: Command): void {
         const probed = filePaths.map((f) => ({ f, reason: probeUnusablePath(path.resolve(projectRoot, f)) }));
         const missingFiles = probed.filter((p) => p.reason?.kind === 'missing').map((p) => p.f);
         if (missingFiles.length > 0) {
-          fail({
+          failAndExit({
             what: missingFiles.length === 1
               ? `'${missingFiles[0]}' does not exist.`
               : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
             why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
             next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
           });
-          process.exit(1);
-          return;
         }
         const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
         if (notFiles.length > 0) {
           const [first] = notFiles;
-          fail({
+          failAndExit({
             what: notFiles.length === 1
               ? `'${first.f}' is ${(first.reason as { kind: 'not-a-file'; noun: string }).noun}.`
               : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
             why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
             next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
           });
-          process.exit(1);
-          return;
         }
         const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
         if (unreadableFiles.length > 0) {
-          fail({
+          failAndExit({
             what: unreadableFiles.length === 1
               ? `'${unreadableFiles[0]}' exists but cannot be read (permission denied).`
               : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
             why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
             next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
           });
-          process.exit(1);
-          return;
         }
         // Return type is inferred from the runner; do not re-annotate it.
         const runOnce = () =>
@@ -867,13 +827,11 @@ async function runLlmAspectTest(
   // Resolve the tier for this aspect.
   const reviewer = graph.config.reviewer;
   if (!reviewer) {
-    fail({
+    failAndExit({
         what: `No reviewer is configured for aspect '${aspect.id}'.`,
         why: `reviewer rules need a reviewer tier in .yggdrasil/yg-config.yaml.`,
         next: `Add a reviewer tier to .yggdrasil/yg-config.yaml (yg init --provider <name> --model <m>), then retry.`,
       });
-    process.exit(1);
-    return 1;
   }
   let tier: LlmConfig;
   let tierName: string;
@@ -885,22 +843,18 @@ async function runLlmAspectTest(
     const direct = reviewer.tiers[tierOverride];
     if (!direct) {
       const tierNames = Object.keys(reviewer.tiers);
-      fail({
+      failAndExit({
           what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
           why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
           next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
         });
-      process.exit(1);
-      return 1;
     }
     tier = direct;
     tierName = tierOverride;
   } else {
     const tierResult = selectTierForAspect(aspect, reviewer);
     if (!tierResult.ok) {
-      fail(tierResult.error);
-      process.exit(1);
-      return 1;
+      failAndExit(tierResult.error);
     }
     tier = tierResult.tier;
     tierName = tierResult.tierName;
@@ -939,13 +893,11 @@ async function runLlmAspectTest(
       content = await readTextFile(absRef);
     } catch (e) {
       debugWrite(`[aspect-test] reference file read failed for ${absRef}: ${e instanceof Error ? e.message : String(e)}`);
-      fail({
+      failAndExit({
           what: `Reference '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read.`,
           why: `The file does not exist or is not readable.`,
           next: `Check the reference path in yg-aspect.yaml.`,
         });
-      process.exit(1);
-      return 1;
     }
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
@@ -965,13 +917,11 @@ async function runLlmAspectTest(
     const probe = await probeProvider(provider, mergedTier.provider);
     if (!probe.available) {
       debugWrite(`[aspect-test] tier ${tierName} provider ${mergedTier.provider} unavailable: ${probe.reason}`);
-      fail({
+      failAndExit({
           what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
           why: `The reviewer failed its availability check. No provider calls were made.`,
           next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
         });
-      process.exit(1);
-      return 1;
     }
 
     // Diagnostic telemetry sidecar (source:'diag'): one line per reviewer RUN in
