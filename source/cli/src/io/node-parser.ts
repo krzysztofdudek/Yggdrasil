@@ -19,14 +19,19 @@ export const NODE_RELATION_KEYS = ['target', 'type', 'portNames', 'consumes', 'e
 export const NODE_PORT_KEYS = ['description', 'aspects'] as const;
 export const NODE_MAX_DIRECT_RELATIONS_KEYS = ['limit', 'reason'] as const;
 
-/** Node keys an earlier release read, and what became of each. */
-const RETIRED_NODE_KEYS: RetiredKeys = {
+/** Node keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_KEYS: RetiredKeys = {
   sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
 };
 
+/** Relation keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_RELATION_KEYS: RetiredKeys = {
+  failure: 'removed in 4.0.0',
+};
+
 /** Throw naming every key of `block` outside `known`. */
-function refuseUnknownKeys(block: Record<string, unknown>, known: readonly string[], filePath: string, where: string): void {
-  const unknown = findUnknownKeys(block, known, where === '' ? RETIRED_NODE_KEYS : {});
+function refuseUnknownKeys(block: Record<string, unknown>, known: readonly string[], filePath: string, where: string, retired: RetiredKeys = {}): void {
+  const unknown = findUnknownKeys(block, known, retired);
   if (unknown.length > 0) throw new Error(`yg-node.yaml at ${filePath}: ${describeUnknownKeys(where, unknown, known)}`);
 }
 
@@ -58,7 +63,7 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     throw new Error(`yg-node.yaml at ${filePath}: missing or empty 'type'`);
   }
 
-  refuseUnknownKeys(raw, NODE_KEYS, filePath, '');
+  refuseUnknownKeys(raw, NODE_KEYS, filePath, '', RETIRED_NODE_KEYS);
 
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
   const relations = parseRelations(raw.relations, filePath);
@@ -161,7 +166,7 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
       throw new Error(`yg-node.yaml at ${filePath}: relations[${index}] must be an object`);
     }
     const obj = r as Record<string, unknown>;
-    refuseUnknownKeys(obj, NODE_RELATION_KEYS, filePath, `relations[${index}]`);
+    refuseUnknownKeys(obj, NODE_RELATION_KEYS, filePath, `relations[${index}]`, RETIRED_NODE_RELATION_KEYS);
     const target = obj.target;
     const type = obj.type;
 

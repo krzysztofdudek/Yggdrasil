@@ -6,7 +6,7 @@ import type { FileWhenPredicate } from '../model/file-when.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen } from '../utils/file-when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
-import { describeUnknownKeys, findUnknownKeys } from '../utils/known-keys.js';
+import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
 
 const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', 'implements', 'emits', 'listens']);
 
@@ -35,6 +35,11 @@ export const ARCHITECTURE_NODE_TYPE_KEYS = [
  * no word, and every node would then fail against types that were never read.
  */
 export const ARCHITECTURE_KEYS = ['node_types'] as const;
+
+/** Node-type keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_TYPE_KEYS: RetiredKeys = {
+  sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
+};
 
 export async function parseArchitecture(filePath: string): Promise<ArchitectureDef> {
   const content = await readFile(filePath, 'utf-8');
@@ -79,7 +84,7 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       );
     }
 
-    const unknownKeys = findUnknownKeys(entry, ARCHITECTURE_NODE_TYPE_KEYS);
+    const unknownKeys = findUnknownKeys(entry, ARCHITECTURE_NODE_TYPE_KEYS, RETIRED_NODE_TYPE_KEYS);
     if (unknownKeys.length > 0) {
       throw new Error(`yg-architecture.yaml: ${describeUnknownKeys(`node_types.${typeName}`, unknownKeys, ARCHITECTURE_NODE_TYPE_KEYS)}`);
     }

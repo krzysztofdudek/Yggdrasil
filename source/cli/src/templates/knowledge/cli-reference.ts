@@ -1491,7 +1491,15 @@ installed CLI's current content and sweeps away every artifact a retired
 per-platform installer used to write — the CLI used to install a different
 rules file per agent (13 installers in total); \`--upgrade\` removes all of
 those legacy files, reported as "Legacy per-platform artifacts cleaned up" in
-its output. With neither \`--provider\` nor \`--upgrade\` and a TTY, the
+its output. It also removes every key an earlier release read and this one
+refuses (a node's or node type's \`sizeExempt\`, a relation's \`failure\`,
+\`quality.max_node_chars\` / \`max_mapping_source_files\`, a tier's
+\`config.max_tokens\` / \`context_length_field\` / \`references\`, a rule's
+\`language\` / \`stability\` / \`anchors\` / \`id\`) from the graph and config files
+— never from a rule installed from a package — printing "Removed retired key
+'<key>' from <file>" for each; other keys and comments stay, but the writer may
+normalize indentation, so review the diff. A key nobody retired is left for
+\`yg check\` to name, never guessed at. With neither \`--provider\` nor \`--upgrade\` and a TTY, the
 interactive reconfiguration menu opens (refresh agent rules / configure
 reviewer); with neither and no TTY, the command reports that there is
 nothing to do and lists the available flags rather than guessing.
