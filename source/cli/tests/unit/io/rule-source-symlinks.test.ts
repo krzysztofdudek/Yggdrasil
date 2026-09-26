@@ -8,7 +8,7 @@
 // file from outside the repository into the prompt.
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseAspect } from '../../../src/io/aspect-parser.js';
@@ -99,6 +99,53 @@ describe.skipIf(process.platform === 'win32')('rule sources that are symbolic li
     expect(ruleDirSymlinks(aspectDir)).toEqual(['.lib/shared.mjs']);
     const res = await parseAspect(aspectDir, path.join(aspectDir, 'yg-aspect.yaml'), 'dot-helper', { projectRoot: root });
     expect(res.ok).toBe(false);
+  });
+
+  // A link the rule's code NAMES is refused wherever it sits — never followed, so
+  // nothing from outside the rule directory reaches the rule's hash.
+  async function refusedFor(id: string, check: string, setup: (root: string, aspectDir: string) => void): Promise<string> {
+    const { root, aspectDir } = repo(id);
+    write(path.join(aspectDir, 'yg-aspect.yaml'), `name: ${id}\ndescription: "linked"\nstatus: enforced\n`);
+    write(path.join(aspectDir, 'check.mjs'), `${check}\nexport function check() { return []; }\n`);
+    setup(root, aspectDir);
+    const res = await parseAspect(aspectDir, path.join(aspectDir, 'yg-aspect.yaml'), id, { projectRoot: root });
+    expect(res.ok).toBe(false);
+    if (res.ok) return '';
+    expect(res.errors[0].code).toBe('aspect-source-symlink');
+    return res.errors[0].messageData.what;
+  }
+
+  it('a drills/ file the check imports that is a link is refused, not followed', async () => {
+    const what = await refusedFor('drill-link', "import { x } from './drills/_lib/shared.mjs';", (root, aspectDir) => {
+      write(path.join(root, 'tools/shared.mjs'), 'export const x = 1;\n');
+      mkdirSync(path.join(aspectDir, 'drills', '_lib'), { recursive: true });
+      symlinkSync('../../../../../../tools/shared.mjs', path.join(aspectDir, 'drills', '_lib', 'shared.mjs'));
+    });
+    expect(what).toContain('.yggdrasil/aspects/drill-link/drills/_lib/shared.mjs');
+  });
+
+  it('a module reached through a linked dot-named directory is refused, naming the directory', async () => {
+    const what = await refusedFor('dot-dir-link', "import { x } from './.lib/shared.mjs';", (root, aspectDir) => {
+      write(path.join(root, 'tools/shared.mjs'), 'export const x = 1;\n');
+      symlinkSync('../../../tools', path.join(aspectDir, '.lib'));
+    });
+    expect(what).toContain('.yggdrasil/aspects/dot-dir-link/.lib');
+  });
+
+  it('a linked data file the check reads by URL is refused', async () => {
+    await refusedFor('data-link', "const table = new URL('./.table.json', import.meta.url);", (root, aspectDir) => {
+      write(path.join(root, 'table.json'), '{}\n');
+      symlinkSync('../../../table.json', path.join(aspectDir, '.table.json'));
+    });
+  });
+
+  it('a link to an unreadable file is a finding, never a crash', async () => {
+    await refusedFor('unreadable-link', "const s = new URL('./drills/s', import.meta.url);", (root, aspectDir) => {
+      write(path.join(root, 'secret'), 'top secret\n');
+      chmodSync(path.join(root, 'secret'), 0o000);
+      mkdirSync(path.join(aspectDir, 'drills'));
+      symlinkSync('../../../../secret', path.join(aspectDir, 'drills', 's'));
+    });
   });
 
   it('an adaptation\'s companion: path that runs through a symlink is refused', async () => {

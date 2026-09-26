@@ -179,10 +179,11 @@ Two consequences for you:
 - **A rule you rename or drop is refused by their update** while their graph
   still attaches it (a component, a port, a type, a flow, or an \`implies:\`), and
   its adaptation goes with it once they detach it.
-- **Every file in a rule's directory except its drills is part of the rule** —
-  and a drill-corpus file the rule's code imports is part of it too. A helper
-  module your \`check.mjs\` imports enters the rule's verdicts, so a new version
-  that changes only the helper re-opens the verdicts it could change
+- **What your rule's code runs is part of the rule.** Every file in the rule's
+  directory counts — a helper module your \`check.mjs\` imports, a table it
+  ships — except its log, its drill cases and non-code dot-named files; a helper
+  kept under \`drills/\` counts too once the rule's code imports it. So a new
+  version that changes only a helper re-opens the verdicts it could change
   (\`yg knowledge read verification-and-lock\` lists exactly what is folded).
 - **A rule's \`name\`, \`description\`, \`implies\`, \`errs\`, \`when\` and every code file
   are NOT adaptable.** They are what the rule IS. Anything you want a consumer to
