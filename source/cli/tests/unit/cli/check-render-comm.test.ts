@@ -217,7 +217,7 @@ describe('a graph that did not load as written leads the report', () => {
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[unverified]'));
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[flow-node-broken]'));
     expect(out).toContain('next: edit .yggdrasil/model/model/cart/yg-node.yaml  (yaml-invalid — 2 errors need a code or graph fix)');
-    expect(out).toContain('then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
+    expect(out).toContain('then: yg check --approve  (1 reviewer pair · 1 call · paid)');
   });
 
   it('a config that does not parse outranks everything else in Next', () => {
@@ -282,13 +282,13 @@ describe('counts agree with their nouns, and the fill command names its cost', (
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r')]), { kind: 'full' }, false, false));
     expect(out.split('\n')[0]).toBe('yg check: FAIL  1 error   1 node');
     expect(out).toContain('error[unverified] 1 pair with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid)');
   });
 
   it('the unverified block\'s fill says what it costs, free and paid apart', () => {
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r'), unverified('app/b', 's', 'node:app/b', 'deterministic')]), { kind: 'full' }, false, false));
     expect(out).toContain('error[unverified] 2 pairs with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · 1 call · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · 1 call · paid)');
   });
 });
 

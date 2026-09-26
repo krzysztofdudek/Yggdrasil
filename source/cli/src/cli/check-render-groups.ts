@@ -26,7 +26,7 @@ import { baseCodeOfOutsideTwin, type UnverifiedCause } from '../core/check-codes
 import { issueViolations } from '../core/check-json.js';
 import { groupIssues, getIssueLabel, issuePriorityRank, issueTierRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, FULL_WHAT_CODES } from './group-issues.js';
 import { codeInfo, type Tier } from './output-diagnostic.js';
-import { count, MEMBER_CAP, field, heading, decorated } from './output.js';
+import { count, MEMBER_CAP, field, heading, decorated, costWords, type FillCost } from './output.js';
 import { toPosixPath } from '../utils/posix.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
@@ -45,11 +45,7 @@ export interface GroupRenderOptions {
  * as many reviewer calls as its tier's consensus asks for, so the calls are
  * the bill and the pairs are what it buys.
  */
-export interface BlockCost {
-  free: number;
-  reviewerPairs: number;
-  reviewerCalls: number;
-}
+export type BlockCost = FillCost;
 
 /** One finding block: the data a text view renders and the JSON document mirrors. */
 export interface CheckBlock {
@@ -243,26 +239,7 @@ function costOf(members: CheckIssue[]): BlockCost {
   };
 }
 
-/**
- * A cost, in words: `24 script pairs · free`, `3 reviewer pairs · 9 calls ·
- * paid`, or both — the reviewer's share always as pairs AND calls, since a
- * tier's consensus multiplies what each pair bills.
- */
-export function costWords(cost: BlockCost): string {
-  const free = cost.free > 0 ? `${count(cost.free, 'script pair')} · free` : '';
-  const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · ${count(cost.reviewerCalls, 'call')} · paid` : '';
-  return [free, paid].filter((p) => p !== '').join(' + ');
-}
-
-/**
- * A fill's cost as a step states it: the words, and — when it calls the paid
- * reviewer — that running it is the user's decision (the agent protocol asks
- * before any paid run).
- */
-export function costNote(cost: BlockCost): string {
-  const words = costWords(cost);
-  return words !== '' && cost.reviewerPairs > 0 ? `${words} — ask the user to approve it first` : words;
-}
+export { costWords };
 
 /** The command that lists every member of a block. */
 function drillFor(code: string, aspectId: string | undefined, members: CheckIssue[]): string {
@@ -594,7 +571,7 @@ function atLines(b: CheckBlock, opts: GroupRenderOptions): string[] {
 function fixLines(b: CheckBlock): string[] {
   if (b.fix !== undefined) {
     const [first, ...rest] = b.fix.split('\n');
-    const cost = b.cost !== undefined ? costNote(b.cost) : '';
+    const cost = b.cost !== undefined ? costWords(b.cost) : '';
     const each = b.slot !== undefined ? `for each node above, ${b.slot.placeholder} as listed beside it` : 'for each node above';
     const suffix = b.templated ? `  ${each}` : cost !== '' && first.startsWith('yg check --approve') ? `  (${cost})` : '';
     // A line introducing a snippet keeps its colon last: the note goes before it.

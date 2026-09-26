@@ -96,12 +96,12 @@ function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
   if (free > 0) out += `  ${count(free, 'script pair')} — free, not listed\n`;
   // What to run to fill: the free lane when no reviewer can judge the rest
   // (the full run would stop before recording anything), else the whole run,
-  // which is paid when it calls the reviewer.
-  // A paid run is the user's to approve.
+  // which is paid when it calls the reviewer — the price stated, never asked
+  // about: an agent runs the paid fill itself once its change is final.
   const fillWith = e.reviewerConfigured === false
     ? (free > 0 ? 'yg check --approve --only-deterministic fills the script pairs' : 'configure a reviewer first — no fill can record these until one is')
     : e.reviewerCallBudget > 0
-      ? `ask the user to approve yg check --approve (paid, up to ${count(e.reviewerCallBudget, 'reviewer call')}) before running it`
+      ? `yg check --approve  (paid, up to ${count(e.reviewerCallBudget, 'reviewer call')})`
       : 'yg check --approve --only-deterministic fills them';
   out += e.reviewerCallBudget > 0
     ? `note: ${count(e.reviewerCallBudget, 'reviewer call')} is an upper bound — a unit a script rule refuses has its reviewer ` +

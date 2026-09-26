@@ -36,14 +36,16 @@
  * blocked on every review the component owed while this stage bought only the
  * one whose own file had moved.
  *
- * ── Two node sets, deliberately ─────────────────────────────────────────────
- * `nodeSet` stays UNFILTERED and feeds the mandatory-log gate, which is
- * all-or-nothing over every component owning an unverified pair. The reported
- * counts come from `reportNodeSet`/`reportFileSet` instead, computed from what
- * this run will ACTUALLY fill. One value cannot serve both purposes: quoting
- * the gate's set would price work the run has no intention of doing, and
- * narrowing the gate's set would let a component's missing justification entry
- * slip through because some other change happened not to reach it.
+ * ── The log gate's set is the fill's ────────────────────────────────────────
+ * `reportNodeSet` also feeds the mandatory-log gate: the components this run will ACTUALLY
+ * fill a pair of. A log entry is owed for a change to a component's own source,
+ * and a run records nothing over such a change until the entry exists — so the
+ * run stops on the components it would record verdicts for. A component this
+ * run leaves alone (its reviewer pairs outside a measured change, or any
+ * reviewer pair under `--only-deterministic`) does not stop it: nothing is
+ * recorded over its code, the plain read keeps it red until its entry exists,
+ * and positive closure refuses to advance its baseline without one. The
+ * reported counts come from the same pairs (`reportNodeSet`/`reportFileSet`).
  *
  * Nothing here writes, dispatches, or judges anything: it reads the lock's
  * classification and counts, and every number it produces is what the
@@ -106,15 +108,10 @@ export interface FillPairSets {
    *  billed vs free from where its verdicts actually live, instead of
    *  defaulting to a guess. */
   detAspectIdsOnDisk: Set<string>;
-  /** Distinct components owning at least one UNVERIFIED pair — every one of
-   *  them, whatever this run intends to fill. This is the mandatory-log gate's
-   *  set and only that: the gate is all-or-nothing by design (§9), so narrowing
-   *  it would silently excuse a component whose source moved without a
-   *  justification entry. Never use it for a count a person reads — see
-   *  `reportNodeSet`. */
-  nodeSet: Set<string>;
   /** Distinct components owning at least one pair this run will ACTUALLY fill.
-   *  The number the pre-dispatch header quotes. */
+   *  The number the pre-dispatch header quotes, and the mandatory-log gate's set
+   *  (§9): a run stops before recording anything when one of them changed its
+   *  own source with no entry. */
   reportNodeSet: Set<string>;
   /** Distinct type-covered files owning at least one nodeless pair this run
    *  will actually fill. Several aspects can share one file's unit key, so it
@@ -229,12 +226,8 @@ export async function classifyFillPairs(
   );
   const detAspectIdsOnDisk = readDetLockAspectIds(graph.rootPath);
 
-  // The log gate's set: every component owning an unverified pair, unfiltered.
-  const nodeSet = new Set<string>();
-  for (const p of unverifiedPairs) {
-    if (p.nodePath !== undefined) nodeSet.add(p.nodePath);
-  }
   // The reported sets: the subjects of the pairs this run will actually fill.
+  // The log gate stops the run on the same components (see the header).
   const reportNodeSet = new Set<string>();
   const reportFileSet = new Set<string>();
   for (const p of [...detPairs, ...llmPairs]) {
@@ -255,7 +248,6 @@ export async function classifyFillPairs(
     aspectById,
     deterministicAspectIds,
     detAspectIdsOnDisk,
-    nodeSet,
     reportNodeSet,
     reportFileSet,
     reviewerCallBudget,

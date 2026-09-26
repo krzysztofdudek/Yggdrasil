@@ -227,9 +227,11 @@ export interface FillCauseItem extends InfraDiagnosticItem {
  * fill.
  *
  * Only this run's report carries it: a later plain `yg check` reads the lock
- * alone and has no record of a failure it did not witness.
+ * alone and has no record of a failure it did not witness. `retry` is the
+ * command this run was invoked as; a pair whose check.mjs failed carries it as
+ * the step after the fix.
  */
-export function annotateFillCauses(result: CheckResult, items: FillCauseItem[]): void {
+export function annotateFillCauses(result: CheckResult, items: FillCauseItem[], retry?: string): void {
   if (items.length === 0) return;
   const byPair = new Map<string, FillCauseItem>();
   for (const item of items) byPair.set(`${item.aspectId} ${toPosixPath(item.unitKey)}`, item);
@@ -241,6 +243,8 @@ export function annotateFillCauses(result: CheckResult, items: FillCauseItem[]):
     const item = byPair.get(`${issue.aspectId} ${toPosixPath(issue.unitKey)}`);
     if (item === undefined) continue;
     issue.unverifiedCause = item.cause;
-    issue.messageData = item.messageData;
+    // A script that failed to run is fixed in the script, then re-run in the
+    // mode that failed on it — never a costlier one.
+    issue.messageData = item.cause === 'check-failed-to-run' && retry !== undefined ? { ...item.messageData, retry } : item.messageData;
   }
 }

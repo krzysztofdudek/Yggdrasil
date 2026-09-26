@@ -92,11 +92,12 @@ The gate's "mapped source changed" test is computed from a per-node **source
 fingerprint** — one sha256 fold over the sorted \`[path, sha256(bytes)]\` list of
 ALL the node's mapped files (the full mapping, not the scope-filtered subject
 sets; binaries included by bytes). It lives in \`yg-lock.logs.json\` under
-\`nodes.<path>.source\`, written at positive closure — but ONLY for \`log_required\`
-nodes, since the fingerprint is the gate's drift basis and the gate never runs
-elsewhere. A non-log_required node records no \`source\`; it gets a \`nodes\` entry
-only when it owns a \`log.md\`, holding just the append-only \`log\` baseline
-(boundary datetime + prefix hash). When the section is empty (no log_required
+\`nodes.<path>.source\`, written by every full fill: for a \`log_required\` node at
+positive closure, for any other node whatever its verdicts say — so a type that
+opts in later is measured from its code as it already stood, at the cost of the
+committed logs lock changing whenever a full fill sees moved source. A node that
+owns a \`log.md\` also holds its append-only \`log\` baseline (boundary datetime +
+prefix hash). When the section is empty (no log_required
 node, no \`log.md\`), \`yg-lock.logs.json\` is not written at all — an empty committed
 husk is removed. There is no separate per-node state file.
 
@@ -108,10 +109,20 @@ The basic workflow:
 
 If you forget step 2, plain \`yg check\` raises a blocking \`log-entry-missing\`
 error for that node (caught read-only, regardless of whether the node has pairs).
-The log gate is ALL-OR-NOTHING at \`--approve\`: if ANY \`log_required\` node's
-source drifted with no fresh entry, \`--approve\` fills NOTHING that run — no pair
-on any node, related or not, is verified — and the run stays red until every
-missing entry exists. Add the entries and re-run. If a pair is refused, iterate on
+At \`--approve\`, if a node the run would fill a pair of owes an entry, the run
+fills NOTHING — no pair on any node, related or not, is verified — until that
+entry exists. A changed node the run fills nothing of (no pairs, or only reviewer
+pairs this run leaves alone: \`--only-deterministic\`, or outside a measured
+change) does not stop it; the run records nothing over its code, and plain
+\`yg check\` keeps it red until its entry exists. Add the entries and re-run.
+
+An entry comments on a change to the node's OWN source, and only that: editing
+a rule, a relation, the lock or a verdict re-opens pairs but owes no entry. The source is the set of files the mapping names, so a changed mapping (a file
+moved between nodes) owes one. Switching a type to \`log_required\` does not:
+every full fill records every node's fingerprint, so the first entry is owed at
+the node's first real source change after the switch. A node with no recorded
+fingerprint at all (a new node, or one no full fill has run over since this
+release) owes its first entry. If a pair is refused, iterate on
 the code WITHOUT adding new log entries — one entry covers all edits until the node
 reaches closure. Under progressive mode a node can reach closure while some of its
 reviewer work is deliberately left unbought, so the next source change there needs

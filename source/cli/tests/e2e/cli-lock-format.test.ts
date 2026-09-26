@@ -447,8 +447,8 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       // Re-fill writes a fresh lock and the repo is green again.
       expect(run(['check', '--approve'], dir).status).toBe(0);
       expect(existsSync(detFile(dir))).toBe(true);
-      // No log_required node and no log.md → the logs file stays absent (empty → no file).
-      expect(existsSync(logsFile(dir))).toBe(false);
+      // Every node with mapped source gets its fingerprint recorded → the logs file is written.
+      expect(existsSync(logsFile(dir))).toBe(true);
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);

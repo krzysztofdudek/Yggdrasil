@@ -138,10 +138,9 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // an enforced det entry and the LLM entry are both present + approved
       expect(lock.verdicts['no-todo-comments']['node:services/orders'].verdict).toBe('approved');
       expect(lock.verdicts['has-doc-comment']['node:services/orders'].verdict).toBe('approved');
-      // services is not a log_required type, so closure records NO source
-      // fingerprint for it (the fingerprint is the log gate's drift basis, kept
-      // only for log_required nodes) — its nodes[] entry is absent entirely.
-      expect(lock.nodes['services/orders']?.source).toBeUndefined();
+      // services is not a log_required type; a full fill records its source
+      // fingerprint anyway, the baseline a later switch to log_required measures from.
+      expect(typeof lock.nodes['services/orders']?.source).toBe('string');
 
       // --- VERIFIED: a plain read is green, makes no calls ---
       const callsAfterFill = mock.chatCount();

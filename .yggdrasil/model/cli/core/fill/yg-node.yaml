@@ -9,11 +9,14 @@ description: "Fill stage behind yg check --approve — the single producer of
   that change is accountable for are handed on — by the same per-pair decision
   the report gates with, never a second copy of it. The deterministic half stays
   whole-project (free, and its recorded observations are what the next
-  measurement reads) and so does the mandatory-log gate, which is all-or-nothing
-  about the code as it stands. The subject counts and reviewer-call budget the
-  stage reports are therefore computed separately from that gate's component
-  set, from what the run will actually fill, with whatever was left alone named
-  out loud. GCs detached verdict entries and writes the lock canonically. No
+  measurement reads). The mandatory-log gate is asked about the components the
+  run will fill a pair of: one of them whose own source changed with no fresh
+  entry stops the run before anything is recorded, while a changed component
+  the run fills nothing of does not stop it (nothing is recorded over its code;
+  the plain read keeps it red). Only a node's own source owes an entry — a rule,
+  relation, lock or verdict change re-opens pairs and owes none. The subject
+  counts and reviewer-call budget the stage reports come from the same pairs the
+  run will actually fill, with whatever was left alone named out loud. GCs detached verdict entries and writes the lock canonically. No
   write ever happens on an infra disposition (provider unreachable,
   tier-resolution error, reference-load failure, unparseable response) or a
   tainted/failed deterministic result. The verdict writer coalesces its lock

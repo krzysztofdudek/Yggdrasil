@@ -2,15 +2,15 @@
  * What a measured change narrows in the fill stage's own classification
  * (core/fill-classify.ts), and — just as load-bearing — what it must NOT.
  *
- * The stage answers three different questions off one classification, and a
- * change scope moves exactly one of them:
+ * The stage answers its questions off one classification, and a change scope
+ * moves only what gets filled:
  *   - which pairs get FILLED: the free deterministic half stays whole-project,
  *     the paid half narrows to the change;
- *   - which components the mandatory-log gate is asked about: every component
- *     owning an unverified pair, unnarrowed, because that gate is
- *     all-or-nothing about the code as it stands;
+ *   - which components the mandatory-log gate is asked about: the ones the run
+ *     fills a pair of — a changed component the run leaves alone records
+ *     nothing, so it does not stop the run, and the plain read keeps it red;
  *   - which numbers a person is shown: the subjects and the budget of what will
- *     actually be filled, never the larger set the gate looks at.
+ *     actually be filled — the same components the gate is asked about.
  *
  * Real on-disk projects (a real `.yggdrasil/` graph + real source under a fresh
  * mkdtemp), a real verifyLock pass, real aspect and tier resolution. The burn
@@ -161,18 +161,17 @@ describe('classifyFillPairs — what a measured change narrows', () => {
     expect(result.skippedOutsideLlmPairs).toBe(0);
   });
 
-  // The pin that matters most: the log gate's component set is NOT the set the
-  // header counts. Narrowing it would excuse a component whose source moved with
-  // no justification entry simply because some other change did not reach it.
-  it('keeps the log gate’s component set unnarrowed while the reported one follows the fill', async () => {
+  // The log gate is asked about the components this run records verdicts for,
+  // and those are the components the header counts. A component the run leaves
+  // alone gets nothing recorded over its code, so its missing entry does not
+  // stop the run; the plain read keeps it red until the entry exists.
+  it('asks the log gate about the components the run fills, the same ones it reports', async () => {
     const root = await setupProject();
 
     const result = await classify(root, burnOver([['reviewed-rule', 'node:alpha']]));
 
-    // Every component owning an unverified pair — beta included, though nothing
-    // of beta's will be filled this run.
-    expect([...result.nodeSet].sort()).toEqual(['alpha', 'beta']);
-    // What will actually be filled lives on alpha alone.
+    // Only alpha — what will actually be filled, and so what the gate asks about:
+    // beta's one pending pair is a review this run leaves alone.
     expect([...result.reportNodeSet].sort()).toEqual(['alpha']);
     expect([...result.reportFileSet]).toEqual([]);
     // And the classification still reports every unverified pair it found, which

@@ -125,7 +125,7 @@ describe('renderFillEvent', () => {
     expect(dry).toContain('  2 script pairs — free, not listed\n');
     expect(dry).toContain('note: 2 reviewer calls is an upper bound');
     // A paid fill is the user's decision.
-    expect(dry).toContain('Nothing was written.\n  fix:  ask the user to approve yg check --approve (paid, up to 2 reviewer calls) before running it\n');
+    expect(dry).toContain('Nothing was written.\n  fix:  yg check --approve  (paid, up to 2 reviewer calls)\n');
   });
 
   it('dry run: caps the priced list like every list, and names the free lane when no reviewer is configured', () => {

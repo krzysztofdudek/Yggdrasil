@@ -17,7 +17,7 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { aspectNotFound, fail, plural, writeOut, count } from './output.js';
+import { aspectNotFound, fail, plural, writeOut, count, fillStepFor, fillStepText } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -198,7 +198,7 @@ export async function handleAspectImpact(
     writeOut(`  High blast radius — review aspect requirements in affected nodes before modifying this aspect.\n`);
   }
   writeOut(
-    `\nnext: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.\n`,
+    `\nnext: weigh the cost above before editing the aspect, then run ${refillStep(cost)} to re-verify the affected pairs.\n`,
   );
 }
 
@@ -242,6 +242,24 @@ async function computeAspectFillCost(graph: Graph, aspectId: string, projectRoot
   const consensus = tier?.ok ? tier.tier.consensus : 1;
   return { kind: 'llm', units, fileUnits, reviewerCalls: units * consensus };
 }
+
+/**
+ * The recording run that re-verifies an aspect's pairs after a change, named
+ * and priced the way `yg check` names it — the price stated, never asked about.
+ */
+function refillStep(cost: FillCost): string {
+  if (cost.units === 0) return 'yg check --approve';
+  return fillStepText(fillStepFor(cost.kind === 'llm'
+    ? { free: 0, reviewerPairs: cost.units, reviewerCalls: cost.reviewerCalls }
+    : { free: cost.units, reviewerPairs: 0, reviewerCalls: 0 }));
+}
+
+/**
+ * The price of the recording run after a change whose pairs this command does
+ * not enumerate (a flow's, a type's): paid where it re-opens reviewer pairs,
+ * and previewed for free before it runs.
+ */
+const UNPRICED_FILL = 'yg check --approve  (paid for the reviewer pairs it re-opens — yg check --approve --dry-run prices it)';
 
 /** Render the cost lines for an aspect change in lock vocabulary (no drift words). */
 function renderFillCost(cost: FillCost, affectedNodes: number): string {
@@ -563,7 +581,7 @@ export async function handleFlowImpact(
     writeOut(`  High blast radius — review flow compliance in participants before modifying.\n`);
   }
   writeOut(
-    `\nnext: review the participants above before editing the flow, then run yg check --approve to re-verify them.\n`,
+    `\nnext: review the participants above before editing the flow, then run ${UNPRICED_FILL} to re-verify them.\n`,
   );
 }
 
@@ -755,7 +773,7 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
   }
   writeOut(
     typeCoveredPaths.length > 0
-      ? `\nnext: review the nodes and covered files of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`
-      : `\nnext: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.\n`,
+      ? `\nnext: review the nodes and covered files of this type above before editing the type's defaults or when predicate, then run ${UNPRICED_FILL}.\n`
+      : `\nnext: review the nodes of this type above before editing the type's defaults or when predicate, then run ${UNPRICED_FILL}.\n`,
   );
 }

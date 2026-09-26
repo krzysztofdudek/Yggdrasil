@@ -267,7 +267,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          'next: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.',
+          'next: weigh the cost above before editing the aspect, then run yg check --approve  (1 reviewer pair · 1 call · paid) to re-verify the affected pairs.',
         );
       });
     });
@@ -362,7 +362,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          'next: review the participants above before editing the flow, then run yg check --approve to re-verify them.',
+          'next: review the participants above before editing the flow, then run yg check --approve  (paid for the reviewer pairs it re-opens — yg check --approve --dry-run prices it) to re-verify them.',
         );
       });
     });
@@ -634,7 +634,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          "next: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.",
+          "next: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve  (paid for the reviewer pairs it re-opens — yg check --approve --dry-run prices it).",
         );
       });
     });

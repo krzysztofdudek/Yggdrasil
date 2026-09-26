@@ -23,13 +23,16 @@
  *      supplies a change scope, the PAID half of the fill set is narrowed to the
  *      obligations that change is accountable for; the free deterministic half
  *      is always the whole project.
- *   3. Log gate (§9), ALL-OR-NOTHING and deliberately UNNARROWED: if ANY
- *      log_required node's source fingerprint drifted with no fresh entry, the
- *      run fills NOTHING (throws FillGatingError before any deterministic or LLM
- *      fill) and stays red — including for a component the current change never
- *      reached, since a recorded verdict must not rest on an unexplained edit
- *      whoever made it. It runs BEFORE the header, so a run it stops never
- *      announces a fill it is not going to make.
+ *   3. Log gate (§9): if ANY component this run would fill a pair of is a
+ *      log_required node whose OWN source changed since its recorded baseline
+ *      with no fresh entry, the run fills NOTHING (throws FillGatingError before
+ *      any deterministic or LLM fill) and stays red — including for a component
+ *      the current change never reached, since a recorded verdict must not rest
+ *      on an unexplained edit whoever made it. Only the source counts: a rule,
+ *      graph, relation, lock or verdict change re-opens pairs but owes no
+ *      entry. A changed component the run fills nothing of does not stop it; the
+ *      plain read keeps it red. It runs BEFORE the header, so a run it stops
+ *      never announces a fill it is not going to make.
  *   4. Pre-dispatch header: counts — of what will actually be filled, plus what
  *      was deliberately left alone and why. (A --dry-run prints it and its
  *      preview without passing the log gate.)
@@ -288,8 +291,8 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
 
   // ── Step 2: Classify pairs through the SAME engine plain check uses. ───────
   // The change scope narrows the PAID half of the fill set and nothing else —
-  // see fill-classify.ts. `nodeSet` below stays the unfiltered log-gate set;
-  // every number this run reports comes from the report sets beside it.
+  // see fill-classify.ts. `reportNodeSet` below is also the log gate's set —
+  // the components this run fills a pair of, the same ones the report counts.
   // companion.mjs runs only where a reviewer pair may be filled: never in a
   // preview, and never under --only-deterministic, whose one piece of
   // repository code is the script rules' check.mjs (the free CI step promises
@@ -300,7 +303,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
-    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet,
+    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk,
     reportNodeSet, reportFileSet, reviewerCallBudget,
   } = classification;
 
@@ -425,14 +428,14 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     await backfillPromptSizes(lock, verification.pairs, writer.persistLock);
   }
 
-  // ── Step 3: Log gate per node (§9). A node owning unverified pairs whose
-  // log_required type drifted (or first verification) with no fresh entry needs
-  // a justification entry first. The gate is all-or-nothing: if ANY node needs an
-  // entry, --approve approves NOTHING this run and stops (no fill, no report) —
-  // the per-node messages tell the user which entries to add, then re-run.
+  // ── Step 3: Log gate per node (§9). A node this run fills a pair of, whose
+  // log_required type saw its own source change (or first verification) with no
+  // fresh entry, needs a justification entry first. If ANY such node needs one,
+  // --approve approves NOTHING this run and stops (no fill, no report) — the
+  // per-node messages tell the user which entries to add, then re-run.
   const blockedNodes = new Set<string>();
   const logGateIssues: CheckIssue[] = [];
-  for (const nodePath of nodeSet) {
+  for (const nodePath of reportNodeSet) {
     const node = graph.nodes.get(nodePath);
     if (!node) continue;
     const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
@@ -653,7 +656,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
       ...item,
       cause: reviewerConfigured ? 'reviewer-failed' as const : 'reviewer-missing' as const,
     })),
-  ]);
+  ], retry);
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
   // Detect the exact 0-fill divergence: the pre-fill classification reported ZERO

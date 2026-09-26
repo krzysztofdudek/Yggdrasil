@@ -92,7 +92,7 @@ async function setupDetNode(opts: {
 }
 
 describe('positive closure — log_required source fingerprint + minimal logs lock', () => {
-  it('a non-log_required node with a log.md records its log baseline but NO source fingerprint', async () => {
+  it('a non-log_required node with a log.md records its log baseline and its source fingerprint', async () => {
     const projectRoot = await setupDetNode({
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n', // logRequired defaults to false
     });
@@ -101,12 +101,21 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     const lock = readLock(graph.rootPath);
     // The append-only log baseline is recorded (integrity is independent of log_required)…
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
-    // …but a non-log_required node never carries a source fingerprint.
-    expect(lock.nodes['svc']?.source).toBeUndefined();
+    // …beside the fingerprint a later switch to log_required is measured from.
+    expect(typeof lock.nodes['svc']?.source).toBe('string');
   });
 
-  it('a non-log_required node with no log.md gets no nodes[] entry at all', async () => {
+  it('a non-log_required node with no log.md gets a source-only entry', async () => {
     const projectRoot = await setupDetNode({});
+    const graph = await loadGraph(projectRoot);
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    const entry = readLock(graph.rootPath).nodes['svc'];
+    expect(typeof entry?.source).toBe('string');
+    expect(entry?.log).toBeUndefined();
+  });
+
+  it('a non-log_required mapping-less node with no log.md gets no nodes[] entry at all', async () => {
+    const projectRoot = await setupDetNode({ mapping: [] });
     const graph = await loadGraph(projectRoot);
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
@@ -211,7 +220,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     expect(advanced?.prefix_hash).not.toBe(first?.prefix_hash);
   });
 
-  it('a non-log_required node strips a stale source-only entry left by an earlier CLI', async () => {
+  it('a non-log_required node replaces a stale source fingerprint with its current one', async () => {
     const projectRoot = await setupDetNode({}); // non-log_required, no log.md
     const graph = await loadGraph(projectRoot);
     // Seed a stale source-only entry (the shape an older CLI wrote for every node).
@@ -219,10 +228,11 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     seeded.nodes['svc'] = { source: 'stale-fingerprint' };
     await writeLock(graph.rootPath, seeded, { scope: 'logs' });
     expect(readLock(graph.rootPath).nodes['svc']?.source).toBe('stale-fingerprint');
-    // Re-fill: closure reconciles the non-log_required node → strips the dead
-    // source; with no log.md the whole entry is removed.
+    // Re-fill: closure records the node's fingerprint as it stands now.
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
-    expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
+    const source = readLock(graph.rootPath).nodes['svc']?.source;
+    expect(typeof source).toBe('string');
+    expect(source).not.toBe('stale-fingerprint');
   });
 });
 

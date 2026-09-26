@@ -7,16 +7,18 @@ import type { FreshnessMarkerInput } from '../contract.js';
  * portal/api/freshness — the file-aware loop's per-node source freshness (the
  * honesty heartbeat), behind the portal facade.
  *
- * For every node that carries a COMMITTED source baseline (`lock.nodes[path].source`,
- * written at positive closure for a log_required node), compare its current
+ * For every log_required node that carries a COMMITTED source baseline
+ * (`lock.nodes[path].source`, written at positive closure), compare its current
  * mapped-source fingerprint — the SAME fold `yg check` uses — against that baseline.
  * `sourceChanged: true` when they differ: the node's bytes changed since the reviewer
  * last saw them, so it reads "we don't know", never a pass.
  *
  * Honesty boundary — never over-fire: a node WITHOUT a committed baseline (`stored`
- * absent) is reported `sourceChanged: false`. Engine semantics record a source
- * fingerprint ONLY for log_required types, so a baseline's absence is the normal
- * case, not evidence of a change — the portal must not paint the whole repo
+ * absent) is reported `sourceChanged: false`, and so is every node of a type
+ * that is not log_required: the engine records its fingerprint on every full
+ * fill whatever its verdicts say (a baseline for a later switch to
+ * log_required), so there it attests no reading at all. A baseline's absence is
+ * the normal case, not evidence of a change — the portal must not paint the whole repo
  * unverified from missing baselines. Such a node's freshness is already carried
  * honestly elsewhere: a node with reviewer pairs flips those pairs to `unverified`
  * on any input change (the pair-state path), and a no-rule node is already the
@@ -52,8 +54,11 @@ export async function computePortalFreshness(
   lock: LockFile,
 ): Promise<FreshnessMarkerInput[]> {
   const out: FreshnessMarkerInput[] = [];
-  for (const nodePath of graph.nodes.keys()) {
-    const stored = lock.nodes[nodePath]?.source;
+  for (const [nodePath, node] of graph.nodes) {
+    // Only a log_required node's baseline is written at closure; any other
+    // node's is a bare record of its bytes, not of what a rule read.
+    const logRequired = graph.architecture.node_types[node.meta.type]?.log_required ?? false;
+    const stored = logRequired ? lock.nodes[nodePath]?.source : undefined;
     // No committed baseline → no honest claim of change (the common, non-log_required case).
     if (stored === undefined) {
       out.push({ nodePath, sourceChanged: false });

@@ -1,0 +1,9 @@
+name: E2E Tests — What a log entry is owed for and what a missing one stops
+type: test-suite
+description: "Subprocess E2E for the log contract, from a recorded baseline: an edited rule, a declared relation and lost verdicts re-open pairs and owe no entry; a change to a component's own source owes one and stops the recording run before it records anything; a changed component the run fills nothing of — one with no rules, or one whose only pending pairs are reviewer pairs under the free run — stays red on the plain read but does not stop the run."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-log-gate-scope.test.ts

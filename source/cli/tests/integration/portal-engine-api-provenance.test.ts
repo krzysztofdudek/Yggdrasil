@@ -193,8 +193,10 @@ describe('computePortalFreshness — the baseline branches (real graph)', () => 
     expect(fresh.some((f) => f.nodePath === 'api/orders')).toBe(true);
   });
 
-  it('reports changed when a stored baseline differs from the live fingerprint', async () => {
+  it('reports changed when a log_required node’s stored baseline differs from the live fingerprint', async () => {
     const graph = await loadGraph(BASIC_FIXTURE);
+    // Only a log_required node's baseline is written at closure; make the type opt in.
+    graph.architecture.node_types[graph.nodes.get('api/orders')!.meta.type].log_required = true;
     // A baseline that cannot match the real current bytes (a deliberately wrong fingerprint).
     const lock: LockFile = {
       version: 1,
@@ -207,6 +209,19 @@ describe('computePortalFreshness — the baseline branches (real graph)', () => 
     // A sibling with no baseline stays not-changed.
     const users = fresh.find((f) => f.nodePath === 'api/users')!;
     expect(users.sourceChanged).toBe(false);
+  });
+
+  it('a non-log_required node’s recorded fingerprint is never read as a change', async () => {
+    const graph = await loadGraph(BASIC_FIXTURE);
+    // Every full fill records any node's bytes; for a type that asks for no log
+    // entries that is no record of a reading, so it raises no marker.
+    const lock: LockFile = {
+      version: 1,
+      verdicts: {},
+      nodes: { 'api/orders': { source: 'deadbeef-not-the-real-fingerprint' } },
+    };
+    const fresh = await computePortalFreshness(graph, lock);
+    expect(fresh.find((f) => f.nodePath === 'api/orders')!.sourceChanged).toBe(false);
   });
 
   it('a mapping-less node with a stored baseline is never marked changed (undefined fingerprint)', async () => {

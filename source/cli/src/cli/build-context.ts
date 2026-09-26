@@ -79,16 +79,40 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
 }
 
 /**
- * Repository-wide error codes that never change what a node's context says: a
- * credential in the committed config, a tracked secrets file, a reviewer rule
- * with no reviewer configured. They block `yg check`, and `yg context` names
- * them, but refusing the context over them locked every agent out of its
- * required pre-edit step until a human acted.
+ * The repository-wide error codes that change what a node's context says: a
+ * part of the graph the context is assembled from did not load, or loaded with
+ * a reference it cannot resolve — the architecture (which rules a type
+ * carries, what it may depend on), a rule or flow file, the rules' `implies`
+ * and `when`, a component the loader never reached, the configuration as a
+ * whole (every setting at its default), the verdict lock the context reads
+ * its state from. Only these refuse the context. Every other error — a
+ * credential in the committed config, a tracked or misspelled secrets file, a
+ * reviewer not yet configured, a key the configuration does not know while the
+ * rest of it is in effect — blocks `yg check` and is named beside the context,
+ * but refusing over it locked every agent out of its required pre-edit step
+ * over something the context does not contain. An allow-list, so a new code
+ * is given the context until it is shown to change it.
  */
-const CONTEXT_INDEPENDENT_CODES: ReadonlySet<string> = new Set([
-  'config-committed-api-key',
-  'secrets-file-tracked',
-  'config-reviewer-missing',
+const CONTEXT_CHANGING_CODES: ReadonlySet<string> = new Set([
+  'architecture-invalid',
+  'architecture-cycle',
+  'when-predicate-invalid',
+  'relation-target-type-unknown',
+  'type-unknown-parent',
+  'type-undefined',
+  'yaml-invalid',
+  'duplicate-aspect-id',
+  'aspect-undefined',
+  'implied-aspect-missing',
+  'aspect-implies-cycle',
+  'aspect-when-invalid',
+  'when-unknown-type',
+  'when-unknown-node',
+  'when-unknown-port',
+  'node-unreachable',
+  'flow-node-broken',
+  'lock-invalid',
+  'config-invalid',
 ]);
 
 /** Whether a rule is attached to any of these nodes: by the node itself, its type, or a flow it is in. */
@@ -106,15 +130,16 @@ function aspectUsedBy(graph: Graph, aspectId: string, nodes: Set<string>): boole
 /**
  * Whether an error stops this node's context from being assembled: one about a
  * node the context draws on, a cycle through one, a rule those nodes use that
- * did not load, or any other repository-wide error that is not one of the
- * {@link CONTEXT_INDEPENDENT_CODES}.
+ * did not load, a flow one of them is in, or a repository-wide error in
+ * {@link CONTEXT_CHANGING_CODES} (a configuration that did not load at all
+ * counts, whatever code its parser gave it).
  */
 function affectsContext(graph: Graph, issue: ValidationIssue, relevant: Set<string>): boolean {
   if (issue.cycleMembers) return issue.cycleMembers.some((m) => relevant.has(m));
   if (issue.nodePath) return relevant.has(issue.nodePath);
-  if (CONTEXT_INDEPENDENT_CODES.has(issue.code ?? '')) return false;
   if (issue.aspectId !== undefined) return aspectUsedBy(graph, issue.aspectId, relevant);
-  return true;
+  if (issue.flowName !== undefined) return graph.flows.some((f) => f.name === issue.flowName && f.nodes.some((n) => relevant.has(n)));
+  return CONTEXT_CHANGING_CODES.has(issue.code ?? '') || issue.rule === 'invalid-config';
 }
 
 /**
@@ -622,7 +647,8 @@ export function registerBuildCommand(program: Command): void {
         const elsewhere = errors.filter((issue) => !issue.nodePath && !issue.cycleMembers);
         if (elsewhere.length > 0) {
           warn({
-            what: `${elsewhere.length} repository-wide ${plural(elsewhere.length, 'error')} ${elsewhere.length === 1 ? 'blocks' : 'block'} yg check but not this context: ${[...new Set(elsewhere.map((e) => e.code ?? 'error'))].join(', ')}`,
+            // Each one by its own first line, so what to fix is named here too.
+            what: `${elsewhere.length} repository-wide ${plural(elsewhere.length, 'error')} ${elsewhere.length === 1 ? 'blocks' : 'block'} yg check but not this context: ${[...new Set(elsewhere.map((e) => e.code ?? 'error'))].join(', ')}\n${elsewhere.map((e) => `${e.code ?? 'error'}  ${e.messageData.what.split('\n')[0]}`).join('\n')}`,
             why: 'None of them changes what the rules on this node are or what it may depend on.',
             next: 'yg check',
           });
