@@ -149,8 +149,8 @@ export interface RunFillOptions {
    *
    *  It narrows exactly one thing: the PAID fill set. Deterministic fills cost
    *  nothing and their recorded observations are what a later scope computation
-   *  reads, so the free half stays whole-project; the mandatory-log gate stays
-   *  all-or-nothing over every component owning an unverified pair. It is also
+   *  reads, so the free half stays whole-project; the mandatory-log gate is asked
+   *  about the components the run then fills a pair of. It is also
    *  forwarded to this stage's own report, so a recording run gates on exactly
    *  what a plain read of the same working tree gates on.
    *
