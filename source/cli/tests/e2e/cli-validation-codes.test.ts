@@ -588,6 +588,103 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
     }
   });
 
+  it('H3b: a node under a directory that is no node, or under a node that failed to load, is node-unreachable (exit 1)', () => {
+    const architecture = DEFAULT_ARCHITECTURE + ['  group:', "    description: 'An organizational grouping'", ''].join('\n');
+    const dir = minimalGraph('node-unreachable', ({ ygRoot, projectRoot }) => {
+      writeNode(ygRoot, 'widget', ['name: Widget', 'description: A widget', 'type: service', 'mapping:', '  - src/widget.ts', ''].join('\n'));
+      writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+      // 'inter' is an empty directory with no yg-node.yaml: the loader stops there,
+      // so the node beneath it never loads — and it maps nothing, so no unmapped
+      // file would ever point at it.
+      writeNode(ygRoot, 'inter/deep', ['name: Deep', 'description: Dropped', 'type: group', ''].join('\n'));
+      // A node whose own yg-node.yaml does not load takes its children with it.
+      writeNode(ygRoot, 'broken', ['name: Broken', 'description: Missing its type', ''].join('\n'));
+      writeNode(ygRoot, 'broken/child', ['name: Child', 'description: Dropped with its parent', 'type: group', ''].join('\n'));
+    }, { architecture });
+    try {
+      const { status, all } = run(['check'], dir);
+      expect(status).toBe(1);
+      expect(all).toContain('node-unreachable');
+      expect(all).toContain("Node 'inter/deep' is not loaded: the directory 'inter' above it has no yg-node.yaml");
+      expect(all).toContain("Node 'broken/child' is not loaded: the node 'broken' above it failed to load");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('H3c: a dropped node that maps nothing used to leave the check green — it is now the only finding', () => {
+    const architecture = DEFAULT_ARCHITECTURE + ['  group:', "    description: 'An organizational grouping'", ''].join('\n');
+    const dir = minimalGraph('node-unreachable-alone', ({ ygRoot, projectRoot }) => {
+      writeNode(ygRoot, 'widget', ['name: Widget', 'description: A widget', 'type: service', 'mapping:', '  - src/widget.ts', ''].join('\n'));
+      writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+      writeNode(ygRoot, 'inter/deep', ['name: Deep', 'description: Dropped', 'type: group', ''].join('\n'));
+    }, { architecture });
+    try {
+      const { status, all } = run(['check'], dir);
+      expect(status).toBe(1);
+      expect(all).toContain('node-unreachable');
+      expect(all).not.toContain('PASS');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('H5: a misspelled key anywhere in the graph or the configuration blocks the check instead of switching enforcement off (exit 1)', () => {
+    const widget = ['name: Widget', 'description: A widget', 'type: service', 'mapping:', '  - src/widget.ts', ''].join('\n');
+    const cases: Array<{ label: string; build: (ctx: { ygRoot: string; projectRoot: string }) => void; opts?: GraphOptions; expect: string[] }> = [
+      {
+        // `stauts: advisory` read as nothing loaded the rule at its default — enforced.
+        label: 'aspect',
+        build: ({ ygRoot, projectRoot }) => {
+          writeNode(ygRoot, 'widget', widget.replace('mapping:', 'aspects:\n  - no-todo\nmapping:'));
+          writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+          writeAspect(ygRoot, 'no-todo', 'name: NoTodo\ndescription: No TODO markers\nreviewer:\n  type: deterministic\nstauts: advisory\n', {
+            file: 'check.mjs',
+            body: 'export function check() { return []; }\n',
+          });
+        },
+        expect: ['aspect-unknown-key', "'stauts' (did you mean 'status'?)"],
+      },
+      {
+        // `relation:` read as nothing dropped the relation it declares.
+        label: 'node',
+        build: ({ ygRoot, projectRoot }) => {
+          writeNode(ygRoot, 'widget', `${widget}relation:\n  - target: other\n    type: uses\n`);
+          writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+        },
+        expect: ['yaml-invalid', "'relation' (did you mean 'relations'?)"],
+      },
+      {
+        label: 'quality',
+        build: ({ ygRoot, projectRoot }) => {
+          writeNode(ygRoot, 'widget', widget);
+          writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+        },
+        opts: { qualityExtra: ['  max_direct_relation: 3'] },
+        expect: ['config-quality-unknown-key', "did you mean 'max_direct_relations'?"],
+      },
+      {
+        label: 'tier-config',
+        build: ({ ygRoot, projectRoot }) => {
+          writeNode(ygRoot, 'widget', widget);
+          writeSource(projectRoot, 'src/widget.ts', 'export const w = 1;\n');
+        },
+        opts: { tierExtra: ['        temperature: hot'] },
+        expect: ['config-tier-config-invalid', 'config.temperature must be a number'],
+      },
+    ];
+    for (const c of cases) {
+      const dir = minimalGraph(`unknown-key-${c.label}`, c.build, c.opts);
+      try {
+        const { status, all } = run(['check'], dir);
+        expect({ label: c.label, status }).toEqual({ label: c.label, status: 1 });
+        for (const text of c.expect) expect(all).toContain(text);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it('H4: a mapping path that climbs above the repo root is rejected at parse time (exit 1)', () => {
     const dir = minimalGraph('mapping-escapes', ({ ygRoot, projectRoot }) => {
       // A valid node keeps the graph non-empty and covered…

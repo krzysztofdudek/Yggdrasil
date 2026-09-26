@@ -535,7 +535,7 @@ then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the use
 
 The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
 
-**Block order** is urgency. Errors come first, most urgent first: the graph is invalid (a file that does not parse, an architecture that does not load); then code and graph errors (refusals, relations, coverage); then gate prerequisites (`log-entry-missing`, `log-conflict`, `config-reviewer-missing`); then pending work (`unverified`). Warnings follow.
+**Block order** is urgency. Errors come first, most urgent first: the graph is invalid (a file that does not parse, an architecture that does not load); then code and graph errors (refusals, relations, coverage); then gate prerequisites (`log-conflict`, `log-integrity`, `log-format`, `log-entry-missing`, `config-reviewer-missing`); then pending work (`unverified`). Warnings follow.
 
 **After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
 
@@ -548,6 +548,8 @@ An agent reads the `next:` line and does that; `fix:` says what to do for each b
 The view decides the volume, not the terminal: a pipe (an agent, CI) gets exactly the report a terminal gets. On color-capable terminals the verdict and the block headings get a glyph and colour (stripped under `NO_COLOR` and in CI); the words carry the meaning either way.
 
 When part of the graph did not load as written — `yg-config.yaml`, `yg-architecture.yaml`, a component's `yg-node.yaml` or the lock — a `partial:` line under the verdict says what was left out: `partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first.` That finding's block comes first (it is graph-invalid), and `next:` names its fix.
+
+A `log.md` that is not settled — git conflict markers still in it (`log-conflict`), a recorded history that was rewritten (`log-integrity`), or a body that does not parse (`log-format`) — stops `yg check --approve` the same way, before anything is filled: the fill would record the node's baseline over it. `--only-deterministic` and `--dry-run` record no baseline and are not stopped by it.
 
 When `yg check --approve` stops at a gate before recording anything, the stop is reported on stdout like any result: a `yg check: ABORTED  nothing recorded — 24 nodes need a log entry first` verdict line, the gating block, and a `next:` / `then:` pair whose re-run is the command you ran, with its flags (under `--json`, the document described above with `exit.status: aborted`):
 
@@ -1714,14 +1716,18 @@ That is the point: the case sits in the corpus, failing, until the rule is
 sharpened enough to catch it. A corpus that only ever accepts cases the rule
 already passes can never tell you anything.
 
-Nothing is written when the commit is not in the repository, the file was not
-there at that commit, the file is empty, its content at that commit is not text
+Nothing is written when the file is one the drill never runs as a case (a `.md`
+file, or one named `yg-aspect.yaml` — both are skipped by `yg drill`, so a case
+under either name would be reported as measured and never measured), the commit
+is not in the repository, the file was not there at that commit, the file is
+empty, its content at that commit is not text
 (it carries a NUL byte), the same bytes are already a case (a second copy
 measures nothing and only inflates the count), the two specs given to
 `--violates` and `--satisfies` resolve to the same case name, or the rule is one
 that bundles others and has no rule of its own. A case that turns out to be
 unmeasurable — a check that needs the whole graph, a reviewer that cannot be
-reached — is taken back out, because an unmeasurable fixture is worse than none.
+reached, a case the drill does not find — is taken back out and the command exits
+1, because an unmeasurable fixture is worse than none.
 
 ### `yg aspect-test`
 
@@ -2015,6 +2021,8 @@ older CLI. On a project still using the older single-file `yg-lock.json`,
 verdict verbatim, with no re-verification — and gitignores the deterministic
 cache. See [The lock](/the-lock) for the file layout.
 
+`--upgrade` also removes every key an earlier release read and this one refuses — a node's or a node type's `sizeExempt`, a relation's `failure`, `quality.max_node_chars` and `quality.max_mapping_source_files`, a tier's `config.max_tokens`, `config.context_length_field` and `config.references`, and a rule's `language`, `stability`, `anchors` and `id` — from the graph and configuration files (the local `yg-secrets.yaml` included; rules installed from a package are left alone), printing one `Removed retired key '<key>' from <file>` line for each. Each file is edited in place: every other key and comment stays, except a comment on the removed key itself, and the writer may normalize indentation or the spacing of a flow list, so review the diff. A key nobody retired is never guessed at: `yg check` names it, with the key it is probably a typo of, for you to fix.
+
 If the project requires its whole tree to be mapped, `--upgrade` also warns
 that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 `.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
@@ -2023,7 +2031,7 @@ from the artifacts this project actually carries, so one that has switched an
 artifact off under `rules_artifacts` is shown a shorter list. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
 
-`--upgrade` names every file it touched: the rules files it rewrote, and any
+`--upgrade` names every file it touched: the rules files it rewrote, every retired key it removed, and any
 line it appended to `.yggdrasil/.gitignore` or `.gitattributes` (for example
 the look-alike group (`.family-candidates.*`) ignore lines a 6.0.0 project lacks). It says "nothing
 changed" only when that is true.
@@ -2216,8 +2224,10 @@ yg marketplace check
   Refuses rather than overwrite a manifest that is already there; leaves a
   workflow of its own that is already there alone, without refusing.
 - `check` — the pre-publish check. Deterministic, free, no key, non-zero on any
-  refusal. Five questions: the manifests against the directories that exist,
-  every rule loading under the loader a consumer will use, every `implies` inside
+  refusal. Five questions: the manifests against each other (name, version), the
+  directories that exist and the running Yggdrasil (`requires.yg`), with nothing in
+  a package an install refuses (a symbolic link, a binary file) — so a package it
+  passes is one `yg pack add` installs — every rule loading under the loader a consumer will use, every `implies` inside
   its own package, every setting read declared and every setting declared read,
   and portability — no review date, no reference path, no folder-anchored file
   filter, and a pair of drill cases on every script rule. Each finding

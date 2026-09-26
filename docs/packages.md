@@ -462,7 +462,14 @@ Two things are different inside a package:
 - **`requires.yg` is a promise.** It says which versions of Yggdrasil the package
   was written against. Installing refuses when the running version does not
   satisfy it, naming both. `pack new` writes `^<major>.0.0` — the running major,
-  and not the next one.
+  and not the next one. It is also what carries a rule across releases: every
+  `yg-aspect.yaml` accepts only the keys its release knows, so a rule using a key
+  a later release added must say so here, and an older Yggdrasil then refuses the
+  install instead of loading the rule without the key. The check happens only at
+  install and update, never while a graph loads: if you move the CLI back to an
+  older version after installing, a rule carrying a key that version does not
+  know fails to load with `aspect-unknown-key`. Take a release of the package
+  built for the version you run, or move the CLI forward again.
 
 Publish a version by tagging it `pack/<package>@<version>`:
 
@@ -534,14 +541,27 @@ yg marketplace check
 
 Free, deterministic, no key, and non-zero on any refusal — it is what the CI file
 `marketplace init` writes runs for you. It asks five things: that the two
-manifests agree with the directories that exist, that every rule loads under the
+manifests agree — with each other on the name and the version, with the
+directories that exist, and with the Yggdrasil running the check on `requires.yg`
+— and that the package holds nothing an install refuses (a symbolic link, a
+binary file), that every rule loads under the
 same loader a consumer will use, that every `implies` stays inside its package,
 that every setting read is declared and every setting declared is read, and that
 nothing in the package is anchored to your own repository.
 
+Everything `yg pack add` refuses about a package's manifests and files is asked
+here too, through the same readers, so a package the check passes is one that
+installs. When the marketplace is the root of a git repository, what git ignores
+is left out, because an install clones your tag and never sees it: a
+`node_modules/` you installed locally is fine while `.gitignore` covers it, and
+refused like any undeclared directory once it would be published. Anywhere else —
+a plain directory, or a marketplace nested inside another repository's working
+tree — nothing is left out, because `yg pack add` copies such a source as it is on
+disk, ignored files included.
+
 Every finding names a code — `package-config-undeclared`, `package-drills-missing`,
-`package-scope-literal-root` and so on — and the knowledge topic lists what each
-one means.
+`package-scope-literal-root`, `package-version-mismatch` and so on — and the
+knowledge topic lists what each one means.
 
 One limit, stated rather than implied: **it does not run your drills.** Running a
 case needs a repository to run it in, and a marketplace has no graph — which is

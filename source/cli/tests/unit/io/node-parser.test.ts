@@ -1375,3 +1375,46 @@ ports:
     });
   });
 });
+
+describe('node-parser — a key the node schema does not accept is refused by name', () => {
+  async function parseYaml(label: string, body: string): Promise<unknown> {
+    const dir = path.join(FIXTURES_DIR, `tmp-node-unknown-${label}`);
+    await mkdir(dir, { recursive: true });
+    const file = path.join(dir, 'yg-node.yaml');
+    await writeFile(file, body);
+    return parseNodeYaml(file);
+  }
+  const HEAD = 'name: Svc\ntype: service\ndescription: A service\n';
+
+  it('a misspelled top-level key names the key it is a typo of', async () => {
+    // `relation:` read as nothing would drop the relation it declares without a word.
+    await expect(parseYaml('top', `${HEAD}relation:\n  - target: other\n    type: uses\n`)).rejects.toThrow(
+      /unknown key 'relation' \(did you mean 'relations'\?\)/,
+    );
+    await expect(parseYaml('aspect', `${HEAD}aspect: [a]\n`)).rejects.toThrow(/did you mean 'aspects'\?/);
+    await expect(parseYaml('bogus', `${HEAD}bogus_key: 1\n`)).rejects.toThrow(/unknown key 'bogus_key'\. .*Accepted keys: name, type/);
+  });
+
+  it('a retired key is named as retired, with what replaced it', async () => {
+    await expect(parseYaml('retired', `${HEAD}sizeExempt:\n  reason: lockfile\n`)).rejects.toThrow(
+      /'sizeExempt' \(removed in 5\.0\.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it — delete it\)/,
+    );
+  });
+
+  it('an unknown key inside a relation, a port or max_direct_relations is refused with where it sits', async () => {
+    await expect(parseYaml('rel', `${HEAD}relations:\n  - target: other\n    type: uses\n    portName: [p]\n`)).rejects.toThrow(
+      /unknown key 'portName' \(did you mean 'portNames'\?\) in relations\[0\]/,
+    );
+    await expect(parseYaml('port', `${HEAD}ports:\n  api:\n    description: d\n    aspect: [a]\n`)).rejects.toThrow(
+      /unknown key 'aspect' \(did you mean 'aspects'\?\) in ports\.api/,
+    );
+    await expect(parseYaml('mdr', `${HEAD}max_direct_relations:\n  limt: 20\n  reason: r\n`)).rejects.toThrow(
+      /unknown key 'limt' \(did you mean 'limit'\?\) in max_direct_relations/,
+    );
+  });
+
+  it('a node naming only accepted keys still parses', async () => {
+    const meta = (await parseYaml('ok', `${HEAD}mapping: [src/a.ts]\nrelations:\n  - target: other\n    type: emits\n    event_name: e\n`)) as { name: string };
+    expect(meta.name).toBe('Svc');
+  });
+});

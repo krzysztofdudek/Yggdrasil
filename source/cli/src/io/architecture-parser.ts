@@ -6,6 +6,7 @@ import type { FileWhenPredicate } from '../model/file-when.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen } from '../utils/file-when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
+import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
 
 const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', 'implements', 'emits', 'listens']);
 
@@ -18,7 +19,7 @@ const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', '
  * silent no-op into a blocking, fixable error. Mirrors the unknown-key rejection
  * the config parser already applies to reviewer/tier blocks.
  */
-const VALID_NODE_TYPE_KEYS: Set<string> = new Set([
+export const ARCHITECTURE_NODE_TYPE_KEYS = [
   'description',
   'aspects',
   'parents',
@@ -26,7 +27,19 @@ const VALID_NODE_TYPE_KEYS: Set<string> = new Set([
   'log_required',
   'when',
   'enforce',
-]);
+] as const;
+
+/**
+ * The keys the top level of yg-architecture.yaml accepts. The same reasoning as
+ * a type entry's: a misspelled `node_type:` would load an EMPTY type system with
+ * no word, and every node would then fail against types that were never read.
+ */
+export const ARCHITECTURE_KEYS = ['node_types'] as const;
+
+/** Node-type keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_TYPE_KEYS: RetiredKeys = {
+  sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
+};
 
 export async function parseArchitecture(filePath: string): Promise<ArchitectureDef> {
   const content = await readFile(filePath, 'utf-8');
@@ -34,6 +47,10 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
 
   if (raw && (typeof raw !== 'object' || Array.isArray(raw))) {
     throw new Error(`yg-architecture.yaml: file must be a YAML mapping (or empty/omitted)`);
+  }
+  const unknownTop = raw ? findUnknownKeys(raw, ARCHITECTURE_KEYS) : [];
+  if (unknownTop.length > 0) {
+    throw new Error(`yg-architecture.yaml: ${describeUnknownKeys('', unknownTop, ARCHITECTURE_KEYS)}`);
   }
 
   const nodeTypesRaw = raw?.node_types;
@@ -67,13 +84,23 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       );
     }
 
-    const unknownKeys = Object.keys(entry).filter((k) => !VALID_NODE_TYPE_KEYS.has(k));
+    const unknownKeys = findUnknownKeys(entry, ARCHITECTURE_NODE_TYPE_KEYS, RETIRED_NODE_TYPE_KEYS);
     if (unknownKeys.length > 0) {
-      throw new Error(
-        `yg-architecture.yaml: node_types.${typeName} has unknown ${unknownKeys.length === 1 ? 'key' : 'keys'} ${unknownKeys.map((k) => `'${k}'`).join(', ')}. ` +
-          `A misspelled key (e.g. 'parent' for 'parents', 'aspect' for 'aspects') is silently ignored, dropping the constraint you intended. ` +
-          `Valid keys: ${Array.from(VALID_NODE_TYPE_KEYS).join(', ')}. Fix or remove the offending ${unknownKeys.length === 1 ? 'key' : 'keys'}.`,
-      );
+      throw new Error(`yg-architecture.yaml: ${describeUnknownKeys(`node_types.${typeName}`, unknownKeys, ARCHITECTURE_NODE_TYPE_KEYS)}`);
+    }
+
+    // A list written as a single value (`aspects: audit`, `parents: module`) is
+    // not a list with one entry — refused, like an unknown key, rather than
+    // dropped: dropping it would remove the default rule or the parent
+    // constraint it names without a word.
+    for (const listKey of ['aspects', 'parents'] as const) {
+      const value = entry[listKey];
+      if (value !== undefined && value !== null && !Array.isArray(value)) {
+        throw new Error(
+          `yg-architecture.yaml: node_types.${typeName}.${listKey} must be a list (got ${JSON.stringify(value)}). ` +
+            `A single value is not read as a one-entry list, so it would be ignored. Write it as ${listKey}: [${typeof value === 'string' ? value : '<entry>'}].`,
+        );
+      }
     }
 
     let aspects: string[] | undefined;

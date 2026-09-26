@@ -1,8 +1,13 @@
 name: Marketplace Pre-Publish Check
 type: engine
 description: "The five questions a repository publishing rules is asked before
-  anyone can install from it: whether the two manifests agree with the
-  directories that are actually there, whether every rule loads under the very
+  anyone can install from it: whether the two manifests agree — with each
+  other on name and version, with the directories that are actually there, and
+  with the running Yggdrasil on requires.yg — and whether a package holds only
+  what an install copies (no symbolic link, no binary), asked through the very
+  readers the install uses so that a package this check passes is one that
+  installs, with what git ignores left out because an install clones the tag and
+  never sees it, whether every rule loads under the very
   loader a consumer will load it with, whether every implies stays inside its own
   package, whether every setting a rule reads is declared and every setting
   declared is read, and whether the package will still mean the same thing in a

@@ -4,7 +4,16 @@ export const content = `# yg-node.yaml — Schema for model nodes
 # Every node is a directory under .yggdrasil/model/ containing this file.
 # The node's path in the graph = its directory path relative to model/.
 # Nodes nest by directory — a node at model/orders/handler/ is a child
-# of model/orders/ and inherits its parent's aspects.
+# of model/orders/ and inherits its parent's aspects. Every directory between
+# model/ and a node must itself be a node: one under a directory with no
+# yg-node.yaml (or under a node that fails to load) is never loaded, and
+# yg check reports it as node-unreachable.
+#
+# Only the keys below are accepted, here and in each relation, port and
+# max_direct_relations block. Any other key is a blocking yaml-invalid error
+# naming the key it is probably a typo of (relation → relations); a key an
+# earlier release read (sizeExempt) is named as retired. A misspelled key used
+# to be ignored, dropping the relation or rule it declared without a word.
 
 name: ComponentName           # required — display name
 type: service                 # required — must match a type defined in yg-architecture.yaml

@@ -82,3 +82,5 @@ A --node path is normalised with the one path helper, so a trailing slash or a b
 An unused import left by the path normalisation change is removed.
 ## [2026-09-26T01:57:43.386Z]
 Recording a rule's standing gained a mode for a run that may write no committed file, which the free script-only fill is. In that mode a first sighting and a change the rule's log already records are still remembered, since that memory is local, but an unrecorded change is neither written into the rule's committed log nor forgotten: it is left for a full fill or for a person to record, and plain check keeps reporting it meanwhile. Advancing the memory without writing the entry would have hidden the change forever.
+## [2026-09-26T02:52:36.870Z]
+Merge-resolve decided whether a log was conflicted with its own private copy of the marker test. It now uses the shared definition, so the command that reconciles a conflicted log and the gate that refuses to fill over one always agree on what a conflicted log is.

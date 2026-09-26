@@ -230,6 +230,19 @@ export interface DiscoverDrillsOpts {
 }
 
 /**
+ * Whether a file of this name can be a drill case at all. `yg-aspect.yaml` is
+ * reserved and never a case, and a `.md` file is documentation beside the cases,
+ * never one of them. The one reading shared by the corpus walk below and by
+ * `yg drill add`, which refuses such a file up front: a case the runner skips
+ * would be reported as measured while it never ran.
+ */
+export function isDrillCaseFileName(baseName: string): boolean {
+  if (baseName === 'yg-aspect.yaml') return false;
+  if (baseName.toLowerCase().endsWith('.md')) return false;
+  return true;
+}
+
+/**
  * Discover the per-aspect case corpus. Each source FILE whose first path segment
  * under the corpus root is a `violates-*` / `satisfies-*` directory is one case;
  * its label is the file's corpus-relative POSIX path with the extension stripped.
@@ -254,9 +267,7 @@ export async function discoverDrillCases(opts: DiscoverDrillsOpts): Promise<Dril
         ? 'satisfied'
         : null;
     if (expect === null) continue; // not under a verdict-encoding directory
-    const baseName = path.basename(abs);
-    if (baseName === 'yg-aspect.yaml') continue; // reserved — never a case
-    if (baseName.toLowerCase().endsWith('.md')) continue; // docs are not cases
+    if (!isDrillCaseFileName(path.basename(abs))) continue;
     const ext = path.extname(relToBase);
     const caseLabel = ext.length > 0 ? relToBase.slice(0, -ext.length) : relToBase;
     if (opts.caseGlob !== undefined && !globMatch(caseLabel, opts.caseGlob)) continue;

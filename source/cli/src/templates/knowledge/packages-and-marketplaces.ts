@@ -223,6 +223,10 @@ names its own code:
 | \`marketplace-dir-unlisted\` | a directory under \`packages/\` that the manifest never names |
 | \`package-manifest-invalid\` | a package's own manifest is mis-shaped — including a directory it does not declare, or a config default that contradicts its type |
 | \`package-name-mismatch\` | the manifest, the entry and the directory disagree about the package's name |
+| \`package-version-mismatch\` | the package manifest and the marketplace entry name different versions — \`yg pack add\` refuses it |
+| \`package-requires-unsatisfied\` | \`requires.yg\` does not accept the Yggdrasil running the check — \`yg pack add\` with this version refuses it |
+| \`package-symlink-refused\` | a symbolic link anywhere in the package — \`yg pack add\` refuses it |
+| \`package-binary-file-refused\` | a binary file anywhere in the package — \`yg pack add\` refuses it |
 | \`package-aspect-invalid\` | a rule ships both \`check.mjs\` and \`content.md\`, or neither with nothing implied, or will not load |
 | \`package-implies-escapes\` | a rule implies something that is not a bare name of a rule in this package |
 | \`package-config-undeclared\` | a rule reads a setting the manifest never declared |
@@ -231,6 +235,14 @@ names its own code:
 | \`package-references-repo-path\` | a published rule names a reference file |
 | \`package-drills-missing\` | a script rule with no cases, or with only one of the two kinds |
 | \`package-file-unreadable\` | a file that cannot be read cannot be copied or checked |
+
+Everything \`yg pack add\` refuses about a package's manifests and files is asked
+here, through the same readers, so a package this check passes is one that
+installs. When the marketplace is the ROOT of a git repository, what git ignores is
+left out — an install clones the tag and never sees it — so a locally installed
+\`node_modules/\` passes while \`.gitignore\` covers it. A plain directory, or a
+marketplace nested inside another repository's working tree, is copied from disk
+by \`yg pack add\`, ignored files included, so there nothing is left out.
 
 And four warnings, which do not fail the check: \`package-config-unused\` (declared
 and never read), \`package-config-dynamic\` (the rule reaches its settings through a

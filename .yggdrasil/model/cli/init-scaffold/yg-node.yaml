@@ -5,7 +5,11 @@ description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
   installs the universal agent rules (AGENTS.md digest + CLAUDE.md import +
   .clinerules), and maintains the repo-root .gitattributes and the
   .yggdrasil/.gitignore (both idempotent, run on fresh init and every
-  --upgrade). Extracted from the init command handler so the large command file
+  --upgrade). On every --upgrade it also removes the keys earlier releases read
+  and the current parsers refuse, taking the lists from the parsers themselves so
+  it removes exactly what the check would name as retired and never a key that
+  is merely unknown, editing each YAML document in place so other keys and
+  comments survive, and never touching a rule installed from a package. Extracted from the init command handler so the large command file
   carries only orchestration; registers no Commander subcommand. Takes the
   CLI's own version as a plain string parameter rather than importing
   cli-version.ts itself — a command-support node may not relate to another
@@ -17,6 +21,12 @@ relations:
   - target: cli/utils
     type: calls
   - target: cli/io/stores
+    type: calls
+  - target: cli/io/parsers/graph
+    type: calls
+  - target: cli/io/parsers/aspect
+    type: calls
+  - target: cli/io/parsers/config
     type: calls
   - target: cli/model/graph
     type: uses

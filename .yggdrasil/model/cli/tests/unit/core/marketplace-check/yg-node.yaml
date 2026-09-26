@@ -14,5 +14,7 @@ aspects: []
 relations:
   - target: cli/core/marketplace-check
     type: uses
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/unit/core/marketplace-check.test.ts

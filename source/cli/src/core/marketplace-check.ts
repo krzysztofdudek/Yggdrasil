@@ -4,7 +4,10 @@ import type { IssueMessage, IssueSeverity } from '../model/validation.js';
 import type { AspectDef, FileWhenPredicate } from '../model/graph.js';
 import type { PackageManifest, MarketplaceEntry } from '../model/packages.js';
 import { MARKETPLACE_FILENAME, PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
-import { parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
+import { checkPackageRequires, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
+import { inspectPackageTree, listPackageAspectDirs } from '../io/package-store.js';
+import { listIgnoredUntrackedPaths } from '../utils/git-introspect.js';
+import { isGitRepositoryRoot } from '../utils/git-pack-fetch.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { listDirEntries, readTextFile, statKind } from '../io/graph-fs.js';
 import { collectConfigReads } from '../structure/config-reads.js';
@@ -23,7 +26,12 @@ import { toPosixPath } from '../utils/posix.js';
  *
  * Five questions, and no more (a longer list was tried and was a monster):
  *
- *   (a) Do the two manifests agree with the directories that are actually there?
+ *   (a) Do the two manifests agree — with each other (name and version), with
+ *       the directories that are actually there, and with the Yggdrasil running
+ *       the check (`requires.yg`) — and does each package hold only what an
+ *       install copies (no symbolic link, no binary file)? Everything `yg pack
+ *       add` refuses about a package's manifests and tree is asked here, through
+ *       the same readers, so a package this check passes is one that installs.
  *   (b) Does every rule load, under the same loader a consumer will load it with?
  *   (c) Does every `implies` stay inside its own package?
  *   (d) Does every setting a rule reads exist, and does every setting declared
@@ -64,6 +72,10 @@ export const MARKETPLACE_ERROR_CODES = [
   'marketplace-dir-unlisted',
   'package-manifest-invalid',
   'package-name-mismatch',
+  'package-version-mismatch',
+  'package-requires-unsatisfied',
+  'package-symlink-refused',
+  'package-binary-file-refused',
   'package-aspect-invalid',
   'package-implies-escapes',
   'package-config-undeclared',
@@ -150,6 +162,30 @@ async function readOrNull(filePath: string): Promise<string | null> {
   }
 }
 
+/** What the check needs to know about the Yggdrasil running it. */
+export interface MarketplaceCheckOptions {
+  /** The running CLI's version — what `yg pack add` holds `requires.yg` against. */
+  cliVersion: string;
+}
+
+/**
+ * What the source will carry, relative to the marketplace root. `yg pack add`
+ * reads a marketplace as a git repository only when it is the ROOT of one: it
+ * then clones the published tag, so what git ignores (a `node_modules/` a
+ * package author installed locally) never reaches a consumer and is left out
+ * here too. Anything else — a plain directory, or a marketplace nested inside
+ * another repository's working tree — is copied as it is on disk, ignored files
+ * included, so nothing is left out. The same question the install asks, so the
+ * two can never disagree about which kind of source this is.
+ */
+async function publishedFilter(root: string): Promise<(relPath: string) => boolean> {
+  if (!(await isGitRepositoryRoot(root))) return () => true;
+  const ignored = await listIgnoredUntrackedPaths(root);
+  if (ignored === null || ignored.length === 0) return () => true;
+  return (relPath) =>
+    !ignored.some((entry) => (entry.endsWith('/') ? `${relPath}/`.startsWith(entry) : relPath === entry));
+}
+
 /**
  * Ask a marketplace repository at `root` whether it is fit to publish.
  *
@@ -158,7 +194,7 @@ async function readOrNull(filePath: string): Promise<string | null> {
  * directly on a fixture and a command can call it on the user's repository, and
  * both are looking at the same judgement.
  */
-export async function checkMarketplace(root: string): Promise<MarketplaceCheckResult> {
+export async function checkMarketplace(root: string, opts: MarketplaceCheckOptions): Promise<MarketplaceCheckResult> {
   const errors: MarketplaceIssue[] = [];
   const warnings: MarketplaceIssue[] = [];
   const record = (i: MarketplaceIssue): void => {
@@ -209,8 +245,9 @@ export async function checkMarketplace(root: string): Promise<MarketplaceCheckRe
     );
   }
 
+  const published = await publishedFilter(root);
   for (const entry of entries) {
-    await checkOnePackage(root, entry, record);
+    await checkOnePackage(root, entry, opts, published, record);
   }
 
   return { errors, warnings };
@@ -220,6 +257,8 @@ export async function checkMarketplace(root: string): Promise<MarketplaceCheckRe
 async function checkOnePackage(
   root: string,
   declared: MarketplaceEntry,
+  opts: MarketplaceCheckOptions,
+  published: (relPath: string) => boolean,
   record: (i: MarketplaceIssue) => void,
 ): Promise<void> {
   // The manifest's path may carry native separators or a trailing slash; every
@@ -244,7 +283,9 @@ async function checkOnePackage(
     return;
   }
 
-  const presentDirs = (await subdirectories(pkgDir)).filter((d) => d !== 'node_modules');
+  // The directories an install sees beside the manifest: the same reader `yg pack
+  // add` uses (dot-entries skipped), less what the source will not carry.
+  const presentDirs = (await listPackageAspectDirs(pkgDir)).filter((d) => published(`${entry.path}/${d}`));
   const parsed = await parsePackageManifest(pkgManifestPath, presentDirs);
   if (!parsed.ok) {
     record(
@@ -275,9 +316,99 @@ async function checkOnePackage(
     );
   }
 
+  checkInstallAgreement(entry, pkg, opts, rel(root, pkgManifestPath), record);
+  try {
+    for (const refusal of (await inspectPackageTree(pkgDir, (r) => !published(`${entry.path}/${r}`))).refusals) {
+      record(treeRefusalIssue(entry, refusal.code, refusal.relPath));
+    }
+  } catch (err) {
+    // A file the walk cannot read is one an install cannot copy either.
+    debugWrite(`[marketplace-check] reading the tree of ${entry.path}: ${err instanceof Error ? err.message : String(err)}`);
+    record(
+      issue(
+        'package-file-unreadable',
+        'error',
+        {
+          what: `A file under ${entry.path} could not be read: ${err instanceof Error ? err.message : String(err)}`,
+          why: 'yg pack add copies every file of a package; one that cannot be read cannot be copied, so the install would fail.',
+          next: `Check the permissions on the files under ${entry.path}.`,
+        },
+        entry.path,
+      ),
+    );
+  }
+
   for (const aspectDir of pkg.aspects) {
     await checkOneAspect(root, entry, pkg, aspectDir, record);
   }
+}
+
+/**
+ * The two things `yg pack add` holds a package's manifests to beyond their shape:
+ * the version written in both, and the Yggdrasil the package says it needs.
+ */
+function checkInstallAgreement(
+  entry: MarketplaceEntry,
+  pkg: PackageManifest,
+  opts: MarketplaceCheckOptions,
+  subject: string,
+  record: (i: MarketplaceIssue) => void,
+): void {
+  if (pkg.version !== entry.version) {
+    record(
+      issue(
+        'package-version-mismatch',
+        'error',
+        {
+          what: `The package in ${entry.path} says version ${pkg.version}; ${MARKETPLACE_FILENAME} publishes it as ${entry.version}.`,
+          why: `A version names exactly one published tree, and yg pack add refuses a package whose tag, ${PACKAGE_FILENAME} and ${MARKETPLACE_FILENAME} disagree about it — nobody could install this one.`,
+          next: `Set version: in ${entry.path}/${PACKAGE_FILENAME} and the '${entry.name}' entry in ${MARKETPLACE_FILENAME} to the same number, and tag the release pack/${entry.name}@<that number>.`,
+        },
+        subject,
+      ),
+    );
+  }
+
+  const requires = checkPackageRequires(pkg, opts.cliVersion);
+  if (!requires.ok) {
+    record(
+      issue(
+        'package-requires-unsatisfied',
+        'error',
+        {
+          what: `The package in ${entry.path} requires a Yggdrasil matching '${pkg.requires.yg}'; the one running this check is ${opts.cliVersion}.`,
+          why: 'yg pack add refuses a package whose requires.yg the installing Yggdrasil does not satisfy, and this check cannot vouch for a package its own version could not install or load.',
+          next: `Set requires.yg in ${entry.path}/${PACKAGE_FILENAME} to a range that includes the versions you publish for (e.g. "^${opts.cliVersion.split('.')[0]}.0.0"), or run the check with a Yggdrasil the range allows.`,
+        },
+        subject,
+      ),
+    );
+  }
+}
+
+/** A path inside a package that `yg pack add` refuses to copy, told to its author. */
+function treeRefusalIssue(
+  entry: MarketplaceEntry,
+  code: 'package-symlink-refused' | 'package-binary-file-refused',
+  relPath: string,
+): MarketplaceIssue {
+  const where = `${entry.path}/${relPath}`;
+  return issue(
+    code,
+    'error',
+    code === 'package-symlink-refused'
+      ? {
+          what: `${where} is a symbolic link.`,
+          why: 'yg pack add refuses a package carrying a link: once copied in, it would resolve against the consumer\'s own filesystem and could reach any file there. Nobody could install this package.',
+          next: `Replace ${where} with the file it points at, or remove it.`,
+        }
+      : {
+          what: `${where} is a binary file.`,
+          why: 'yg pack add refuses a package carrying a binary: a package ships rules and their cases as text, and nothing in a consumer\'s repository can read, check or diff a binary. Nobody could install this package.',
+          next: `Remove ${where} from the package, or add it to .gitignore if it is a local build product that is never published.`,
+        },
+    where,
+  );
 }
 
 /** Everything asked of one rule inside a published package. */

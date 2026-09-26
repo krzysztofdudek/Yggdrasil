@@ -14,6 +14,7 @@ import { parseWhen, parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen, WhenPredicateInvalidError } from '../utils/file-when-parser.js';
 import { aspectStatusInvalidMessage, aspectReviewByMalformedMessage, impliesStatusInheritInvalidMessage } from '../formatters/aspect-status-messages.js';
 import { toPosixPath } from '../utils/posix.js';
+import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
 
 /**
  * Bare ISO calendar-date shape for `review_by:` — `YYYY-MM-DD`, nothing else.
@@ -35,6 +36,26 @@ const REVIEW_BY_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * both `review_by:` parsing here and the `advise defer --until` command validate
  * a `YYYY-MM-DD` day against exactly this rule, so the two can never diverge.
  */
+
+/**
+ * The keys the top level of a yg-aspect.yaml accepts. Anything else is refused
+ * by name with the nearest accepted key (aspect-unknown-key). A rule that needs a
+ * key a later release adds says so through its package's requires.yg, which an
+ * install enforces.
+ */
+export const ASPECT_KEYS = [
+  'name', 'description', 'reviewer', 'status', 'review_by', 'errs', 'implies',
+  'when', 'references', 'scope', 'companion', 'config',
+] as const;
+
+/** yg-aspect.yaml keys an earlier release read (or never read), and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_ASPECT_KEYS: RetiredKeys = {
+  id: "never read: a rule's id is its directory path under aspects/",
+  language: "removed in 5.0.0: a script rule reads each file's language from its extension",
+  stability: 'removed in 4.0.0',
+  anchors: 'removed in 4.0.0',
+};
+
 export function isValidReviewByDate(value: string): boolean {
   if (!REVIEW_BY_DATE.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
@@ -192,6 +213,20 @@ function parseReferences(
           }],
         };
       }
+      const unknownRefKeys = findUnknownKeys(obj, ['path', 'description']);
+      if (unknownRefKeys.length > 0) {
+        return {
+          ok: false,
+          errors: [{
+            code: 'aspect-reference-invalid-form',
+            messageData: {
+              what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys(`references[${i}]`, unknownRefKeys, ['path', 'description'])}`,
+              why: 'each reference entry must be a string OR an object { path: string, description?: string }',
+              next: `correct or remove '${unknownRefKeys[0].key}' in references[${i}]`,
+            },
+          }],
+        };
+      }
       rawPath = obj.path;
       if (obj.description !== undefined) {
         if (typeof obj.description !== 'string') {
@@ -324,6 +359,34 @@ export async function parseAspect(
           what: `yg-aspect.yaml at ${aspectYamlPath}: file is empty or not a YAML mapping`,
           why: 'aspect definitions must be a YAML mapping',
           next: 'add a valid YAML mapping (name, description, reviewer, etc.)',
+        },
+      }],
+    };
+  }
+
+  // A key the rule's own file does not declare is refused by name: a misspelled
+  // `stauts:` would otherwise load the rule at its default status — enforced —
+  // and a misspelled `scope:` or `when:` would widen it, all without a word.
+  // Checked on the rule's own file, before the adaptation is merged in: the
+  // adaptation refuses its own unknown keys, against its own narrower list.
+  const unknownAspectKeys = findUnknownKeys(rawBase, ASPECT_KEYS, RETIRED_ASPECT_KEYS);
+  if (unknownAspectKeys.length > 0) {
+    const relYaml = options.package !== undefined ? `the installed copy of '${options.package.relativeId}' from package '${options.package.packageName}'` : aspectYamlPath;
+    return {
+      ok: false,
+      aspectId: idTrimmed,
+      errors: [{
+        code: 'aspect-unknown-key',
+        messageData: {
+          what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys('', unknownAspectKeys, ASPECT_KEYS)}`,
+          why: `Rule '${idTrimmed}' is not loaded until the key is corrected: loading it without the key would run the rule differently from what its file says.`,
+          next: options.package !== undefined
+            ? `The file is ${relYaml}, which is not yours to edit. Ask the package author for a version without the key, or check that this Yggdrasil satisfies the package's requires.yg — a key from a newer release is unknown to an older one.`
+            : unknownAspectKeys[0].retired !== undefined
+              ? `Delete '${unknownAspectKeys[0].key}' from ${aspectYamlPath}.`
+            : unknownAspectKeys[0].suggestion !== undefined
+              ? `Rename '${unknownAspectKeys[0].key}' to '${unknownAspectKeys[0].suggestion}' in ${aspectYamlPath}, or remove it (yg schemas read aspect lists the accepted keys).`
+              : `Remove '${unknownAspectKeys[0].key}' from ${aspectYamlPath}, or rename it to an accepted key (yg schemas read aspect lists them).`,
         },
       }],
     };

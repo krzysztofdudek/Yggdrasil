@@ -734,3 +734,25 @@ export async function hasCleanWorktree(repoCwd: string): Promise<boolean | null>
     return null;
   }
 }
+
+/**
+ * The untracked paths git ignores under `repoCwd`, relative to it and POSIX —
+ * a whole ignored directory collapsed to one entry ending in `/` — or null when
+ * `repoCwd` is not inside a git repository (or on any git failure).
+ *
+ * This is what a clone of the repository will never carry: a file git ignores
+ * and nobody force-added. A tracked file is never listed, even when an ignore
+ * pattern matches it, because a clone does carry it.
+ */
+export async function listIgnoredUntrackedPaths(repoCwd: string): Promise<string[] | null> {
+  try {
+    const { stdout } = await execFilep(
+      'git',
+      ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory'],
+      { cwd: repoCwd, maxBuffer: 64 * 1024 * 1024 },
+    );
+    return stdout.split('\0').filter((p) => p !== '').map((p) => toPosixPath(p));
+  } catch {
+    return null;
+  }
+}

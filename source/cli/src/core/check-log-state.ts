@@ -22,7 +22,7 @@ import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { readTextFile } from '../io/graph-fs.js';
 import { validateAppendOnly } from './log-integrity.js';
-import { validateFormat } from './log-format.js';
+import { logHasConflictMarkers, validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
 import { computeLogGateState, logGateStateBlocks, logCycleOpen, type LogGateState } from './log/log-gate.js';
 import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
@@ -65,7 +65,7 @@ export async function classifyLogStateFromLock(
     // run of `=` at line start is a legitimate setext H1 underline / horizontal
     // rule and would false-positive. A markdown log body never legitimately starts
     // a line with seven `<` or `>`.
-    if (logContent !== null && (/^<{7}/m.test(logContent) || /^>{7}/m.test(logContent))) {
+    if (logContent !== null && logHasConflictMarkers(logContent)) {
       issues.push({
         severity: 'error',
         code: 'log-conflict',
