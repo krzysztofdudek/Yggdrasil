@@ -47,7 +47,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Mission retrospective | `horde-retro/1` | Horde — `retro` | the session; no external consumer | 6.0.0 | [this page](/family-contracts) |
 | Mission plan | `horde-plan/1` | Horde — `queue plan` | Horde itself; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Drill case | `horde-drill-case/1` | Horde — `drill` | Horde itself; no external consumer | before 6.0.0 | [this page](/family-contracts) |
-| Mission report | `horde-report/1` | Horde — `report` (`hordes/<h>/report.json`, rewritten on tick, wave close and ask) | the client, through the rendered `report.md`; no machine consumer in the family | 6.1.0 | [this page](/family-contracts) |
+| Mission report (`report.mjs --json`; rendered as `hordes/<h>/report.md`, rewritten on tick, wave close and ask) | `horde-report/1` | Horde — `report` | the client, through the rendered `report.md`; no machine consumer in the family | 6.1.0 | [this page](/family-contracts) |
 
 `before 6.0.0` means the document already existed when the family started releasing together; 6.0.0 is the first joint release, so it is the first version this column can name precisely.
 
