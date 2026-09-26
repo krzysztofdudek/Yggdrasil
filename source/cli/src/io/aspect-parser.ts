@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { escapesRepo } from '../utils/repo-path-escape.js';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { fileExistsSync } from './graph-fs.js';
@@ -305,23 +306,6 @@ function parseReferences(
     references.push({ path: normalized, description });
   }
   return { ok: true, value: references };
-}
-
-/** Pure helper: returns true if path p would escape the repository root. */
-function escapesRepo(p: string): boolean {
-  if (p.startsWith('/')) return true;
-  if (/^[A-Za-z]:/.test(p)) return true;
-  if (p.startsWith('~')) return true;
-  let depth = 0;
-  for (const segment of p.split('/')) {
-    if (segment === '..') {
-      depth--;
-      if (depth < 0) return true;
-    } else if (segment !== '' && segment !== '.') {
-      depth++;
-    }
-  }
-  return false;
 }
 
 export async function parseAspect(

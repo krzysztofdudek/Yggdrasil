@@ -247,3 +247,56 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
 
   return reach;
 }
+
+/**
+ * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
+ * throwaway `subjectFile` argument of `collectArchitectureReach` inside
+ * {@link reachExtraForType}. A real repo-relative path is never empty and never
+ * contains NUL, so this can never collide with one; the sentinel itself is
+ * deleted from the result before caching, so the cached set holds only the
+ * type-dependent part — never a specific file's own identity.
+ */
+const REACH_SENTINEL_FILE = '\0';
+
+/**
+ * The type-dependent part of {@link collectArchitectureReach} for `fromType`
+ * (declared-component files and other type-covered files the architecture
+ * permits `fromType` to depend on) — cached in `reachCache` by `fromType` so
+ * a run reviewing many files of the same type computes this ONCE per type:
+ * recomputing it per pair over a repo with thousands of files would dominate
+ * the run. The caller unions in its OWN subject file afterward (cheap, O(1) per
+ * file) — never cached here, since a DIFFERENT file's own identity must never
+ * leak into another file's allowance when the architecture does not itself
+ * permit `fromType` to depend on `fromType`.
+ *
+ * The one copy both the deterministic filler (core/fill-det.ts) and the
+ * companion resolver (core/companion-resolve.ts) call, so a companion hook gets
+ * the identical read boundary a check.mjs on the same file would, and a caller
+ * MAY share one cache Map between a run's deterministic and companion fills.
+ * `buildOwnerIndex` is called only on a cache miss; the caller supplies it
+ * (`() => buildOwnerIndex(graph.nodes)`), which keeps this module free of a
+ * value-level dependency on relations/owner-index.ts, as for `ownerIndex` on
+ * {@link ArchitectureReachInput}.
+ */
+export async function reachExtraForType(
+  fromType: string,
+  typeCovered: Map<string, string> | undefined,
+  graph: Graph,
+  projectRoot: string,
+  reachCache: Map<string, Set<string>>,
+  buildOwnerIndex: () => OwnerIndex,
+): Promise<Set<string>> {
+  const cached = reachCache.get(fromType);
+  if (cached) return cached;
+  const full = await collectArchitectureReach(REACH_SENTINEL_FILE, {
+    fromType,
+    typeCovered: typeCovered ?? new Map<string, string>(),
+    architecture: graph.architecture,
+    graph,
+    projectRoot,
+    ownerIndex: buildOwnerIndex(),
+  });
+  full.delete(REACH_SENTINEL_FILE);
+  reachCache.set(fromType, full);
+  return full;
+}

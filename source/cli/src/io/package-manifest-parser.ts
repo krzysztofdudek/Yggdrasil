@@ -1,4 +1,5 @@
 import { valid as validSemver, satisfies as semverSatisfies, coerce as coerceSemver } from 'semver';
+import { escapesRepo } from '../utils/repo-path-escape.js';
 import { parse as parseYaml } from 'yaml';
 import { readFileOrDefault } from './read-or-default.js';
 import type { IssueMessage } from '../model/validation.js';
@@ -35,28 +36,6 @@ export type ParseResult<T> =
 
 function fail<T>(code: string, messageData: IssueMessage): ParseResult<T> {
   return { ok: false, errors: [{ code, messageData }] };
-}
-
-/**
- * True when `p` is not a plain, downward, repository-relative POSIX path. Same
- * rule (and the same reasoning) as `escapesRepo` in aspect-parser.ts: an absolute
- * path, a drive letter, a `~`, or a `..` that climbs above the starting point
- * would let a manifest reach outside the directory it was read from.
- */
-function escapesRoot(p: string): boolean {
-  if (p.startsWith('/')) return true;
-  if (/^[A-Za-z]:/.test(p)) return true;
-  if (p.startsWith('~')) return true;
-  let depth = 0;
-  for (const segment of p.split('/')) {
-    if (segment === '..') {
-      depth--;
-      if (depth < 0) return true;
-    } else if (segment !== '' && segment !== '.') {
-      depth++;
-    }
-  }
-  return false;
 }
 
 /** A name that must be exactly one path segment — no separators, no traversal. */
@@ -211,7 +190,7 @@ export async function parseMarketplaceManifest(
     seen.add(name);
 
     const normalizedPath = toPosixPath(rawPath);
-    if (escapesRoot(normalizedPath)) {
+    if (escapesRepo(normalizedPath)) {
       return fail('marketplace-entry-escape', {
         what: `${filePath}: packages[${i}] has path '${rawPath}', which leaves the marketplace root.`,
         why: 'A package path is read relative to the marketplace repository, so an absolute path or one climbing above the root would reach files the marketplace does not publish.',
@@ -636,7 +615,7 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
           next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
         });
       }
-      if (!posix.startsWith(installPrefix) || escapesRoot(posix)) {
+      if (!posix.startsWith(installPrefix) || escapesRepo(posix)) {
         return fail('packages-lock-path-escape', {
           what: `${filePath}: '${pkgName}' records the file '${posix}', which is outside its install directory (${installPrefix}).`,
           why: 'A lock entry pointing outside the copy would let the rail claim ownership of a file the package never installed.',

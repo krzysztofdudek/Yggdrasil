@@ -28,55 +28,12 @@ import { runCompanionHook, type RunCompanionHookResult } from '../structure/hook
 import type { StructureUnit } from '../structure/hook-loader.js';
 import type { ParseCache } from '../structure/index.js';
 import { toPosix, toPosixPath } from '../utils/posix.js';
-import { collectAllowedReadsForAspect, collectArchitectureReach } from '../structure/allowed-reads.js';
+import { collectAllowedReadsForAspect, reachExtraForType } from '../structure/allowed-reads.js';
 import { resolveAllowedReadPath, UndeclaredFsReadError } from '../structure/ctx-fs.js';
 import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED, describeExclusionCause, type ExclusionSource } from '../io/repo-scanner.js';
 import { readFileBytes } from '../io/graph-fs.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { observationKey, hashReadObservation } from './pair-hash.js';
-
-/**
- * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
- * throwaway `subjectFile` argument when computing the type-dependent part of
- * a nodeless pair's companion read-allowance (declared-component and other
- * type-covered files the architecture permits `fromType` to depend on) once
- * per type. Deliberately the SAME sentinel value and cache shape as
- * core/fill-det.ts's own private helper of the same purpose — fromType ->
- * Set<string>, sentinel deleted before storage — so a caller MAY share one
- * cache Map between a run's deterministic and companion fills without either
- * side needing to know the other exists. Duplicated here rather than
- * imported: fill-det.ts's helper is module-private, and importing it would
- * create a dependency this module does not otherwise need.
- */
-const REACH_SENTINEL_FILE = '\0';
-
-/**
- * The type-dependent part of a nodeless pair's companion allowance — cached
- * by fromType so a run resolving companions for many files of the same type
- * pays this once per type, not once per pair. See REACH_SENTINEL_FILE above
- * for why this duplicates (rather than imports) fill-det.ts's own helper.
- */
-async function reachExtraForType(
-  fromType: string,
-  typeCoverage: TypeCoverageInput | undefined,
-  graph: Graph,
-  projectRoot: string,
-  reachCache: Map<string, Set<string>>,
-): Promise<Set<string>> {
-  const cached = reachCache.get(fromType);
-  if (cached) return cached;
-  const full = await collectArchitectureReach(REACH_SENTINEL_FILE, {
-    fromType,
-    typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
-    architecture: graph.architecture,
-    graph,
-    projectRoot,
-    ownerIndex: buildOwnerIndex(graph.nodes),
-  });
-  full.delete(REACH_SENTINEL_FILE);
-  reachCache.set(fromType, full);
-  return full;
-}
 
 export type ResolvedCompanionDescriptorsResult =
   | { kind: 'ok'; companions: PromptCompanionInput[]; observations: Array<[string, string]> }
@@ -330,15 +287,17 @@ export async function resolveCompanionsForPair(
   // (StructureUnit.kind === 'file') instead of addressing a (nonexistent)
   // component: the subject file, its matched type, and the reach that type's
   // relations: permit — the SAME allowance fill-det.ts computes for the
-  // deterministic runner, mirrored here (not shared by import — see
-  // REACH_SENTINEL_FILE's doc comment above) so a companion hook gets the
-  // identical read boundary a check.mjs on the same file would.
+  // deterministic runner, through the one shared reachExtraForType
+  // (structure/allowed-reads.ts), so a companion hook gets the identical read boundary
+  // a check.mjs on the same file would.
   let nodelessAllowance: { typeId: string; allowedReads: Set<string> } | undefined;
   let unit: StructureUnit;
   if (pair.nodePath === undefined) {
     const file = pair.subjectFiles[0];
     const fromType = typeCoverage?.covered.get(file) ?? '';
-    const reachExtra = await reachExtraForType(fromType, typeCoverage, graph, projectRoot, reachCache);
+    const reachExtra = await reachExtraForType(fromType, typeCoverage?.covered, graph, projectRoot, reachCache, () =>
+      buildOwnerIndex(graph.nodes),
+    );
     const allowedReads = new Set<string>([...reachExtra, file]);
     nodelessAllowance = { typeId: fromType, allowedReads };
     unit = { kind: 'file', file, typeId: fromType, allowedReads: [...allowedReads] };
