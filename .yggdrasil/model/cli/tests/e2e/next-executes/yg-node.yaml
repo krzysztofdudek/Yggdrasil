@@ -1,0 +1,9 @@
+name: E2E Tests — Every next step runs and none escalates cost
+type: test-suite
+description: "Subprocess E2E over a corpus of broken states reached the way a person reaches them — a file no node owns, a check.mjs that crashes under the free recording run, an edited copy of an installed package, a misspelled configuration key, a log left conflicted by a real git merge, a source change with no log entry. For each it reads the yg-check/1 next object, executes the step the CLI hands over (a person's placeholder filled with plain words) and requires the CLI not to refuse it as a usage or command error, or requires a step that is not a command to name its file; and it requires neither the step nor its then: to cost more than the mode that was run unless the reviewer's price is stated."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-next-executes.test.ts

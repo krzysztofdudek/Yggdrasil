@@ -7,10 +7,10 @@ description: "Unit tests for what a measured change narrows in the fill stage's
   its tier's consensus, and a change reaching something no pair can bound leaves
   everything in.
 
-  Its central case is the separation the stage depends on: the component set the
-  mandatory-log gate is asked about stays UNNARROWED while the set the header
-  counts follows what will actually be filled, and the full unverified count —
-  which the convergence sentinel is primed with — stays whole. It also pins that
+  Its central case: the component set the mandatory-log gate is asked about is
+  the set the run will actually fill a pair of — the same one the header counts
+  — while the full unverified count, which the convergence sentinel is primed
+  with, stays whole. It also pins that
   deterministic-only mode reports its own skipped-reviewer count alone, never
   alongside the outside-the-change one, which would announce the same pairs
   twice."

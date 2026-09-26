@@ -109,6 +109,58 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
     }
   }, 90_000);
 
+  it('context is given over a misspelled key in the local secrets file, and refused over an architecture that does not load', () => {
+    const dir = project({ reviewer: true });
+    try {
+      // A typo in yg-secrets.yaml changes nothing a node's context says.
+      writeFileSync(path.join(dir, '.yggdrasil/yg-secrets.yaml'), 'reviewr:\n  tiers: {}\n');
+      const typo = run(dir, ['context', '--node', 'app/svc-01']);
+      expect(typo.status).toBe(0);
+      expect(typo.stdout).toContain('app/svc-01');
+      expect(typo.stderr).toContain('warning: 1 repository-wide error blocks yg check but not this context: config-unknown-key');
+      // An architecture that does not load does: the node's type rules come from it.
+      rmSync(path.join(dir, '.yggdrasil/yg-secrets.yaml'));
+      writeFileSync(path.join(dir, '.yggdrasil/yg-architecture.yaml'), 'node_types: [\n');
+      const broken = run(dir, ['context', '--node', 'app/svc-01']);
+      expect(broken.status).toBe(1);
+      expect(broken.stderr).toContain('yg context cannot assemble app/svc-01');
+      expect(broken.stderr).toContain('architecture-invalid');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
+  it('a paid fill is named with its price and never asked about — in check, context, aspects --health and impact alike', () => {
+    const dir = project({ reviewer: true, judgmentRule: true });
+    try {
+      const check = run(dir, ['check']);
+      expect(check.stdout).toMatch(/^next: yg check --approve {2}\(unverified — 2 script pairs · free \+ 2 reviewer pairs · 2 calls · paid\)$/m);
+      const doc = JSON.parse(run(dir, ['check', '--json']).stdout);
+      expect(doc.next.command).toEqual(['yg', 'check', '--approve']);
+      expect(doc.next.cost).toEqual({ free: 2, reviewerPairs: 2, reviewerCalls: 2 });
+      expect(doc.next.requiresUser).toBe(false);
+      const outputs = [
+        check.all,
+        run(dir, ['context', '--node', 'app/svc-01']).all,
+        run(dir, ['aspects', '--health']).all,
+        run(dir, ['impact', '--aspect', 'readable-names']).all,
+        run(dir, ['impact', '--type', 'service']).all,
+        run(dir, ['check', '--approve', '--dry-run']).all,
+      ];
+      // Every step line naming the paid fill states that it is paid, and none asks.
+      const steps = outputs.flatMap((o) => o.split('\n')).filter((l) => /^(?:next|then): |^ {2}fix: /.test(l));
+      const paid = steps.filter((l) => /yg check --approve(?! --only-deterministic| --dry-run)/.test(l));
+      expect(paid.length).toBeGreaterThanOrEqual(5);
+      for (const line of paid) {
+        expect(line, line).toMatch(/paid/);
+        expect(line, line).not.toContain('ask the user');
+      }
+      expect(outputs.join('\n')).not.toContain('approve it first');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('a key only typed into the working copy is not called leaked; one in HEAD is — and neither blocks context', () => {
     const dir = project({ reviewer: true });
     try {

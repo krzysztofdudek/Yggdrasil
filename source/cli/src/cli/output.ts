@@ -20,6 +20,7 @@ import chalk from 'chalk';
 import type { IssueMessage } from '../model/validation.js';
 import { type Diagnostic, type Fix, fromIssueMessage, toIssueMessage } from './output-diagnostic.js';
 import { neutralizeStream } from '../utils/terminal-safe.js';
+import { count } from '../utils/count.js';
 
 // ── Terminal safety ────────────────────────────────────────
 
@@ -241,6 +242,58 @@ export function thenStep(step: string): string {
 /** A standing fact that is not a finding: `note: <text>`, one line. */
 export function note(text: string): string {
   return `note: ${text}`;
+}
+
+// ── Fill steps ─────────────────────────────────────────────
+
+/** What a recording run fills, priced: script pairs free, reviewer pairs as pairs and the calls they bill. */
+export interface FillCost {
+  free: number;
+  reviewerPairs: number;
+  reviewerCalls: number;
+}
+
+export const NO_FILL_COST: FillCost = { free: 0, reviewerPairs: 0, reviewerCalls: 0 };
+
+/**
+ * A cost, in words: `24 script pairs · free`, `3 reviewer pairs · 9 calls ·
+ * paid`, or both — the reviewer's share always as pairs AND calls, since a
+ * tier's consensus multiplies what each pair bills.
+ */
+export function costWords(cost: FillCost): string {
+  const free = cost.free > 0 ? `${count(cost.free, 'script pair')} · free` : '';
+  const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · ${count(cost.reviewerCalls, 'call')} · paid` : '';
+  return [free, paid].filter((p) => p !== '').join(' + ');
+}
+
+/** A recording run as a step: the command, its arguments, what it fills and whether that bills the reviewer. */
+export interface FillStep {
+  command: string;
+  argv: string[];
+  cost: FillCost;
+  paid: boolean;
+}
+
+/**
+ * The recording run that fills pending pairs costing `cost`: `yg check
+ * --approve --only-deterministic` while none of them calls the reviewer — a
+ * run that cannot spend anything — else `yg check --approve`, paid. Every
+ * command that names a fill names it through here, so the step and its price
+ * read the same from `check`, `context`, `aspects --health` and `impact`. The
+ * price is stated, never turned into a question: the agent protocol has the
+ * agent run the paid fill itself once its change is final.
+ */
+export function fillStepFor(cost: FillCost): FillStep {
+  if (cost.reviewerPairs === 0) {
+    return { command: 'yg check --approve --only-deterministic', argv: ['yg', 'check', '--approve', '--only-deterministic'], cost: { ...NO_FILL_COST, free: cost.free }, paid: false };
+  }
+  return { command: 'yg check --approve', argv: ['yg', 'check', '--approve'], cost: { ...cost }, paid: true };
+}
+
+/** A fill step as a line states it: the command, then what it costs in parentheses. */
+export function fillStepText(step: FillStep): string {
+  const words = costWords(step.cost);
+  return words !== '' ? `${step.command}  (${words})` : step.command;
 }
 
 /** The first line of a fix, or all of it when that line is a heading introducing a list. */

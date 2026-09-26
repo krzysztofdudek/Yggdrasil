@@ -55,10 +55,10 @@ error[refused] no-todo — 8 violations in 8 nodes
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: …
-  fix:  yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
+  fix:  yg check --approve  (24 reviewer pairs · 24 calls · paid)
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid)
 \`\`\`
 
 - The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
@@ -75,7 +75,7 @@ then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the use
   \`for each node above\` (one that also names each node's own path adds
   \`<path>\`, listed per member under \`at:\` as \`<path> = …\`); a heading or why
   shared but for the node states the fact once, never with \`<node>\` in it; a fill names its cost (\`(24 script pairs · free)\`,
-  \`(24 reviewer pairs · 24 calls · paid — ask the user to approve it first)\`).
+  \`(24 reviewer pairs · 24 calls · paid)\`).
 - Labels: \`refused\` (a rule refused the code — error if enforced, warning if
   advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside
   coverage.required — never blocking), \`unverified\` (no valid verdict; the cause
@@ -94,10 +94,11 @@ then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the use
   step after it. When the report holds exactly one error block (or, with no
   errors, one finding) whose \`fix:\` already is the step, there is no \`next:\`.
   A fill states the cost of the whole command it names; one whose first block is
-  script pairs alone is \`yg check --approve --only-deterministic\` (free). A step
-  that says \`ask the user to approve it first\` — a paid fill, configuring a reviewer — is the
-  user's decision: ask, never run it on your own. Read the \`next:\` line and do
-  that.
+  script pairs alone is \`yg check --approve --only-deterministic\` (free). A paid
+  fill is named with its cost and run like any other step — the cost is there to
+  be reported, not to be asked about. A step worded \`ask the user to approve …\`
+  (configuring a reviewer) is the user's decision: ask, never run it on your own.
+  Read the \`next:\` line and do that.
 - A \`partial: …\` line under the verdict line means part of the graph did not load;
   the findings may be symptoms of it — fix it first.
 
@@ -260,8 +261,9 @@ argv array, or null when the step is not one runnable command; \`cost\` is what
 running \`command\` costs — the whole command, every pending pair it fills,
 advisory ones included, the reviewer's share as pairs and calls, equal to its
 \`--dry-run\` budget; \`requiresUser\` is true for a
-paid fill or a decision that is the user's — ask before running it; \`then\` is
-the text of the \`then:\` line). \`notes\` carries the report's \`note:\` lines.
+decision that is the user's (configuring a reviewer) — ask before running it; a
+paid fill is not one, its cost is in \`cost\`; \`then\` is the text of the
+\`then:\` line). \`notes\` carries the report's \`note:\` lines.
 \`--json --compact\` leaves out approved pairs and each issue's \`why\`/\`next\`
 its group states (\`compact: true\`) — for a reader that pays per token.
 

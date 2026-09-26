@@ -108,10 +108,17 @@ The basic workflow:
 
 If you forget step 2, plain \`yg check\` raises a blocking \`log-entry-missing\`
 error for that node (caught read-only, regardless of whether the node has pairs).
-The log gate is ALL-OR-NOTHING at \`--approve\`: if ANY \`log_required\` node's
-source drifted with no fresh entry, \`--approve\` fills NOTHING that run — no pair
-on any node, related or not, is verified — and the run stays red until every
-missing entry exists. Add the entries and re-run. If a pair is refused, iterate on
+At \`--approve\`, if a node the run would fill a pair of owes an entry, the run
+fills NOTHING — no pair on any node, related or not, is verified — until that
+entry exists. A changed node the run fills nothing of (no pairs, or only reviewer
+pairs this run leaves alone: \`--only-deterministic\`, or outside a measured
+change) does not stop it; the run records nothing over its code, and plain
+\`yg check\` keeps it red until its entry exists. Add the entries and re-run.
+
+An entry comments on a change to the node's OWN source, and only that: editing
+a rule, a relation, the lock or a verdict re-opens pairs but owes no entry. The source is the files the mapping names, so two cases owe one with no
+file edited: a changed mapping, and a node with no recorded baseline yet (a new
+node, or one whose type has only now opted into \`log_required\`). If a pair is refused, iterate on
 the code WITHOUT adding new log entries — one entry covers all edits until the node
 reaches closure. Under progressive mode a node can reach closure while some of its
 reviewer work is deliberately left unbought, so the next source change there needs

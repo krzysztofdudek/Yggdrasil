@@ -92,6 +92,18 @@ function formatSubjectCount(s: NodeAspectSubjects): string {
   return count(s.count, 'file');
 }
 
+/**
+ * What the recording run after an edit costs, as far as this node decides it:
+ * its reviewer rules bill the reviewer for every pair the edit re-opens (paid),
+ * its script rules run free. A draft rule re-verifies nothing.
+ */
+function fillPriceNote(aspects: NodeContextAspect[]): string {
+  const reviewerRules = aspects.filter((a) => (a.status ?? 'enforced') !== 'draft' && a.verifiedAgainst.endsWith('/content.md')).length;
+  return reviewerRules > 0
+    ? `paid: ${count(reviewerRules, 'reviewer rule')} here ${reviewerRules === 1 ? 'bills' : 'bill'} the reviewer for each pair the edit re-opens — yg check --approve --dry-run prices it`
+    : 'free for this node, whose rules are script rules — yg check --approve --dry-run prices anything else pending';
+}
+
 export function formatNodeContext(data: NodeContextData): string {
   const lines: string[] = [];
 
@@ -224,10 +236,12 @@ export function formatNodeContext(data: NodeContextData): string {
     lines.push('');
   }
 
-  // Workflow footer
+  // Workflow footer. The fill is named with its price, never as a question:
+  // the agent runs it once the change is final. Before an edit the bill is not
+  // known yet, so the line says what makes it paid and where it is previewed.
   lines.push('After modifying source files in this node:');
   lines.push('next: yg check');
-  lines.push('then: yg check --approve');
+  lines.push(`then: yg check --approve  (${fillPriceNote(data.aspects)})`);
   lines.push('');
 
   return lines.join('\n');

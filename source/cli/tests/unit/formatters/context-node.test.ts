@@ -66,7 +66,7 @@ describe('formatNodeContext', () => {
     // Parent
     expect(output).toContain('Parent: cli/core (module)');
     // Workflow footer — lock vocabulary, never the retired `yg approve`.
-    expect(output).toContain('After modifying source files in this node:\nnext: yg check\nthen: yg check --approve');
+    expect(output).toContain('After modifying source files in this node:\nnext: yg check\nthen: yg check --approve  (');
     expect(output).not.toContain('yg approve');
   });
 

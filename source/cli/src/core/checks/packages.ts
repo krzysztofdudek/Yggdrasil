@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import type { Graph } from '../../model/graph.js';
 import type { PackagesLock } from '../../model/packages.js';
-import type { ValidationIssue } from '../../model/validation.js';
+import type { IssueMessage, IssueStep, ValidationIssue } from '../../model/validation.js';
 import { ADAPT_FILENAME, CONSUMER_FILENAMES, PACKAGES_LOCK_FILENAME } from '../../model/packages.js';
 import { parsePackagesLock } from '../../io/package-manifest-parser.js';
 import { hashAspectsRelativeFile, listAllPackageFiles, packagesLockPath } from '../../io/package-store.js';
@@ -56,7 +56,9 @@ export function isCopyIntact(drift: PackageDrift | undefined): boolean {
 
 /** Repository-relative POSIX path of a file addressed relative to `.yggdrasil/aspects/`. */
 export function repoRelativePackagePath(aspectsRelPath: string): string {
-  return `.yggdrasil/aspects/${aspectsRelPath}`;
+  // Normalized here, not assumed: the path is printed and handed over as a step,
+  // and a record or a directory walk on Windows can carry backslashes.
+  return `.yggdrasil/aspects/${aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '')}`;
 }
 
 /**
@@ -104,7 +106,7 @@ export async function collectPackagesDrift(
   return { byPackage, unknown };
 }
 
-function issue(messageData: { what: string; why: string; next: string }): ValidationIssue {
+function issue(messageData: IssueMessage): ValidationIssue {
   return {
     severity: 'error',
     code: PACKAGE_FILE_MODIFIED,
@@ -112,6 +114,11 @@ function issue(messageData: { what: string; why: string; next: string }): Valida
     ...issueMsg(messageData),
     messageData,
   };
+}
+
+/** The command that puts a package's copy back as it was installed. */
+function reinstallStep(packageName: string): IssueStep {
+  return { argv: ['yg', 'pack', 'update', packageName, '--reinstall'] };
 }
 
 /**
@@ -147,6 +154,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
         what: `${repoRelativePackagePath(filePath)} sits among the installed packages, but no installed package put it there.`,
         why: `Everything under .yggdrasil/aspects/packages/ is a copy of rules published elsewhere, recorded file by file in .yggdrasil/${PACKAGES_LOCK_FILENAME}. A file that is not in that record is a rule nobody chose, wearing a package's name.`,
         next: `Delete ${repoRelativePackagePath(filePath)}. The directory .yggdrasil/aspects/packages/ is reserved for installed packages: to add a rule of your own, put it in .yggdrasil/aspects/ outside packages/; to change one you installed, edit its ${ADAPT_FILENAME}.`,
+        step: { file: repoRelativePackagePath(filePath), text: `delete ${repoRelativePackagePath(filePath)}` },
       }),
     );
   }
@@ -158,6 +166,9 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
           what: `${repoRelativePackagePath(filePath)} has been edited since it was installed from the package '${packageName}'.`,
           why: "A rule installed from someone else's repository is a copy: an update replaces it wholesale, so an edit here is silently discarded the next time the package moves — and until then, what runs is no longer what the package published.",
           next: `Put your change in the ${ADAPT_FILENAME} beside it instead, then restore the copy as it was installed: yg pack update ${packageName} --reinstall`,
+          // The command as data, package name included: read back out of the
+          // words it lost the name and became one the CLI refuses.
+          step: reinstallStep(packageName),
         }),
       );
     }
@@ -167,6 +178,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
           what: `${repoRelativePackagePath(filePath)} is missing — the package '${packageName}' installed it and it is no longer there.`,
           why: 'The package is recorded as installed, so this file is part of the rules this repository is running. A rule with a piece missing does not fail loudly; it stops applying.',
           next: `Restore the copy as it was installed: yg pack update ${packageName} --reinstall. To stop using the package entirely, run: yg pack remove ${packageName}`,
+          step: reinstallStep(packageName),
         }),
       );
     }

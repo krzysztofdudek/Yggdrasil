@@ -246,7 +246,7 @@
       id: 'approval',
       term: 'approval',
       group: 'Judging',
-      def: 'A person’s sign-off — on a waiver’s reason, an advise item, the choice of a reviewer. The `--approve` flag runs a fill; it is not an approval.',
+      def: 'A person’s sign-off — on a waiver’s reason, an advise item, the choice of a reviewer. The `--approve` flag runs a fill; it is not an approval, and running one needs none — a paid fill included, whose cost is always stated with it.',
     },
     {
       id: 'drill',
@@ -313,6 +313,13 @@
       group: 'The lock and waivers',
       def: 'The committed record of reviewer verdicts, beside a local cache of script verdicts. CI re-proves it without a key.',
       see: '/the-lock',
+    },
+    {
+      id: 'log-entry',
+      term: 'log entry',
+      group: 'The lock and waivers',
+      def: 'Why a component’s own code changed, written with `yg log add`. A component whose type sets `log_required` owes one for each change to its own source — never for a rule, relation, lock or verdict change — and a fill stops before recording anything over a component it would fill that owes one.',
+      see: '/the-lock#the-log-gate',
     },
     {
       id: 'waiver',

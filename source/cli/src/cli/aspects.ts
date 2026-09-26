@@ -55,7 +55,7 @@ import {
   type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
-import { fail, paint, writeOut, count, next, note } from './output.js';
+import { fail, paint, writeOut, count, next, note, fillStepFor, fillStepText, NO_FILL_COST, type FillCost } from './output.js';
 
 interface AspectUsage {
   architecture: number;
@@ -565,6 +565,13 @@ export interface AspectHealth {
   /** True when any row's refusal cell reads as unverified (drives the footer note). */
   hasUnverified: boolean;
   /**
+   * What a recording run would fill of the pairs read as unverified, priced:
+   * script pairs free, reviewer pairs at their tier's consensus. The footer's
+   * `next:` names the fill through it, so it states the same command and cost
+   * `yg check` would.
+   */
+  pendingFill: FillCost;
+  /**
    * Plain-words lines rendered below the table: the anti-Goodhart covenant
    * cross-reference for every `decorative?` rule, and a "few observations"
    * uncertainty note for every thin-sample rule. Empty when no rule has telemetry.
@@ -835,6 +842,8 @@ export function computeAspectHealth(
     return a;
   };
 
+  const pendingFill: FillCost = { ...NO_FILL_COST };
+  const reviewerTiers = graph.config.reviewer?.tiers;
   for (const vp of verifiedPairs) {
     const a = aggFor(vp.pair.aspectId);
     a.pairs++;
@@ -842,6 +851,14 @@ export function computeAspectHealth(
     else a.files.add(vp.pair.unitKey);
     if (vp.state.kind === 'refused') a.refused++;
     else if (vp.state.kind !== 'verified') a.unknown++;
+    // Only an unverified pair is something a fill settles; one waiting on a
+    // reviewer that is not configured bills nothing (no run can judge it).
+    if (vp.state.kind !== 'unverified') continue;
+    if (vp.pair.kind === 'deterministic') pendingFill.free++;
+    else if (vp.pair.kind === 'llm' && reviewerTiers !== undefined) {
+      pendingFill.reviewerPairs++;
+      pendingFill.reviewerCalls += (vp.tierName !== undefined ? reviewerTiers[vp.tierName]?.consensus : undefined) ?? 1;
+    }
   }
 
   // Suppress markers per aspect from the LIVE scan. `enable` markers are range
@@ -920,7 +937,7 @@ export function computeAspectHealth(
 
   const signalNotes = [...signalReadings].map(([id, text]) => `${id}: ${text}`);
   const fpNotes = fp.telemetry === null ? [] : [fp.telemetry, ...[...fp.byAspect].map(([id, text]) => `${id}: ${text}`)];
-  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled, telemetry: fp.telemetry };
+  return { rows, wildcardMarkers, hasUnverified, pendingFill, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled, telemetry: fp.telemetry };
 }
 
 /** The rule kind as the health table prints it; the JSON keeps the config value. */
@@ -987,7 +1004,8 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
   if (health.hasUnverified) {
     lines.push('');
     lines.push(`note: "${UNVERIFIED}" = not yet checked`);
-    lines.push(next('yg check --approve'));
+    // The fill that settles them, named and priced the way yg check names it.
+    if (health.pendingFill.free + health.pendingFill.reviewerPairs > 0) lines.push(next(fillStepText(fillStepFor(health.pendingFill))));
   }
   if (health.wildcardMarkers > 0) {
     lines.push('');

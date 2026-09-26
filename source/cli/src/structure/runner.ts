@@ -178,7 +178,10 @@ export async function runStructureAspect(
     throw new StructureRunnerError('STRUCTURE_CHECK_THROWN', {
       what: `check.mjs threw an exception while running (aspect '${aspectId}').`,
       why: `${(err as Error).message}\n${(err as Error).stack ?? ''}`,
-      next: `Fix the bug in check.mjs, then re-run: yg check --approve`,
+      next: `Fix the bug in .yggdrasil/aspects/${aspectId}/check.mjs, then re-run the check that ran it.`,
+      // The fix is in the rule's own script: named as data, so a report's step
+      // is that file, never the recording run that just failed on it.
+      step: { file: `.yggdrasil/aspects/${aspectId}/check.mjs` },
     });
   }
 

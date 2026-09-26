@@ -25,6 +25,14 @@ export interface IssueMessage {
   next: string;
   /** The first step of `next`, as data, when the emitter knows it. */
   step?: IssueStep;
+  /**
+   * The command to run once `step` is done, when it is the very command that
+   * found the problem — as the user invoked it, flags kept (`yg check --approve
+   * --only-deterministic`). Set by a recording run on what it could not fill;
+   * a report names it as its `then:` step, so a fixed script is re-run in the
+   * mode that failed on it, never escalated to a costlier one.
+   */
+  retry?: string;
 }
 
 export interface ValidationIssue {

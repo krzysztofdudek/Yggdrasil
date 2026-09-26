@@ -20,9 +20,9 @@ import { countOutside } from '../core/check-progressive.js';
 import { issueViolations } from '../core/check-json.js';
 import { COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, getIssueLabel } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderByteGuardNotice, renderBaselineNoiseNotice, renderExternalJudgesNotice } from './check-render-header.js';
-import { buildBlocks, renderBlocks, costWords, type CheckBlock, type BlockCost } from './check-render-groups.js';
+import { buildBlocks, renderBlocks, type CheckBlock, type BlockCost } from './check-render-groups.js';
 import { GRAPH_INVALID_CODES, CONFIGURE_REVIEWER_STEP, codeInfo } from './output-diagnostic.js';
-import { count, MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note, paint, commandArgv } from './output.js';
+import { count, MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note, paint, commandArgv, costWords, fillStepFor, NO_FILL_COST, type FillStep } from './output.js';
 import type { CheckJsonDocument, CheckJsonGroup, CheckJsonIssue, CheckJsonNext } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -149,6 +149,8 @@ function leadingCommand(line: string): string | undefined {
 function embeddedCommand(line: string): string | undefined {
   const at = line.search(/(:\s+|`)yg [a-z]/);
   if (at < 0) return undefined;
+  // `… then re-run: yg check --approve` names what comes AFTER the fix, not the fix.
+  if (/\bre-?run\s*$/i.test(line.slice(0, at))) return undefined;
   return leadingCommand(line.slice(at).replace(/^[\s:`(]+/, '').replace(/`.*$/, ''));
 }
 
@@ -326,16 +328,10 @@ function needsCodeOrGraphFix(b: CheckBlock): boolean {
  * pending pair — advisory ones too, whatever their severity — so when the step
  * is only the free script pairs it is `--only-deterministic`, which cannot
  * spend anything; a step that does call the reviewer states the full cost, as
- * pairs and calls, and asks the user first (the agent protocol: a paid run is
- * the user's decision).
+ * pairs and calls. The cost is stated, never asked about: the agent protocol
+ * has the agent run the paid fill itself once its change is final.
  */
-interface FillStep {
-  command: string;
-  cost: BlockCost;
-  paid: boolean;
-}
-
-const NO_COST: BlockCost = { free: 0, reviewerPairs: 0, reviewerCalls: 0 };
+const NO_COST: BlockCost = NO_FILL_COST;
 
 /**
  * Every pair a recording run of this tree would fill, priced the way its own
@@ -357,15 +353,10 @@ function pendingCost(issues: CheckIssue[]): BlockCost {
   return out;
 }
 
+/** The fill a block leads to: script-only when its own block bills no reviewer, else the whole paid run. */
 function fillStep(pending: BlockCost, lead: CheckBlock | undefined): FillStep {
-  const scriptOnly = pending.reviewerPairs === 0 || (lead !== undefined && (lead.cost?.reviewerPairs ?? 0) === 0);
-  if (scriptOnly) return { command: 'yg check --approve --only-deterministic', cost: { ...NO_COST, free: pending.free }, paid: false };
-  return { command: 'yg check --approve', cost: pending, paid: true };
-}
-
-/** A fill step's cost in words, with the ask when it is paid. */
-function fillWords(step: FillStep): string {
-  return `${costWords(step.cost)}${step.paid ? ' — ask the user to approve it first' : ''}`;
+  const scriptOnly = lead !== undefined && (lead.cost?.reviewerPairs ?? 0) === 0;
+  return fillStepFor(scriptOnly ? { ...pending, reviewerPairs: 0, reviewerCalls: 0 } : pending);
 }
 
 const sameCost = (a: BlockCost, b: BlockCost | undefined): boolean =>
@@ -378,8 +369,7 @@ const sameCost = (a: BlockCost, b: BlockCost | undefined): boolean =>
  * costs (the whole command's cost), and with what remains. It never restates a
  * code and never repeats a fix word for word: with one block whose fix IS the
  * step, there is no `next:`. `then:` names the fill once the fixes are in, or —
- * after a free script-only fill — the paid review it left for the user to
- * approve.
+ * after a free script-only fill — the paid review it left, with its price.
  */
 export function computeNext(
   blocks: CheckBlock[],
@@ -408,20 +398,25 @@ export function computeNext(
   let then: string | undefined;
   if (isFill(first)) {
     const step = fillStep(pending, first);
-    action = { text: step.command, command: step.command, target: action.target, ...(step.paid ? { requiresUser: true } : {}) };
+    action = { text: step.command, command: step.command, argv: step.argv, target: action.target };
     cost = step.cost;
     // A free script-only step leaves the reviewer's pairs: name that paid run next.
     const left = fillStep(pending, undefined);
-    if (!step.paid && left.paid) then = `yg check --approve  (${fillWords({ ...left, cost: { ...left.cost, free: 0 } })})`;
+    if (!step.paid && left.paid) then = `${left.command}  (${costWords({ ...left.cost, free: 0 })})`;
   } else if (first.tier !== 'T3' && errors.some(isFill)) {
     // Then: the fill, once the fixes above it are in.
     const step = fillStep(pending, undefined);
-    then = `${step.command}  (${fillWords(step)})`;
+    then = `${step.command}  (${costWords(step.cost)})`;
   }
+  // A step the recording run could not take itself (a script that failed to
+  // run) is followed by that run again, as it was invoked — flags kept, so a
+  // free run is never followed by a costlier one.
+  const retry = first.members[0].messageData.retry;
+  if (retry !== undefined && action.command === undefined) then = retry;
   // One parenthetical: which block the step belongs to, what it costs, and what remains.
   const annotations: string[] = [];
   if (pool.length > 1) annotations.push(first.label);
-  if (isFill(first)) annotations.push(fillWords(fillStep(pending, first)));
+  if (isFill(first)) annotations.push(costWords(fillStep(pending, first).cost));
   const ownFixes = needsCodeOrGraphFix(first) ? first.members.length : 0;
   if (first.tier !== 'T3' && first.severity === 'error' && remaining.needsFix > ownFixes) {
     annotations.push(`${count(remaining.needsFix, 'error')} ${remaining.needsFix === 1 ? 'needs' : 'need'} a code or graph fix`);

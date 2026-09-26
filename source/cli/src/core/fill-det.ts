@@ -236,7 +236,7 @@ export async function fillDetPair(
       return run.failure;
     }
     if (run.result.succeeded === false || run.result.observationsTainted) {
-      return { kind: 'runtime-error', messageData: detRuntimeNotice(aspect.id, pair.unitKey, 'observations remained inconsistent across two runs (a file changed mid-check)') };
+      return { kind: 'runtime-error', messageData: detRuntimeNotice(aspect.id, pair.unitKey, 'observations remained inconsistent across two runs (a file changed mid-check)', taintedNotice(aspect.id, pair.unitKey)) };
     }
   }
 
@@ -286,10 +286,24 @@ export async function fillDetPair(
  * fill-llm.ts's companionRuntimeNotice, which threads a companion hook's own
  * `next` through the same way.
  */
+/** A file changed under the check while it ran: nothing in the script to fix, only the run to repeat. */
+function taintedNotice(aspectId: string, unitKey: string): IssueMessage {
+  return {
+    what: '',
+    why: '',
+    next: `Nothing to fix in .yggdrasil/aspects/${aspectId}/check.mjs: once no file of ${toPosixPath(unitKey)} is changing, re-run the command that ran it.`,
+  };
+}
+
 function detRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
+  // The step the runner handed over as data travels with its words. With no
+  // runner diagnostic, the failure is the script's own result, fixed in it.
+  const file = `.yggdrasil/aspects/${aspectId}/check.mjs`;
+  const step = originalMessageData !== undefined ? originalMessageData.step : { file };
   return {
     what: `Script rule '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
     why: `The check.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`,
-    next: originalMessageData?.next ?? `Fix the check.mjs, then re-run: yg check --approve`,
+    next: originalMessageData?.next ?? `Fix ${file}, then re-run the check that ran it.`,
+    ...(step !== undefined ? { step } : {}),
   };
 }

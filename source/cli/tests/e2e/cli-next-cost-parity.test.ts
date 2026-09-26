@@ -146,7 +146,7 @@ describe.skipIf(!distExists)('CLI E2E — next.cost is the cost of the command n
       expect(next.command).toEqual(['yg', 'check', '--approve']);
       expect(next.cost).toEqual({ free: 2, reviewerPairs: 4, reviewerCalls: 12 });
       const text = run(dir, ['check']).stdout;
-      expect(text).toContain('next: yg check --approve  (2 script pairs · free + 4 reviewer pairs · 12 calls · paid — ask the user to approve it first)');
+      expect(text).toContain('next: yg check --approve  (2 script pairs · free + 4 reviewer pairs · 12 calls · paid)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -161,7 +161,7 @@ describe.skipIf(!distExists)('CLI E2E — next.cost is the cost of the command n
       const next = expectParity(dir);
       expect(next.command).toEqual(['yg', 'check', '--approve', '--only-deterministic']);
       expect(next.cost).toEqual({ free: 2, reviewerPairs: 0, reviewerCalls: 0 });
-      expect(next.then).toBe('yg check --approve  (2 reviewer pairs · 6 calls · paid — ask the user to approve it first)');
+      expect(next.then).toBe('yg check --approve  (2 reviewer pairs · 6 calls · paid)');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

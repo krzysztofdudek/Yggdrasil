@@ -117,7 +117,7 @@ describe('check render — next line surfacing', () => {
       },
     ]));
     expect(out).toContain('yg check: FAIL');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid)');
     expect(out).not.toContain('next:');
   });
 });
@@ -218,7 +218,7 @@ describe('check render — --top view', () => {
     // next never names the fill while a code or graph error stands; then: does.
     expect(steps(out)).toEqual([
       'next: Create the file or fix the mapping entry  (mapping-path-missing)',
-      'then: yg check --approve  (1 script pair · free + 2 reviewer pairs · 2 calls · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 script pair · free + 2 reviewer pairs · 2 calls · paid)',
     ]);
   });
 });
@@ -371,13 +371,13 @@ describe('check render — next: never a fill while a code error stands, then: n
     const out = render(baseResult(issues));
     expect(steps(out)).toEqual([
       'next: edit src/a.ts:3  (refused — 2 errors need a code or graph fix)',
-      'then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 reviewer pair · 1 call · paid)',
     ]);
     // The same step as data: what remains after it.
     const r = baseResult(issues);
     const doc = enrichCheckJson(buildCheckJson(r), r);
     expect(doc.next?.remaining).toEqual({ needsFix: 2, fillable: 1, needsUser: 0, waitingOnReviewer: 0 });
-    expect(doc.next?.then).toBe('yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
+    expect(doc.next?.then).toBe('yg check --approve  (1 reviewer pair · 1 call · paid)');
     expect(doc.suggestedNext).toBe('edit src/a.ts:3  (refused — 2 errors need a code or graph fix)');
   });
 
@@ -397,7 +397,7 @@ describe('check render — next: never a fill while a code error stands, then: n
 
   it('when every error is a pending pair, the one block\'s fix is the step: no next, and nothing needs a code fix', () => {
     const out = render(baseResult([pending('x', 'svc/a'), pending('y', 'svc/b')]));
-    expect(out).toContain('  fix:  yg check --approve  (2 reviewer pairs · 2 calls · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (2 reviewer pairs · 2 calls · paid)');
     expect(out).not.toContain('next:');
     expect(out).not.toContain('need a code or graph fix');
   });
@@ -601,7 +601,7 @@ describe('check render — --aspect drill-in view', () => {
     expect(headings(out)[0]).toBe('error[refused] x — 1 violation in node-a');
     expect(steps(out)).toEqual([
       'next: edit src/node-a.ts:7  (refused)',
-      'then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)',
+      'then: yg check --approve  (1 reviewer pair · 1 call · paid)',
     ]);
   });
 

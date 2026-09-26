@@ -241,7 +241,7 @@ User requests come in natural language (any language). Yggdrasil artifacts are i
 When responding to user:
 - Describe changes as user-visible features ("Added cancellation that takes effect at end of billing cycle"), not in system terms (aspect, node, pair, lock, unverified).
 - When a rule blocks a change: translate why into business consequence. The reviewer's technical message is for you, not the user.
-- Exception — authorization requests: when you ask the user to approve something that needs their signature (a \`yg-suppress\`, an architecture change, a rule's status or \`review_by\`, an advise action), name the exact rule id, node, and file involved alongside the plain-language explanation. The user cannot authorize what they cannot identify.
+- Exception — authorization requests: when you ask the user to approve something that needs their signature (a \`yg-suppress\`, an architecture change, a rule's status or \`review_by\`, an advise action), name the exact rule id, node, and file involved alongside the plain-language explanation. The user cannot authorize what they cannot identify. A fill is not one of them — a paid \`yg check --approve\` included: run it yourself once the change is final; the CLI states its cost beside it.
 
 Status terms \`draft / advisory / enforced\` are English graph syntax. Translate user phrases ('na razie sugestią' → \`advisory\`, 'jeszcze nie gotowe' → \`draft\`, 'krytyczne' → \`enforced\`) before editing graph YAML.
 
@@ -271,8 +271,10 @@ newer than the one recorded at that closure — one fresh entry per closure cycl
 This requirement is a property of the node TYPE plus a source change: it is
 INDEPENDENT of aspect status AND of whether the node has any aspects or pairs at
 all. A node that owns source but has no effective (non-draft) aspects still needs
-an entry when its source changes. A cascade-only re-verification (an aspect
-edited, the node's source untouched) needs no new entry.
+an entry when its source changes. An entry comments on a change to the node's
+OWN source and nothing else: an edited rule, relation, lock or verdict re-opens
+pairs and needs no new entry. (A changed mapping changes what the node's source
+is, so it counts as a source change.)
 
   1. Edit source files
   2. \`yg log add --node <path> --reason "<justification>"\`
@@ -281,10 +283,12 @@ edited, the node's source untouched) needs no new entry.
 The requirement is enforced READ-ONLY: a missing entry is a blocking \`yg check\`
 error in its own right, not only a \`--approve\`-time gate — so plain \`yg check\`
 (and a CI run on it) catches an unlogged source change even on a node that
-produces no pairs. If you forget step 2: \`yg check\` flags that node; the log gate
-is ALL-OR-NOTHING at \`--approve\` — if ANY \`log_required\` node's source drifted
-with no fresh entry, \`--approve\` fills NOTHING that run (no pair on any node is
-verified) and stays red until every missing entry exists. Add the entries and re-run.
+produces no pairs. If you forget step 2: \`yg check\` flags that node; at
+\`--approve\`, if a node the run would fill a pair of owes an entry,
+\`--approve\` fills NOTHING that run (no pair on any node is verified) until
+that entry exists. A changed node the run fills nothing of does not stop it —
+nothing is recorded over its code, and \`yg check\` keeps it red until its entry
+exists. Add the entries and re-run.
 
 If a pair is refused, iterate on the code WITHOUT adding new log entries. One
 log entry covers all source edits until the node reaches positive closure —

@@ -232,7 +232,8 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     throw new AstRunnerError('AST_CHECK_THROWN', {
       what: `check.mjs threw an exception while running (aspect '${params.aspectId}').`,
       why: (e instanceof Error ? e.stack : undefined) ?? String(e),
-      next: `Fix the bug in check.mjs, then re-run: yg check --approve`,
+      next: `Fix the bug in .yggdrasil/aspects/${params.aspectId}/check.mjs, then re-run the check that ran it.`,
+      step: { file: `.yggdrasil/aspects/${params.aspectId}/check.mjs` },
     });
   }
 
@@ -245,7 +246,8 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     throw new AstRunnerError('AST_CHECK_ASYNC', {
       what: `check.mjs returned a Promise; only synchronous returns are supported in v1.`,
       why: `The runner does not await check's return value.`,
-      next: `Refactor check to be synchronous.`,
+      next: `Make check() in .yggdrasil/aspects/${params.aspectId}/check.mjs synchronous: return the Violation[] itself, not a Promise.`,
+      step: { file: `.yggdrasil/aspects/${params.aspectId}/check.mjs` },
     });
   }
 
@@ -253,7 +255,8 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     throw new AstRunnerError('AST_CHECK_RETURN_SHAPE', {
       what: `check.mjs returned ${typeof raw}, expected Violation[].`,
       why: `The runner reports violations from the array returned by check.`,
-      next: `Return [] or Violation[] from check.`,
+      next: `Make check() in .yggdrasil/aspects/${params.aspectId}/check.mjs return [] or a Violation[].`,
+      step: { file: `.yggdrasil/aspects/${params.aspectId}/check.mjs` },
     });
   }
 
@@ -264,7 +267,8 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
       throw new AstRunnerError('AST_CHECK_FILE_NOT_IN_CONTEXT', {
         what: `check.mjs returned a Violation referencing file '${v.file}' which is not in ctx.files (aspect '${params.aspectId}').`,
         why: `Author cannot synthesize violations against files they were not given. Suppress markers cannot reach unknown files.`,
-        next: `Return only violations for files in ctx.files (the array passed to check).`,
+        next: `Make check() in .yggdrasil/aspects/${params.aspectId}/check.mjs report only files in ctx.files (the array passed to check).`,
+        step: { file: `.yggdrasil/aspects/${params.aspectId}/check.mjs` },
       });
     }
   }

@@ -20,9 +20,11 @@ import { toPosixPath } from '../utils/posix.js';
  * Step-4 log gate: consults logGateBlocksNode (the shared predicate) and returns
  * the `log-entry-missing` message when a node blocks (null when it does not).
  * The caller decides where the message goes: onto the diagnostic stream, or
- * into the abort it raises. The gate is ALL-OR-NOTHING —
- * fill.ts collects every blocked node and, if any exist, throws FillGatingError so
- * the run fills NOTHING (no pair on any node is verified until every entry exists).
+ * into the abort it raises. fill.ts asks it of every component the run would
+ * fill a pair of, collects every blocked one and, if any exist, throws
+ * FillGatingError so the run fills NOTHING (no pair on any node is verified until
+ * each of those entries exists). A changed component the run fills nothing of is
+ * not asked here; the plain read reports it.
  *
  * WHAT THE MESSAGE HAS TO CARRY, and why it is worded the way it is. The gate
  * measures a component's source against the baseline its LAST RECORDED VERDICT

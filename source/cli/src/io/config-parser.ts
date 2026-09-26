@@ -161,6 +161,8 @@ export function unknownConfigKeyMessage(u: UnknownConfigKey): IssueMessage {
     next: u.suggestion
       ? `Did you mean '${u.suggestion}'? Rename '${u.key}' to '${u.suggestion}' in ${where}, or remove it.`
       : `Rename '${u.key}' in ${where} to one of: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}, or remove it.`,
+    // The file to change, as data: a report names it as the step.
+    step: { file: where, text: u.suggestion ? `rename '${u.key}' to '${u.suggestion}' in ${where}` : `rename or remove '${u.key}' in ${where}` },
   };
 }
 
