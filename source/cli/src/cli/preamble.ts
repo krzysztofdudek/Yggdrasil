@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises';
 import { loadGraphOrThrow, GraphLoadError } from '../core/graph-loader.js';
 import { LockEnvironmentError, LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
-import { fail } from './output.js';
+import { failAndExit } from './output.js';
 
 /**
  * Format and emit an unexpected error from a generic catch block, then
@@ -19,22 +19,19 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
   if (error instanceof LockInvalidError) {
     // The whole what/why/next the lock reader built — its message alone is only
     // the `what`, which left the reader without the recovery steps.
-    fail(error.messageData, 'lock-invalid');
-    process.exit(1);
+    failAndExit(error.messageData, 'lock-invalid');
   }
   // An ENVIRONMENT problem around the lock — another approval holds it, or the
   // file system refused the write — is not a bug and says what to do about it.
   if (error instanceof LockEnvironmentError) {
-    fail(error.messageData, 'lock-environment');
-    process.exit(1);
+    failAndExit(error.messageData, 'lock-environment');
   }
   const message = error instanceof Error ? error.message : String(error);
-  fail({
+  failAndExit({
     what: `Unexpected error while ${context}: ${message}`,
     why: 'The CLI encountered an error it does not classify.',
     next: 'This is a bug — please file an issue with the command you ran and the full error output.',
   }, 'internal');
-  process.exit(1);
 }
 
 /**
@@ -57,8 +54,7 @@ export async function loadGraphOrAbort(
     return await loadGraphOrThrow(rootPath, options);
   } catch (err) {
     if (err instanceof GraphLoadError) {
-      fail(err.issue, err.issue.what.startsWith('No .yggdrasil/') ? 'graph-missing' : 'graph-load-failed');
-      process.exit(1);
+      failAndExit(err.issue, err.issue.what.startsWith('No .yggdrasil/') ? 'graph-missing' : 'graph-load-failed');
     }
     throw err;
   }
@@ -77,11 +73,10 @@ export async function abortUnlessYggdrasilExists(yggRoot: string): Promise<void>
   try {
     await stat(yggRoot);
   } catch {
-    fail({
+    failAndExit({
       what: 'No .yggdrasil/ directory found in the current project.',
       why: '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
       next: "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
     }, 'graph-missing');
-    process.exit(1);
   }
 }

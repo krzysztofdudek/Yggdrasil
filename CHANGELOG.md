@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `yg context --file` and `yg find` no longer lose the end of a long answer read through a pipe (`| head`, a slow reader, an agent capturing the output). They ended the process before the pipe had taken everything they wrote; they now wait for it, and the exit code is unchanged.
 - **Security:** a component mapping entry written with Windows separators that climbs out of the repository (`..\secret`, `src\..\..\x` in `yg-node.yaml`) is now refused as escaping it, on every OS. The node parser checked the entry as written, where a backslash is an ordinary character, so on Windows such an entry could map a file outside the repository into a component; aspect references and package paths were already checked in POSIX form.
 - After a `check.mjs` that crashed, `next:` is `edit` that `check.mjs`, and `then:` is the command you ran with its flags. It used to be `yg check --approve`, which bills the reviewer after a free `--only-deterministic` run.
 - `next:` for an edited or missing copy of an installed package is `yg pack update <name> --reinstall`, package name included; in `--json` the command used to lose the name and was one the CLI refuses. A misspelled key in `yg-config.yaml` or `yg-secrets.yaml` now points `next:` at the file to change.

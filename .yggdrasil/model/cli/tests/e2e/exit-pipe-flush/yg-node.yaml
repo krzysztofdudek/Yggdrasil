@@ -1,0 +1,7 @@
+name: E2E Tests — A long answer ending in a non-zero exit, read through a slow pipe
+type: test-suite
+description: "Subprocess E2E for a reader that is not draining yg's stdout pipe when yg finishes: a script rule refuses one file thousands of times, so aspect-test writes several times what a pipe holds and exits 1. The bytes a reader that sleeps before reading gets must equal the bytes the same run writes to a file, a head -c reader must get exactly its prefix, and the exit code must stay 1 either way — the guard that no command ends the process with its output still queued."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-exit-pipe-flush.test.ts

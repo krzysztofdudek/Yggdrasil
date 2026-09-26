@@ -9,6 +9,7 @@ import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { fail, writeOut, warn } from './output.js';
+import { exitAfterFlush } from './exit-after-flush.js';
 
 const TOP_N = 5;
 
@@ -177,7 +178,7 @@ export function registerFindCommand(program: Command): void {
     .action(async (query: string, options: { json?: boolean }) => {
       try {
         const exit = await findCommand(query, process.cwd(), { json: options.json === true });
-        process.exit(exit);
+        await exitAfterFlush(exit);
       } catch (error) {
         debugWrite(`[find] registerFindCommand action failed: ${error instanceof Error ? error.message : String(error)}`);
         abortOnUnexpectedError(error, 'running find');

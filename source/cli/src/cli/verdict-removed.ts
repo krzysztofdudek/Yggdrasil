@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { abortOnUnexpectedError } from './preamble.js';
-import { fail } from './output.js';
+import { failAndExit } from './output.js';
 
 /**
  * `yg verdict` (package / record / read) was the external-judge channel: a way
@@ -20,7 +20,7 @@ export function registerRemovedVerdictCommand(program: Command): void {
     .helpOption(false)
     .action(() => {
       try {
-        fail({
+        failAndExit({
           what: 'yg verdict (package, record, read) was removed in 6.1.0.',
           why: 'A reviewer rule is judged by the reviewer configured in .yggdrasil/yg-config.yaml and by nothing else, so there is no channel for recording a judgement from outside it. Verdicts an earlier release recorded that way are still read and still hold while the code they judged is unchanged.',
           next: 'Record verdicts with: yg check --approve (configure the reviewer first with yg init --provider <name> [--model <m>] if none is set).',
@@ -28,6 +28,5 @@ export function registerRemovedVerdictCommand(program: Command): void {
       } catch (error) {
         abortOnUnexpectedError(error, 'reporting the removed verdict command');
       }
-      process.exit(1);
     });
 }

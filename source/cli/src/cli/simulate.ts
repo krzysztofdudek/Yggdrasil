@@ -8,7 +8,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
-import { aspectNotFound, fail, paint, writeOut } from './output.js';
+import { aspectNotFound, fail, paint, writeOut, failAndExit } from './output.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -806,15 +806,13 @@ export function registerSimulateCommand(program: Command): void {
         const hasNode = typeof opts.node === 'string';
         const hasFile = typeof opts.file === 'string';
         if (hasNode === hasFile) {
-          fail({
+          failAndExit({
             what: hasNode
               ? 'Both --node and --file were provided.'
               : 'Neither --node nor --file was provided.',
             why: 'yg simulate replays over exactly one target: --node (a component) or --file (a type-covered file, no component).',
             next: 'Re-run with exactly one of --node <path> or --file <path>.',
           });
-          process.exit(1);
-          return;
         }
         const candidateId = candidate.trim().replace(/\/$/, '');
         const target: SimulateTarget = hasNode
@@ -822,13 +820,11 @@ export function registerSimulateCommand(program: Command): void {
           : { kind: 'file', file: opts.file!.trim() };
         const maxCommits = parseMaxCommits(opts.maxCommits);
         if (maxCommits === null) {
-          fail({
+          failAndExit({
             what: `--max-commits must be a positive whole number (got '${opts.maxCommits}').`,
             why: 'The value bounds how many recent commits the replay considers; a non-positive or non-numeric value has no meaning.',
             next: 'Re-run with --max-commits <n> where n is 1 or greater.',
           });
-          process.exit(1);
-          return;
         }
         const binPath = path.join(getPackageRoot(), 'bin.js');
         const code = await runSimulation({

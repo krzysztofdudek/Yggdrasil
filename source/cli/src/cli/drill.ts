@@ -22,7 +22,7 @@ import {
   type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { aspectNotFound, fail, paint, writeErr, writeOut } from './output.js';
+import { aspectNotFound, fail, paint, writeErr, writeOut, failAndExit } from './output.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { formatDrillJson, DRILL_JSON_SCHEMA, type DrillJsonDocument } from '../formatters/drill-json.js';
@@ -70,30 +70,24 @@ export function registerDrillCommand(program: Command): void {
         // parent is enforced before a subcommand is even reached, which would
         // make `yg drill add --aspect x` refuse the very flag it was given.
         if (typeof opts.aspect !== 'string' || opts.aspect.trim() === '') {
-          fail({
+          failAndExit({
               what: 'yg drill needs the rule whose case corpus to run.',
               why: 'A drill replays ONE rule over its own cases; without naming the rule there is no corpus to run and no rule to run it with.',
               next: 'List the rules with yg aspects, then run: yg drill --aspect <id>.',
             });
-          process.exit(1);
-          return;
         }
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          fail(aspectNotFound(opts.aspect, "A drill replays a rule over its own case corpus, so the rule must exist in the graph."), 'aspect-not-found');
-          process.exit(1);
-          return;
+          failAndExit(aspectNotFound(opts.aspect, "A drill replays a rule over its own case corpus, so the rule must exist in the graph."), 'aspect-not-found');
         }
 
         if (aspect.reviewer.type === 'aggregate') {
-          fail({
+          failAndExit({
               what: `aspect '${aspect.id}' is a bundle (no rule source), so it has nothing to drill.`,
               why: `yg drill re-runs a script rule's check.mjs or a reviewer rule's content.md over a case corpus; a bundle only groups other aspects.`,
               next: `yg drill --aspect ${aspect.implies?.[0] ?? '<one of the rules it implies>'}  (drill one of the rules it bundles instead)`,
             });
-          process.exit(1);
-          return;
         }
 
         const cases = await discoverDrillCases({
@@ -131,9 +125,7 @@ export function registerDrillCommand(program: Command): void {
           : undefined;
         const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true, sink);
         if (!setup.ok) {
-          fail(setup.error);
-          process.exit(1);
-          return;
+          failAndExit(setup.error);
         }
         const { ctx, deps } = setup;
 

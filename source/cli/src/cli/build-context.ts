@@ -44,7 +44,8 @@ import type { ValidationIssue } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail, nodeNotFound, plural, warn, writeOut, count } from './output.js';
+import { fail, nodeNotFound, plural, warn, writeOut, count, failAndExit } from './output.js';
+import { exitAfterFlush } from './exit-after-flush.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 import { findCandidateOwners } from '../core/graph/files.js';
 
@@ -456,20 +457,18 @@ export function registerBuildCommand(program: Command): void {
       };
       try {
         if (!options.node && !options.file) {
-          fail({
+          failAndExit({
             what: "No target specified.",
             why: "Either '--node <path>' or '--file <path>' is required.",
             next: "Run: yg context --node <path> or yg context --file <path>",
           });
-          process.exit(1);
         }
         if (options.node && options.file) {
-          fail({
+          failAndExit({
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
             next: "yg context --node <path>, or yg context --file <path> — one of them, not both",
           });
-          process.exit(1);
         }
 
         const graph = await loadGraphOrAbort(process.cwd());
@@ -514,7 +513,7 @@ export function registerBuildCommand(program: Command): void {
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
               else writeOut(`${excludedMsg}\n`);
-              process.exit(0);
+              await exitAfterFlush(0);
             }
             if (isExcludedFromGraph(result.file, exclusionSet)) {
               // Names WHICH of the two independent config/filesystem-derived
@@ -533,7 +532,7 @@ export function registerBuildCommand(program: Command): void {
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
               else writeOut(`${excludedMsg}\n`);
-              process.exit(0);
+              await exitAfterFlush(0);
             }
             // A typed answer, not "not covered by any node": classifies ONLY
             // this one file, never the whole-repo classification map, and,
@@ -566,12 +565,11 @@ export function registerBuildCommand(program: Command): void {
                 // surfaces cannot disagree.
                 const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
                 if (cascadeCycle) {
-                  fail({
+                  failAndExit({
                     what: `${displayFile} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                     why: describeCascadeCycle(cascadeCycle),
                     next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
                   });
-                  process.exit(1);
                 }
                 const { data, block } = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
                 const attention = await attentionLineIfEnabled(graph, displayFile);
@@ -582,7 +580,7 @@ export function registerBuildCommand(program: Command): void {
                   writeOut(formatFileContext(data));
                   if (attention !== undefined) writeOut(`\n${attention}\n`);
                 }
-                process.exit(0);
+                await exitAfterFlush(0);
               }
             }
             const candidates = findCandidateOwners(graph, result.file);
@@ -610,7 +608,7 @@ export function registerBuildCommand(program: Command): void {
             // graph governs this file" is a fact a caller must be able to read
             // without parsing the prose above. The exit code is unchanged.
             emitJson(buildNoOwnerContextJson(displayFile, 'unmapped', uncoveredWhy));
-            process.exit(1);
+            return await exitAfterFlush(1);
           }
           // Suppressed under --json: stdout carries exactly one machine document
           // there, and a bare owner line ahead of it would make the stream
@@ -633,12 +631,11 @@ export function registerBuildCommand(program: Command): void {
           const skippedErrors = errors.length - relevantErrors.length;
           // One block: the errors that stop it as members, each on its own line.
           const members = relevantErrors.map((err) => `${err.code ?? 'error'}  ${err.nodePath !== undefined ? `${toPosixPath(err.nodePath)}  ` : ''}${err.messageData.what.split('\n')[0]}`);
-          fail({
+          failAndExit({
             what: `yg context cannot assemble ${nodePath}: ${relevantErrors.length} ${plural(relevantErrors.length, 'error')} in the graph it draws on\n${members.join('\n')}`,
             why: `The context is built from this node, its ancestors and its relation targets, and these errors leave part of that graph unreadable.${skippedErrors > 0 ? ` (${skippedErrors} other ${plural(skippedErrors, 'error')} elsewhere in the repository ${skippedErrors === 1 ? 'does' : 'do'} not affect it.)` : ''}`,
             next: 'yg check',
           });
-          process.exit(1);
         }
         // Errors that block the gate but not this context — a key in the
         // committed config, a rule no relevant node uses, a reviewer not yet
@@ -685,19 +682,17 @@ export function registerBuildCommand(program: Command): void {
         const msg = error instanceof Error ? error.message : String(error);
         const notFound = msg.match(/^Node not found: (.+)$/);
         if (notFound) {
-          fail(nodeNotFound(toPosixPath(notFound[1]), 'The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
-          process.exit(1);
+          failAndExit(nodeNotFound(toPosixPath(notFound[1]), 'The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
         }
         // A --file path that resolves outside the repository is USER input, not an
         // internal bug — classify it rather than routing to the crash handler.
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
-          fail({
+          failAndExit({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `Context can only be built for files tracked inside the project.`,
             next: 'yg context --file <a path inside the repository, relative to its root>',
           });
-          process.exit(1);
         }
         abortOnUnexpectedError(error, 'building context');
       }
