@@ -8,4 +8,5 @@ aspects:
   - rules-artifact-names-single-source
   - output-through-layer
   - no-raw-process-exit
+  - function-length
 relations: []

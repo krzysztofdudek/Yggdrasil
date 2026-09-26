@@ -1,0 +1,28 @@
+name: FunctionLength
+description: >-
+  A function in the CLI's shipped TypeScript (source/cli/src/, tests excluded)
+  stays under a line cap — 150 lines by default, set by maxLines in the rule's
+  config.json. Every function-shaped construct counts, from its first line to
+  its last: a declaration, a method, an arrow function, a function expression,
+  nested functions included in the outer span, so a command body written as one
+  callback is measured like any other function. WHY: the largest functions kept
+  growing release over release (functions over 400 lines went from 6 to 10
+  between two releases, the biggest past 600), and a function that long is read,
+  changed and reviewed as one block — every edit re-reads all of it and a phase
+  in its middle has no name to find it by. The fix is always the same, cutting
+  it into named phases; the rule points at the function and leaves the cut to
+  the author. ADVISORY on purpose: the per-language relation extractors are long
+  by construction (one function per language walking one grammar, each
+  additive and copied by a sibling tool) and other long functions remain, so the
+  rule reports without blocking while the count comes down. errs: exact — it
+  measures the span the syntax tree gives and nothing else.
+reviewer:
+  type: deterministic
+status: advisory
+errs: exact
+scope:
+  per: file
+  files:
+    all_of:
+      - path: "source/cli/src/**/*.ts"
+      - not: { path: "**/*.test.ts" }
