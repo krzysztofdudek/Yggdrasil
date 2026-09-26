@@ -509,7 +509,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // step) — the fill prints no next: of its own (a run shows one step, the report's).
       expect(det.stderr).toMatch(/^fill {2}done in .* · 2 reviewer pairs left alone$/m);
       expect(det.stderr).not.toMatch(/^next: /m);
-      expect(det.stdout).toMatch(/^ {2}fix: {2}yg check --approve {2}\(2 reviewer pairs · paid — ask the user to approve it first\)$/m);
+      expect(det.stdout).toMatch(/^ {2}fix: {2}yg check --approve {2}\(2 reviewer pairs · 2 calls · paid — ask the user to approve it first\)$/m);
       // And the report keeps them red as unverified reviewer pairs.
       expect(det.stdout).toContain('error[unverified] 2 pairs with no verdict yet');
       expect(det.stdout).toMatch(/^ {2}at: +has-doc-comment {2}2 pairs · 2 nodes · reviewer$/m);

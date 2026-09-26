@@ -60,7 +60,6 @@ function makeCheckResult(issues: CheckIssue[]): CheckResult {
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: null,
     advisoryWarnings: 0,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -338,7 +337,7 @@ describe('check --aspect <unknown-id>: clear error, not a silent zero-count', ()
     const out = stdoutSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     // The error must name the unknown id.
     expect(err).toContain('audit-loggin');
-    expect(err.toLowerCase()).toContain('unknown aspect');
+    expect(err).toContain("error[aspect-not-found]: rule 'audit-loggin' is not in the graph");
     expect(exitCode).toBe(1);
     // It must NOT render the misleading "0 of N errors" drill-in FAIL.
     expect(out).not.toContain('0 of');

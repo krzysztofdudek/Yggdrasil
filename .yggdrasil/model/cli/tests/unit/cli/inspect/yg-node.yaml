@@ -8,13 +8,17 @@ description: >-
   taking a case into it.
 aspects: []
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Set at the reviewed count of 21 when type-only imports became dependencies in 6.1.0:
     the suite already named the graph model's types, and that import is now a declared
-    relation, taking it one over the project default.
+    relation, taking it one over the project default. Raised to 22 when the suppression
+    scan moved out of the portal facade into the engine: the suite reads the scan and its
+    eligibility rule from the engine now, and the portal's own marker adapter still from
+    the facade, so both edges stand.
 relations:
   [
+    { target: cli/core/suppressions, type: uses },
     { target: cli/ast/runtime, type: uses },
     { target: cli/commands/aspect-test, type: uses },
     { target: cli/commands/drill, type: uses },

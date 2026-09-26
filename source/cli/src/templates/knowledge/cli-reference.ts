@@ -51,10 +51,10 @@ error[refused] no-todo — 8 violations in 8 nodes
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: …
-  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+  fix:  yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 \`\`\`
 
 - The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
@@ -71,7 +71,7 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve
   \`for each node above\` (one that also names each node's own path adds
   \`<path>\`, listed per member under \`at:\` as \`<path> = …\`); a heading or why
   shared but for the node states the fact once, never with \`<node>\` in it; a fill names its cost (\`(24 script pairs · free)\`,
-  \`(24 reviewer pairs · paid — ask the user to approve it first)\`).
+  \`(24 reviewer pairs · 24 calls · paid — ask the user to approve it first)\`).
 - Labels: \`refused\` (a rule refused the code — error if enforced, warning if
   advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside
   coverage.required — never blocking), \`unverified\` (no valid verdict; the cause
@@ -248,10 +248,12 @@ configured reviewer, the standing floor when the project measures changes
 against a branch, \`groups\` (one per text block: \`code\`, \`label\`, \`subject\`,
 \`cause\`, shared \`why\`/\`next\`, member indexes), \`suggestedNext\` — the text of the
 report's own \`next:\` line, or null — and \`next\`, the same step as an object:
-\`{command, text, target, cost: {free, reviewerPairs}, remaining: {needsFix,
+\`{command, text, target, cost: {free, reviewerPairs, reviewerCalls}, remaining: {needsFix,
 fillable, needsUser, waitingOnReviewer}, requiresUser, then}\` (\`command\` is an
 argv array, or null when the step is not one runnable command; \`cost\` is what
-running \`command\` costs — the whole command; \`requiresUser\` is true for a
+running \`command\` costs — the whole command, every pending pair it fills,
+advisory ones included, the reviewer's share as pairs and calls, equal to its
+\`--dry-run\` budget; \`requiresUser\` is true for a
 paid fill or a decision that is the user's — ask before running it; \`then\` is
 the text of the \`then:\` line). \`notes\` carries the report's \`note:\` lines.
 \`--json --compact\` leaves out approved pairs and each issue's \`why\`/\`next\`
@@ -882,6 +884,15 @@ yg aspects
 yg aspects --health
 \`\`\`
 
+\`yg aspects\` is also the step every command that takes a rule id points at when
+the id is not in the graph: \`yg check --aspect\`, \`yg impact --aspect\`,
+\`yg aspect-test --aspect\`, \`yg simulate <id>\`, \`yg aspects log add|read --aspect\`,
+\`yg drill --aspect\`, \`yg drill add --aspect\` and \`yg incident add --aspect\` all
+refuse an unknown id with the same \`error[aspect-not-found]: rule '<id>' is not in
+the graph\` and \`next: yg aspects\`, exit 1 — only the \`why:\` differs, saying what
+that command needed the rule for. Under \`--json\` the \`yg-error/1\` document
+carries the same code.
+
 \`--health\` prints one row per aspect: **aspect** (id), **kind** (llm /
 deterministic / aggregate), **status**, **nodes** and **pairs** (the review
 surface — distinct nodes and total review units), **refused** (refusals whose
@@ -1122,10 +1133,14 @@ yg advise --json     # the same feed as one machine-readable document
     per-file note; it lists no files, names no measures, and ranks nothing.
 - **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
   priority order: a regression case a rule no longer catches, a risky waiver, a
-  rule effective nowhere, an orphaned rule, a rule past its review-by date, and —
+  rule effective nowhere (\`aspect-effective-nowhere\`, the same code \`yg check\`
+  reports), an orphaned rule (\`orphaned-aspect\` — only where the class before it
+  does not already cover it: a bundle, a draft rule, or a graph with no code yet, so
+  a dead rule is one nomination), a rule past its review-by date, and —
   below all of those — history-derived suggestions such as promoting a clean-record
   advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
-  never once caught a violation, and flagging an **unguarded hot spot**: a component
+  never once caught a violation, and flagging an **unguarded hot spot**
+  (\`unguarded-hot-spot\`): a component
   whose files change often across recent commits yet no rule beyond drafts guards
   them — the code most in motion with the least protection. A hot spot cites its churn count, a
   short sample of the changed files, and the commit window as its evidence, and clears
@@ -1189,6 +1204,12 @@ yg advise defer <id> --until 2027-01-31 --reason "revisit next quarter"
 - **defer** hides the item until the given date, then it returns on its own.
   \`--until\` is a bare calendar day (\`YYYY-MM-DD\`); a date that is not a real day
   is rejected.
+
+Two classes were renamed, and their old names stay aliases: \`dead-attach\` is now
+\`aspect-effective-nowhere\`, and \`uncovered-hot-spot\` is now \`unguarded-hot-spot\`.
+\`dismiss\` and \`defer\` accept an id under either name, and a decision already
+recorded under the old name keeps applying to the renamed item while its evidence
+is unchanged; a new decision is recorded under the new name.
 
 \`--reason\` is **mandatory** on every decision — recorded precedent must carry a
 human-signed justification, so an empty reason is rejected and nothing is written.
@@ -1726,7 +1747,7 @@ under every configuration".
 | \`aspect-review-overdue\` | warning | A rule's \`review_by:\` date has passed (compared against the CLI clock) — the rule is running unreviewed. Status-independent. Never writes the lock, changes a verdict, or gates \`--approve\`. Next: ask the user to renew (new \`review_by:\`) or retire (demote) the rule; never change the date without their approval. |
 | \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
 | \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
-| \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
+| \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. A dead rule is reported once: when nothing references it at all it is not also reported as \`orphaned-aspect\`, which remains for a bundle, a draft rule, or a graph with no code yet. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
 | \`coverage-required-shadowed\` | warning | A plain (non-glob) \`coverage.required\` root sits entirely inside a plain \`coverage.excluded\` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Next: remove the required line, or narrow the excluded root so it no longer contains it. |
 | \`rules-digest-stale\` | warning | The committed agent-rules digest (\`AGENTS.md\` block, \`.clinerules/yggdrasil.md\`, or the \`CLAUDE.md\` \`@AGENTS.md\` import) is missing, was hand-edited, is from an older CLI, or is duplicated. Never cached, never suppressible — recomputed live on every \`yg check\`. Next: \`yg init --upgrade\`. |
 

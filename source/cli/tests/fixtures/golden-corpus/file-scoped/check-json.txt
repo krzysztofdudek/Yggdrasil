@@ -409,7 +409,8 @@ exit: 1
     },
     "cost": {
       "free": 10,
-      "reviewerPairs": 0
+      "reviewerPairs": 0,
+      "reviewerCalls": 0
     },
     "remaining": {
       "needsFix": 0,

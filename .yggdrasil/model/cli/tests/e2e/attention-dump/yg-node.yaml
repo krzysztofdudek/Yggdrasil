@@ -10,7 +10,7 @@ description: "Subprocess E2E over the public CLI: yg check maintains the local,
   index wrote), and is suppressed by signals.attention: false. Also covers the yg
   advise structural-deviation aggregate line: it shows one bare count of the files
   the index still records as live outliers (a stale entry excluded), omits the line
-  when the count is zero, and exits 0. Also covers the yg advise uncovered-hot-spot
+  when the count is zero, and exits 0. Also covers the yg advise unguarded-hot-spot
   nomination: a zero-aspect node that churns across recent commits is nominated with
   its churn count, capped file evidence, and provenance (a node covered by an
   enforced rule is never nominated), while a repo with no commits and a non-git

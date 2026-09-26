@@ -65,6 +65,22 @@ const ARCHITECTURE_FATAL_CODES = new Set<string>([
   'when-predicate-invalid',
 ]);
 
+/**
+ * The step for a configuration that did not load: the config file, with the
+ * parser's own first instruction (`set parallel: <positive integer> …`) as the
+ * words, since that says what to change in it.
+ */
+function configStep(next: string): { file: string; text?: string } {
+  const file = '.yggdrasil/yg-config.yaml';
+  const first = next.split('\n')[0].trim().replace(/\.$/, '');
+  return first === '' || first.includes('yg-config.yaml') ? { file } : { file, text: `${first} — in ${file}` };
+}
+
+/** A component file that does not parse is corrected where it is: its own yg-node.yaml. */
+function withNodeFileStep(messageData: IssueMessage, nodePath: string): IssueMessage {
+  return messageData.step !== undefined ? messageData : { ...messageData, step: { file: `.yggdrasil/model/${toPosixPath(nodePath)}/yg-node.yaml` } };
+}
+
 export async function validate(
   graph: Graph,
   scope: string = 'all',
@@ -113,7 +129,9 @@ export async function validate(
       code: errorCode,
       rule: 'invalid-config',
       ...issueMsg(msgData),
-      messageData: msgData,
+      // Whatever the parser said, the file to correct is the config itself —
+      // and what to correct in it is the parser's own first sentence.
+      messageData: { ...msgData, step: msgData.step ?? configStep(msgData.next) },
     });
   }
 
@@ -135,7 +153,7 @@ export async function validate(
       code: 'yaml-invalid',
       rule: 'invalid-node-yaml',
       ...issueMsg(messageData),
-      messageData,
+      messageData: withNodeFileStep(messageData, nodePath),
       nodePath,
     });
   }
@@ -146,7 +164,10 @@ export async function validate(
       code,
       rule: code,
       ...issueMsg(messageData),
-      messageData,
+      // A rule file that does not parse is corrected where it is.
+      messageData: code === 'yaml-invalid' && messageData.step === undefined
+        ? { ...messageData, step: { file: `.yggdrasil/aspects/${toPosixPath(aspectId)}/yg-aspect.yaml` } }
+        : messageData,
       // The rule it is about, so a reader scoped to some nodes (yg context)
       // can tell whether those nodes use it.
       aspectId,
@@ -171,7 +192,7 @@ export async function validate(
         code: 'architecture-invalid',
         rule: 'architecture-invalid',
         ...issueMsg(archInvalid.messageData),
-        messageData: archInvalid.messageData,
+        messageData: { ...archInvalid.messageData, step: archInvalid.messageData.step ?? { file: '.yggdrasil/yg-architecture.yaml' } },
       });
     }
     return { issues, nodesScanned: 0 };
@@ -237,17 +258,20 @@ export async function validate(
   issues.push(...checkArchitectureConstraints(graph));
   issues.push(...checkPortAspectsDefined(graph));
   issues.push(...checkPortConsumes(graph));
-  issues.push(...checkOrphanedAspects(graph));
+  // Dead-attach linter (warning): a rule source effective on zero nodes after
+  // the full cascade + when. Computed here (post arch-fatal short-circuit)
+  // because it evaluates `when` predicates, which require a structurally-valid
+  // architecture. `typeCoverage`: the SAME classification threaded into
+  // checkReviewerPresence above — a rule effective only on files enforced by
+  // their type is live law too. Computed before the orphan check, which is
+  // handed it so a dead rule is reported once, not also as an orphan.
+  const effectiveNowhere = checkAspectEffectiveNowhere(graph, typeCoverage);
+  issues.push(...checkOrphanedAspects(graph, effectiveNowhere));
   issues.push(...checkWhenReferences(graph));
   issues.push(...checkAspectRuleSources(graph));
   issues.push(...(await checkAspectReferences(graph)));
   issues.push(...checkAspectStatusDowngrade(graph));
-  // Dead-attach linter (warning): a rule source effective on zero nodes after
-  // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
-  // evaluates `when` predicates, which require a structurally-valid architecture.
-  // `typeCoverage`: the SAME classification threaded into checkReviewerPresence
-  // above — a rule effective only on files enforced by their type is live law too.
-  issues.push(...checkAspectEffectiveNowhere(graph, typeCoverage));
+  issues.push(...effectiveNowhere);
   issues.push(...checkArchitectureDefaultAspectUnreachable(graph, typeCoverage));
 
   // Stage 5: global checks.
@@ -285,7 +309,7 @@ export async function validate(
             code: 'yaml-invalid',
             rule: 'invalid-node-yaml',
             ...issueMsg(parseError.messageData),
-            messageData: parseError.messageData,
+            messageData: withNodeFileStep(parseError.messageData, parseError.nodePath),
             nodePath: parseError.nodePath,
           }],
           nodesScanned: 0,

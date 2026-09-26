@@ -1,13 +1,11 @@
-import type { SuppressionMarkerInfo } from '../../ast/suppress.js';
+import type { SuppressionMarkerInfo } from '../../core/suppressions/scan.js';
 import type { SuppressionMarkerInput } from '../contract.js';
-import type { SuppressionsReport } from './suppress-scan.js';
+import type { SuppressionsReport } from '../../core/suppressions/scan.js';
 
 /**
- * portal/api/suppress-adapt — turns the raw suppression scan (suppress-scan.ts's
- * `SuppressionsReport`) into the portal's flat, risk-resolved marker shape. Split out of
- * suppress-scan.ts so that scan module stays within its file-size boundary, the same reason
- * suppress-coverage.ts was split out earlier; it lives in the same portal facade node as the
- * scan it adapts.
+ * portal/api/suppress-adapt — turns the engine's suppression scan (its
+ * `SuppressionsReport`) into the portal's flat, risk-resolved marker shape. The scan
+ * itself is engine code every surface shares; this adaptation is the portal's own.
  */
 
 /**

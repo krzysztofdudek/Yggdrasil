@@ -859,7 +859,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'does-not-exist', '--node', 'services/orders'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("Aspect 'does-not-exist' not found.");
+      expect(all).toContain("error[aspect-not-found]: rule 'does-not-exist' is not in the graph");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

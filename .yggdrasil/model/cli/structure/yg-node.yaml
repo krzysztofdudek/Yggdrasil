@@ -3,7 +3,10 @@ type: structure-adapter
 description: "Structure-aspect runtime — context layer (types, ctx factories for
   fs, graph, parsers, the allowed-reads collector) and execution layer
   (orchestrates check.mjs loading, ctx construction, and result collection
-  including result-bearing observations)."
+  including result-bearing observations). It also holds the parsing side of
+  yg-suppress: the honoring path's resolved ranges, and the comment-aware scan
+  of one file's markers the engine's suppression inventory asks for, so both
+  read markers the same way."
 mapping:
   - source/cli/src/structure/index.ts
   - source/cli/src/structure/expand-mapping-sync.ts
@@ -16,6 +19,7 @@ mapping:
   - source/cli/src/structure/observations.ts
   - source/cli/src/structure/hook-loader.ts
   - source/cli/src/structure/suppress-ranges.ts
+  - source/cli/src/structure/suppress-markers.ts
   - source/cli/src/structure/det-worker-core.ts
   - source/cli/src/structure/det-worker.ts
   - source/cli/src/structure/det-worker-pool.ts

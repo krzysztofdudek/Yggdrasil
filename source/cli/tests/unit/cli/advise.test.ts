@@ -180,9 +180,16 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
       '\n// yg-suppress(*) test wildcard waiver\n',
       'utf-8',
     );
-    // an orphaned aspect (referenced nowhere)
-    writeAspect(projectRoot, 'orphan-x', 'Referenced by nothing.');
-    // a dead-attach aspect: referenced on a node but via a never-matching when
+    // an orphaned bundle (referenced nowhere). A bundle, because an unreferenced
+    // rule SOURCE is reported once, as effective nowhere — the orphan class keeps
+    // what that class never speaks for.
+    mkdirSync(path.join(projectRoot, '.yggdrasil', 'aspects', 'orphan-x'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'aspects', 'orphan-x', 'yg-aspect.yaml'),
+      'name: orphan-x\nid: orphan-x\ndescription: Referenced by nothing.\nimplies:\n  - dead-x\n',
+      'utf-8',
+    );
+    // an aspect effective nowhere: referenced on a node but via a never-matching when
     writeAspect(projectRoot, 'dead-x', 'Referenced but attaches nowhere.');
     appendFileSync(
       path.join(projectRoot, '.yggdrasil', 'model', 'auth', 'yg-node.yaml'),
@@ -204,7 +211,7 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBeGreaterThanOrEqual(1);
 
-    // Nominations: suppress-anomaly ABOVE dead-attach ABOVE orphaned ABOVE overdue.
+    // Nominations: suppress-anomaly ABOVE effective-nowhere ABOVE orphaned ABOVE overdue.
     expect(stdout).toMatch(/^nominations$/m);
     const iSuppress = stdout.indexOf('is risky (wildcard)');
     const iDead = stdout.indexOf('has a rule source but is effective on zero nodes');
@@ -851,7 +858,7 @@ describe.skipIf(!distExists)('buildNominations — T2 ranks strictly below every
     expect(family).toBeDefined();
     expect(cut).toBeDefined();
 
-    // The lowest-priority T1 class (uncovered-hot-spot) ranks 90; T2 is strictly
+    // The lowest-priority T1 class (unguarded-hot-spot) ranks 90; T2 is strictly
     // below every T1, so both T2 ranks exceed 90, and family outranks the cut.
     expect(family!.classRank).toBeGreaterThan(90);
     expect(cut!.classRank).toBeGreaterThan(family!.classRank);

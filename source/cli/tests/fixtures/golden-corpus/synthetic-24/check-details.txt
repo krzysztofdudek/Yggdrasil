@@ -51,7 +51,7 @@ error[unverified] 24 pairs with no verdict yet
         readable-names @ app/svc-23
         readable-names @ app/svc-24
   why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+  fix:  yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 
 warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
   at:   .clinerules/yggdrasil.md
@@ -62,5 +62,5 @@ warning[uncovered] 4 files belong to no node — not under coverage.required, so
   fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 --- stderr

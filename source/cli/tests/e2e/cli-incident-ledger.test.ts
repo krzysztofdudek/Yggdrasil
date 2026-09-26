@@ -231,7 +231,7 @@ describe.skipIf(!distExists)('CLI E2E — incident ledger', () => {
         dir,
       );
       expect(status).not.toBe(0);
-      expect(stderr).toContain("'no-such-rule' is not an aspect");
+      expect(stderr).toContain("error[aspect-not-found]: rule 'no-such-rule' is not in the graph");
       // Guidance points the human at the list of declared rules.
       expect(stderr).toContain('yg aspects');
       // Rejected input never touches the committed ledger.

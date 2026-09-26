@@ -18,7 +18,7 @@ import { CONTEXT_JSON_SCHEMA, formatContextJson } from '../formatters/context-js
 import type { ContextJsonAspect, ContextJsonChannel, ContextJsonDocument } from '../formatters/context-json.js';
 import { validate } from '../core/validator.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
-import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
+import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { hashString } from '../io/hash.js';
 import { computeNodeMappedFiles } from '../core/pairs.js';
 import { readTextFile } from '../io/graph-fs.js';
@@ -46,41 +46,11 @@ import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 import { fail, nodeNotFound, plural, warn, writeOut, count } from './output.js';
 import { withRunScope } from '../io/run-scope-cache.js';
+import { findCandidateOwners } from '../core/graph/files.js';
 
-type CandidateNode = { nodePath: string; fileCount: number };
 
 /** One matched type's visibility block — what a type-covered file's rules were resolved to. */
 type TypeVisibilityBlock = TypeVisibilityReport['byType'][number];
-
-function findCandidateNodes(graph: Graph, unmappedFile: string): CandidateNode[] {
-  // Normalize first so the directory derived here compares like-for-like against
-  // the toPosixPath-normalized mapping dirs below (raw OS separators would never
-  // match on Windows).
-  const normalized = toPosixPath(unmappedFile);
-  const dir = normalized.replace(/\/[^/]+$/, '');
-  if (!dir || dir === normalized) return [];
-
-  const candidates = new Map<string, number>();
-
-  for (const [nodePath, node] of graph.nodes) {
-    const mappingPaths = normalizeMappingPaths(node.meta.mapping);
-    let count = 0;
-    for (const mp of mappingPaths) {
-      const mpNorm = toPosixPath(mp);
-      const mpDir = mpNorm.replace(/\/[^/]+$/, '');
-      if (mpDir === dir) {
-        count++;
-      }
-    }
-    if (count > 0) {
-      candidates.set(nodePath, count);
-    }
-  }
-
-  return Array.from(candidates.entries())
-    .map(([nodePath, fileCount]) => ({ nodePath, fileCount }))
-    .sort((a, b) => b.fileCount - a.fileCount);
-}
 
 function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
   const relevant = new Set<string>();
@@ -590,7 +560,7 @@ export function registerBuildCommand(program: Command): void {
                 process.exit(0);
               }
             }
-            const candidates = findCandidateNodes(graph, result.file);
+            const candidates = findCandidateOwners(graph, result.file);
             let uncoveredWhy: string;
             if (candidates.length > 0) {
               let candidatesList = '';
@@ -678,7 +648,7 @@ export function registerBuildCommand(program: Command): void {
           // Show the node's OWNED files — the child-precedence carve-out applied —
           // so `yg context` agrees with `yg owner` and with what the node's aspects
           // actually review: a file claimed by a descendant node is NOT listed here.
-          data.sourceFiles = await computeNodeMappedFiles(graph, nodePath);
+          data.sourceFiles = (await computeNodeMappedFiles(graph, nodePath)).map((f) => toPosixPath(f));
           await attachLockObservability(graph, nodePath, data);
           writeOut(formatNodeContext(data));
         }

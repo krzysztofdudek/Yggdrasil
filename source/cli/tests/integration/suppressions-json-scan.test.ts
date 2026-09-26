@@ -2,10 +2,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { loadPortalGraph, walkPortalFiles, NO_COVERAGE_EXCLUDED } from '../../src/portal/engine-api.js';
-import { runSuppressionsScan, formatSuppressionsOutput } from '../../src/portal/api/suppress-scan.js';
-import type { SuppressionsReport } from '../../src/portal/api/suppress-scan.js';
-import { collectMappingEntries } from '../../src/portal/api/suppress-eligibility.js';
+import { runSuppressionsScan, formatSuppressionsOutput } from '../../src/cli/suppressions.js';
+import type { SuppressionsReport } from '../../src/core/suppressions/scan.js';
+import { collectMappingEntries } from '../../src/core/suppressions/eligibility.js';
 import { buildSuppressionsJson } from '../../src/cli/suppressions.js';
+import { suppressionWarningText } from '../../src/cli/suppressions.js';
+/** The scan's warnings in the words the inventory prints them in. */
+const warningTexts = (r: { warningRecords?: Parameters<typeof suppressionWarningText>[0][] }): string[] => (r.warningRecords ?? []).map(suppressionWarningText);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = path.resolve(__dirname, '../fixtures');
@@ -82,15 +85,16 @@ describe('suppressions --json report fields — real fixture scan (portal-suppre
     expect(sorted.some((r) => r.file === 'src/line.ts' || r.file === 'src/under.ts')).toBe(false);
   });
 
-  it('report.warningRecords has exactly as many entries as report.warnings, each message identical (one source of classification)', async () => {
+  it('every warningRecord carries its finding as structured what / why / next, rendered in the one grammar (one source of classification)', async () => {
     const report = await scanFixture('portal-suppress-forms');
     expect(report.warningRecords).toBeDefined();
-    expect(report.warningRecords).toHaveLength(report.warnings.length);
-    for (let i = 0; i < report.warnings.length; i++) {
-      expect(report.warningRecords![i].message).toBe(report.warnings[i]);
-    }
+    expect(warningTexts(report)).toHaveLength(report.warningRecords!.length);
+    report.warningRecords!.forEach((w, i) => {
+      expect(w.messageData.what).not.toBe('');
+      expect(warningTexts(report)[i].split('\n')[0]).toBe(w.messageData.what);
+    });
     // This fixture's only footgun: under.ts's single-line marker waives no-console (errs: under).
-    expect(report.warnings).toHaveLength(1);
+    expect(warningTexts(report)).toHaveLength(1);
     expect(report.warningRecords![0]).toMatchObject({
       code: 'waives-under',
       file: 'src/under.ts',

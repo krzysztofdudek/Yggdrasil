@@ -1,0 +1,2 @@
+## [2026-09-25T21:50:27.233Z]
+The one scan of yg-suppress markers every surface reads now lives in the engine instead of behind the portal's facade, because the gate itself needs it: a marker with no reason is a warning the check reports, and a check must not depend on the portal to find it. The scan words nothing itself; it returns each defect as a structured what, why and next, and the command layer renders it. It reads files through the io layer and asks the structure layer for each file's markers, since the engine may not parse code itself.

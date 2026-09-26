@@ -44,7 +44,7 @@ const PLATFORM_PATH = 'source/cli/src/templates/platform.ts';
 const RULES_ARTIFACTS_PATH = 'source/cli/src/cli/rules-artifacts.ts';
 const DIGEST_GATE_PATH = 'source/cli/src/core/checks/digest-gate.ts';
 const OWNING_MODULE_PATH = 'source/cli/src/utils/rules-artifact-names.ts';
-const SUPPRESS_ELIGIBILITY_PATH = 'source/cli/src/portal/api/suppress-eligibility.ts';
+const SUPPRESS_ELIGIBILITY_PATH = 'source/cli/src/core/suppressions/eligibility.ts';
 
 let projectRoot: string;
 

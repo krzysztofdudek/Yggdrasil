@@ -1,6 +1,10 @@
 name: OwnerCommand
 type: command
 description: "Resolves a file path to its owning graph node via yg owner. For
+  an unmapped file with no type it answers without an error and names the
+  candidate owners — the components mapping other files in its directory —
+  in the text and as candidates in yg-owner/1; that read is the step yg check
+  names for an unmapped file. For
   an unmapped file with a matched architecture type, classifies ONLY that one
   file (never the whole-repo classification map) for the expected-pair set
   itself, and answers with the type instead of 'no graph coverage' — the
@@ -31,6 +35,8 @@ description: "Resolves a file path to its owning graph node via yg owner. For
 aspects:
   - posix-paths-output
 relations:
+  - target: cli/core/graph
+    type: calls
   - target: cli/output
     type: calls
   - target: cli/core/loader

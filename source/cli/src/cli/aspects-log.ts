@@ -24,7 +24,7 @@ import {
   type AspectLogJsonEntry,
 } from '../formatters/aspect-log-json.js';
 import type { AspectDef, Graph } from '../model/graph.js';
-import { failAndExit, writeOut } from './output.js';
+import { aspectNotFound, failAndExit, writeOut } from './output.js';
 
 /**
  * `yg aspects log add` / `yg aspects log read` — a rule's own history, written
@@ -153,11 +153,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
 function resolveAspect(graph: Graph, id: string): AspectDef {
   const aspect = graph.aspects.find((a) => a.id === id);
   if (aspect === undefined) {
-    failAndExit({
-      what: `No rule '${id}' in this graph.`,
-      why: "A log belongs to the rule it is about, so the rule has to exist before anything can be written to or read from its history.",
-      next: 'List the rules with yg aspects, then re-run with --aspect <id>.',
-    });
+    failAndExit(aspectNotFound(id, "A log belongs to the rule it is about, so the rule has to exist before anything can be written to or read from its history."), 'aspect-not-found');
   }
   return aspect;
 }

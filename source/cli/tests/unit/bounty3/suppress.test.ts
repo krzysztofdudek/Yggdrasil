@@ -25,6 +25,9 @@ import {
   runSuppressionsScan,
   formatSuppressionsOutput,
 } from '../../../src/cli/suppressions.js';
+import { suppressionWarningText } from '../../../src/cli/suppressions.js';
+/** The scan's warnings in the words the inventory prints them in. */
+const warningTexts = (r: { warningRecords?: Parameters<typeof suppressionWarningText>[0][] }): string[] => (r.warningRecords ?? []).map(suppressionWarningText);
 
 // ---------------------------------------------------------------------------
 // BOUNTY 3 — yg-suppress forms + language-aware detection + inventory warnings.
@@ -421,7 +424,7 @@ describe('bounty3: runSuppressionsScan noise + binary exclusion (live-waiver inv
     // Only the genuine source file is a live waiver site.
     expect(report.fileEntries.map(f => f.file)).toEqual(['src/real.ts']);
     expect(report.totalMarkers).toBe(1);
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 
   it('a tracked file missing from disk is skipped silently (git/working-tree race)', async () => {
@@ -437,7 +440,7 @@ describe('bounty3: runSuppressionsScan noise + binary exclusion (live-waiver inv
     const report = await runSuppressionsScan(root, [], new Set(['known']));
     expect(report.fileEntries).toHaveLength(0);
     expect(report.totalMarkers).toBe(0);
-    expect(report.warnings).toHaveLength(0);
+    expect(warningTexts(report)).toHaveLength(0);
   });
 });
 
@@ -457,13 +460,13 @@ describe('bounty3: runSuppressionsScan warning generation (all three kinds, real
       new Set(['known']),
     );
 
-    const heads = report.warnings.map(w => w.split('\n')[0]);
+    const heads = warningTexts(report).map(w => w.split('\n')[0]);
     expect(heads).toContain('Unknown aspect id "ghost-typo" in suppress marker at unknown.ts:1.');
     expect(heads.some(h => h.startsWith('Wildcard suppression "*" at wild.ts:1'))).toBe(true);
     expect(heads.some(h => h.startsWith('Unbounded yg-suppress-disable("known") at open.ts:6'))).toBe(true);
 
     // The wildcard marker must NOT also be reported as an unknown aspect id.
-    expect(report.warnings.some(w => w.includes('Unknown aspect id "*"'))).toBe(false);
+    expect(warningTexts(report).some(w => w.includes('Unknown aspect id "*"'))).toBe(false);
   });
 
   it('a bounded disable+enable pair produces NO unbounded warning', async () => {
@@ -479,15 +482,15 @@ describe('bounty3: runSuppressionsScan warning generation (all three kinds, real
       ].join('\n'),
     );
     const report = await runSuppressionsScan(root, ['b.ts'], new Set(['known']));
-    expect(report.warnings.some(w => w.startsWith('Unbounded'))).toBe(false);
+    expect(warningTexts(report).some(w => w.startsWith('Unbounded'))).toBe(false);
   });
 
   it('a mixed comma list yg-suppress(known, *) fires exactly ONE warning (the wildcard, de-duped per file:line)', async () => {
     const root = freshDir('mixed');
     write(root, 'm.ts', '// yg-suppress(known, *) mixed list, debt tracked\nx();\n');
     const report = await runSuppressionsScan(root, ['m.ts'], new Set(['known']));
-    expect(report.warnings).toHaveLength(1);
-    expect(report.warnings[0].split('\n')[0]).toMatch(/^Wildcard suppression "\*" at m\.ts:1/);
+    expect(warningTexts(report)).toHaveLength(1);
+    expect(warningTexts(report)[0].split('\n')[0]).toMatch(/^Wildcard suppression "\*" at m\.ts:1/);
   });
 
   it('DIVERGENCE: a known but UNKNOWN-cased id still warns (matcher is exact-string, not normalized)', async () => {
@@ -496,7 +499,7 @@ describe('bounty3: runSuppressionsScan warning generation (all three kinds, real
     const root = freshDir('case');
     write(root, 'c.ts', '// yg-suppress(KNOWN) wrong case, debt tracked\nx();\n');
     const report = await runSuppressionsScan(root, ['c.ts'], new Set(['known']));
-    expect(report.warnings.some(w => w.includes('Unknown aspect id "KNOWN"'))).toBe(true);
+    expect(warningTexts(report).some(w => w.includes('Unknown aspect id "KNOWN"'))).toBe(true);
   });
 });
 
@@ -549,7 +552,7 @@ describe('bounty3: nested-disable divergence — reviewer closes, inventory over
     const report = await runSuppressionsScan(root, ['d.ts'], new Set(['a']));
     // Observed: the inventory's stack model leaves the FIRST disable open and
     // warns Unbounded, even though the reviewer closed the range at the enable.
-    expect(report.warnings.some(w => w.startsWith('Unbounded yg-suppress-disable("a")'))).toBe(true);
+    expect(warningTexts(report).some(w => w.startsWith('Unbounded yg-suppress-disable("a")'))).toBe(true);
   });
 });
 
@@ -563,7 +566,6 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
     const out = formatSuppressionsOutput({
       fileEntries: [{ file: 'a.ts', markers: [{ line: 1, aspectId: 'x', kind: 'single', wildcard: false, reason: 'r' }] }],
       totalMarkers: 1,
-      warnings: [],
     });
     expect(out).toContain('1 marker across 1 file.');
     expect(out).not.toContain('1 markers');
@@ -579,7 +581,6 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
         ],
       }],
       totalMarkers: 2,
-      warnings: [],
     });
     expect(out).toContain('[wildcard]');
     expect(out).toContain('single(*)');
@@ -590,7 +591,7 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
   });
 
   it('empty report renders the no-markers line even when warnings exist', () => {
-    const out = formatSuppressionsOutput({ fileEntries: [], totalMarkers: 0, warnings: ['w1', 'w2'] });
+    const out = formatSuppressionsOutput({ fileEntries: [], totalMarkers: 0, warningRecords: [{ code: 'wildcard', file: 'a.ts', line: 1, aspect: null, messageData: { what: 'w1', why: 'y', next: 'n' } }, { code: 'wildcard', file: 'a.ts', line: 1, aspect: null, messageData: { what: 'w2', why: 'y', next: 'n' } }] });
     expect(out).toContain('No active suppression markers found.');
   });
 
@@ -598,7 +599,7 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
     const out = formatSuppressionsOutput({
       fileEntries: [{ file: 'a.ts', markers: [{ line: 1, aspectId: 'x', kind: 'single', wildcard: false, reason: 'r' }] }],
       totalMarkers: 1,
-      warnings: ['first warning text', 'second warning text'],
+      warningRecords: [{ code: 'wildcard', file: 'a.ts', line: 1, aspect: null, messageData: { what: 'first warning text', why: 'y', next: 'n' } }, { code: 'unknown-aspect', file: 'a.ts', line: 1, aspect: null, messageData: { what: 'second warning text', why: 'y', next: 'n' } }],
     });
     expect(out).not.toContain('Warnings (');
     expect(out.match(/^warning\b/gm) ?? []).toHaveLength(2);

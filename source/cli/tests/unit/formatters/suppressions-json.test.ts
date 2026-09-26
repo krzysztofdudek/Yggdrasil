@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { formatSuppressionsJson, SUPPRESSIONS_JSON_SCHEMA } from '../../../src/formatters/suppressions-json.js';
 import { buildSuppressionsJson } from '../../../src/cli/suppressions.js';
-import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
+import type { SuppressionsReport } from '../../../src/core/suppressions/scan.js';
 import type { SuppressionMarkerInfo } from '../../../src/ast/suppress.js';
 
 /** One marker, single-line by default — override for disable/enable/wildcard/etc. */
@@ -33,7 +33,6 @@ function report(overrides: Partial<SuppressionsReport> = {}): SuppressionsReport
   return {
     fileEntries: [],
     totalMarkers: 0,
-    warnings: [],
     ...overrides,
   };
 }
@@ -193,12 +192,11 @@ describe('buildSuppressionsJson — warnings', () => {
     const rep = report({
       fileEntries: [{ file: 'src/a.ts', markers: [marker()] }],
       totalMarkers: 1,
-      warnings: ['unknown msg', 'wildcard msg', 'unbounded msg', 'under msg'],
       warningRecords: [
-        { code: 'unknown-aspect', file: 'src/a.ts', line: 1, aspect: 'ghost', message: 'unknown msg' },
-        { code: 'wildcard', file: 'src/a.ts', line: 2, aspect: null, message: 'wildcard msg' },
-        { code: 'unbounded-range', file: 'src/a.ts', line: 3, aspect: 'no-todo', message: 'unbounded msg' },
-        { code: 'waives-under', file: 'src/a.ts', line: 4, aspect: 'no-console', message: 'under msg' },
+        { code: 'unknown-aspect', file: 'src/a.ts', line: 1, aspect: 'ghost', messageData: { what: 'unknown msg', why: 'y', next: 'n' } },
+        { code: 'wildcard', file: 'src/a.ts', line: 2, aspect: null, messageData: { what: 'wildcard msg', why: 'y', next: 'n' } },
+        { code: 'unbounded-range', file: 'src/a.ts', line: 3, aspect: 'no-todo', messageData: { what: 'unbounded msg', why: 'y', next: 'n' } },
+        { code: 'waives-under', file: 'src/a.ts', line: 4, aspect: 'no-console', messageData: { what: 'under msg', why: 'y', next: 'n' } },
       ],
     });
     const doc = buildSuppressionsJson(rep);
@@ -208,12 +206,14 @@ describe('buildSuppressionsJson — warnings', () => {
     expect(doc.warnings[0].aspect).toBe('ghost');
     expect(doc.warnings[2].aspect).toBe('no-todo');
     expect(doc.warnings[3].aspect).toBe('no-console');
-    expect(doc.warnings.map((w) => w.message)).toEqual(['unknown msg', 'wildcard msg', 'unbounded msg', 'under msg']);
+    // Each message is the warning in the CLI's what / why / next grammar.
+    expect(doc.warnings.map((w) => w.message.split('\n')[0])).toEqual(['unknown msg', 'wildcard msg', 'unbounded msg', 'under msg']);
+    expect(doc.warnings[0].message).toBe('unknown msg\n  why:  y\nnext: n');
   });
 
   it('an absent warningRecords (legacy literal report) yields an empty warnings array, no exception', () => {
     const doc = buildSuppressionsJson(
-      report({ fileEntries: [], totalMarkers: 0, warnings: ['some prose warning'] }),
+      report({ fileEntries: [], totalMarkers: 0 }),
     );
     expect(doc.warnings).toEqual([]);
   });

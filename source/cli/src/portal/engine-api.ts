@@ -34,8 +34,9 @@ import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, Sourc
 // semantics this function mirrors — cross-checked against it in the test suite.
 import { RELATION_TYPES } from '../relations/allowed-types.js';
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
-import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
-import { collectMappingEntries, collectTypeCoveredFiles } from './api/suppress-eligibility.js';
+import { runSuppressionsScan, scanReasonlessMarkers } from '../core/suppressions/scan.js';
+import { scanPortalSuppressions as adaptSuppressions } from './api/suppress-adapt.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
 import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
 import { computePortalSourceFileCounts as computeSourceFileCountsImpl } from './api/source-file-counts.js';
 import { computePortalFreshness as computeFreshnessImpl } from './api/freshness.js';
@@ -181,6 +182,9 @@ export async function runPortalCheck(
     nowUtc,
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
+    // The same scan `yg check` hands its report, so a reason-less marker is a
+    // warning on the worklist exactly as it is on the command line.
+    reasonlessSuppressMarkers: await scanReasonlessMarkers(graph, path.dirname(graph.rootPath), repoFiles),
     precomputedTypeCoverage,
     // DELIBERATELY unscoped, and not an omission to be "fixed" later. Every
     // other input above is supplied precisely because leaving it out would make

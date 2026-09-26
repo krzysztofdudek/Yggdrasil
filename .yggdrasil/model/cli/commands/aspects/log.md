@@ -88,3 +88,5 @@ Output that names a next step now goes through the output layer next and then li
 The wildcard-marker note in the health report now uses the lowercase note label and the shared count helper, like the report s other note, so both notes read in the one output grammar.
 ## [2026-09-24T15:11:23.919Z]
 The wildcard-marker note in the health view was written two ways by two release lines: one counted the markers through count() so the number and noun always agree, the other wrapped the line in the shared note() helper. The line now does both, so its grammar and its note: prefix come from the output layer rather than from hand-built text.
+## [2026-09-25T21:13:56.047Z]
+The rule-log subcommands now refuse an unknown rule id with the shared aspect-not-found error, in text and in the JSON error document. An unknown rule id used to be refused in about six different wordings under two codes depending on the command, so an agent could not recognise the one situation or learn one remedy.

@@ -50,7 +50,7 @@ relations:
     type: calls
   - target: cli/progressive-scope-resolve
     type: calls
-  - target: cli/portal/engine-api
+  - target: cli/core/suppressions
     type: calls
   - target: cli/model/graph
     type: uses

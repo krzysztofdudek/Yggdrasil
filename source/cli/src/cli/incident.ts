@@ -9,7 +9,7 @@ import {
   INCIDENT_TAGS,
   INCIDENTS_FILENAME,
 } from '../io/incidents-store.js';
-import { failAndExit, paint, writeOut } from './output.js';
+import { aspectNotFound, failAndExit, paint, writeOut } from './output.js';
 
 function handleError(error: unknown): never {
   debugWrite(`[incident] command failed: ${(error as Error).message}`);
@@ -60,11 +60,7 @@ export function registerIncidentCommand(program: Command): void {
         // rule that does not exist would poison the per-rule health signal, so it is
         // rejected before anything is written.
         if (opts.aspect !== undefined && !graph.aspects.some((a) => a.id === opts.aspect)) {
-          failAndExit({
-            what: `--aspect '${opts.aspect}' is not an aspect declared in this graph.`,
-            why: 'Per-rule attribution names the miscalibrated rule so per-rule health can surface it against the right rule; an unknown id would attribute the escape to a rule that does not exist.',
-            next: 'List the declared rules with yg aspects, then re-run with --aspect <existing-aspect-id> — or omit --aspect to record an unattributed incident.',
-          });
+          failAndExit(aspectNotFound(opts.aspect, 'Per-rule attribution names the miscalibrated rule so per-rule health can surface it against the right rule; an unknown id would attribute the escape to a rule that does not exist. Omit --aspect to record an unattributed incident.'), 'aspect-not-found');
         }
 
         // When the incident was recorded: an audit timestamp of the record, like a

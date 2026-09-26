@@ -145,8 +145,11 @@ export async function runLockPhase(args: {
     // `emitPairIssue` emits nothing for a verified pair, so this is the only place
     // the verified/deterministic-vs-LLM split can be tallied.
     const intents = new Map(graph.aspects.map((a) => [a.id, firstSentence(a.description)]));
+    const tiers = graph.config.reviewer?.tiers;
+    const consensusOf = (tierName: string): number | undefined =>
+      tiers !== undefined && Object.hasOwn(tiers, tierName) ? tiers[tierName].consensus : undefined;
     for (const vp of verification.pairs) {
-      lockIssues.push(...emitPairIssue(vp, runtimeRows, { reviewerConfigured: graph.config.reviewer !== undefined, ruleIntent: (id) => intents.get(id) }));
+      lockIssues.push(...emitPairIssue(vp, runtimeRows, { reviewerConfigured: graph.config.reviewer !== undefined, ruleIntent: (id) => intents.get(id), consensusOf }));
       if (vp.state.kind === 'verified') {
         if (vp.pair.kind === 'llm') verifiedLlm++;
         else verifiedDet++;

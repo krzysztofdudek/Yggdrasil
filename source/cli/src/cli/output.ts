@@ -365,12 +365,14 @@ export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { docume
 
 /**
  * The code of a command error its caller did not name, from what it says: a
- * node that is not in the graph is `node-not-found`, a flag used wrongly is
+ * node that is not in the graph is `node-not-found`, a rule that is not in the
+ * graph is `aspect-not-found`, a flag used wrongly is
  * `usage`, anything else `command-error`. A caller that knows better names the
  * code itself.
  */
 export function inferErrorCode(what: string): string {
   if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
+  if (/^rule\b.*\bis not in the graph/i.test(what)) return 'aspect-not-found';
   if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';
   return 'command-error';
 }
@@ -383,6 +385,16 @@ export function inferErrorCode(what: string): string {
  */
 export function nodeNotFound(nodePath: string, why: string): IssueMessage {
   return { what: `node '${nodePath}' is not in the graph`, why, next: `yg find "${nodePath}"` };
+}
+
+/**
+ * The one aspect-not-found error every command that takes a rule id answers
+ * with: the same words, the same `aspect-not-found` code, and the same runnable
+ * step (`yg aspects`, which lists every rule id the graph declares). The twin
+ * of {@link nodeNotFound}; `why` says what the command needed the rule for.
+ */
+export function aspectNotFound(aspectId: string, why: string): IssueMessage {
+  return { what: `rule '${aspectId}' is not in the graph`, why, next: 'yg aspects' };
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */
