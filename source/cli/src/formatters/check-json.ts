@@ -173,8 +173,7 @@ export interface CheckJsonNext {
    * that is the user's (configuring a reviewer sends code to that provider).
    * Such a step is asked for, never run blindly, and its `command` is null. A
    * paid fill is not one — an agent runs it once its change is final, and its
-   * price is in `cost` (until the release after 6.1.0 it was true for a paid
-   * fill too; see family-contracts).
+   * price is in `cost`.
    */
   requiresUser?: boolean;
   /** The step after this one, as the text report's `then:` line prints it, or null. */

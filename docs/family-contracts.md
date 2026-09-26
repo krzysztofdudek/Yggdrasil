@@ -85,10 +85,6 @@ That rule has one recorded exception, taken deliberately in 6.0.0. Normalising e
 - Two `yg-advise/1` item ids changed with their class names: `dead-attach:<rule>` is now `aspect-effective-nowhere:<rule>` (the check's own code for the same finding) and `uncovered-hot-spot:<node>` is now `unguarded-hot-spot:<node>`. A consumer keying records by item id (Horde's audit ledger keys `advise:<id>`) would see the renamed item as new. Each renamed item carries `aliases`, an additive list of the ids it was known by, so a consumer can match an old record to it; `yg advise dismiss` and `defer` still accept the old ids, and decisions stored under them keep applying.
 - `usage.implied` in `yg-aspects/1` counted every rule a component received through anything but its own list, its architecture type and a flow: another rule's `implies`, an ancestor, and a consumed port. It now counts only `implies`; the other two have their own additive fields, `inherited` and `port`.
 
-The release after 6.1.0 changes what one field means, recorded here for the same reason and kept on the same number for the same one:
-
-- `next.requiresUser` in `yg-check/1` was `true` for a step that names a paid fill (`yg check --approve` with reviewer pairs pending) as well as for a decision only the user makes. An agent may now run a paid fill without asking (its cost is still stated, in `next.cost` and in the text, which no longer adds `ask the user to approve it first`), so a paid fill's `requiresUser` is `false`; it stays `true` for a decision only the user makes — configuring a reviewer, whose `command` is `null`. No consumer in the family reads the field: Horde reads `next.text` and the `next.remaining` buckets (`needsFix`, `fillable`, `needsUser`, `waitingOnReviewer`), and a paid fill was, and is, counted under `fillable`.
-
 ## The guard
 
 Two halves, both deterministic, no network and no clock.
