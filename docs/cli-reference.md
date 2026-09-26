@@ -539,7 +539,7 @@ The label comes from one registry, and the JSON document's `label` field is the 
 
 **After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
 
-- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)`), never a restated code, and never a fill while a code or graph error stands. For a file no node owns the step is `yg context --file <file>`, which names the nodes whose mapping it belongs in — never an edit of the file itself; a step is taken from what the finding's emitter hands over as data, and a fix's own words only ever supply a graph file to change. A fill states the cost of the whole command it names — every pending pair it fills, advisory ones too, the reviewer's share as pairs and calls: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft` — and a paid one says `ask the user to approve it first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
+- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)`), never a restated code, and never a fill while a code or graph error stands. For a file no node owns the step is `yg owner --file <file>`, which answers without an error and names the candidate owners — never an edit of the file itself (a file with no type and no node gets `yg type-suggest --file <file>`); a command is built from its arguments, so a path with a space stays one; a step is taken from what the finding's emitter hands over as data, and a fix's own words only ever supply a graph file to change. A fill states the cost of the whole command it names — every pending pair it fills, advisory ones too, the reviewer's share as pairs and calls: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft` — and a paid one says `ask the user to approve it first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
 - `then:` is the step after it — typically the fill, once the fixes are in.
 - There is no `next:` at all when the report holds exactly one error block (or, with no errors, one finding) whose `fix:` already is the step: the line would only repeat it.
 
@@ -1337,7 +1337,11 @@ of the data — so `--all` changes nothing about which items appear and is refus
 together with `--json`; `--ids` is likewise refused, because every item carries its
 id already. An item another tool proposed carries a `provenance` object naming that
 tool and the commit it measured at; an item this graph derived itself carries none,
-which is what makes its presence meaningful.
+which is what makes its presence meaningful. An item whose class was renamed carries
+`aliases`, the ids it was known by before (`dead-attach:<rule>` for
+`aspect-effective-nowhere:<rule>`, `uncovered-hot-spot:<node>` for
+`unguarded-hot-spot:<node>`), so a reader that keyed records by the old id still
+finds it; a dismiss or defer accepts the old id too.
 
 #### `yg advise import`
 
@@ -1447,7 +1451,12 @@ yg owner --file <path> --json
 `--json` prints the `yg-owner/1` document instead of the sentence: `file`, `kind`
 (`node`, `type`, `unmapped`, `missing` or `excluded`), `node`, `type`, `direct`
 (whether a mapping names the file itself rather than an ancestor directory),
-`mappingPath`, `enforced` (for a type owner), `excludedBecause` and `next`.
+`mappingPath`, `enforced` (for a type owner), `excludedBecause`, `candidates` and `next`.
+For a file no component maps, `yg owner --file` answers without an error and names the
+candidate owners — the components mapping other files in its directory, most first — in
+the text and as `candidates` (`[{ node, sameDirEntries }]`, empty when nothing in that
+directory is mapped), with `next` the first candidate's `yg context --node`. It is the
+step `yg check` names for an unmapped file.
 
 ```text
 $ yg owner --file src/handlers/capturePayment.ts

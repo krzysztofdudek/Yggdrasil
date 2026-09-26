@@ -4,8 +4,8 @@
  * that parses against the real command tree, a graph file to change, the
  * location of a violation in the code, or a decision named as the user's.
  * Never a step read out of a sentence that sends the agent to a source file it
- * should not edit: for a file no node owns, the step is `yg context --file`,
- * which names the node whose mapping it belongs in.
+ * should not edit: for a file no node owns, the step is `yg owner --file`,
+ * which answers without an error and names the candidate owners.
  *
  * Each finding is made by the module that emits it in a real run — the
  * coverage builders, the pair-issue translation, the lock reader over a
@@ -38,6 +38,7 @@ import { registerCheckCommand } from '../../../src/cli/check.js';
 import { registerLogCommand } from '../../../src/cli/log.js';
 import { registerFindCommand } from '../../../src/cli/find.js';
 import { registerTypeSuggestCommand } from '../../../src/cli/type-suggest.js';
+import { registerOwnerCommand } from '../../../src/cli/owner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE = path.join(__dirname, '../../fixtures/sample-project');
@@ -52,7 +53,7 @@ function commandTree(): Command {
   const program = new Command().name('yg').enablePositionalOptions();
   for (const register of [
     registerInitCommand, registerBuildCommand, registerAspectsCommand, registerCheckCommand,
-    registerLogCommand, registerFindCommand, registerTypeSuggestCommand,
+    registerLogCommand, registerFindCommand, registerTypeSuggestCommand, registerOwnerCommand,
   ]) register(program);
   return program;
 }
@@ -216,7 +217,7 @@ describe('the Next step of every registered code', () => {
   it('a file no node owns leads to the node its mapping belongs in — never to editing that file', () => {
     for (const files of [['src/orphan.ts'], ['README.md', 'src/o1.ts', 'src/o2.ts', 'src/o3.ts']]) {
       const next = nextOf([buildCoverageIssue(files, 10)!])!;
-      expect(next.command).toEqual(['yg', 'context', '--file', files.find((f) => f.endsWith('.ts'))!]);
+      expect(next.command).toEqual(['yg', 'owner', '--file', files.find((f) => f.endsWith('.ts'))!]);
       expect(next.target.file).toBeUndefined();
       expect(next.text.startsWith('edit ')).toBe(false);
     }
@@ -224,7 +225,13 @@ describe('the Next step of every registered code', () => {
 
   it('a README-only repository still names a file to read about', () => {
     const next = nextOf([buildCoverageIssue(['README.md'], 1)!])!;
-    expect(next.command).toEqual(['yg', 'context', '--file', 'README.md']);
+    expect(next.command).toEqual(['yg', 'owner', '--file', 'README.md']);
+  });
+
+  it('a path with a space stays one argument, and the printed step quotes it', () => {
+    const next = nextOf([buildCoverageIssue(['src/my module/it\'s.ts'], 10)!])!;
+    expect(next.command).toEqual(['yg', 'owner', '--file', "src/my module/it's.ts"]);
+    expect(next.text).toBe("yg owner --file 'src/my module/it'\\''s.ts'");
   });
 
   it('a fix whose words name a source file never makes it the target', () => {

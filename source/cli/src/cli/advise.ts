@@ -884,6 +884,7 @@ function buildAdviseJson(
       next: nom.next,
       evidenceHash: nom.evidenceHash,
     };
+    if (nom.aliases !== undefined && nom.aliases.length > 0) item.aliases = nom.aliases.map((a) => a.id);
     if (nom.provenance !== undefined) item.provenance = nom.provenance;
     return item;
   };

@@ -104,10 +104,12 @@ export function blockingUnmappedPaths(
 
 /**
  * The first step for a file no node owns: ask which node's mapping it belongs
- * in. Read-only, and it lists the candidate owners; the report fills `<path>`
- * with the first file the finding names.
+ * in. `yg owner --file` answers an unmapped file without error and names the
+ * candidate owners — the components mapping other files in its directory —
+ * as text and as data; the report fills `<path>` with the first file the
+ * finding names.
  */
-const CONTEXT_STEP = { command: 'yg context --file <path>' } as const;
+const CONTEXT_STEP = { argv: ['yg', 'owner', '--file', '<path>'] } as const;
 
 /**
  * Build the unmapped-files CheckIssue from uncovered files.

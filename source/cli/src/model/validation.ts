@@ -7,13 +7,14 @@ export type IssueSeverity = 'error' | 'warning';
 /**
  * The first step of a remedy, as data — set by the module that knows the
  * remedy, so a report never has to fish a command or a file out of the words
- * of `next`. `command` is a whole `yg …` command the reader can run as it
- * stands (a `<node>` or `<path>` in it is filled by the report with the
- * finding's own node or first file); `file` is the repository file the step
+ * of `next`. `argv` is a whole `yg …` command as its arguments, one token
+ * each, so a path with a space in it stays one argument (a `<node>` or
+ * `<path>` token is filled by the report with the finding's own node or first
+ * file); `file` is the repository file the step
  * is about, repo-relative POSIX — edited, unless `text` words the step
  * otherwise (a lock is restored, never edited by hand).
  */
-export type IssueStep = { command: string } | { file: string; text?: string };
+export type IssueStep = { argv: readonly string[] } | { file: string; text?: string };
 
 export interface IssueMessage {
   /** What happened — facts, one line or short block */

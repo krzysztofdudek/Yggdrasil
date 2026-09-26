@@ -472,7 +472,9 @@ describe.skipIf(!distExists)('CLI E2E — yg owner output branches', () => {
       expect(stdout).toContain('src/services/extra.ts -> no graph coverage');
       expect(stdout).not.toContain('file not found');
       expect(stdout).toContain('This file exists but no graph node maps it');
-      expect(stdout).toContain("Add 'src/services/extra.ts' to a node's mapping");
+      // The components mapping other files in its directory are named as candidate owners.
+      expect(stdout).toMatch(/src\/services\/extra\.ts -> no graph coverage\. (Candidate owners|No component maps anything in its directory)/);
+      expect(stdout).toMatch(/Add 'src\/services\/extra\.ts' to the mapping|Create a node whose mapping covers 'src\/services\/extra\.ts'/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

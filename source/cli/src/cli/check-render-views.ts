@@ -95,6 +95,8 @@ export interface NextStep {
 interface Action {
   text: string;
   command?: string;
+  /** The command as its arguments, when the emitter handed them over: the JSON form, never re-split on spaces. */
+  argv?: string[];
   target: { node?: string; file?: string };
   /** The step is the user's decision: named as one to ask for, never a command to run blindly. */
   requiresUser?: boolean;
@@ -178,6 +180,11 @@ function isCodeFile(file: string): boolean {
   return !/\.(?:md|mdx|markdown|txt|rst|adoc|json|jsonc|json5|ya?ml|toml|ini|cfg|conf|lock|xml|csv|tsv|svg|png|jpe?g|gif|webp|ico|pdf|html?|css|scss|map|log|env)$/i.test(base);
 }
 
+/** One argument as a shell reads it: quoted when it holds a space or a quote, so the printed step runs as one command. */
+function shellWord(token: string): string {
+  return /^[\w@%+=:,./-]+$/.test(token) ? token : `'${token.replace(/'/g, `'\\''`)}'`;
+}
+
 /**
  * Fill what the CLI knows into a step's placeholders: a node, a code file.
  * `anyFile`: when no member names a code file, the first file of any kind —
@@ -245,8 +252,12 @@ function blockAction(b: CheckBlock): Action | undefined {
       return { text: step.text !== undefined ? fillPlaceholders(step.text, b) : `edit ${file}`, target: { ...target, file } };
     }
     // A step that only reads about a file may name any file; one that designs a type names code.
-    const command = fillPlaceholders(step.command, b, /^yg context\b/.test(step.command));
-    if (!/<[a-z-]+>/.test(command)) return { text: command, command, target };
+    const anyFile = step.argv[1] === 'owner' || step.argv[1] === 'context';
+    const argv = step.argv.map((t) => fillPlaceholders(t, b, anyFile));
+    if (!argv.some((t) => /^<[a-z-]+>$/.test(t))) {
+      const text = argv.map(shellWord).join(' ');
+      return { text, command: text, argv, target };
+    }
   }
   const raw = b.fix ?? first.messageData.next ?? '';
   // A hint about where the provider's full output goes is never the step.
@@ -423,7 +434,7 @@ export function computeNext(
   const repeatsFix = pool.length === 1 && then === undefined && fixFirstLine !== undefined && fixFirstLine.replace(/\.$/, '') === action.text
     && (!isFill(first) || sameCost(cost, first.cost));
   const json: CheckJsonNext = {
-    command: action.requiresUser === true && action.command === undefined ? null : commandArgv(action.command),
+    command: action.requiresUser === true && action.command === undefined ? null : action.argv ?? commandArgv(action.command),
     text: action.text,
     target: action.target,
     cost,
@@ -674,7 +685,7 @@ export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf
   if (first !== undefined) {
     doc.suggestedNext = first.a!.text;
     doc.next = {
-      command: commandArgv(first.a!.command),
+      command: first.a!.argv ?? commandArgv(first.a!.command),
       text: first.a!.text,
       target: first.a!.target,
       cost: { ...NO_COST },

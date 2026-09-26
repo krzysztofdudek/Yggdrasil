@@ -100,3 +100,5 @@ yg context refuses only over errors that affect the context it assembles: one ab
 The steps of three more refusals name something to do: conflicting --node and --file name both commands to choose between, a file with no owner and no candidate names the node file to add it to and yg tree to find one, and a path outside the repository names the command with the path it needs. A next step that only says "use one or the other" or "pass a valid path" gives an agent nothing it can act on.
 ## [2026-09-24T15:09:30.115Z]
 Reapplied on top of the output-guards work, which routes every write through the output layer and flattens multi-line messages: this node's changes for the Next contract (the whole command's cost, the user's decisions asked for, one next step per run, the node-not-found error shared by every command, the context gate narrowed to errors that affect the context) now write through the same layer, so both changes hold at once.
+## [2026-09-26T01:09:46.958Z]
+The candidate owners of an unmapped file are now worked out by a helper shared with the owner command, so the two commands never suggest different owners for the same file.

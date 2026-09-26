@@ -39,6 +39,15 @@ export interface AdviseJsonItem {
    * hash stops applying the moment the evidence moves.
    */
   evidenceHash: string;
+  /**
+   * The ids this item was known by before its class was renamed (6.1.0:
+   * `dead-attach:<rule>` is now `aspect-effective-nowhere:<rule>`,
+   * `uncovered-hot-spot:<node>` is now `unguarded-hot-spot:<node>`). A reader
+   * that keyed records by the old id finds the item by any of these; a
+   * dismiss or defer still accepts them. Present only on a renamed item.
+   * Added in 6.1.0.
+   */
+  aliases?: string[];
   /** Present only on an item another tool proposed. */
   provenance?: AdviseJsonProvenance;
   /** Why the item is currently hidden, when it is. */

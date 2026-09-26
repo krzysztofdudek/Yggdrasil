@@ -9,6 +9,7 @@ exit: 0
   "mappingPath": "src/svc-01",
   "enforced": null,
   "excludedBecause": null,
+  "candidates": [],
   "next": "yg context --node app/svc-01",
   "file": "src/svc-01/index.ts",
   "kind": "node"

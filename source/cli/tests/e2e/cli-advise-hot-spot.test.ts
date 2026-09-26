@@ -127,6 +127,13 @@ describe.skipIf(!distExists)('CLI E2E — yg advise unguarded hot spot', () => {
       expect(stdout.indexOf('\nattention\n')).toBeLessThan(stdout.indexOf('\nnominations\n'));
       expect(stdout.indexOf('\nnominations\n')).toBeLessThan(stdout.indexOf(HOT_WHAT('hot')));
 
+      // The machine document names the old id beside the new one, so a reader that
+      // keyed its records by the old id still finds the item.
+      const doc = JSON.parse(run(['advise', '--json'], dir).stdout) as { items: Array<{ id: string; aliases?: string[] }> };
+      const hot = doc.items.find((i) => i.id === 'unguarded-hot-spot:hot');
+      expect(hot?.aliases).toEqual(['uncovered-hot-spot:hot']);
+      expect(doc.items.filter((i) => i.id !== 'unguarded-hot-spot:hot').every((i) => i.aliases === undefined || i.aliases.every((a) => !a.startsWith('unguarded')))).toBe(true);
+
       // The class was once named uncovered-hot-spot: that id still names the item
       // for a dismiss, and the decision is recorded under the current id.
       const dismissed = run(['advise', 'dismiss', 'uncovered-hot-spot:hot', '--reason', 'a one-off migration'], dir);

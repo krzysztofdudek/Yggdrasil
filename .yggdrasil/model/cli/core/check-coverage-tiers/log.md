@@ -38,3 +38,5 @@ The advisory for files outside every required coverage root now says plainly tha
 Type-only imports now count as dependencies between components, the same as value imports. This module builds check issues and named their type through the check orchestrator, which calls it, a cycle between the two components; it now names the type from the model layer.
 ## [2026-09-25T21:50:21.120Z]
 A file no component owns now hands the report its first step as data: find the component whose mapping it belongs in, by asking which components are candidate owners of that file. The report used to read the step out of the sentence, and for a single unmapped file it told the agent to edit that very file, which is never the remedy; a file is given an owner, not edited.
+## [2026-09-26T01:09:48.176Z]
+The step for an unmapped file is now the owner read, which succeeds on an unmapped file and names the candidate owners; the context read it named before refused such a file with an error. The step is handed over as its arguments, so a path with a space stays one argument.
