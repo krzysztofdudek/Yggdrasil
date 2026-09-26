@@ -1,8 +1,9 @@
-import { beforeEach, afterEach, onTestFailed } from 'vitest';
+import { beforeEach, afterEach, afterAll, onTestFailed } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readdirSync, existsSync, rmSync } from 'node:fs';
 import { applyQuietGitConfig, FIXTURE_RM_OPTIONS } from './support/git-fixture.js';
+import { cleanupTempDirs } from './support/tmpdir.js';
 
 // ── Defense-in-depth: git-fixture isolation boundary (runs once per worker) ──
 // Test suites spawn throwaway `git init`/`add`/`commit` fixtures. If any such
@@ -103,4 +104,12 @@ beforeEach(() => {
 afterEach(() => {
   (process.stdout as NodeJS.WriteStream).write = _origOut;
   (process.stderr as NodeJS.WriteStream).write = _origErr;
+});
+
+// ── Temp directories made through tests/support/tmpdir.ts ──
+// Removed when each test file finishes, so a test that forgets its own cleanup
+// does not leave them behind; the run-level guard (tests/support/global-tmpdir.ts)
+// names anything that still survives the run.
+afterAll(() => {
+  cleanupTempDirs();
 });
