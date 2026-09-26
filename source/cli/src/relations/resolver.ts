@@ -57,7 +57,7 @@ export interface TargetResolver {
  * reference-case test runner so the two can never drift. Self-edge filtering and declared-
  * relation verification are the caller's concern (they happen at different stages).
  */
-function resolveCandidateGroup(
+export function resolveCandidateGroup(
   candidates: readonly TargetHint[],
   resolver: TargetResolver,
   fromFile: string,

@@ -1,6 +1,6 @@
-name: E2E Tests — A long answer ending in a non-zero exit, read through a slow pipe
+name: E2E Tests — A long answer read through a slow pipe
 type: test-suite
-description: "Subprocess E2E for a reader that is not draining yg's stdout pipe when yg finishes: a script rule refuses one file thousands of times, so aspect-test writes several times what a pipe holds and exits 1. The bytes a reader that sleeps before reading gets must equal the bytes the same run writes to a file, a head -c reader must get exactly its prefix, and the exit code must stay 1 either way — the guard that no command ends the process with its output still queued."
+description: "Subprocess E2E for a reader that is not draining yg's stdout pipe when yg finishes. yg context --file on a file governed only by its type, under 1500 rules, writes about 250 KiB and exits 0 — one of the exits that used to be a bare process.exit, which delivered only 64 KiB of it; and a script rule refusing one file thousands of times makes aspect-test write several times what a pipe holds and exit 1, guarding the drain-then-exit helper itself. The bytes a reader that sleeps before reading gets must equal the bytes the same run writes to a file, a head -c reader must get exactly its prefix, and the exit code must stay the command's own either way."
 aspects: []
 relations: []
 mapping:

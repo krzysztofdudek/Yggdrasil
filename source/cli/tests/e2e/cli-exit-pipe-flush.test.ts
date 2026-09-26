@@ -1,5 +1,5 @@
 // =============================================================================
-// CLI E2E — a long answer that ends in a non-zero exit survives a slow pipe.
+// CLI E2E — a long answer survives a slow pipe, whatever exit ends it.
 //
 // Node queues whatever a pipe cannot take at once (64 KiB on Linux) inside the
 // process. A bare process.exit() ends the process with that queue unwritten, so
@@ -12,7 +12,14 @@
 // The reader here sleeps before it reads, so when yg finishes writing the pipe
 // is full and most of the report is still queued in the process. The bytes the
 // slow reader gets must be the bytes the same run writes to a file, and the
-// exit code must be the command's own non-zero code in both cases.
+// exit code must be the command's own in both cases.
+//
+// Two commands, two roles. `yg context --file` on a file governed by its type
+// alone is one of the exits that used to be a bare process.exit(0): 6.1.0 as
+// released delivers 64 KiB of its ~250 KiB answer to the sleeping reader, so
+// this case is the regression test for that fix. `yg aspect-test --files` ends
+// on exitAfterFlush(1) and guards the drain-then-exit helper itself on a
+// non-zero exit, including a reader (`head -c`) that goes away early.
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -56,7 +63,50 @@ function sh(script: string, cwd: string): { exit: number; stderr: string } {
   return { exit: Number(lines[lines.length - 1]), stderr: r.stderr ?? '' };
 }
 
-describe.skipIf(!distExists)('CLI E2E — non-zero exit after a long answer, read through a slow pipe', () => {
+/** Rules the file's type carries — enough for several times the pipe's buffer of context. */
+const TYPE_RULES = 1500;
+
+/** A keyless project whose one file is governed by its type alone, under many script rules. */
+function typeCoveredProject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-exit-pipe-flush-ctx-'));
+  const init = spawnSync('node', [BIN_PATH, 'init', '--no-reviewer'], { cwd: dir, encoding: 'utf-8' });
+  if (init.status !== 0) throw new Error(`init failed: ${init.stderr}`);
+  const w = (rel: string, content: string) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), content);
+  };
+  w('src/a.ts', 'export const a = 1;\n');
+  const ids = Array.from({ length: TYPE_RULES }, (_, i) => `rule-with-a-long-descriptive-name-number-${i + 1}`);
+  for (const id of ids) {
+    w(`.yggdrasil/aspects/${id}/yg-aspect.yaml`, `name: ${id}\ndescription: "A rule of the module type"\nscope:\n  per: file\n`);
+    w(`.yggdrasil/aspects/${id}/check.mjs`, 'export function check() { return []; }\n');
+  }
+  w('.yggdrasil/yg-architecture.yaml', `node_types:\n  module:\n    description: A module\n    when:\n      path: "src/**"\n    aspects:\n${ids.map((id) => `      - ${id}\n`).join('')}`);
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — a long answer read through a slow pipe', () => {
+  it('yg context --file on a type-covered file: the slow reader gets every byte and the exit code is 0', () => {
+    const dir = typeCoveredProject();
+    try {
+      const cmd = `node "${BIN_PATH}" context --file src/a.ts`;
+      const direct = sh(`${cmd} > direct.txt 2>/dev/null; echo $?`, dir);
+      const piped = sh(`${cmd} 2>/dev/null | (sleep 1; cat > piped.txt); echo \${PIPESTATUS[0]}`, dir);
+
+      expect(direct.exit).toBe(0);
+      expect(piped.exit).toBe(0);
+      const want = readFileSync(path.join(dir, 'direct.txt'));
+      const got = readFileSync(path.join(dir, 'piped.txt'));
+      expect(want.length).toBeGreaterThan(3 * 64 * 1024);
+      expect(got.length).toBe(want.length);
+      expect(got.equals(want)).toBe(true);
+      // The last rule of the answer is there, not only its byte count.
+      expect(got.toString('utf-8')).toContain(`rule-with-a-long-descriptive-name-number-${TYPE_RULES} [`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('yg aspect-test --files: the slow reader gets every byte and the exit code is 1', () => {
     const dir = project();
     try {

@@ -85,6 +85,17 @@ describe('scripts/dead-exports.mjs', () => {
     expect(run(root).status).toBe(1);
   });
 
+  it('does not judge the relation files the Grain repository vendors by path — Grain reads their exports', () => {
+    const root = pkg({
+      'src/relations/resolver.ts': "export function resolveCandidateGroup(): number { return 1; }\n",
+      'src/relations/extractors/python.ts': "export const onlyGrainReadsThis = 1;\n",
+      'src/ast/walk.ts': "export function walk(): void {}\n",
+      'src/relations/pass.ts': "export const notVendored = 1;\n",
+    });
+    const j = json(root);
+    expect(j.dead.map((e) => e.file)).toEqual(['src/relations/pass.ts']);
+  });
+
   it('this package is clean', () => {
     const r = spawnSync('node', [SCRIPT], { encoding: 'utf-8' });
     expect(r.stdout).toMatch(/none unused$/m);
