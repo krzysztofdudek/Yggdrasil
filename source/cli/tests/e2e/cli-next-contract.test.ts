@@ -161,6 +161,17 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
     }
   }, 120_000);
 
+  it('after an edit, context names the free run for a node whose rules are all script rules', () => {
+    const dir = project();
+    try {
+      const out = run(dir, ['context', '--node', 'app/svc-01']);
+      expect(out.status).toBe(0);
+      expect(out.stdout).toContain("then: yg check --approve --only-deterministic  (free: this node's rules are script rules)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   it('a key only typed into the working copy is not called leaked; one in HEAD is — and neither blocks context', () => {
     const dir = project({ reviewer: true });
     try {
