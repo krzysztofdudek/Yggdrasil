@@ -211,7 +211,7 @@ export function excludeNestedGraphSubtrees(relPaths: string[]): string[] {
 }
 
 /** True iff `relPath` is `root` itself or lives under it, for any root in `nestedRoots`. */
-export function isUnderAnyNestedProjectRoot(relPath: string, nestedRoots: ReadonlySet<string>): boolean {
+function isUnderAnyNestedProjectRoot(relPath: string, nestedRoots: ReadonlySet<string>): boolean {
   for (const root of nestedRoots) {
     if (relPath === root || relPath.startsWith(root + '/')) return true;
   }
@@ -223,7 +223,7 @@ export function isUnderAnyNestedProjectRoot(relPath: string, nestedRoots: Readon
  * filter half of the nested-project boundary, reused by every caller that already
  * holds both a candidate list and the roots to filter it against.
  */
-export function filterOutsideNestedProjectRoots(
+function filterOutsideNestedProjectRoots(
   relPaths: string[],
   nestedRoots: ReadonlySet<string>,
 ): string[] {

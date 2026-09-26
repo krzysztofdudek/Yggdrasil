@@ -100,7 +100,7 @@ function unitOf(m: CheckIssue): string {
 }
 
 /** The pair a member is about, in the one pair notation every surface uses: `<aspect> @ <unit>`. */
-export function pairNotation(m: CheckIssue): string {
+function pairNotation(m: CheckIssue): string {
   const unit = m.unitKey !== undefined ? toPosixPath(m.unitKey.replace(/^(node|file):/, '')) : unitOf(m);
   return `${m.aspectId ?? '?'} @ ${unit}`;
 }
@@ -584,7 +584,7 @@ function fixLines(b: CheckBlock): string[] {
 }
 
 /** One block, as text. */
-export function renderBlock(b: CheckBlock, opts: GroupRenderOptions, colour = decorated): string[] {
+function renderBlock(b: CheckBlock, opts: GroupRenderOptions, colour = decorated): string[] {
   const lines = [heading(b.severity, b.label, b.subject, { colour })];
   lines.push(...field('at', atLines(b, opts), colour));
   if (b.why !== undefined) lines.push(...field('why', b.why, colour));
@@ -602,7 +602,3 @@ export function renderBlocks(blocks: CheckBlock[], opts: GroupRenderOptions, col
   return out;
 }
 
-/** How many units a block counts, in words: `24 pairs`, `4 files`. */
-export function blockSize(b: CheckBlock): string {
-  return count(b.size, codeInfo(b.code).noun);
-}

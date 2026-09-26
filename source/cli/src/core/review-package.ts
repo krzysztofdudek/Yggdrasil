@@ -87,7 +87,7 @@ export type ReviewPackageOutcome =
  * preserved: `what:` is replaced with the token-bearing form, but `why:` and
  * `next:` from `originalMessageData` are kept so actionable guidance is not lost.
  */
-export function companionRuntimeNotice(
+function companionRuntimeNotice(
   aspectId: string,
   unitKey: string,
   reason: string,

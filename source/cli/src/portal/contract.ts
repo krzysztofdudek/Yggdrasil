@@ -17,15 +17,7 @@
  * approved, AND the stored hash still matches current inputs. The others are each
  * visually and structurally distinct — never coalesced.
  */
-export const STATES = [
-  'verified',
-  'refused',
-  'unverified',
-  'no-rule',
-  'warning',
-] as const;
-
-export type PortalState = (typeof STATES)[number];
+export type PortalState = 'verified' | 'refused' | 'unverified' | 'no-rule' | 'warning';
 
 /**
  * The reviewer-pair DISPLAY states for a single (aspect, unit) pair — status-adjusted.

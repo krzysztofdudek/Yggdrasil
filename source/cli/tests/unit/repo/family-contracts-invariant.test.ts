@@ -104,9 +104,9 @@ const NON_FORMATTER_IDS: ReadonlyArray<{ id: string; producer: string }> = [
 // strings and returning values, so scenario 9 can run them on literals.
 // ---------------------------------------------------------------------------
 
-/** Every `export const <NAME>_JSON_SCHEMA = '<id>'` id in one formatter file's text. */
+/** Every `const <NAME>_JSON_SCHEMA = '<id>'` id in one formatter file's text, exported or not: a schema id a command keeps to itself is still a document it prints. */
 export function extractSchemaConstants(source: string): string[] {
-  const re = /export const \w+_JSON_SCHEMA = '([^']+)'/g;
+  const re = /^(?:export )?const \w+_JSON_SCHEMA = '([^']+)'/gm;
   const out: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(source)) !== null) out.push(m[1]);
@@ -423,6 +423,8 @@ describe('GUARD 4 — docs/family-contracts.md and the code agree', () => {
       const src = "const x = 1;\nexport const FAKE_JSON_SCHEMA = 'yg-fake/3';\n";
       expect(extractSchemaConstants(src)).toEqual(['yg-fake/3']);
       expect(extractSchemaConstants('export const NOT_A_SCHEMA = 1;')).toEqual([]);
+      // A constant the command keeps to itself is still a document it prints.
+      expect(extractSchemaConstants("const LOCAL_JSON_SCHEMA = 'yg-local/1';\n")).toEqual(['yg-local/1']);
     });
   });
 });

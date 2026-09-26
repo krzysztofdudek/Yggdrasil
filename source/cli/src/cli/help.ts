@@ -246,7 +246,7 @@ function routeParserErrors(cmd: Command): void {
  * `--json` on a command that does not answer in JSON is dropped: the nearest
  * spelling is never what was meant, and that is said instead.
  */
-export function parserError(raw: string, help: string, at: string): { what: string; why: string; next: string } {
+function parserError(raw: string, help: string, at: string): { what: string; why: string; next: string } {
   const text = raw.replace(/^error:\s*/i, '').trim();
   const suggestion = /\s*\(Did you mean ([^?)]+)\?\)\s*$/.exec(text);
   const what = suggestion !== null ? text.slice(0, suggestion.index).trim() : text;

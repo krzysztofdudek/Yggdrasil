@@ -4,11 +4,11 @@ import { toPosixPath } from '../utils/posix.js';
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
 /** Honesty note for a type-covered file's own `relations:` atoms — see conditional-aspects.ts's own "Applicability for a file enforced only by its type" section, which this restates for one file rather than the whole doc. */
-export const DERIVED_RELATIONS_NOTE =
+const DERIVED_RELATIONS_NOTE =
   "Dependency conditions here are worked out from this file's own imports, not a declared relation: one resolved import satisfies uses/calls/extends/implements alike, and can never satisfy emits/listens/consumes_port — those always read false for a type-covered file.";
 
 /** Next step for a type-covered file that wants component-level control (log gating, explicit relations, its own aspects). */
-export const GRADUATION_NEXT =
+const GRADUATION_NEXT =
   'next: to give this file a component of its own, add a yg-node.yaml mapping it, then run yg check --approve';
 
 export interface FileContextData {

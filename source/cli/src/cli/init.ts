@@ -623,7 +623,7 @@ async function readUnknownConfigKeys(yggRoot: string): Promise<IssueMessage[]> {
  * What an upgrade says about the retired keys it removed: one line per key and
  * file, then how the files were rewritten, so the owner knows to read the diff.
  */
-export function renderRetiredKeysRemoved(result: RetiredKeysResult): string {
+function renderRetiredKeysRemoved(result: RetiredKeysResult): string {
   return [
     ...result.removed.map((r) => `Removed retired key '${r.key}' from ${r.file} (${r.reason}).`),
     ...(result.removed.length > 0

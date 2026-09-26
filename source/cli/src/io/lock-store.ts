@@ -117,7 +117,7 @@ export function acquireApproveLock(yggRoot: string, nowMs: number): () => void {
 // ASPECT KIND (deterministicAspectIds), never by the `touched` field.
 
 /** Absolute path to the LEGACY single-file lock. Kept for the 5.1.0 migration only. */
-export function lockPath(yggRoot: string): string {
+function lockPath(yggRoot: string): string {
   return path.join(yggRoot, LOCK_FILE_NAME);
 }
 /** Absolute path to the committed LLM-verdict file. */
@@ -125,7 +125,7 @@ export function nondetLockPath(yggRoot: string): string {
   return path.join(yggRoot, LOCK_NONDET_FILE_NAME);
 }
 /** Absolute path to the committed log/closure-state file. */
-export function logsLockPath(yggRoot: string): string {
+function logsLockPath(yggRoot: string): string {
   return path.join(yggRoot, LOCK_LOGS_FILE_NAME);
 }
 /** Absolute path to the gitignored deterministic-verdict file. */

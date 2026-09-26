@@ -31,7 +31,7 @@ import type { IssueMessage } from '../model/validation.js';
  * unverified for its own reason, and its prompt-size check is incomplete until
  * a run that may execute repository code resolves the companions.
  */
-export const COMPANION_NOT_RUN_WHY =
+const COMPANION_NOT_RUN_WHY =
   'Its companion.mjs was not run: this command executes no repository code, so the prompt-size check measured the pair without the companion files and is completed by the next yg check --approve.';
 
 function withCompanionNotRun(vp: VerifiedPair, md: IssueMessage): IssueMessage {

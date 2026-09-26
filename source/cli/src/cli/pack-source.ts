@@ -134,7 +134,7 @@ function isReadableMarketplaceDir(source: string): boolean {
  * True when a source string is a URL (or git's scp-like `host:path` form) rather
  * than a path on this machine. A Windows drive letter (`C:`) is a path.
  */
-export function isUrlLike(source: string): boolean {
+function isUrlLike(source: string): boolean {
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(source)) return true;
   if (/^[^\s/\\@]+@[^\s/\\:]+:/.test(source)) return true;
   return /^[A-Za-z0-9.-]{2,}:[^\\/]/.test(source) && !/^[A-Za-z]:/.test(source);
@@ -148,7 +148,7 @@ export function isUrlLike(source: string): boolean {
  * returns null, and the caller then asks the user to say who this is rather than
  * inventing an identity that two different repositories could collide on.
  */
-export function identityFromUrl(url: string): string | null {
+function identityFromUrl(url: string): string | null {
   const withoutProtocol = url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '').replace(/^[^/]*@/, '');
   const normalized = withoutProtocol.replace(':', '/');
   const segments = normalized

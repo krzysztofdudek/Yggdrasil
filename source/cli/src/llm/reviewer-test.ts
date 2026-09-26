@@ -46,7 +46,7 @@ export async function testApiProvider(
 const ROUND_TRIP_PROBED: ReviewerProvider[] = ['codex', 'gemini-cli'];
 
 /** The one prompt a round-trip probe sends. */
-export const PROBE_PROMPT =
+const PROBE_PROMPT =
   'This is a setup check from `yg init`, not a review. Reply with exactly this JSON object and nothing else: {"satisfied": true, "reason": "probe"}';
 
 /** How long the round-trip probe may take — a first run of a CLI can be slow. */

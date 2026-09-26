@@ -19,7 +19,7 @@ const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', '
  * silent no-op into a blocking, fixable error. Mirrors the unknown-key rejection
  * the config parser already applies to reviewer/tier blocks.
  */
-export const ARCHITECTURE_NODE_TYPE_KEYS = [
+const ARCHITECTURE_NODE_TYPE_KEYS = [
   'description',
   'aspects',
   'parents',
@@ -34,7 +34,7 @@ export const ARCHITECTURE_NODE_TYPE_KEYS = [
  * a type entry's: a misspelled `node_type:` would load an EMPTY type system with
  * no word, and every node would then fail against types that were never read.
  */
-export const ARCHITECTURE_KEYS = ['node_types'] as const;
+const ARCHITECTURE_KEYS = ['node_types'] as const;
 
 /** Node-type keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
 export const RETIRED_NODE_TYPE_KEYS: RetiredKeys = {

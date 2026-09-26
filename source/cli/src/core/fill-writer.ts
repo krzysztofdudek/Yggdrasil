@@ -336,10 +336,10 @@ export function createVerdictWriter(params: {
  * the next run. A paid (LLM) verdict never waits for a batch: at most the paid
  * verdicts whose write is in flight can be lost.
  */
-export const FLUSH_EVERY_DET_VERDICTS = 256;
+const FLUSH_EVERY_DET_VERDICTS = 256;
 
 /** The longest an unwritten verdict waits for its flush when no batch fills up. */
-export const FLUSH_INTERVAL_MS = 1000;
+const FLUSH_INTERVAL_MS = 1000;
 
 /** One run's hold on the repository: the approval lock, plus the writer that
  *  must be closed before the lock is let go. */

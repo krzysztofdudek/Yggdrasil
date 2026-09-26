@@ -28,7 +28,7 @@ const PROPOSAL_METADATA_FILE = 'proposal.json';
 const PROVENANCE_FILE = 'provenance.json';
 
 /** Where a replaced graph is moved to, so accepting a new one never destroys the old one. */
-export const REPLACED_DIR_PREFIX = '.yggdrasil.replaced-';
+const REPLACED_DIR_PREFIX = '.yggdrasil.replaced-';
 
 /** A proposal directory, resolved to the two paths everything else needs. */
 export interface ResolvedProposal {

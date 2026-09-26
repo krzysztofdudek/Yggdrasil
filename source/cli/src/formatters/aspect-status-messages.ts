@@ -50,7 +50,7 @@ export function impliesStatusInheritInvalidMessage(params: {
  * `port:`). The downgrade message has to name the site that DECLARES the lower
  * status, so the person edits the file that actually says it.
  */
-export function describeAttachSite(origin: string): string {
+function describeAttachSite(origin: string): string {
   const [kind, ...restParts] = origin.split(':');
   const rest = restParts.join(':');
   switch (kind) {
@@ -112,33 +112,3 @@ export function aspectStatusDowngradeSiteMessage(params: {
   };
 }
 
-export function aspectStatusDowngradeMessage(params: {
-  nodePath: string;
-  aspectId: string;
-  declared: AspectStatus;
-  anchor: AspectStatus;
-  /** Origin token of the attach site that declares the lower status. */
-  declaringOrigin: string;
-  /** Origin tokens of the other explicit sites that declare the anchor status. */
-  anchorOrigins: string[];
-  /** The aspect's own default status (`enforced` when `status:` is omitted). */
-  aspectDefault: AspectStatus;
-  /** Whether the aspect declares `status:` at all. */
-  aspectDeclaresStatus: boolean;
-}): IssueMessage {
-  const site = describeAttachSite(params.declaringOrigin);
-  const fromDefault = params.aspectDefault === params.anchor;
-  const defaultLabel = params.aspectDeclaresStatus
-    ? `the aspect default (status: ${params.aspectDefault} in the aspect's yg-aspect.yaml)`
-    : `the aspect default (${params.aspectDefault}, because the aspect's yg-aspect.yaml sets no status:)`;
-  const sources = [...(fromDefault ? [defaultLabel] : []), ...params.anchorOrigins.map(describeAttachSite)];
-  const fixes = [
-    ...(fromDefault ? [`set a lower status: in the aspect's yg-aspect.yaml`] : []),
-    ...params.anchorOrigins.map((o) => `lower the status on ${describeAttachSite(o)}`),
-  ];
-  return {
-    what: `Aspect '${params.aspectId}' on node '${posixPath(params.nodePath)}': ${site} declares status '${params.declared}', but the aspect already reaches this node as '${params.anchor}' from ${sources.join(' and ')}.`,
-    why: 'An explicit attach-site status cannot relax (downgrade) what already cascades — that would silently weaken enforcement. An attach site can only raise the status above the aspect default and the other sites, never lower it.',
-    next: `Remove the explicit status from ${site} (let the cascade win), or, to weaken the rule everywhere, ${fixes.join(' and ')}. See: yg knowledge read aspect-status.`,
-  };
-}

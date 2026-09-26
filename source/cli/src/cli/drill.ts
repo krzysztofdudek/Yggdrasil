@@ -183,7 +183,7 @@ const TEXT_SINK: DrillSink = {
 };
 
 /** The yg-drill/1 document for one run. */
-export function drillDocument(
+function drillDocument(
   aspectId: string,
   corpus: DrillJsonDocument['corpus'],
   results: readonly DrillResult[],
@@ -369,7 +369,7 @@ function toVerdictEvent(
  * second wiring would eventually judge the two differently and nobody would know
  * which run to believe.
  */
-export async function buildDrillRun(
+async function buildDrillRun(
   graph: Graph,
   aspect: AspectDef,
   projectRoot: string,

@@ -609,7 +609,7 @@ export interface TypeVerdictImpact {
  * performs — handleTypeImpact calls no other pairs enumeration in the same
  * invocation.
  */
-export async function computeTypeVerdictImpact(
+async function computeTypeVerdictImpact(
   graph: Graph,
   typeId: string,
   tc: TypeCoverageInput,

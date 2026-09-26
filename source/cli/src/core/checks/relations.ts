@@ -89,7 +89,7 @@ const CYCLE_MEMBER_CAP = 12;
  * are sorted, and components are ordered by their first member, so the report
  * is stable run to run.
  */
-export function structuralCycleComponents(graph: Graph): string[][] {
+function structuralCycleComponents(graph: Graph): string[][] {
   const edges = new Map<string, string[]>();
   for (const [nodePath, node] of graph.nodes) {
     const targets: string[] = [];

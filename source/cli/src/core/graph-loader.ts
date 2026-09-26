@@ -109,7 +109,7 @@ export class MalformedSchemaVersionError extends Error {
  * fail OPEN exactly like a malformed version would. An expected USER condition
  * (a deleted or never-written line), rendered as a clean what/why/next.
  */
-export class MissingSchemaVersionError extends Error {
+class MissingSchemaVersionError extends Error {
   constructor() {
     super('yg-config.yaml has no version: field, so the CLI cannot determine graph compatibility.');
     this.name = 'MissingSchemaVersionError';
@@ -126,7 +126,7 @@ export class MissingSchemaVersionError extends Error {
  * wrappers. `flowYamlPath` names the offending file; `detail` carries the
  * underlying reason (e.g. the parser's shape message or the raw fs error text).
  */
-export class FlowLoadError extends Error {
+class FlowLoadError extends Error {
   readonly flowYamlPath: string;
   readonly detail: string;
 
@@ -637,7 +637,7 @@ export function schemaVersionFieldIssue(
  * undefined for anything else (an unclassified error stays a bug and is
  * rethrown as-is by the caller).
  */
-export function diagnoseGraphLoadError(err: unknown): IssueMessage | undefined {
+function diagnoseGraphLoadError(err: unknown): IssueMessage | undefined {
   if (err instanceof UnsupportedSchemaVersionError) {
     return {
       what: `Graph schema version ${err.detectedVersion} is newer than this CLI supports (max: ${err.maxSupportedVersion}).`,

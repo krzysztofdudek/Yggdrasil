@@ -224,7 +224,7 @@ export function computeLlmInputHash(input: LlmHashInput): string {
  * keyless `yg check --approve --only-deterministic` (the deterministic lock is a
  * local cache); LLM hashes are untouched.
  */
-export const DET_HASH_CONTRACT = 2;
+const DET_HASH_CONTRACT = 2;
 
 export function computeDetInputHash(input: DetHashInput): string {
   const common = buildCommonCanonical(input);

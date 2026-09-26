@@ -37,7 +37,7 @@ import { count } from '../utils/count.js';
  * cannot install it itself, because it may depend on command modules only.
  * Idempotent.
  */
-export function guardTerminalOutput(): void {
+function guardTerminalOutput(): void {
   neutralizeStream(process.stdout);
   neutralizeStream(process.stderr);
 }
@@ -127,7 +127,7 @@ export type Paint = (text: string) => string;
 export type FieldLabel = 'at' | 'why' | 'fix' | 'see' | 'id';
 
 /** Every field value starts at this column; its label is padded to reach it. */
-export const FIELD_INDENT = '        ';
+const FIELD_INDENT = '        ';
 
 /**
  * A labelled field: `  why:  <text>`, every later line of a multi-line value
@@ -191,7 +191,7 @@ export function block(d: Diagnostic | IssueMessage, severity: HeadingSeverity = 
  * place a step's text is cleaned, so the text and the JSON form of an error say
  * the same words.
  */
-export function stepText(text: string): string {
+function stepText(text: string): string {
   return text.replace(/^Run:?\s+(?=yg )/, '');
 }
 
@@ -330,11 +330,10 @@ export function writeErr(text: string): boolean {
   return process.stderr.write(text);
 }
 
-export const stdoutSink: TextSink = { write: (text) => { writeOut(text); } };
-export const stderrSink: TextSink = { write: (text) => { writeErr(text); } };
+const stdoutSink: TextSink = { write: (text) => { writeOut(text); } };
 
 /** A JSON document on stdout: pretty-printed, one trailing newline. */
-export function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): void {
+function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): void {
   sink.write(`${JSON.stringify(doc, null, 2)}\n`);
 }
 
@@ -423,7 +422,7 @@ export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { docume
  * `usage`, anything else `command-error`. A caller that knows better names the
  * code itself.
  */
-export function inferErrorCode(what: string): string {
+function inferErrorCode(what: string): string {
   if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
   if (/^rule\b.*\bis not in the graph/i.test(what)) return 'aspect-not-found';
   if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';

@@ -47,6 +47,11 @@ run_step "CLI: typecheck" "$REPO_ROOT/source/cli" "npm run typecheck"
 # real type bar on the specs.
 run_step "CLI: typecheck (portal e2e)" "$REPO_ROOT/source/cli" "npm run typecheck:e2e"
 run_step "CLI: lint" "$REPO_ROOT/source/cli" "npm run lint"
+# Every exported value of the shipped source must be read by another source file,
+# or be a test seam kept on purpose in scripts/dead-exports-allowlist.json under a
+# reason. An export nothing else reads widens the surface a reader has to hold and
+# hides dead code. A new seam needs its own entry; a stale entry fails the step too.
+run_step "CLI: no dead exports" "$REPO_ROOT/source/cli" "node scripts/dead-exports.mjs"
 run_step "CLI: build" "$REPO_ROOT/source/cli" "npm run build"
 # Guard (D4): the spawned-binary E2E suites self-skip via describe.skipIf(!distExists).
 # If the build silently produced no dist/bin.js they would ALL no-op and the test

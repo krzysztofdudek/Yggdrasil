@@ -31,7 +31,7 @@ function withOutsideTwins(codes: readonly string[]): Set<string> {
  * person's screen and reads as a different, unexplained kind of finding rather
  * than a familiar one the change did not cause.
  */
-export const OUTSIDE_LABEL_SUFFIX = '-outside';
+const OUTSIDE_LABEL_SUFFIX = '-outside';
 
 export interface IssueGroup {
   code: string;
@@ -98,21 +98,6 @@ export interface IssueGroup {
  * warnings past the section's overflow cap and out of view entirely.
  */
 export const CODE_ONLY_GROUP_CODES = withOutsideTwins(['unverified']);
-
-/**
- * Codes whose every instance IS one (rule, unit) pair's verdict state — the
- * only findings a group header may count as "pairs". Everything else (a broken
- * YAML file, an undeclared dependency, an undefined type) is about the graph or
- * the code, not about a pair, and counting it as "1 pairs" taught a word the
- * reader had not been given for a thing it does not mean.
- */
-export const PAIR_CODES = withOutsideTwins([
-  'unverified',
-  'aspect-violation-enforced',
-  'aspect-violation-advisory',
-  'prompt-too-large',
-  'aspect-companion-runtime-error',
-]);
 
 // ── Shared code-set constants ────────────────────────────────
 

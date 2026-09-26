@@ -15,7 +15,7 @@ import { writeOut, failAndExit } from './output.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
 /** Schema id of `yg tree --json`. */
-export const TREE_JSON_SCHEMA = 'yg-tree/1';
+const TREE_JSON_SCHEMA = 'yg-tree/1';
 
 /** One node of the tree, as `yg tree --json` reports it. */
 export interface TreeJsonNode {
@@ -48,7 +48,7 @@ const SHORT_DESCRIPTION_MAX = 120;
  * hundreds of kilobytes on a large graph, most of it spilled lines that no
  * longer started with a path.
  */
-export function shortDescription(description: string): string {
+function shortDescription(description: string): string {
   const flat = description.replace(/\s+/g, ' ').trim();
   const firstSentence = /^(.+?[.!?])(\s|$)/.exec(flat)?.[1] ?? flat;
   if (firstSentence.length <= SHORT_DESCRIPTION_MAX) return firstSentence;

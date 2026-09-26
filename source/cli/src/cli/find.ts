@@ -14,7 +14,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 const TOP_N = 5;
 
 /** Schema id of `yg find --json`. */
-export const FIND_JSON_SCHEMA = 'yg-find/1';
+const FIND_JSON_SCHEMA = 'yg-find/1';
 
 /** One ranked result, as `yg find --json` reports it. */
 export interface FindJsonResult {

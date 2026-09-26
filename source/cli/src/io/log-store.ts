@@ -32,7 +32,7 @@ export async function writeLogFile(logPath: string, content: string): Promise<vo
 }
 
 /** The file a log writer holds while it reads a log, adds an entry and replaces it. */
-export const LOG_WRITE_LOCK_FILE_NAME = '.yg-log.lock';
+const LOG_WRITE_LOCK_FILE_NAME = '.yg-log.lock';
 
 /** How long a log writer waits for another one to finish before it gives up. */
 const LOG_LOCK_WAIT_MS = 10_000;

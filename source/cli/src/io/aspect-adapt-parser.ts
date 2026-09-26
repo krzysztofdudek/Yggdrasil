@@ -25,7 +25,7 @@ import { ADAPT_FILENAME } from '../model/packages.js';
  */
 
 /** Keys an adapt may set. */
-export const ADAPTABLE_KEYS = [
+const ADAPTABLE_KEYS = [
   'scope',
   'reviewer',
   'review_by',

@@ -35,7 +35,7 @@ import { debugWrite } from '../utils/debug-log.js';
 export const PACKAGE_VERSIONS_CACHE_FILENAME = '.yg-packages-versions.json';
 
 /** The schema token the reader requires before it will trust the document. */
-export const PACKAGE_VERSIONS_CACHE_SCHEMA = 'yg-package-versions/1';
+const PACKAGE_VERSIONS_CACHE_SCHEMA = 'yg-package-versions/1';
 
 /** What one source was last seen to publish for one installed package. */
 export interface PackageVersionsEntry {

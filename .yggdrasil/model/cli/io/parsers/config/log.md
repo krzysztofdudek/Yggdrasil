@@ -88,3 +88,5 @@ The configuration parser's lists of retired quality and tier config keys are now
 Unknown or retired keys under quality and a tier's config were checked only after the local overlay had been merged in, so a key from the gitignored yg-secrets.yaml was reported as if it sat in the committed yg-config.yaml, sending the reader to the wrong file. Each file is now checked on its own before the merge, as the top-level keys already were.
 ## [2026-09-26T05:28:47.889Z]
 An unknown top-level configuration key now carries the file it is in as the step to take, with the rename it probably needs, so a report points at that file instead of leaving the reader with a sentence and no target.
+## [2026-09-26T21:33:32.286Z]
+Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.

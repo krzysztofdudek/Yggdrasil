@@ -108,7 +108,7 @@ async function computeRelationEdgesForOwner(graph: Graph, projectRoot: string): 
 }
 
 /** Schema id of `yg owner --json`. */
-export const OWNER_JSON_SCHEMA = 'yg-owner/1';
+const OWNER_JSON_SCHEMA = 'yg-owner/1';
 
 /** Who owns a file, as `yg owner --json` reports it. */
 export interface OwnerJsonDocument {

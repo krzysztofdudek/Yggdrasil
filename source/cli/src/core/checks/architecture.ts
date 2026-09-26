@@ -342,7 +342,7 @@ export function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
  * One warning per node names its undeclared type and what defining it takes.
  * Never blocks: a project mapping nodes before designing types is legitimate.
  */
-export function checkNodeTypesPending(graph: Graph): ValidationIssue[] {
+function checkNodeTypesPending(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const [nodePath, node] of graph.nodes) {
     const maps = (node.meta.mapping ?? []).length > 0;

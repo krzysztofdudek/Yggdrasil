@@ -42,7 +42,7 @@ function handleError(error: unknown): never {
 }
 
 /** Schema id of `yg log read --json`. */
-export const LOG_JSON_SCHEMA = 'yg-log/1';
+const LOG_JSON_SCHEMA = 'yg-log/1';
 
 /**
  * `yg log read --json`: the node's entries, newest first, each with its
@@ -197,7 +197,7 @@ export function registerLogCommand(program: Command): void {
           if (evResult.gitTracked) {
             writeOut(
               paint.yellow(
-                `verification telemetry since ${since} — NOTE: the events sidecar is git-tracked, ` +
+                `verification telemetry since ${since} — the events sidecar is git-tracked, ` +
                   `so this is shared history, not local-only telemetry.\n`,
               ),
             );
@@ -269,7 +269,7 @@ export function registerLogCommand(program: Command): void {
           failAndExit({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
-                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only to check against a commit other than their merge base), or none of them (during a merge, rebase or cherry-pick in progress, or on the merge commit).',
+                next: `yg log merge-resolve --node ${opts.node.trim().replace(/\/$/, '')} --ours <ref> --theirs <ref>  (add --base <ref> only to check against a commit other than their merge base; pass none of the three during a merge, rebase or cherry-pick, or on the merge commit)`,
               });
         }
         const repoRoot = path.dirname(graph.rootPath);

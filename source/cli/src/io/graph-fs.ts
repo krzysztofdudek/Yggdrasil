@@ -44,10 +44,6 @@ export async function atomicWriteTextFile(filePath: string, content: string): Pr
   await atomicWriteFile(filePath, content);
 }
 
-export async function fileAccess(filePath: string): Promise<void> {
-  await access(filePath);
-}
-
 /**
  * Probe whether a file is readable (R_OK). Returns null when readable, or the OS
  * error message when not (EACCES, vanished, EISDIR, …). A permission probe, not

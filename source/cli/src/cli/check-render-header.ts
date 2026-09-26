@@ -57,7 +57,7 @@ export const useEmoji: boolean = decorated;
  * than computing a second, aspect-scoped number nothing else in the report
  * shows.
  */
-export function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
+function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
   const reference = result.progressiveReference;
   if (reference === undefined) return undefined;
   const outside = result.outsideCount ?? 0;
@@ -160,28 +160,6 @@ export function renderExternalJudgesNotice(result: CheckResult): string | undefi
     .map(([name, n]) => `${name} (${n})`);
   const total = [...counts.values()].reduce((a, b) => a + b, 0);
   return `${total} verdict${total === 1 ? '' : 's'} in this report ${total === 1 ? 'was' : 'were'} recorded by a model other than the configured reviewer: ${named.join(', ')}. Each is bound to the same content hashes any verdict is, and is re-proved here by hashing alone.`;
-}
-
-/**
- * The one line that makes an invisible setting visible: with nothing named
- * under `coverage.required`, a file no component owns can never fail a check,
- * however many runs list it.
- *
- * It is the shipped default — a fresh project and a mined proposal both start
- * there — and its consequence is invisible precisely because the uncovered
- * files ARE reported: only their severity differs, and severity is the one
- * thing a reader cannot see from the list. Said once, as a standing fact about
- * the configuration rather than as a finding, and it stops appearing the moment
- * either half stops being true — a required root is named, or nothing is left
- * uncovered.
- */
-export function renderCoverageRequiresNothingNotice(result: CheckResult): string | undefined {
-  if (result.coverageRequiresNothing !== true) return undefined;
-  const uncovered = result.issues
-    .filter((i) => i.code === 'uncovered-advisory')
-    .reduce((n, i) => n + (i.uncoveredCount ?? 0), 0);
-  if (uncovered === 0) return undefined;
-  return `Nothing is required to be covered, so the ${count(uncovered, 'uncovered file')} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
 }
 
 /**

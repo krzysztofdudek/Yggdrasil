@@ -310,7 +310,7 @@ function reachProvenance(
  * reports them with what/why/next — a subject that cannot be read simply does not
  * appear here, exactly as it does not appear in the usage counts beside it.
  */
-export async function computeAspectReach(
+async function computeAspectReach(
   graph: Graph,
   typeCoverage?: TypeCoverageInput,
 ): Promise<Map<string, AspectsJsonReachUnit[]>> {
@@ -350,7 +350,7 @@ export async function computeAspectReach(
  * document is byte-identical to what it always was, and the caller that only
  * wants the counts pays nothing for the names.
  */
-export async function buildAspectsJson(
+async function buildAspectsJson(
   graph: Graph,
   projectRoot: string,
   typeCoverage?: TypeCoverageInput,
@@ -1040,7 +1040,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
 }
 
 /** The yg-aspects-health/1 document for a computed health view. */
-export function aspectsHealthDocument(health: AspectHealth): AspectsHealthJsonDocument {
+function aspectsHealthDocument(health: AspectHealth): AspectsHealthJsonDocument {
   return {
     schema: ASPECTS_HEALTH_JSON_SCHEMA,
     rules: health.rows.map((r) => ({

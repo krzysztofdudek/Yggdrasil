@@ -332,7 +332,7 @@ function makeRustResolveDeps(
  *  files in probe order (both package-relative); `fileIsRoot` says whether `rel` IS the
  *  root. A shared helper under `tests/` (`tests/common/mod.rs`) belongs to whichever test
  *  crate declares it, so it gets the `tests/` tree with no root file to bind items to. */
-export function rustTargetFor(
+function rustTargetFor(
   rel: string,
   existsInPackage: (sub: string) => boolean,
   libPath?: string,
