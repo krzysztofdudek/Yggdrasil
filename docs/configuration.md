@@ -265,6 +265,8 @@ or key.
 API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 (`openai` only), `OPENAI_COMPATIBLE_API_KEY` (`openai-compatible` only), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
 
+**Precedence: `yg-secrets.yaml` over the environment.** A tier's `config.api_key` in `yg-secrets.yaml` wins over the provider's environment variable, whatever the variable holds. That is why `yg init` never writes a key it read from the environment into `yg-secrets.yaml`, and why, whenever it points the tier at another provider or endpoint (`--provider`, or **Configure reviewer** in the menu), it removes the key stored for that tier and says so: left there, a key given for one provider would be sent to the next. It also removes it when the variable is exported or the key prompt is answered, so the key you chose is the one sent. Only a re-run for the same provider and endpoint, with nothing else chosen, keeps a stored key, and init then says the reviewer will send it. Nothing else in the file is touched.
+
 `yg-config.yaml` itself must never contain credentials. Commit it to the repository. `yg check` enforces the split:
 
 - a `config.api_key` in the committed `yg-config.yaml` is a blocking `config-committed-api-key` error (the key is never repeated in the message; revoke it — it is in the history);

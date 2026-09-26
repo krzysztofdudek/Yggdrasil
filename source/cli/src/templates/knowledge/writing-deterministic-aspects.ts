@@ -36,9 +36,11 @@ either (a stale companion pair is reported unverified and sized on the next
 \`--approve\`). The same holds for \`--no-approve\`, \`--approve --dry-run\`,
 \`yg context\`, \`yg owner\`, \`yg tree\`, \`yg impact\`, \`yg aspects\` and \`yg portal\`.
 
-Code DOES run on: \`yg check --approve --only-deterministic\` (every \`check.mjs\`),
-\`yg check --approve\` and \`yg adopt\` (every \`check.mjs\` and \`companion.mjs\`),
-\`yg aspect-test\` and \`yg drill\` (the rule under test), and a bare \`yg check\` when
+Code DOES run on: \`yg check --approve --only-deterministic\` and \`yg adopt\`
+(every \`check.mjs\`, never a \`companion.mjs\`, and no source sent to a reviewer),
+\`yg check --approve\` (every \`check.mjs\` and \`companion.mjs\`, and the source sent
+to the reviewer), \`yg aspect-test\` and \`yg drill\` (the rule under test; drill runs
+nothing of a reviewer rule that ships \`companion.mjs\`), and a bare \`yg check\` when
 the committed config sets \`auto_approve\` — this repository's rules and those of
 every installed package (\`yg pack\`), with the permissions and environment of
 whoever runs the command. The script-verdict cache is gitignored, so the

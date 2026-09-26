@@ -142,6 +142,8 @@ reviewer:                         # required only once a reviewer rule is actual
     # yg-secrets.yaml is a deep-merge overlay over this file (gitignored): it
     # mirrors the same shape and overrides any field locally — most often a
     # tier's api_key, or pointing a named tier at a different provider/model.
+    # A tier's api_key there outranks the provider's environment variable;
+    # yg init removes it when it points the tier at another provider/endpoint.
     # Only the tier NAME is folded into a verdict hash, so a local override never
     # invalidates recorded baselines. Keep credentials out of this committed file.
 `;

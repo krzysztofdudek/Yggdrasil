@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as p from '@clack/prompts';
 import { Document, parse as yamlParse, parseDocument, stringify as yamlStringify, isMap, isScalar } from 'yaml';
@@ -173,8 +173,15 @@ const NO_REVIEWER = 'none';
 export interface ReviewerChoice {
   provider: ReviewerProvider;
   model: string;
+  /** A key the person typed — the only kind init ever writes to yg-secrets.yaml. */
   apiKey?: string;
   endpoint?: string;
+  /**
+   * True when the flow asked for the key and got an answer (typed, the
+   * environment variable, or deliberately none), so a key stored earlier
+   * must not outrank it.
+   */
+  keyAnswered?: boolean;
 }
 
 export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
@@ -280,7 +287,7 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
   }
 
   // Only a key the person typed is stored; one read from the environment stays there.
-  return { provider, model, apiKey: keyFromEnv ? undefined : apiKey || undefined, endpoint };
+  return { provider, model, apiKey: keyFromEnv ? undefined : apiKey || undefined, endpoint, keyAnswered: needsApiKey(provider) };
 }
 
 // ---------------------------------------------------------------------------
@@ -406,22 +413,32 @@ export async function writeReviewerConfig(
 // Write API key to yg-secrets.yaml
 // ---------------------------------------------------------------------------
 
-export async function writeSecretsFile(
-  yggRoot: string,
-  apiKey: string,
-): Promise<void> {
-  const secretsPath = path.join(yggRoot, 'yg-secrets.yaml');
-  let raw: Record<string, unknown> = {};
+/** Read yg-secrets.yaml as a plain mapping; an absent file is an empty one. */
+async function readSecretsRaw(secretsPath: string): Promise<Record<string, unknown>> {
   try {
     const content = await readFile(secretsPath, 'utf-8');
-    raw = (yamlParse(content) as Record<string, unknown>) ?? {};
+    const parsed = yamlParse(content) as unknown;
+    return isPlainRecord(parsed) ? parsed : {};
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code !== 'ENOENT') {
       throw new Error(`Failed to parse ${secretsPath}: ${e.message}`, { cause: err });
     }
-    debugWrite(`[init] writeSecretsFile: ${secretsPath} not found (${e.message}), starting fresh`);
+    debugWrite(`[init] readSecretsRaw: ${secretsPath} not found (${e.message}), starting fresh`);
+    return {};
   }
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+export async function writeSecretsFile(
+  yggRoot: string,
+  apiKey: string,
+): Promise<void> {
+  const secretsPath = path.join(yggRoot, 'yg-secrets.yaml');
+  const raw = await readSecretsRaw(secretsPath);
 
   // yg-secrets.yaml is a 1:1 deep-merge overlay over yg-config.yaml — it mirrors
   // the SAME shape. The API key belongs to the tier's `config:` block (where the
@@ -449,6 +466,184 @@ export async function writeSecretsFile(
 }
 
 // ---------------------------------------------------------------------------
+// Keep the stored key bound to the reviewer it was given for
+// ---------------------------------------------------------------------------
+
+/**
+ * Where the bootstrap tier sends its requests: the provider and the endpoint,
+ * with yg-secrets.yaml's overrides applied over yg-config.yaml exactly as the
+ * config parser merges them. `undefined` when no such tier is configured.
+ */
+export interface ReviewerTarget {
+  provider: string;
+  endpoint?: string;
+}
+
+function tierOf(raw: Record<string, unknown>): Record<string, unknown> | undefined {
+  const reviewer = raw.reviewer;
+  if (!isPlainRecord(reviewer) || !isPlainRecord(reviewer.tiers)) return undefined;
+  const tier = reviewer.tiers[BOOTSTRAP_TIER_NAME];
+  return isPlainRecord(tier) ? tier : undefined;
+}
+
+function stringField(o: Record<string, unknown> | undefined, key: string): string | undefined {
+  const v = o?.[key];
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+}
+
+/**
+ * The bootstrap tier's target as it stands on disk now. Read with plain YAML,
+ * never the full config parser: init must be able to rewrite a config that
+ * the parser would refuse.
+ */
+export async function readReviewerTarget(yggRoot: string): Promise<ReviewerTarget | undefined> {
+  let committed: Record<string, unknown> = {};
+  try {
+    const parsed = yamlParse(await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8')) as unknown;
+    if (isPlainRecord(parsed)) committed = parsed;
+  } catch (err) {
+    debugWrite(`[init] readReviewerTarget: yg-config.yaml unreadable (${(err as Error).message})`);
+  }
+  const overlay = await readSecretsRaw(path.join(yggRoot, 'yg-secrets.yaml'));
+  return mergedTarget(tierOf(committed), tierOf(overlay));
+}
+
+function mergedTarget(
+  committedTier: Record<string, unknown> | undefined,
+  overlayTier: Record<string, unknown> | undefined,
+): ReviewerTarget | undefined {
+  const provider = stringField(overlayTier, 'provider') ?? stringField(committedTier, 'provider');
+  if (provider === undefined) return undefined;
+  const cfg = (t: Record<string, unknown> | undefined) => (isPlainRecord(t?.config) ? t.config : undefined);
+  const endpoint = stringField(cfg(overlayTier), 'endpoint') ?? stringField(cfg(committedTier), 'endpoint');
+  return { provider, ...(endpoint !== undefined ? { endpoint } : {}) };
+}
+
+/**
+ * The target the bootstrap tier will have once init writes `next` into
+ * yg-config.yaml: yg-secrets.yaml's own provider or endpoint override, when it
+ * sets one, still wins over what init writes.
+ */
+export async function targetAfterWrite(yggRoot: string, next: ReviewerTarget): Promise<ReviewerTarget> {
+  const overlayTier = tierOf(await readSecretsRaw(path.join(yggRoot, 'yg-secrets.yaml')));
+  const committedTier: Record<string, unknown> = {
+    provider: next.provider,
+    config: next.endpoint !== undefined ? { endpoint: next.endpoint } : {},
+  };
+  return mergedTarget(committedTier, overlayTier) ?? next;
+}
+
+export function sameTarget(a: ReviewerTarget | undefined, b: ReviewerTarget | undefined): boolean {
+  if (a === undefined || b === undefined) return false;
+  return a.provider === b.provider && (a.endpoint ?? '') === (b.endpoint ?? '');
+}
+
+/**
+ * Settle the stored key after init wrote a reviewer: `prev` is the target read
+ * before the write. A stored key stays only when nothing else answered for
+ * the key this run and the tier still sends to the same provider and endpoint
+ * — the one case where keeping it cannot send it anywhere new.
+ */
+export async function settleStoredKey(
+  yggRoot: string,
+  prev: ReviewerTarget | undefined,
+  choice: { provider: ReviewerProvider; endpoint?: string; apiKey?: string; keyAnswered: boolean },
+): Promise<StoredKeyOutcome> {
+  const next = await targetAfterWrite(yggRoot, { provider: choice.provider, ...(choice.endpoint ? { endpoint: choice.endpoint } : {}) });
+  const keepStored = !choice.keyAnswered && sameTarget(prev, next);
+  return reconcileSecretsKey(yggRoot, { apiKey: choice.apiKey, keepStored });
+}
+
+/**
+ * The notice init prints about the key once settleStoredKey has run, so what
+ * it says matches what the reviewer will actually send. `undefined` when
+ * there is nothing to add to the environment-only keyWarning.
+ */
+export function storedKeyNotice(
+  outcome: StoredKeyOutcome,
+  prev: ReviewerTarget | undefined,
+  keyEnvVar: string | undefined,
+): IssueMessage | undefined {
+  if (outcome === 'removed') {
+    const was = prev ? ` (stored while the tier used ${prev.provider}${prev.endpoint ? ` at ${prev.endpoint}` : ''})` : '';
+    return {
+      what: `Removed the api_key .yggdrasil/yg-secrets.yaml held for this tier${was}.`,
+      why: keyEnvVar
+        ? `A key stored there outranks $${keyEnvVar}, so it — not the key you exported — would have been sent.`
+        : 'A key stored there outranks the environment and goes to whatever provider and endpoint the tier names, so a key given for one reviewer is never kept for another.',
+      next: keyEnvVar
+        ? `Nothing to do: the reviewer reads $${keyEnvVar} at run time.`
+        : 'If the new reviewer needs a key, export its environment variable or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml.',
+    };
+  }
+  if (outcome === 'kept') {
+    return {
+      what: 'Kept the api_key .yggdrasil/yg-secrets.yaml already holds for this tier; the reviewer will send it.',
+      why: 'The tier still names the same provider and endpoint that key was stored for, and a key in yg-secrets.yaml outranks the environment variable.',
+      next: 'Nothing to do. To use an environment variable instead, delete config.api_key from this tier in .yggdrasil/yg-secrets.yaml.',
+    };
+  }
+  return undefined;
+}
+
+/** What reconcileSecretsKey did to the bootstrap tier's stored key. */
+export type StoredKeyOutcome =
+  /** A key the person typed was written. */
+  | 'stored'
+  /** A key already stored for the same provider and endpoint was left in place. */
+  | 'kept'
+  /** The stored key was deleted: it was given for another reviewer, or it would outrank the one chosen now. */
+  | 'removed'
+  /** No key is stored and none was typed. */
+  | 'none';
+
+/**
+ * Bring `reviewer.tiers.<bootstrap>.config.api_key` in yg-secrets.yaml in line
+ * with the reviewer init has just configured.
+ *
+ * The overlay's key outranks the provider's environment variable at run time
+ * (see resolveApiKey), so a key left behind there by an earlier configuration
+ * would be sent to whatever the tier now names — another provider's key to a
+ * different company, or any key to an arbitrary endpoint. A stored key
+ * therefore survives only when the caller says it may (`keepStored`, which it
+ * grants only for an unchanged provider and endpoint with no other key chosen);
+ * otherwise it is deleted. A typed key replaces it. Only the key is touched:
+ * any other override in the file stays exactly as it was, and a file left with
+ * nothing in it is removed.
+ */
+export async function reconcileSecretsKey(
+  yggRoot: string,
+  opts: { apiKey?: string; keepStored: boolean },
+): Promise<StoredKeyOutcome> {
+  if (opts.apiKey) {
+    await writeSecretsFile(yggRoot, opts.apiKey);
+    return 'stored';
+  }
+  const secretsPath = path.join(yggRoot, 'yg-secrets.yaml');
+  const raw = await readSecretsRaw(secretsPath);
+  const tier = tierOf(raw);
+  const config = isPlainRecord(tier?.config) ? tier.config : undefined;
+  if (config === undefined || !Object.hasOwn(config, 'api_key')) return 'none';
+  if (opts.keepStored) return 'kept';
+
+  delete config.api_key;
+  // Prune the containers the key alone was holding up, innermost first.
+  const reviewer = raw.reviewer as Record<string, unknown>;
+  const tiers = reviewer.tiers as Record<string, unknown>;
+  if (Object.keys(config).length === 0) delete (tier as Record<string, unknown>).config;
+  if (Object.keys(tier as Record<string, unknown>).length === 0) delete tiers[BOOTSTRAP_TIER_NAME];
+  if (Object.keys(tiers).length === 0) delete reviewer.tiers;
+  if (Object.keys(reviewer).length === 0) delete raw.reviewer;
+
+  if (Object.keys(raw).length === 0) {
+    await unlink(secretsPath);
+  } else {
+    await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
+  }
+  return 'removed';
+}
+
+// ---------------------------------------------------------------------------
 // Shared flag+env → reviewer config resolver (non-interactive init paths)
 // ---------------------------------------------------------------------------
 
@@ -456,7 +651,12 @@ export interface ResolvedReviewerConfig {
   provider: ReviewerProvider;
   model: string;
   endpoint?: string;
-  apiKey?: string;
+  /**
+   * The provider's environment variable when it holds a key. The key itself is
+   * never part of the result: the reviewer reads the same variable at run
+   * time, so init has no reason to hold it, and nothing to copy to disk.
+   */
+  keyEnvVar?: string;
 }
 
 export type ResolveReviewerResult =
@@ -465,8 +665,11 @@ export type ResolveReviewerResult =
 
 /**
  * Resolve a reviewer config from flags + env for the non-interactive (pure-CLI)
- * init paths. Applies the model/endpoint defaults and reads the API key ONLY
- * from the provider's env var (never a flag). Returns structured data — it
+ * init paths. Applies the model/endpoint defaults and looks for the API key
+ * ONLY in the provider's env var (never a flag), reporting whether it is set
+ * but never returning the key, so this path cannot copy it to disk. The
+ * keyWarning describes the environment alone; persistReviewerConfig corrects
+ * it against yg-secrets.yaml. Returns structured data — it
  * NEVER writes to stderr or exits; the command layer (init.ts) renders the
  * result via buildIssueMessage so error emission stays in the `command` node.
  */
@@ -516,18 +719,19 @@ export function resolveReviewerConfigFromFlags(opts: {
     }
   }
 
-  let apiKey: string | undefined;
+  let keyEnvVar: string | undefined;
   let keyWarning: IssueMessage | undefined;
   if (needsApiKey(provider)) {
     const envVar = API_KEY_ENV[provider];
-    apiKey = (envVar ? process.env[envVar] : undefined)?.trim() || undefined;
-    if (!apiKey && provider === 'openai-compatible') {
+    const envKey = (envVar ? process.env[envVar] : undefined)?.trim() || undefined;
+    if (envKey) keyEnvVar = envVar;
+    if (!envKey && provider === 'openai-compatible') {
       keyWarning = {
         what: `No API key found in $${envVar}; the reviewer will call ${endpoint} without one.`,
         why: 'An OpenAI-compatible server may need no key (a local vLLM, LM Studio or llama.cpp), so the key is optional for this provider.',
         next: `If the server wants a key, set ${envVar} or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml. Note that ${envVar} is also the key the openai provider reads.`,
       };
-    } else if (!apiKey) {
+    } else if (!envKey) {
       keyWarning = {
         what: `No API key found${envVar ? ` in $${envVar}` : ''}; wrote the config without one.`,
         why: 'An API provider needs a key before the reviewer can run; init records the config anyway so setup is not blocked.',
@@ -536,7 +740,7 @@ export function resolveReviewerConfigFromFlags(opts: {
     }
   }
 
-  return { ok: true, config: { provider, model, endpoint, apiKey }, keyWarning };
+  return { ok: true, config: { provider, model, endpoint, ...(keyEnvVar ? { keyEnvVar } : {}) }, keyWarning };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,15 @@
+name: E2E Tests — a provider switch leaves the old key behind
+type: test-suite
+description: >-
+  Subprocess E2E for the credential yg-secrets.yaml holds for the bootstrap
+  tier. A key stored there outranks the provider's environment variable, so a
+  key left behind when init points the tier at another provider would be sent
+  to the new endpoint. The test starts from a tier configured for one provider
+  with its key stored, switches it with init to an OpenAI-compatible endpoint
+  served by a capture server, runs a real fill, and asserts on what arrived:
+  the new endpoint was called and received no credential at all, and init
+  said, truthfully, that the stored key was removed and that none will be sent.
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-init-provider-switch-key.test.ts

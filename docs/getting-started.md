@@ -38,7 +38,10 @@ when you press Enter at the key prompt, without copying it to disk; the reviewer
 reads the same variable at run time. Without the variable, init asks for the key
 in a masked prompt (the input is never shown) and stores it in
 `.yggdrasil/yg-secrets.yaml` (automatically gitignored). No command takes the
-key as a flag, so it never lands in shell history.
+key as a flag, so it never lands in shell history. A key stored there outranks
+the environment variable, so when init later points the reviewer at another
+provider or endpoint it removes that key and says so; a key is never carried
+from one reviewer to another.
 
 Each of the three agent-rules files is optional. Skip any of them with
 `--no-agents-md`, `--no-claude-md`, or `--no-clinerules` — the choice is

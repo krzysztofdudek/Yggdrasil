@@ -1008,8 +1008,9 @@ assuming the default.
 
 A status changed BY HAND (the only way a status changes today) is noticed:
 \`yg check\` reports it as a WARNING — moving a rule is not a violation — and the
-next \`yg check --approve\` writes the bare fact into that rule's log and stops
-mentioning it. A change already recorded by the caller is never written twice.
+next full \`yg check --approve\` writes the bare fact into that rule's log and stops
+mentioning it (\`--only-deterministic\` writes no committed file, so it leaves the
+warning standing). A change already recorded by the caller is never written twice.
 This is why a rule's promotion belongs here rather than in \`yg log add --node\`
 on every component the rule reaches: one rule, one history.
 
@@ -1534,9 +1535,14 @@ endpoint and requires \`--endpoint\`. \`--model\`/\`--endpoint\` without
 similarly-named) flag. An API provider's key is read only from its own
 environment variable (\`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`,
 \`GOOGLE_API_KEY\` — \`openai-compatible\` reads its own
-\`OPENAI_COMPATIBLE_API_KEY\`, never \`OPENAI_API_KEY\`, and needs no key at all for a keyless server) at init time. A missing key is non-fatal: the config is written anyway and can be
-fixed later by exporting the variable (or editing \`yg-secrets.yaml\`) before
-\`yg check --approve\`. This keeps API keys out of shell history — there is no
+\`OPENAI_COMPATIBLE_API_KEY\`, never \`OPENAI_API_KEY\`, and needs no key at all for a keyless server) at init time, and
+is never copied to disk — the reviewer reads the variable at run time. A key in
+\`yg-secrets.yaml\` outranks the variable, so init REMOVES the tier's stored key
+(and says so) when \`--provider\` points the tier at another provider or endpoint,
+or when the variable is set; a re-run for the same provider and endpoint with
+nothing exported keeps it and says the reviewer will send it. A missing key is
+non-fatal: the config is written anyway and can be fixed later by exporting the
+variable (or editing \`yg-secrets.yaml\`) before \`yg check --approve\`. This keeps API keys out of shell history — there is no
 flag-based alternative to set a credential, by design.
 
 \`yg init\` maintains \`.gitattributes\` so the committed lock files

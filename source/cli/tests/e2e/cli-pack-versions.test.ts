@@ -601,7 +601,12 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(run(['check', '--approve', '--only-deterministic'], dir).status).toBe(0);
 
     write(dir, ADAPT_A, `status: advisory\n${read(dir, ADAPT_A)}`);
-    const moved = run(['check', '--approve', '--only-deterministic'], dir);
+    // The free step writes no committed file, the adaptation's log included.
+    const free = run(['check', '--approve', '--only-deterministic'], dir);
+    expect(free.status, free.all).toBe(0);
+    expect(existsSync(path.join(dir, RULE_A_DIR, 'yg-aspect.adapt.log.md'))).toBe(false);
+    // A full fill (this project has script rules only, so it needs no reviewer) writes it.
+    const moved = run(['check', '--approve'], dir);
     expect(moved.status, moved.all).toBe(0);
     expect(moved.all).toContain('now stands at advisory');
     expect(existsSync(path.join(dir, RULE_A_DIR, 'log.md'))).toBe(false);
