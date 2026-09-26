@@ -14,6 +14,8 @@
 //   4. noticed    → a change made by hand is reported, then written down ONCE
 //   5. no repeat  → a change the caller already recorded is not said twice
 //   6. document   → the inventory carries the last entry and what it said
+//   9. free CI    → --only-deterministic writes no committed file, so it leaves
+//                   a hand-made change reported instead of writing it down
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -22,6 +24,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, cpSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
+import { runGitFixture } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -58,9 +62,29 @@ function setStatus(dir: string, status: string, rule = RULE): void {
   writeFileSync(file, yaml.replace(/^status: .*$/m, `status: ${status}`), 'utf-8');
 }
 
-/** The free, keyless approving run — the one allowed to write. */
+/**
+ * The free, keyless approving run. It remembers where each rule stands (a local
+ * fact, kept in the gitignored cache) but writes no committed file, so it never
+ * writes a hand-made change into a rule's log.
+ */
 function approve(dir: string): { stdout: string; stderr: string; status: number | null; all: string } {
   return run(['check', '--approve', '--only-deterministic'], dir);
+}
+
+/**
+ * The full approving run — the one that writes a hand-made change into the
+ * rule's committed log. The fixture has reviewer rules, so it gets a mock
+ * reviewer to answer them.
+ */
+async function approveFull(dir: string): Promise<{ status: number | null; all: string }> {
+  const mock = await startMockReviewer();
+  try {
+    const cfg = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+    writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace(/endpoint:\s*["']?[^"'\n]+["']?/, `endpoint: "${mock.endpoint}"`), 'utf-8');
+    return await runAsync(['check', '--approve'], dir);
+  } finally {
+    await mock.close();
+  }
 }
 
 interface LogDoc {
@@ -189,7 +213,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
     }
   });
 
-  it('4: a standing changed by hand is reported, then written into the rule\'s history exactly once', () => {
+  it('4: a standing changed by hand is reported, then written into the rule\'s history exactly once', async () => {
     const dir = project('noticed');
     try {
       // The first approving run only remembers where every rule stands; there is
@@ -206,13 +230,20 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       expect(noticed.all).toContain('now stands at enforced');
       expect(existsSync(logPath(dir))).toBe(false);
 
-      // The approving run records it, in the rule's own log.
-      const recorded = approve(dir);
+      // The free CI step writes no committed file: it leaves the change reported.
+      const free = approve(dir);
+      expect(free.all).not.toContain('written into its own log');
+      expect(free.all).toContain('aspect-status-changed-outside-cli');
+      expect(existsSync(logPath(dir))).toBe(false);
+
+      // The full approving run records it, in the rule's own log.
+      const recorded = await approveFull(dir);
       expect(recorded.all).toContain(`rule '${RULE}' now stands at enforced (was advisory) — written into its own log`);
       const log = readFileSync(logPath(dir), 'utf-8');
       expect(log).toContain('Status: advisory → enforced, changed outside the CLI');
 
       // And never again: not in the log, not in the report.
+      expect((await approveFull(dir)).all).not.toContain('written into its own log');
       expect(approve(dir).all).not.toContain('written into its own log');
       expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(1);
       expect(run(['check'], dir).all).not.toContain('aspect-status-changed-outside-cli');
@@ -269,12 +300,12 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
     }
   });
 
-  it('7: a standing that did not move is refused, so the history never gains a phantom promotion', () => {
+  it('7: a standing that did not move is refused, so the history never gains a phantom promotion', async () => {
     const dir = project('noop');
     try {
       approve(dir); // the tool remembers advisory
       setStatus(dir, 'enforced');
-      approve(dir); // it notices the edit and writes the bare fact into the log
+      await approveFull(dir); // it notices the edit and writes the bare fact into the log
       const drift = readFileSync(logPath(dir), 'utf-8');
       expect(drift).toContain('Status: advisory → enforced, changed outside the CLI');
 
@@ -320,6 +351,31 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       const disagree = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--limit', '3'], dir);
       expect(disagree.status).toBe(1);
       expect(disagree.stderr).toContain('disagree');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it('9: the free CI step and a bare check leave every committed file as it was, even over a standing changed by hand', () => {
+    const dir = project('ci-clean');
+    try {
+      const git = (...args: string[]) => {
+        const r = runGitFixture(dir, args);
+        expect(r.status, r.stderr).toBe(0);
+        return r.stdout;
+      };
+      // A real checkout: the gitignore init maintains, everything committed.
+      expect(run(['init', '--upgrade'], dir).status).toBe(0);
+      git('init', '-q');
+      approve(dir); // the tool remembers where every rule stands
+      setStatus(dir, 'enforced');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'promote the rule by hand');
+
+      const free = approve(dir);
+      expect(free.all).toContain('aspect-status-changed-outside-cli');
+      run(['check'], dir);
+
+      expect(git('status', '--porcelain')).toBe('');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

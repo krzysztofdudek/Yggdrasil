@@ -1,0 +1,20 @@
+name: Init Stored-Key Tests
+type: test-suite
+description: >-
+  Unit tests for the two promises init makes about the key yg-secrets.yaml
+  holds for the bootstrap tier, which outranks the provider's environment
+  variable at run time. A key taken from the environment is never written to
+  disk, so rotating the variable is enough. A key stored for one reviewer never
+  follows the tier to another provider or endpoint — on the flag path and in
+  the menu alike — while a re-run for the same reviewer keeps it; only the key
+  is ever removed from the file; and what init prints about the key matches
+  what the reviewer will send. Each case is judged on the resolved
+  configuration the reviewer is built from, not on the file alone.
+aspects: []
+relations:
+  - { target: cli/commands/init, type: uses }
+  - { target: cli/init-reviewer-setup, type: uses }
+  - { target: cli/io/parsers/config, type: uses }
+  - { target: cli/llm/shared, type: uses }
+mapping:
+  - source/cli/tests/unit/cli/init-stored-key.test.ts

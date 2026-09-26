@@ -8,8 +8,11 @@ description: >-
   to, who decided and on what evidence — and is refused outright when the rule's
   file does not actually carry the standing being claimed, because a record of a
   change that never happened is worse than no record. A standing changed by hand
-  is noticed and written into that rule's history exactly once: the run that
-  records it says so, and no later run repeats it. The same guards a component's
+  is noticed and written into that rule's history exactly once, by a full
+  approving run: the run that records it says so, and no later run repeats it.
+  The free script-only run writes no committed file, so it leaves such a change
+  reported instead — checked on a real git checkout, whose status must stay
+  clean after that run and a bare check. The same guards a component's
   log has hold here — an empty reason, text that would destroy the entry
   boundary for later readers, and a timestamp that never moves backwards — and
   the rule inventory document carries the last entry's time and what it said, so
@@ -17,6 +20,10 @@ description: >-
 aspects: []
 relations:
   - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/e2e/support
+    type: uses
+  - target: cli/tests/support
     type: uses
 mapping:
   - source/cli/tests/e2e/cli-aspects-log.test.ts

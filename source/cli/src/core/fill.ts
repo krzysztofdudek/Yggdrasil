@@ -271,9 +271,14 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // The change scope narrows the PAID half of the fill set and nothing else —
   // see fill-classify.ts. `nodeSet` below stays the unfiltered log-gate set;
   // every number this run reports comes from the report sets beside it.
+  // companion.mjs runs only where a reviewer pair may be filled: never in a
+  // preview, and never under --only-deterministic, whose one piece of
+  // repository code is the script rules' check.mjs (the free CI step promises
+  // exactly that, and it fills no reviewer pair that a companion could size).
   const lock = readLock(graph.rootPath);
   const classification = await classifyFillPairs(
-    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles, !dryRun,
+    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
+    !dryRun && !onlyDeterministic,
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
@@ -524,17 +529,17 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Step 7b: Rule standings. ───────────────────────────────────────────────
   // The standing each rule was last seen at is remembered here, and a standing
   // that moved since — a promotion or a demotion made by hand, which is the only
-  // way a status changes today — is written into that rule's own log once. This
-  // runs under --only-deterministic too: the memory costs nothing to keep, and a
-  // run that could not keep it would leave every later run either silent about
-  // the change or repeating it forever. The memory is LOCAL — it rides with the
-  // gitignored verdict cache — so the ordinary writer persists it correctly in
-  // both modes. The log line is NOT local: a moved standing is appended to the
-  // rule's own committed log, under --only-deterministic as well — `log.md`
-  // beside a rule of this repository's own, and `yg-aspect.adapt.log.md` beside
-  // the adaptation of a rule installed from a package, never a file inside the
-  // package's copy.
-  const statuses = await recordAspectStatuses(graph, lock, now());
+  // way a status changes today — is written into that rule's own log once. The
+  // memory is LOCAL — it rides with the gitignored verdict cache — so the
+  // ordinary writer persists it in both modes. The log line is NOT local: it is
+  // appended to the rule's committed log (`log.md` beside a rule of this
+  // repository's own, `yg-aspect.adapt.log.md` beside the adaptation of a rule
+  // installed from a package, never a file inside the package's copy). So under
+  // --only-deterministic, which writes no committed file, the log line is not
+  // written and the memory of that rule is not advanced: the warning keeps
+  // standing until a full `--approve` writes the line or somebody records the
+  // change with `yg aspects log add`.
+  const statuses = await recordAspectStatuses(graph, lock, now(), { writeLogs: !onlyDeterministic });
   if (statuses.changed) await writer.persistLock();
   for (const drift of statuses.recorded) {
     emit({ type: 'rule-status', aspectId: drift.aspectId, from: drift.from, to: drift.to });
@@ -588,7 +593,9 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
     // A real fill already ran the repository's rule code; its report sizes a
     // stale companion pair with the companions resolved, as the fill itself did.
-    runCompanionHooks: true,
+    // Under --only-deterministic no companion ran, and the report runs none
+    // either: it sizes such a pair exactly as a plain `yg check` does.
+    runCompanionHooks: !onlyDeterministic,
     writeFeatureIndex: opts.writeFeatureIndex,
     now: opts.featureIndexNow,
     nowUtc: opts.reviewNowUtc,

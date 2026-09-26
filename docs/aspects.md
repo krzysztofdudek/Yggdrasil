@@ -74,7 +74,7 @@ own file, and the command refuses to record a status the file does not carry, or
 one the rule already had, so the history never shows a promotion that moved nothing.
 What justified the move is required, because it is the part nobody can reconstruct
 later. If you move a rule and record nothing, `yg check` says so, and the next
-fill (`yg check --approve`) writes the bare fact into that rule's log so the change is not lost.
+full fill (`yg check --approve`) writes the bare fact into that rule's log so the change is not lost. The free `--approve --only-deterministic` writes no committed file, so it leaves the warning standing instead.
 
 See [`yg aspects log`](/cli-reference#yg-aspects-log).
 

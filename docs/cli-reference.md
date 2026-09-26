@@ -1241,8 +1241,9 @@ neither knows, the entry says so rather than guessing.
 **A status changed by hand is noticed.** `yg check` reports a rule whose status
 differs from the one the tool last saw — a warning, never a failure,
 because moving a rule is not a violation of anything — and the next
-`yg check --approve` writes the bare fact into that rule's log and stops
-mentioning it. A change you recorded yourself is never written a second time.
+full `yg check --approve` writes the bare fact into that rule's log and stops
+mentioning it (`--approve --only-deterministic` writes no committed file, so it
+leaves the warning standing). A change you recorded yourself is never written a second time.
 
 ### `yg advise`
 
@@ -1987,8 +1988,14 @@ and requires `--endpoint`. Credentials are never a flag — an API provider's
 key is read only from its own environment variable
 (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`; `openai-compatible`
 reads its own `OPENAI_COMPATIBLE_API_KEY`, never `OPENAI_API_KEY`, and needs no key for a keyless server) at init time,
-keeping keys out of shell history; a missing key is non-fatal and can be set
-later before `yg check --approve`. For a CLI provider, init checks that the CLI
+keeping keys out of shell history, and it is never copied to disk: the reviewer
+reads the same variable at run time. A key already stored for the tier in
+`yg-secrets.yaml` outranks that variable, so init removes it — and says so —
+when `--provider` points the tier at another provider or endpoint, and when the
+variable is set (it would otherwise shadow the key you exported). Re-running init
+for the same provider and endpoint with nothing exported keeps it and says the
+reviewer will send it. A missing key is non-fatal and can be set later before
+`yg check --approve`. For a CLI provider, init checks that the CLI
 runs on this machine (the same check the interactive menu makes) and prints a
 warning naming the cause when it does not; the configuration is still written
 and the exit code is 0. No network call is made. An existing `yg-config.yaml`
