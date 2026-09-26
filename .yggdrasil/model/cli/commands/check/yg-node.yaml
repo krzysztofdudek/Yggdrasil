@@ -54,5 +54,7 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/check-flags
+    type: calls
 mapping:
   - source/cli/src/cli/check.ts

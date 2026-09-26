@@ -30,7 +30,7 @@ description: "Unit tests for build and check CLI commands — build-command,
   each pair."
 aspects: []
 max_direct_relations:
-  limit: 33
+  limit: 34
   reason: >-
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
@@ -45,6 +45,9 @@ max_direct_relations:
     already named types of the graph model, the lock verifier and the type-visibility
     report, and those imports are now declared relations. No new behaviour is tested
     through them.
+    Raised from 33 to 34 when the check command's flag parse moved into a module of
+    its own: its refusals and view resolution are pure, so they are tested directly
+    against that module rather than only through a spawned command.
 relations:
   [
     { target: cli/output, type: uses },
@@ -54,6 +57,7 @@ relations:
     { target: cli/check-render-header, type: uses },
     { target: cli/check-render-groups, type: uses },
     { target: cli/check-render-views, type: uses },
+    { target: cli/check-flags, type: uses },
     { target: cli/group-issues, type: uses },
     { target: cli/commands/init, type: uses },
     { target: cli/init-reviewer-setup, type: uses },
@@ -88,6 +92,7 @@ mapping:
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts
   - source/cli/tests/unit/cli/check-render-views.test.ts
+  - source/cli/tests/unit/cli/check-flags.test.ts
   - source/cli/tests/unit/cli/next-contract.test.ts
   - source/cli/tests/unit/cli/check-json.test.ts
   - source/cli/tests/unit/cli/check-type-visibility.test.ts

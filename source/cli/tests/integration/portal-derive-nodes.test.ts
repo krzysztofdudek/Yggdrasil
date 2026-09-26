@@ -26,11 +26,14 @@ const REPO_ROOT = path.resolve(__dirname, '../../../..');
 
 describe('portal per-node derivation (honest state, effective aspects, relations, log)', () => {
   let byPath: Map<string, PortalNode>;
+  // The real report's warnings, for the two rollup pins below.
+  let warningIssues: Array<{ code?: string; nodePath?: string; aspectId?: string }>;
 
   beforeAll(async () => {
     const graph = await loadGraph(REPO_ROOT);
     const gitFiles = await walkRepoFiles(REPO_ROOT);
     const check = await runCheck(graph, gitFiles);
+    warningIssues = check.issues.filter((i) => i.severity === 'warning');
     const lock = readLock(graph.rootPath);
     const verification = await verifyLock(graph, lock);
 
@@ -102,9 +105,16 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     expect(fill!.checked).toBe(true);
     // cli/core/fill declares a reviewed-seam max_direct_relations ceiling equal to its
     // exact relation count, so the built-in high-fan-out check no longer warns on it.
-    // With an all-green lock and no warning, the node reads `verified`, not `warning`.
+    // With an all-green lock and no fan-out warning, the node reads `verified` — or
+    // `warning` for one reason only: the advisory function-length rule, which names the
+    // long functions still in this node (the lock writer, the deterministic phase and its
+    // per-pair filler) as advisory refusals. Nothing else on this node may warn.
     // (The verified→warning promotion path itself is covered on synthetic inputs below.)
-    expect(fill!.state).toBe('verified');
+    expect(['verified', 'warning']).toContain(fill!.state);
+    const warnedRows = fill!.effectiveAspects.filter((a) => a.pairState === 'warning').map((a) => a.aspectId);
+    expect([...new Set(warnedRows)]).toEqual(fill!.state === 'warning' ? ['function-length'] : []);
+    const fillWarnings = warningIssues.filter((i) => i.nodePath === 'cli/core/fill');
+    expect(fillWarnings.filter((i) => i.aspectId !== 'function-length')).toEqual([]);
   });
 
   it('cli/core/fill effective aspects include a deterministic row with channel + origin + pairState', () => {
@@ -198,10 +208,17 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     // it via a descendant. This guards the seam allowance at the rollup level: if a fan-out (or
     // any other) warning reappeared under cli/core, this would catch the unexpected bubble.
     // (The child→ancestor rollup MECHANIC is covered on synthetic inputs below.)
+    // The one warning allowed to bubble is the advisory function-length rule's: it names
+    // long functions that remain under cli/core by design (it reports without blocking
+    // while their count comes down), so cli/core may roll up to `warning` — but only when
+    // every warning under it is that rule's.
     const core = byPath.get('cli/core');
     if (core) {
       const rank: Record<string, number> = { 'no-rule': 0, verified: 1, warning: 2, unverified: 3, refused: 4 };
-      expect(rank[core.rollupState]).toBeLessThanOrEqual(rank['verified']);
+      expect(rank[core.rollupState]).toBeLessThanOrEqual(rank['warning']);
+      const underCore = warningIssues.filter((i) => i.nodePath !== undefined && (i.nodePath === 'cli/core' || i.nodePath.startsWith('cli/core/')));
+      expect(underCore.filter((i) => i.aspectId !== 'function-length')).toEqual([]);
+      if (core.rollupState === 'warning') expect(underCore.length).toBeGreaterThan(0);
     }
   });
 });

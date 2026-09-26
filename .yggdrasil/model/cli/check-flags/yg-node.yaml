@@ -1,0 +1,10 @@
+name: Check Flags
+type: command-support
+description: "The yg check flag parse, pure: which flag combinations the command refuses and which report view the rest select. The argument-only refusals (--approve with --no-approve, decided from the raw arguments so the answer never depends on which came last; --compact without --json) are asked before the graph loads; the combination refusals after it, in one fixed order — each text view with --json, --coverage with --json, two views at once, a view with the writer, a view with --only-deterministic, --no-approve with --only-deterministic, --aspect with the writer or another view — so the refusal a user sees for a flag set that breaks several rules is always the same one. It also resolves the view (--aspect, --details, --summary [nodes], --top [n], else the full report), refusing a --summary argument other than nodes and a --top that is not a positive whole number, says whether the flags select a read-only view (which never fills, whatever auto_approve says), and words the refusal of --dry-run without an approve mode, naming the free read the project actually has. It returns refusals as data and never writes, loads a graph or ends the process; the command prints them and exits."
+mapping:
+  - source/cli/src/cli/check-flags.ts
+relations:
+  - target: cli/check-render-views
+    type: calls
+  - target: cli/model/validation
+    type: uses

@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 33, ahead of cli/core/fill and cli/entry at 28', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 34, ahead of cli/core/fill and cli/entry at 28', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -80,9 +80,11 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // cli/core/check from 24 to 26 (the pair engine's coverage input and the
     // check-issue model). cli/core/fill now ties cli/entry at 28; the tie breaks by
     // path, so cli/core/fill ranks first. aspect-test went from 21 to 22 (the AST report).
+    // cli/tests/unit/cli/general went from 33 to 34 when the check command's flag parse
+    // moved into a module of its own, tested directly rather than only through the command.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(33);
+    expect(data.hubs.fanOut[0].count).toBe(34);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(28);
     expect(data.hubs.fanOut[2].path).toBe('cli/entry');

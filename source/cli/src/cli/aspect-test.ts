@@ -36,7 +36,7 @@ import {
 } from '../core/aspect-test-file-target.js';
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
-import type { AspectDef, LlmConfig } from '../model/graph.js';
+import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
 import { aspectNotFound, fail, field, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
@@ -246,309 +246,10 @@ export function registerAspectTestCommand(program: Command): void {
     .option('--dry-run', 'for reviewer rules: print the assembled prompts to stdout, make no reviewer call (companion hook runs live)')
     .option('--repeat <n>', 'for reviewer rules: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or script rules')
     .option('--tier <name>', 'run the same pairs under a named reviewer tier from the merged config (dry-fit before a model swap); diagnostic — no graph edits, no lock writes')
-    .action(async (opts) => {
+    .action(async (opts: AspectTestOptions) => {
       const projectRoot = process.cwd();
       try {
-        const graph = await loadGraphOrAbort(projectRoot);
-
-        const aspect = graph.aspects.find((a) => a.id === opts.aspect);
-        if (!aspect) {
-          failAndExit(aspectNotFound(String(opts.aspect), 'aspect-test runs one rule live, so the rule must exist in the graph.'), 'aspect-not-found');
-        }
-
-        const hasNode = typeof opts.node === 'string';
-        const hasFile = typeof opts.file === 'string';
-        const hasFiles = Array.isArray(opts.files) && opts.files.length > 0;
-
-        // ── --file addressing mode guard ──────────────────────────────────────
-        // --file (a graph-attached, type-covered file) and --node (a real
-        // component) address two different kinds of unit; --files (ad-hoc, no
-        // graph attachment at all) is a THIRD, unrelated mode. At most one of
-        // the three may be given — each refusal names the other flags by name
-        // so a confusion between --file and --files is never silent.
-        if ([hasNode, hasFile, hasFiles].filter(Boolean).length > 1) {
-          failAndExit({
-              what: `More than one of --node, --file, --files was provided.`,
-              why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
-              next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
-            });
-        }
-
-        // ── --repeat validation (LLM stability measurement) ──────────────────
-        // --repeat re-runs each unit N times with consensus FORCED to 1 per run,
-        // measuring how consistently the reviewer judges the SAME prompt. It is
-        // meaningless for deterministic checks (exactly reproducible), for
-        // --dry-run (no reviewer call to repeat), and for --files (deterministic
-        // only). Requires an integer of at least 2.
-        let repeatN = 1;
-        if (opts.repeat !== undefined) {
-          const raw = String(opts.repeat).trim();
-          const parsed = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
-          if (!Number.isInteger(parsed) || parsed < 2) {
-            failAndExit({
-                what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
-                why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
-                next: `Pass --repeat 2 (or higher) with a reviewer rule and --node.`,
-              });
-          }
-          if (opts.dryRun) {
-            failAndExit({
-                what: `--repeat cannot be combined with --dry-run.`,
-                why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
-                next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
-              });
-          }
-          if (hasFiles) {
-            failAndExit({
-                what: `--repeat cannot be combined with --files.`,
-                why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a script rule, which returns the same result every time.`,
-                next: `Use --repeat with a reviewer rule and --node <node-path>.`,
-              });
-          }
-          if (aspect.reviewer.type !== 'llm') {
-            failAndExit({
-                what: `--repeat is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
-                why: `A script rule is exactly reproducible — repeating it measures nothing. --repeat measures how consistently a reviewer judges the same prompt.`,
-                next: `Run --repeat against a reviewer rule (content.md), or use --check-determinism to re-run a script rule.`,
-              });
-          }
-          repeatN = parsed;
-        }
-
-        // ── --tier validation (dry-fit under a named reviewer tier) ──────────
-        // --tier re-runs the SAME LLM pairs under a named tier from the merged
-        // config (yg-secrets included), overriding the aspect's declared/default
-        // tier — the "does this survive under the model I'm about to switch to?"
-        // probe. It is diagnostic: no graph edits, no lock writes. It mirrors
-        // --repeat's guards (LLM aspect + --node only; never --files, never a
-        // deterministic aspect) and MAY combine with --repeat (each of the N runs
-        // then emits under the chosen tier). The tier NAME itself is resolved in
-        // runLlmAspectTest (direct reviewer.tiers lookup, unknown-tier error).
-        if (typeof opts.tier === 'string') {
-          if (hasFiles) {
-            failAndExit({
-                what: `--tier cannot be combined with --files.`,
-                why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a script rule with no tier.`,
-                next: `Use --tier with a reviewer rule and --node <node-path>.`,
-              });
-          }
-          if (aspect.reviewer.type !== 'llm') {
-            failAndExit({
-                what: `--tier is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
-                why: `A script rule runs locally with no reviewer tier — there is no tier to swap. --tier re-runs a reviewer rule under a named reviewer tier.`,
-                next: `Run --tier against a reviewer rule (content.md) with --node, or drop --tier for a script rule.`,
-              });
-          }
-        }
-
-        // ── LLM aspect path ──────────────────────────────────────────────────
-        if (aspect.reviewer.type === 'llm') {
-          // --files is not supported for LLM aspects: they need graph context.
-          if (hasFiles) {
-            failAndExit({
-                what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
-                why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
-                next: `Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.`,
-              });
-          }
-          if (!hasNode && !hasFile) {
-            failAndExit({
-                what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
-                why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file), or --files (ad-hoc, script rules only).`,
-                next: `Pass --node <node-path> or --file <path> to run a reviewer rule.`,
-              });
-          }
-
-          let target: AspectTestTarget;
-          if (hasFile) {
-            const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
-            if (resolved.kind === 'refused') {
-              failAndExit(resolved.messageData);
-            }
-            target = { kind: 'file', file: resolved.file, typeId: resolved.typeId, typeCoverage: resolved.typeCoverage };
-          } else {
-            const nodePath = (opts.node as string).trim().replace(/\/$/, '');
-            const node = graph.nodes.get(nodePath);
-            if (!node) {
-              failAndExit({
-                  what: `Node '${nodePath}' not found.`,
-                  why: `--node requires an existing node path in the graph.`,
-                  next: `Run 'yg tree' to list nodes.`,
-                });
-            }
-            target = { kind: 'node', nodePath };
-          }
-
-          const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, target, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
-          writeOut(DIAGNOSTIC_FOOTER);
-          // Refused or incomplete (fail-closed) units exit 1, per the documented
-          // 'exit 1 on violations or refusals' contract.
-          if (llmExit !== 0) await exitAfterFlush(llmExit);
-          return;
-        }
-
-        // ── Deterministic aspect path ────────────────────────────────────────
-        if (aspect.reviewer.type !== 'deterministic') {
-          failAndExit({
-              what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
-              why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
-              next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
-            });
-        }
-
-        // --dry-run on a deterministic aspect is not meaningful.
-        if (opts.dryRun) {
-          failAndExit({
-              what: `--dry-run is not supported for script rule '${opts.aspect}'.`,
-              why: `Script rules run locally without any provider calls — there is no prompt to print.`,
-              next: `Remove --dry-run to run the script rule, or use --node / --files as normal.`,
-            });
-        }
-
-        if ([hasNode, hasFile, hasFiles].filter(Boolean).length !== 1) {
-          failAndExit({
-              what: [hasNode, hasFile, hasFiles].filter(Boolean).length > 1
-                ? `More than one of --node, --file, --files was provided.`
-                : `None of --node, --file, --files was provided.`,
-              why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment).`,
-              next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
-            });
-        }
-
-        const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
-
-        // --node: graph-scoped, matches real approve (always node-scoped). The
-        // structure runner resolves the node's own mapping and graph-aware ctx.
-        if (hasNode) {
-          const nodePath = (opts.node as string).trim().replace(/\/$/, '');
-          const node = graph.nodes.get(nodePath);
-          if (!node) {
-            failAndExit({
-                what: `Node '${nodePath}' not found.`,
-                why: `--node requires an existing node path in the graph.`,
-                next: `Run 'yg tree' to list nodes.`,
-              });
-          }
-          // The ad-hoc run below is legitimately useful (test-before-attach), but
-          // it runs against the node's files even when the aspect is NOT effective
-          // on the node through any channel — silently printing a verdict yg check
-          // will never produce (the LLM path says "No pairs" in the same case).
-          // Restore the symmetry: if the aspect is not effective on this node,
-          // print a one-line NOTE to stderr first. Effectiveness is the full
-          // 7-channel cascade — NOT "a pair exists at this exact node": an aspect
-          // attached to an organizational / fileless node (no own mapping) produces
-          // no pair AT that node but is genuinely effective, its pairs materializing
-          // at file-bearing descendants. computeEffectiveAspects returns the ids
-          // effective on the node regardless of whether the node itself bears files,
-          // and does not filter by status — a DRAFT aspect attached to its own node
-          // still resolves as attached (status gates the lock/fill, never this
-          // diagnostic). Exit code and verdict output are unchanged; if
-          // classification fails (e.g. an incomplete graph in a unit harness), skip
-          // the NOTE rather than block the diagnostic.
-          try {
-            const effective = computeEffectiveAspects(node, graph);
-            const attached = effective.has(aspect.id);
-            if (!attached) {
-              notice({
-                what: `Aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files.`,
-                why: 'yg check will not produce a verdict for this pair, so what this run prints is a diagnostic only.',
-                next: `To have yg check judge it, attach aspect '${aspect.id}' to node '${nodePath}' (or to an ancestor or its type) — an architecture change: ask the user to approve it first.`,
-              });
-            }
-          } catch (e) {
-            debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
-          }
-          const runOnce = () =>
-            runStructureAspect({ aspectDir, aspectId: aspect.id, unit: { kind: 'node', nodePath }, graph, projectRoot });
-          await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
-          return;
-        }
-
-        // --file: a file enforced by its architecture type alone (no owning
-        // component) — the structure runner uses the architecture-derived read
-        // allowance (collectArchitectureReach) instead of a node mapping.
-        if (hasFile) {
-          const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
-          if (resolved.kind === 'refused') {
-            failAndExit(resolved.messageData);
-          }
-          const unit: StructureUnit = { kind: 'file', file: resolved.file, typeId: resolved.typeId, allowedReads: resolved.allowedReads };
-          const runOnce = () =>
-            runStructureAspect({ aspectDir, aspectId: aspect.id, unit, graph, projectRoot });
-          await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
-          return;
-        }
-
-        // --files: ad-hoc mode has no node and thus no approve equivalent; it
-        // stays on the AST runner (a fileless structure path is out of scope).
-        const filePaths = opts.files as string[];
-        // Usability probe BEFORE running: --file already probes for this
-        // (resolveAspectTestFileTarget above, via the SAME probeUnusablePath)
-        // and answers cleanly; --files did not, so any of a typo, a
-        // directory, or an unreadable file reached the runner as a raw
-        // ENOENT/EISDIR/EACCES and fell into the generic unclassified-error
-        // funnel ("This is a bug — please file an issue"), misreporting an
-        // ordinary mistake as an internal defect. Checked in this order —
-        // missing, then not-a-file, then unreadable — so a run with more than
-        // one kind of bad path leads with the most fundamental problem first.
-        const probed = filePaths.map((f) => ({ f, reason: probeUnusablePath(path.resolve(projectRoot, f)) }));
-        const missingFiles = probed.filter((p) => p.reason?.kind === 'missing').map((p) => p.f);
-        if (missingFiles.length > 0) {
-          failAndExit({
-            what: missingFiles.length === 1
-              ? `'${missingFiles[0]}' does not exist.`
-              : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
-            why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
-            next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
-          });
-        }
-        const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
-        if (notFiles.length > 0) {
-          const [first] = notFiles;
-          failAndExit({
-            what: notFiles.length === 1
-              ? `'${first.f}' is ${(first.reason as { kind: 'not-a-file'; noun: string }).noun}.`
-              : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
-            why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
-            next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
-          });
-        }
-        const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
-        if (unreadableFiles.length > 0) {
-          failAndExit({
-            what: unreadableFiles.length === 1
-              ? `'${unreadableFiles[0]}' exists but cannot be read (permission denied).`
-              : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
-            why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
-            next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
-          });
-        }
-        // Return type is inferred from the runner; do not re-annotate it.
-        const runOnce = () =>
-          runAstAspect({
-            aspectDir,
-            aspectId: aspect.id,
-            files: filePaths.map((f) => ({ path: f })),
-            projectRoot,
-          });
-        const result = await runOnce();
-        if (opts.checkDeterminism) {
-          const result2 = await runOnce();
-          if (!determinismMatches(result.violations, result2.violations)) {
-            writeNonDeterministicError(opts.aspect, result.violations, result2.violations);
-            writeOut(DIAGNOSTIC_FOOTER);
-            await exitAfterFlush(1);
-          }
-        }
-        if (result.violations.length === 0) {
-          writeOut(DET_SATISFIED_STAMP);
-          writeOut(DIAGNOSTIC_FOOTER);
-          return;
-        }
-        writeOut(detRefusedStamp(result.violations.length));
-        printAstViolations(result.violations);
-        writeOut(DIAGNOSTIC_FOOTER);
-        await exitAfterFlush(1);
+        await runAspectTestCommand(opts, projectRoot);
       } catch (e: unknown) {
         debugWrite(`[aspect-test] run failed: ${e instanceof Error ? e.message : String(e)}`);
         // A deterministic runner error (StructureRunnerError / AstRunnerError)
@@ -569,6 +270,380 @@ export function registerAspectTestCommand(program: Command): void {
         abortOnUnexpectedError(e, 'running aspect-test');
       }
     });
+}
+
+/** The flags `yg aspect-test` parses. */
+interface AspectTestOptions {
+  aspect: string;
+  node?: string;
+  file?: string;
+  files?: string[];
+  checkDeterminism?: boolean;
+  dryRun?: boolean;
+  repeat?: string;
+  tier?: string;
+}
+
+/** Which of the three addressing modes the flags name. */
+interface AspectTestModes {
+  hasNode: boolean;
+  hasFile: boolean;
+  hasFiles: boolean;
+}
+
+/** The command: resolve the rule, check the flags, run the reviewer or the script path. */
+async function runAspectTestCommand(opts: AspectTestOptions, projectRoot: string): Promise<void> {
+  const graph = await loadGraphOrAbort(projectRoot);
+
+  const aspect = graph.aspects.find((a) => a.id === opts.aspect);
+  if (!aspect) {
+    failAndExit(aspectNotFound(String(opts.aspect), 'aspect-test runs one rule live, so the rule must exist in the graph.'), 'aspect-not-found');
+  }
+
+  const modes: AspectTestModes = {
+    hasNode: typeof opts.node === 'string',
+    hasFile: typeof opts.file === 'string',
+    hasFiles: Array.isArray(opts.files) && opts.files.length > 0,
+  };
+
+  // ── --file addressing mode guard ──────────────────────────────────────
+  // --file (a graph-attached, type-covered file) and --node (a real
+  // component) address two different kinds of unit; --files (ad-hoc, no
+  // graph attachment at all) is a THIRD, unrelated mode. At most one of
+  // the three may be given — each refusal names the other flags by name
+  // so a confusion between --file and --files is never silent.
+  if ([modes.hasNode, modes.hasFile, modes.hasFiles].filter(Boolean).length > 1) {
+    failAndExit({
+        what: `More than one of --node, --file, --files was provided.`,
+        why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
+        next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
+      });
+  }
+
+  const repeatN = resolveRepeat(opts, aspect, modes.hasFiles);
+  refuseTierMisuse(opts, aspect, modes.hasFiles);
+
+  if (aspect.reviewer.type === 'llm') {
+    await runLlmPath(graph, projectRoot, aspect, opts, modes, repeatN);
+    return;
+  }
+  await runDeterministicPath(graph, projectRoot, aspect, opts, modes);
+}
+
+/**
+ * --repeat validation (LLM stability measurement). --repeat re-runs each unit
+ * N times with consensus FORCED to 1 per run, measuring how consistently the
+ * reviewer judges the SAME prompt. It is meaningless for deterministic checks
+ * (exactly reproducible), for --dry-run (no reviewer call to repeat), and for
+ * --files (deterministic only). Requires an integer of at least 2. Returns 1
+ * when the flag is absent.
+ */
+function resolveRepeat(opts: AspectTestOptions, aspect: AspectDef, hasFiles: boolean): number {
+  if (opts.repeat === undefined) return 1;
+  const raw = String(opts.repeat).trim();
+  const parsed = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
+  if (!Number.isInteger(parsed) || parsed < 2) {
+    failAndExit({
+        what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
+        why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
+        next: `Pass --repeat 2 (or higher) with a reviewer rule and --node.`,
+      });
+  }
+  if (opts.dryRun) {
+    failAndExit({
+        what: `--repeat cannot be combined with --dry-run.`,
+        why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
+        next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
+      });
+  }
+  if (hasFiles) {
+    failAndExit({
+        what: `--repeat cannot be combined with --files.`,
+        why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a script rule, which returns the same result every time.`,
+        next: `Use --repeat with a reviewer rule and --node <node-path>.`,
+      });
+  }
+  if (aspect.reviewer.type !== 'llm') {
+    failAndExit({
+        what: `--repeat is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
+        why: `A script rule is exactly reproducible — repeating it measures nothing. --repeat measures how consistently a reviewer judges the same prompt.`,
+        next: `Run --repeat against a reviewer rule (content.md), or use --check-determinism to re-run a script rule.`,
+      });
+  }
+  return parsed;
+}
+
+/**
+ * --tier validation (dry-fit under a named reviewer tier). --tier re-runs the
+ * SAME LLM pairs under a named tier from the merged config (yg-secrets
+ * included), overriding the aspect's declared/default tier — the "does this
+ * survive under the model I'm about to switch to?" probe. It is diagnostic: no
+ * graph edits, no lock writes. It mirrors --repeat's guards (LLM aspect +
+ * --node only; never --files, never a deterministic aspect) and MAY combine
+ * with --repeat (each of the N runs then emits under the chosen tier). The tier
+ * NAME itself is resolved in runLlmAspectTest (direct reviewer.tiers lookup,
+ * unknown-tier error).
+ */
+function refuseTierMisuse(opts: AspectTestOptions, aspect: AspectDef, hasFiles: boolean): void {
+  if (typeof opts.tier !== 'string') return;
+  if (hasFiles) {
+    failAndExit({
+        what: `--tier cannot be combined with --files.`,
+        why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a script rule with no tier.`,
+        next: `Use --tier with a reviewer rule and --node <node-path>.`,
+      });
+  }
+  if (aspect.reviewer.type !== 'llm') {
+    failAndExit({
+        what: `--tier is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
+        why: `A script rule runs locally with no reviewer tier — there is no tier to swap. --tier re-runs a reviewer rule under a named reviewer tier.`,
+        next: `Run --tier against a reviewer rule (content.md) with --node, or drop --tier for a script rule.`,
+      });
+  }
+}
+
+/** Refuse a --node path that names no node; returns the normalised path. */
+function existingNodePath(graph: Graph, rawNode: string): string {
+  const nodePath = rawNode.trim().replace(/\/$/, '');
+  const node = graph.nodes.get(nodePath);
+  if (!node) {
+    failAndExit({
+        what: `Node '${nodePath}' not found.`,
+        why: `--node requires an existing node path in the graph.`,
+        next: `Run 'yg tree' to list nodes.`,
+      });
+  }
+  return nodePath;
+}
+
+/** ── LLM aspect path ── a reviewer rule against one --node or --file target. */
+async function runLlmPath(
+  graph: Graph,
+  projectRoot: string,
+  aspect: AspectDef,
+  opts: AspectTestOptions,
+  modes: AspectTestModes,
+  repeatN: number,
+): Promise<void> {
+  // --files is not supported for LLM aspects: they need graph context.
+  if (modes.hasFiles) {
+    failAndExit({
+        what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
+        why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
+        next: `Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.`,
+      });
+  }
+  if (!modes.hasNode && !modes.hasFile) {
+    failAndExit({
+        what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
+        why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file), or --files (ad-hoc, script rules only).`,
+        next: `Pass --node <node-path> or --file <path> to run a reviewer rule.`,
+      });
+  }
+
+  let target: AspectTestTarget;
+  if (modes.hasFile) {
+    const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
+    if (resolved.kind === 'refused') {
+      failAndExit(resolved.messageData);
+    }
+    target = { kind: 'file', file: resolved.file, typeId: resolved.typeId, typeCoverage: resolved.typeCoverage };
+  } else {
+    target = { kind: 'node', nodePath: existingNodePath(graph, opts.node as string) };
+  }
+
+  const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, target, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
+  writeOut(DIAGNOSTIC_FOOTER);
+  // Refused or incomplete (fail-closed) units exit 1, per the documented
+  // 'exit 1 on violations or refusals' contract.
+  if (llmExit !== 0) await exitAfterFlush(llmExit);
+}
+
+/** ── Deterministic aspect path ── a script rule against --node, --file or --files. */
+async function runDeterministicPath(
+  graph: Graph,
+  projectRoot: string,
+  aspect: AspectDef,
+  opts: AspectTestOptions,
+  modes: AspectTestModes,
+): Promise<void> {
+  if (aspect.reviewer.type !== 'deterministic') {
+    failAndExit({
+        what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
+        why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
+        next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
+      });
+  }
+
+  // --dry-run on a deterministic aspect is not meaningful.
+  if (opts.dryRun) {
+    failAndExit({
+        what: `--dry-run is not supported for script rule '${opts.aspect}'.`,
+        why: `Script rules run locally without any provider calls — there is no prompt to print.`,
+        next: `Remove --dry-run to run the script rule, or use --node / --files as normal.`,
+      });
+  }
+
+  const modeCount = [modes.hasNode, modes.hasFile, modes.hasFiles].filter(Boolean).length;
+  if (modeCount !== 1) {
+    failAndExit({
+        what: modeCount > 1
+          ? `More than one of --node, --file, --files was provided.`
+          : `None of --node, --file, --files was provided.`,
+        why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment).`,
+        next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
+      });
+  }
+
+  const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
+
+  // --node: graph-scoped, matches real approve (always node-scoped). The
+  // structure runner resolves the node's own mapping and graph-aware ctx.
+  if (modes.hasNode) {
+    const nodePath = existingNodePath(graph, opts.node as string);
+    noteIfNotAttached(graph, aspect, nodePath);
+    const runOnce = () =>
+      runStructureAspect({ aspectDir, aspectId: aspect.id, unit: { kind: 'node', nodePath }, graph, projectRoot });
+    await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
+    return;
+  }
+
+  // --file: a file enforced by its architecture type alone (no owning
+  // component) — the structure runner uses the architecture-derived read
+  // allowance (collectArchitectureReach) instead of a node mapping.
+  if (modes.hasFile) {
+    const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
+    if (resolved.kind === 'refused') {
+      failAndExit(resolved.messageData);
+    }
+    const unit: StructureUnit = { kind: 'file', file: resolved.file, typeId: resolved.typeId, allowedReads: resolved.allowedReads };
+    const runOnce = () =>
+      runStructureAspect({ aspectDir, aspectId: aspect.id, unit, graph, projectRoot });
+    await runStructureUnitAndReport(opts.aspect, runOnce, opts.checkDeterminism === true);
+    return;
+  }
+
+  await runAdHocFiles(projectRoot, aspect, aspectDir, opts.files as string[], opts.checkDeterminism === true);
+}
+
+/**
+ * The ad-hoc run below is legitimately useful (test-before-attach), but
+ * it runs against the node's files even when the aspect is NOT effective
+ * on the node through any channel — silently printing a verdict yg check
+ * will never produce (the LLM path says "No pairs" in the same case).
+ * Restore the symmetry: if the aspect is not effective on this node,
+ * print a one-line NOTE to stderr first. Effectiveness is the full
+ * 7-channel cascade — NOT "a pair exists at this exact node": an aspect
+ * attached to an organizational / fileless node (no own mapping) produces
+ * no pair AT that node but is genuinely effective, its pairs materializing
+ * at file-bearing descendants. computeEffectiveAspects returns the ids
+ * effective on the node regardless of whether the node itself bears files,
+ * and does not filter by status — a DRAFT aspect attached to its own node
+ * still resolves as attached (status gates the lock/fill, never this
+ * diagnostic). Exit code and verdict output are unchanged; if
+ * classification fails (e.g. an incomplete graph in a unit harness), skip
+ * the NOTE rather than block the diagnostic.
+ */
+function noteIfNotAttached(graph: Graph, aspect: AspectDef, nodePath: string): void {
+  try {
+    const effective = computeEffectiveAspects(graph.nodes.get(nodePath)!, graph);
+    const attached = effective.has(aspect.id);
+    if (!attached) {
+      notice({
+        what: `Aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files.`,
+        why: 'yg check will not produce a verdict for this pair, so what this run prints is a diagnostic only.',
+        next: `To have yg check judge it, attach aspect '${aspect.id}' to node '${nodePath}' (or to an ancestor or its type) — an architecture change: ask the user to approve it first.`,
+      });
+    }
+  } catch (e) {
+    debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * --files: ad-hoc mode has no node and thus no approve equivalent; it
+ * stays on the AST runner (a fileless structure path is out of scope).
+ */
+async function runAdHocFiles(
+  projectRoot: string,
+  aspect: AspectDef,
+  aspectDir: string,
+  filePaths: string[],
+  checkDeterminism: boolean,
+): Promise<void> {
+  refuseUnusableFiles(projectRoot, filePaths);
+  // Return type is inferred from the runner; do not re-annotate it.
+  const runOnce = () =>
+    runAstAspect({
+      aspectDir,
+      aspectId: aspect.id,
+      files: filePaths.map((f) => ({ path: f })),
+      projectRoot,
+    });
+  const result = await runOnce();
+  if (checkDeterminism) {
+    const result2 = await runOnce();
+    if (!determinismMatches(result.violations, result2.violations)) {
+      writeNonDeterministicError(aspect.id, result.violations, result2.violations);
+      writeOut(DIAGNOSTIC_FOOTER);
+      await exitAfterFlush(1);
+    }
+  }
+  if (result.violations.length === 0) {
+    writeOut(DET_SATISFIED_STAMP);
+    writeOut(DIAGNOSTIC_FOOTER);
+    return;
+  }
+  writeOut(detRefusedStamp(result.violations.length));
+  printAstViolations(result.violations);
+  writeOut(DIAGNOSTIC_FOOTER);
+  await exitAfterFlush(1);
+}
+
+/**
+ * Usability probe BEFORE running: --file already probes for this
+ * (resolveAspectTestFileTarget, via the SAME probeUnusablePath)
+ * and answers cleanly; --files did not, so any of a typo, a
+ * directory, or an unreadable file reached the runner as a raw
+ * ENOENT/EISDIR/EACCES and fell into the generic unclassified-error
+ * funnel ("This is a bug — please file an issue"), misreporting an
+ * ordinary mistake as an internal defect. Checked in this order —
+ * missing, then not-a-file, then unreadable — so a run with more than
+ * one kind of bad path leads with the most fundamental problem first.
+ */
+function refuseUnusableFiles(projectRoot: string, filePaths: string[]): void {
+  const probed = filePaths.map((f) => ({ f, reason: probeUnusablePath(path.resolve(projectRoot, f)) }));
+  const missingFiles = probed.filter((p) => p.reason?.kind === 'missing').map((p) => p.f);
+  if (missingFiles.length > 0) {
+    failAndExit({
+      what: missingFiles.length === 1
+        ? `'${missingFiles[0]}' does not exist.`
+        : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
+      why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
+      next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
+    });
+  }
+  const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
+  if (notFiles.length > 0) {
+    const [first] = notFiles;
+    failAndExit({
+      what: notFiles.length === 1
+        ? `'${first.f}' is ${(first.reason as { kind: 'not-a-file'; noun: string }).noun}.`
+        : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
+      why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
+      next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
+    });
+  }
+  const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
+  if (unreadableFiles.length > 0) {
+    failAndExit({
+      what: unreadableFiles.length === 1
+        ? `'${unreadableFiles[0]}' exists but cannot be read (permission denied).`
+        : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
+      why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
+      next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
+    });
+  }
 }
 
 // ============================================================
@@ -816,49 +891,15 @@ async function resolveAspectTestFileTarget(
  * diagnostic — and is NEVER a hash ingredient (the lock stays untouched).
  */
 async function runLlmAspectTest(
-  graph: import('../model/graph.js').Graph,
+  graph: Graph,
   projectRoot: string,
-  aspect: import('../model/graph.js').AspectDef,
+  aspect: AspectDef,
   target: AspectTestTarget,
   dryRun: boolean,
   repeat: number,
   tierOverride: string | undefined,
 ): Promise<0 | 1> {
-  // Resolve the tier for this aspect.
-  const reviewer = graph.config.reviewer;
-  if (!reviewer) {
-    failAndExit({
-        what: `No reviewer is configured for aspect '${aspect.id}'.`,
-        why: `reviewer rules need a reviewer tier in .yggdrasil/yg-config.yaml.`,
-        next: `Add a reviewer tier to .yggdrasil/yg-config.yaml (yg init --provider <name> --model <m>), then retry.`,
-      });
-  }
-  let tier: LlmConfig;
-  let tierName: string;
-  if (tierOverride !== undefined) {
-    // --tier: resolve the NAME directly against the merged tier map (yg-secrets
-    // overlay already applied at parse time). This deliberately bypasses
-    // selectTierForAspect — the whole point of --tier is to override the aspect's
-    // declared/default tier with an arbitrary named one.
-    const direct = reviewer.tiers[tierOverride];
-    if (!direct) {
-      const tierNames = Object.keys(reviewer.tiers);
-      failAndExit({
-          what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
-          why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
-          next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
-        });
-    }
-    tier = direct;
-    tierName = tierOverride;
-  } else {
-    const tierResult = selectTierForAspect(aspect, reviewer);
-    if (!tierResult.ok) {
-      failAndExit(tierResult.error);
-    }
-    tier = tierResult.tier;
-    tierName = tierResult.tierName;
-  }
+  const { tier, tierName } = resolveTestTier(graph, aspect, tierOverride);
 
   // Compute the expected pairs filtered to this aspect+target. Drafts are
   // included: status gates the lock/fill, never this diagnostic — a draft
@@ -883,10 +924,66 @@ async function runLlmAspectTest(
     return 0;
   }
 
-  // Load references once.
-  const refInputs = aspect.references ?? [];
+  const prompts: TestPromptContext = {
+    graph,
+    projectRoot,
+    aspect,
+    typeCoverage,
+    references: await loadTestReferences(projectRoot, aspect),
+    // nodePath is undefined for a --file target — the prompt's own nodeless
+    // variant (llm/prompt.ts) omits the <node> element entirely whenever
+    // nodePath is undefined, so this needs no extra branching.
+    targetNodePath: target.kind === 'node' ? target.nodePath : undefined,
+    aspectContent: contentFor(aspect, 'content.md'),
+  };
+
+  if (dryRun) {
+    await previewTestPrompts(prompts, myPairs);
+    return 0;
+  }
+  return reviewTestPairs(prompts, myPairs, tier, tierName, repeat);
+}
+
+/**
+ * The tier the reviewer runs under. When `tierOverride` is a tier NAME it is
+ * looked up DIRECTLY in the merged tier map (yg-secrets overlay already applied
+ * at parse time) — deliberately bypassing selectTierForAspect, since the whole
+ * point of --tier is to override the aspect's declared/default tier with an
+ * arbitrary named one. Otherwise the aspect's own tier resolves as it would in
+ * a fill.
+ */
+function resolveTestTier(graph: Graph, aspect: AspectDef, tierOverride: string | undefined): { tier: LlmConfig; tierName: string } {
+  const reviewer = graph.config.reviewer;
+  if (!reviewer) {
+    failAndExit({
+        what: `No reviewer is configured for aspect '${aspect.id}'.`,
+        why: `reviewer rules need a reviewer tier in .yggdrasil/yg-config.yaml.`,
+        next: `Add a reviewer tier to .yggdrasil/yg-config.yaml (yg init --provider <name> --model <m>), then retry.`,
+      });
+  }
+  if (tierOverride !== undefined) {
+    const direct = reviewer.tiers[tierOverride];
+    if (!direct) {
+      const tierNames = Object.keys(reviewer.tiers);
+      failAndExit({
+          what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
+          why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
+          next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
+        });
+    }
+    return { tier: direct, tierName: tierOverride };
+  }
+  const tierResult = selectTierForAspect(aspect, reviewer);
+  if (!tierResult.ok) {
+    failAndExit(tierResult.error);
+  }
+  return { tier: tierResult.tier, tierName: tierResult.tierName };
+}
+
+/** Load the aspect's references once, refusing one that cannot be read. */
+async function loadTestReferences(projectRoot: string, aspect: AspectDef): Promise<PromptReferenceInput[]> {
   const referencesForPrompt: PromptReferenceInput[] = [];
-  for (const ref of refInputs) {
+  for (const ref of aspect.references ?? []) {
     const absRef = path.resolve(projectRoot, ref.path);
     let content: string;
     try {
@@ -901,327 +998,356 @@ async function runLlmAspectTest(
     }
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
+  return referencesForPrompt;
+}
 
-  // nodePath is undefined for a --file target — the prompt's own nodeless
-  // variant (llm/prompt.ts) omits the <node> element entirely whenever
-  // nodePath is undefined, so this needs no extra branching.
-  const targetNodePath = target.kind === 'node' ? target.nodePath : undefined;
-  const aspectContent = contentFor(aspect, 'content.md');
+/** Everything a unit's prompt is assembled from besides the unit itself. */
+interface TestPromptContext {
+  graph: Graph;
+  projectRoot: string;
+  aspect: AspectDef;
+  typeCoverage: TypeCoverageInput | undefined;
+  references: PromptReferenceInput[];
+  targetNodePath: string | undefined;
+  aspectContent: string;
+}
 
-  if (!dryRun) {
-    // Tier config already includes the yg-secrets overlay (applied at parse time).
-    const mergedTier = tier;
-    const provider = createLlmProvider(mergedTier);
-
-    // Availability check — the provider names its own cause when it cannot run.
-    const probe = await probeProvider(provider, mergedTier.provider);
-    if (!probe.available) {
-      debugWrite(`[aspect-test] tier ${tierName} provider ${mergedTier.provider} unavailable: ${probe.reason}`);
-      failAndExit({
-          what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
-          why: `The reviewer failed its availability check. No provider calls were made.`,
-          next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
-        });
+/**
+ * Assemble one unit's prompt exactly as a fill would: its subject files, its
+ * companions (a live hook run, same resolution as --approve), and its
+ * suppressed line ranges. Null when the unit cannot be judged — a companion
+ * that failed to resolve (reported here) or a reasonless suppress marker
+ * (reported by resolveSuppressedRangesForTest). `onCompanions` sees the
+ * resolved companions before the suppress step, for the preview to print.
+ */
+async function assembleTestPrompt(
+  ctx: TestPromptContext,
+  pair: ExpectedPair,
+  onCompanions?: (companions: PromptCompanionInput[]) => void,
+): Promise<string | null> {
+  const { aspect } = ctx;
+  const files: PromptFileInput[] = [];
+  for (const rel of pair.subjectFiles) {
+    let content: string;
+    try {
+      const bytes = await import('node:fs/promises').then((fs) => fs.readFile(path.resolve(ctx.projectRoot, rel)));
+      content = bytes.toString('utf8');
+    } catch (e) {
+      debugWrite(`[aspect-test] subject file read failed for ${rel} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
+      content = '';
     }
+    files.push({ path: rel, content });
+  }
 
-    // Diagnostic telemetry sidecar (source:'diag'): one line per reviewer RUN in
-    // this diagnostic — a real verdict (approved/refused) or an infra no-verdict
-    // outcome. `ts` is the CLI-boundary wall clock (this is a command, not an
-    // engine file, so new Date() is fine here — mirrors cli/drill.ts). The line
-    // carries the tier ACTUALLY used and the resolved judge so wave-4 analyses can
-    // separate judge/model regimes. Best-effort: appendVerdictEvent swallows any
-    // write failure by contract, so telemetry can never fail the diagnostic. NOT a
-    // hash ingredient — aspect-test never writes the lock.
-    //
-    // `promptHash` names the exact input judged: a hash of the assembled prompt
-    // (rule, subject bytes, references, companions, suppressed spans and the
-    // prompt shape itself). `yg advise` compares votes only across lines with
-    // the same hash and judge — a refusal before a code fix and an approval
-    // after it are two different inputs, not a split vote on one.
-    const emitDiag = (
-      unitKey: string,
-      disposition: 'approved' | 'refused' | 'infra',
-      promptHash: string,
-      votes?: { satisfied: number; total: number },
-    ): void => {
-      const event: VerdictEvent = {
-        v: 1,
-        ts: new Date().toISOString(),
-        source: 'diag',
-        aspectId: aspect.id,
-        unitKey,
-        kind: 'llm',
-        disposition,
-        tier: tierName,
-        promptRev: PROMPT_FORMAT_REV,
-        promptHash,
-        judge: { provider: tier.provider, model: String(tier.model) },
-      };
-      // votes accompany a real verdict only; an infra run cast no countable vote.
-      if (votes !== undefined) event.votes = votes;
-      appendVerdictEvent(graph.rootPath, event);
+  let companions: PromptCompanionInput[] = [];
+  if (aspect.hasCompanion === true) {
+    const resolved = await resolveCompanionsForTest(ctx.graph, ctx.projectRoot, pair, aspect, ctx.typeCoverage);
+    if (resolved.kind === 'infra') {
+      debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
+      fail(resolved.messageData);
+      return null;
+    }
+    companions = resolved.companions;
+    onCompanions?.(companions);
+  }
+
+  const suppressedRanges = await resolveSuppressedRangesForTest(files, aspect.id);
+  if (suppressedRanges === null) return null;
+
+  return buildPairPrompt({
+    aspect: { id: aspect.id, description: aspect.description ?? '', content: ctx.aspectContent },
+    references: ctx.references,
+    nodePath: ctx.targetNodePath,
+    files,
+    companions,
+    suppressedRanges,
+    scope: aspect.scope,
+  });
+}
+
+/**
+ * --dry-run: print assembled prompt(s), no reviewer/LLM calls. For companion
+ * aspects the companion hook runs live (same resolution as --approve), and the
+ * resolved companion paths/labels print before the unit's prompt. A unit that
+ * cannot be assembled is reported and skipped, so the rest of the preview
+ * still prints.
+ */
+async function previewTestPrompts(ctx: TestPromptContext, myPairs: ExpectedPair[]): Promise<void> {
+  writeOut('yg aspect-test: dry-run — prompt preview only, no verdict\n');
+  for (const pair of myPairs) {
+    const prompt = await assembleTestPrompt(ctx, pair, (companions) => {
+      writeOut(`--- companions for ${pair.unitKey} ---\n`);
+      if (companions.length === 0) {
+        writeOut('  (none)\n');
+      } else {
+        for (const c of companions) {
+          const labelSuffix = c.label !== undefined ? ` (${c.label})` : '';
+          writeOut(`  ${c.path}${labelSuffix}\n`);
+        }
+      }
+    });
+    if (prompt === null) continue;
+    writeOut(`=== prompt for ${pair.unitKey} ===\n`);
+    writeOut(prompt + '\n');
+  }
+}
+
+/** Records one reviewer run of this diagnostic on the telemetry sidecar. */
+type EmitDiag = (
+  unitKey: string,
+  disposition: 'approved' | 'refused' | 'infra',
+  promptHash: string,
+  votes?: { satisfied: number; total: number },
+) => void;
+
+/** How one unit ended: judged satisfied, judged refused, or never judged. */
+type UnitOutcome = 'satisfied' | 'refused' | 'skipped';
+
+/**
+ * Call the reviewer on every unit, stream a verdict line per unit as results
+ * arrive, then print the one-line summary stamp. Skipped units
+ * (companion/suppress/reviewer infra) make the run incomplete — fail closed.
+ * Returns the exit code.
+ */
+async function reviewTestPairs(
+  ctx: TestPromptContext,
+  myPairs: ExpectedPair[],
+  tier: LlmConfig,
+  tierName: string,
+  repeat: number,
+): Promise<0 | 1> {
+  const { aspect } = ctx;
+  // Tier config already includes the yg-secrets overlay (applied at parse time).
+  const provider = createLlmProvider(tier);
+
+  // Availability check — the provider names its own cause when it cannot run.
+  const probe = await probeProvider(provider, tier.provider);
+  if (!probe.available) {
+    debugWrite(`[aspect-test] tier ${tierName} provider ${tier.provider} unavailable: ${probe.reason}`);
+    failAndExit({
+        what: `Reviewer provider '${tier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
+        why: `The reviewer failed its availability check. No provider calls were made.`,
+        next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
+      });
+  }
+
+  // Diagnostic telemetry sidecar (source:'diag'): one line per reviewer RUN in
+  // this diagnostic — a real verdict (approved/refused) or an infra no-verdict
+  // outcome. `ts` is the CLI-boundary wall clock (this is a command, not an
+  // engine file, so new Date() is fine here — mirrors cli/drill.ts). The line
+  // carries the tier ACTUALLY used and the resolved judge so wave-4 analyses can
+  // separate judge/model regimes. Best-effort: appendVerdictEvent swallows any
+  // write failure by contract, so telemetry can never fail the diagnostic. NOT a
+  // hash ingredient — aspect-test never writes the lock.
+  //
+  // `promptHash` names the exact input judged: a hash of the assembled prompt
+  // (rule, subject bytes, references, companions, suppressed spans and the
+  // prompt shape itself). `yg advise` compares votes only across lines with
+  // the same hash and judge — a refusal before a code fix and an approval
+  // after it are two different inputs, not a split vote on one.
+  const emitDiag: EmitDiag = (unitKey, disposition, promptHash, votes) => {
+    const event: VerdictEvent = {
+      v: 1,
+      ts: new Date().toISOString(),
+      source: 'diag',
+      aspectId: aspect.id,
+      unitKey,
+      kind: 'llm',
+      disposition,
+      tier: tierName,
+      promptRev: PROMPT_FORMAT_REV,
+      promptHash,
+      judge: { provider: tier.provider, model: String(tier.model) },
     };
+    // votes accompany a real verdict only; an infra run cast no countable vote.
+    if (votes !== undefined) event.votes = votes;
+    appendVerdictEvent(ctx.graph.rootPath, event);
+  };
 
-    // Stability mode prints the total reviewer-call budget BEFORE the first
-    // call (repeat N × units), so the cost is visible up front.
-    if (repeat >= 2) {
-      const units = myPairs.length;
-      writeOut(
-        `repeat ${repeat} × ${units} unit${units === 1 ? '' : 's'} = ${repeat * units} reviewer calls\n`,
-      );
+  // Stability mode prints the total reviewer-call budget BEFORE the first
+  // call (repeat N × units), so the cost is visible up front.
+  if (repeat >= 2) {
+    const units = myPairs.length;
+    writeOut(
+      `repeat ${repeat} × ${units} unit${units === 1 ? '' : 's'} = ${repeat * units} reviewer calls\n`,
+    );
+  }
+
+  let refusedCount = 0;
+  let skippedCount = 0;
+  for (const pair of myPairs) {
+    const prompt = await assembleTestPrompt(ctx, pair);
+    if (prompt === null) {
+      skippedCount++;
+      continue;
     }
+    const promptHash = createHash('sha256').update(prompt).digest('hex');
+    const outcome = repeat >= 2
+      ? await reviewUnitRepeatedly(provider, aspect, pair, prompt, promptHash, repeat, emitDiag)
+      : await reviewUnitOnce(provider, aspect, pair, prompt, promptHash, tier.consensus ?? 1, emitDiag);
+    if (outcome === 'skipped') skippedCount++;
+    else if (outcome === 'refused') refusedCount++;
+  }
 
-    // Per-pair verdict lines stream as results arrive; a one-line summary stamp
-    // follows the loop. Skipped pairs (companion/suppress/reviewer infra) make
-    // the run incomplete — fail closed.
-    let refusedCount = 0;
-    let skippedCount = 0;
-    for (const pair of myPairs) {
-      // Load subject files for this pair.
-      const files: PromptFileInput[] = [];
-      for (const rel of pair.subjectFiles) {
-        let content: string;
-        try {
-          const bytes = await import('node:fs/promises').then((fs) => fs.readFile(path.resolve(projectRoot, rel)));
-          content = bytes.toString('utf8');
-        } catch (e) {
-          debugWrite(`[aspect-test] subject file read failed for ${rel} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
-          content = '';
-        }
-        files.push({ path: rel, content });
-      }
+  // Summary stamp — the caller prints the footer directly after it.
+  const total = myPairs.length;
+  if (skippedCount > 0) {
+    writeOut(`yg aspect-test: ${paint.red('incomplete')} — ${skippedCount} of ${total} units could not be verified\n`);
+    return 1;
+  }
+  if (refusedCount > 0) {
+    writeOut(`yg aspect-test: ${paint.red('refused')} — ${refusedCount} of ${total} units refused\n`);
+    return 1;
+  }
+  writeOut(`yg aspect-test: ${paint.green('satisfied')} — ${total} unit${total === 1 ? '' : 's'} satisfied\n`);
+  return 0;
+}
 
-      // Resolve companions (live hook run, same resolution as --approve).
-      let companions: PromptCompanionInput[] = [];
-      if (aspect.hasCompanion === true) {
-        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
-        if (resolved.kind === 'infra') {
-          debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          fail(resolved.messageData);
-          skippedCount++;
-          continue;
-        }
-        companions = resolved.companions;
-      }
-
-      const suppressedRanges = await resolveSuppressedRangesForTest(files, aspect.id);
-      if (suppressedRanges === null) {
-        skippedCount++;
-        continue;
-      }
-
-      const prompt = buildPairPrompt({
-        aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
-        references: referencesForPrompt,
-        nodePath: targetNodePath,
-        files,
-        companions,
-        suppressedRanges,
-        scope: aspect.scope,
+/**
+ * One unit under the tier's own consensus: the verdict line, with the vote
+ * split when more than one vote was cast.
+ */
+async function reviewUnitOnce(
+  provider: ReturnType<typeof createLlmProvider>,
+  aspect: AspectDef,
+  pair: ExpectedPair,
+  prompt: string,
+  promptHash: string,
+  consensus: number,
+  emitDiag: EmitDiag,
+): Promise<UnitOutcome> {
+  let response;
+  let votes;
+  try {
+    ({ response, votes } = await verifyWithConsensus(provider, prompt, consensus));
+  } catch (e) {
+    debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
+    emitDiag(pair.unitKey, 'infra', promptHash);
+    fail({
+        what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
+        why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
+        next: `Check the tier's provider settings in .yggdrasil/yg-config.yaml, then run yg aspect-test --aspect ${aspect.id} again.`,
       });
-      const promptHash = createHash('sha256').update(prompt).digest('hex');
+    return 'skipped';
+  }
 
-      if (repeat >= 2) {
-        // ── Stability mode: N runs of the SAME prompt, consensus forced to 1 ──
-        // Each run is its own verdict (no aggregation → no losing-vote
-        // mislabeling). Provider-error runs are excluded from the k/N
-        // denominator and reported separately; any valid refused run makes the
-        // unit refused; a unit whose runs ALL erred is incomplete (fail closed).
-        let satisfiedRuns = 0;
-        let refusedRuns = 0;
-        let providerErrorRuns = 0;
-        const refusalReasons: string[] = [];
-        for (let i = 1; i <= repeat; i++) {
-          let response;
-          try {
-            ({ response } = await verifyWithConsensus(provider, prompt, 1));
-          } catch (e) {
-            debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
-            providerErrorRuns++;
-            emitDiag(pair.unitKey, 'infra', promptHash);
-            // Infrastructure, not a code violation — same routing as every other
-            // provider-error report in this file (stderr, never stdout).
-            writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
-            continue;
-          }
-          if (!response.satisfied && response.errorSource === 'provider') {
-            debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
-            providerErrorRuns++;
-            emitDiag(pair.unitKey, 'infra', promptHash);
-            writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
-            continue;
-          }
-          if (response.satisfied) satisfiedRuns++;
-          else {
-            refusedRuns++;
-            refusalReasons.push(response.reason);
-          }
-          // Consensus is forced to 1 per run here, so each run casts exactly one
-          // countable vote (votes.total: 1) — the raw self-consistency signal.
-          emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, {
-            satisfied: response.satisfied ? 1 : 0,
-            total: 1,
-          });
-          const verdict = response.satisfied ? 'satisfied' : 'refused';
-          writeOut(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
-        }
-
-        const validRuns = satisfiedRuns + refusedRuns;
-        if (validRuns === 0) {
-          // Every run erred — the unit was never actually judged. Fail closed.
-          writeOut(`  stability: not measured — all ${repeat} runs returned provider errors\n`);
-          skippedCount++;
-          continue;
-        }
-        // k/N is a self-CONSISTENCY figure (how often the same prompt drew a
-        // 'satisfied' verdict), never a correctness score.
-        const excludedNote = providerErrorRuns > 0
-          ? ` (${providerErrorRuns} provider-error run${providerErrorRuns === 1 ? '' : 's'} excluded)`
-          : '';
-        writeOut(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
-        // The verdict ratio says whether the reviewer refuses consistently; it
-        // does not say whether it refuses for the same REASONS. Compare the
-        // locations the refusals cited.
-        if (refusedRuns >= 2) {
-          const overlap = citationOverlap(refusalReasons);
-          if (overlap === undefined) {
-            writeOut(`  cited violations: not compared — fewer than two refusals cited a file:line\n`);
-          } else {
-            writeOut(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
-            if (overlap.common * 2 < overlap.union) {
-              writeOut(
-                `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next.\n` +
-                  `next: sharpen the rule's content.md until it names what counts, before editing code to a list that moves\n`,
-              );
-            }
-          }
-        }
-        if (refusedRuns > 0) refusedCount++;
-        continue;
-      }
-
-      let response;
-      let votes;
-      try {
-        ({ response, votes } = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1));
-      } catch (e) {
-        debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
-        emitDiag(pair.unitKey, 'infra', promptHash);
-        fail({
-            what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
-            why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
-            next: `Check the tier's provider settings in .yggdrasil/yg-config.yaml, then run yg aspect-test --aspect ${aspect.id} again.`,
-          });
-        skippedCount++;
-        continue;
-      }
-
-      // A provider-sourced failure (HTTP non-200 / unparseable body) is
-      // infrastructure, NOT a code violation — every provider folds it into
-      // { satisfied:false, errorSource:'provider' }. Mirror fill-llm.ts: treat it
-      // as an UNVERIFIED unit (skipped → the 'incomplete' stamp + exit 1), never as
-      // a code refusal. Rendering it as a 'refused' verdict would send an agent
-      // editing code for a violation the reviewer never actually found.
-      if (!response.satisfied && response.errorSource === 'provider') {
-        debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
-        emitDiag(pair.unitKey, 'infra', promptHash);
-        fail({
-            what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
-            why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
-            next: `Fix the cause named above, then retry. ${REVIEWER_DEBUG_HINT}`,
-          });
-        skippedCount++;
-        continue;
-      }
-
-      if (!response.satisfied) refusedCount++;
-      // Record the real verdict with its full consensus vote split (how many of
-      // the tier's independent passes were satisfied out of the total cast).
-      // (verdict votes only — a provider-error vote was never a judgment).
-      const tally = consensusTally(votes);
-      emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, tally);
-      const verdict = response.satisfied ? 'satisfied' : 'refused';
-      // Vote-split suffix — only when consensus > 1 actually cast multiple votes;
-      // a consensus=1 aspect always wraps a single vote, so the line stays as-is.
-      const voteSuffix = votes.length > 1
-        ? ` [votes ${tally.satisfied}/${tally.total}]`
-        : '';
-      writeOut(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
-    }
-
-    // Summary stamp — the caller prints the footer directly after it.
-    const total = myPairs.length;
-    if (skippedCount > 0) {
-      writeOut(`yg aspect-test: ${paint.red('incomplete')} — ${skippedCount} of ${total} units could not be verified\n`);
-      return 1;
-    }
-    if (refusedCount > 0) {
-      writeOut(`yg aspect-test: ${paint.red('refused')} — ${refusedCount} of ${total} units refused\n`);
-      return 1;
-    }
-    writeOut(`yg aspect-test: ${paint.green('satisfied')} — ${total} unit${total === 1 ? '' : 's'} satisfied\n`);
-    return 0;
-  } else {
-    // --dry-run: print assembled prompt(s), no reviewer/LLM calls.
-    // For companion aspects: runs the companion hook live (same resolution as --approve),
-    // prints resolved companion paths/labels, then includes them in the prompt.
-    writeOut('yg aspect-test: dry-run — prompt preview only, no verdict\n');
-    for (const pair of myPairs) {
-      const files: PromptFileInput[] = [];
-      for (const rel of pair.subjectFiles) {
-        let content: string;
-        try {
-          const bytes = await import('node:fs/promises').then((fs) => fs.readFile(path.resolve(projectRoot, rel)));
-          content = bytes.toString('utf8');
-        } catch (e) {
-          debugWrite(`[aspect-test] subject file read failed for ${rel} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
-          content = '';
-        }
-        files.push({ path: rel, content });
-      }
-
-      // Resolve companions (live hook run, same resolution as --approve).
-      // On hook failure: print a what/why/next message and continue — never crash.
-      let companions: PromptCompanionInput[] = [];
-      if (aspect.hasCompanion === true) {
-        const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
-        if (resolved.kind === 'infra') {
-          debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          fail(resolved.messageData);
-          // Continue so the user sees the rest of the dry-run output (no reviewer calls made).
-          continue;
-        }
-        companions = resolved.companions;
-        // Print resolved companion paths/labels BEFORE the prompt for this unit.
-        writeOut(`--- companions for ${pair.unitKey} ---\n`);
-        if (companions.length === 0) {
-          writeOut('  (none)\n');
-        } else {
-          for (const c of companions) {
-            const labelSuffix = c.label !== undefined ? ` (${c.label})` : '';
-            writeOut(`  ${c.path}${labelSuffix}\n`);
-          }
-        }
-      }
-
-      const suppressedRanges = await resolveSuppressedRangesForTest(files, aspect.id);
-      if (suppressedRanges === null) continue;
-
-      const prompt = buildPairPrompt({
-        aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
-        references: referencesForPrompt,
-        nodePath: targetNodePath,
-        files,
-        companions,
-        suppressedRanges,
-        scope: aspect.scope,
+  // A provider-sourced failure (HTTP non-200 / unparseable body) is
+  // infrastructure, NOT a code violation — every provider folds it into
+  // { satisfied:false, errorSource:'provider' }. Mirror fill-llm.ts: treat it
+  // as an UNVERIFIED unit (skipped → the 'incomplete' stamp + exit 1), never as
+  // a code refusal. Rendering it as a 'refused' verdict would send an agent
+  // editing code for a violation the reviewer never actually found.
+  if (!response.satisfied && response.errorSource === 'provider') {
+    debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
+    emitDiag(pair.unitKey, 'infra', promptHash);
+    fail({
+        what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
+        why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
+        next: `Fix the cause named above, then retry. ${REVIEWER_DEBUG_HINT}`,
       });
+    return 'skipped';
+  }
 
-      writeOut(`=== prompt for ${pair.unitKey} ===\n`);
-      writeOut(prompt + '\n');
+  // Record the real verdict with its full consensus vote split (how many of
+  // the tier's independent passes were satisfied out of the total cast).
+  // (verdict votes only — a provider-error vote was never a judgment).
+  const tally = consensusTally(votes);
+  emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, tally);
+  const verdict = response.satisfied ? 'satisfied' : 'refused';
+  // Vote-split suffix — only when consensus > 1 actually cast multiple votes;
+  // a consensus=1 aspect always wraps a single vote, so the line stays as-is.
+  const voteSuffix = votes.length > 1
+    ? ` [votes ${tally.satisfied}/${tally.total}]`
+    : '';
+  writeOut(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
+  return response.satisfied ? 'satisfied' : 'refused';
+}
+
+/**
+ * Stability mode: N runs of the SAME prompt, consensus forced to 1. Each run
+ * is its own verdict (no aggregation → no losing-vote mislabeling).
+ * Provider-error runs are excluded from the k/N denominator and reported
+ * separately; any valid refused run makes the unit refused; a unit whose runs
+ * ALL erred is incomplete (fail closed).
+ */
+async function reviewUnitRepeatedly(
+  provider: ReturnType<typeof createLlmProvider>,
+  aspect: AspectDef,
+  pair: ExpectedPair,
+  prompt: string,
+  promptHash: string,
+  repeat: number,
+  emitDiag: EmitDiag,
+): Promise<UnitOutcome> {
+  let satisfiedRuns = 0;
+  let refusedRuns = 0;
+  let providerErrorRuns = 0;
+  const refusalReasons: string[] = [];
+  for (let i = 1; i <= repeat; i++) {
+    let response;
+    try {
+      ({ response } = await verifyWithConsensus(provider, prompt, 1));
+    } catch (e) {
+      debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
+      providerErrorRuns++;
+      emitDiag(pair.unitKey, 'infra', promptHash);
+      // Infrastructure, not a code violation — same routing as every other
+      // provider-error report in this file (stderr, never stdout).
+      writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
+      continue;
+    }
+    if (!response.satisfied && response.errorSource === 'provider') {
+      debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
+      providerErrorRuns++;
+      emitDiag(pair.unitKey, 'infra', promptHash);
+      writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
+      continue;
+    }
+    if (response.satisfied) satisfiedRuns++;
+    else {
+      refusedRuns++;
+      refusalReasons.push(response.reason);
+    }
+    // Consensus is forced to 1 per run here, so each run casts exactly one
+    // countable vote (votes.total: 1) — the raw self-consistency signal.
+    emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, {
+      satisfied: response.satisfied ? 1 : 0,
+      total: 1,
+    });
+    const verdict = response.satisfied ? 'satisfied' : 'refused';
+    writeOut(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
+  }
+
+  const validRuns = satisfiedRuns + refusedRuns;
+  if (validRuns === 0) {
+    // Every run erred — the unit was never actually judged. Fail closed.
+    writeOut(`  stability: not measured — all ${repeat} runs returned provider errors\n`);
+    return 'skipped';
+  }
+  // k/N is a self-CONSISTENCY figure (how often the same prompt drew a
+  // 'satisfied' verdict), never a correctness score.
+  const excludedNote = providerErrorRuns > 0
+    ? ` (${providerErrorRuns} provider-error run${providerErrorRuns === 1 ? '' : 's'} excluded)`
+    : '';
+  writeOut(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
+  // The verdict ratio says whether the reviewer refuses consistently; it
+  // does not say whether it refuses for the same REASONS. Compare the
+  // locations the refusals cited.
+  if (refusedRuns >= 2) {
+    const overlap = citationOverlap(refusalReasons);
+    if (overlap === undefined) {
+      writeOut(`  cited violations: not compared — fewer than two refusals cited a file:line\n`);
+    } else {
+      writeOut(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
+      if (overlap.common * 2 < overlap.union) {
+        writeOut(
+          `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next.\n` +
+            `next: sharpen the rule's content.md until it names what counts, before editing code to a list that moves\n`,
+        );
+      }
     }
   }
-  return 0;
+  return refusedRuns > 0 ? 'refused' : 'satisfied';
 }
 
 // ============================================================
