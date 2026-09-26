@@ -72,7 +72,7 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
       next: nextLines.join('\n'),
       // With no type and no node for the file, no component is a candidate
       // owner to name, so the first step is the type that would cover it.
-      step: { command: 'yg type-suggest --file <path>' },
+      step: { argv: ['yg', 'type-suggest', '--file', '<path>'] },
     },
   };
 }

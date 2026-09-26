@@ -28,7 +28,8 @@ import { readLock } from '../io/lock-store.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail, writeOut } from './output.js';
+import { fail, writeOut, count } from './output.js';
+import { findCandidateOwners } from '../core/graph/files.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -127,12 +128,18 @@ export interface OwnerJsonDocument {
   /** For a type owner: whether any of the type's rules apply to the file. */
   enforced: boolean | null;
   excludedBecause: string | null;
+  /**
+   * For an unmapped file: the components that map other files in its
+   * directory, most first — the likely owners to add it to (empty when none
+   * does, and for every other kind). Added in 6.1.0.
+   */
+  candidates: Array<{ node: string; sameDirEntries: number }>;
   /** The command that shows the file's rules, when there is one. */
   next: string | null;
 }
 
 const EMPTY_OWNER: Omit<OwnerJsonDocument, 'schema' | 'file' | 'kind'> = {
-  node: null, type: null, direct: null, mappingPath: null, enforced: null, excludedBecause: null, next: null,
+  node: null, type: null, direct: null, mappingPath: null, enforced: null, excludedBecause: null, candidates: [], next: null,
 };
 
 export function registerOwnerCommand(program: Command): void {
@@ -302,12 +309,27 @@ export function registerOwnerCommand(program: Command): void {
                 '\n',
             );
           } else if (exists) {
+            // The likely owners, as data: the components mapping other files in
+            // its directory. An unmapped file is an ordinary answer here, not an
+            // error — this is the read a report's next step sends an agent to.
+            const candidates = findCandidateOwners(graph, result.file);
+            const listed = candidates.map((c) => `  - ${c.nodePath} (${count(c.fileCount, 'mapping entry', 'mapping entries')} in the same directory)`).join('\n');
             answer(
-              { ...EMPTY_OWNER, file: result.file, kind: 'unmapped' },
+              {
+                ...EMPTY_OWNER,
+                file: result.file,
+                kind: 'unmapped',
+                candidates: candidates.map((c) => ({ node: c.nodePath, sameDirEntries: c.fileCount })),
+                next: candidates.length > 0 ? `yg context --node ${candidates[0].nodePath}` : null,
+              },
               buildIssueMessage({
-                what: `${result.file} -> no graph coverage`,
+                what: candidates.length > 0
+                  ? `${result.file} -> no graph coverage. Candidate owners, mapping other files in its directory:\n${listed}`
+                  : `${result.file} -> no graph coverage. No component maps anything in its directory.`,
                 why: 'This file exists but no graph node maps it, so its code is not verified against any aspect.',
-                next: `Add '${result.file}' to a node's mapping in yg-node.yaml, or create a node for it.`,
+                next: candidates.length > 0
+                  ? `Add '${result.file}' to the mapping of the component that owns its code (yg context --node ${candidates[0].nodePath} shows the first one), or create a node for it.`
+                  : `Create a node whose mapping covers '${result.file}', or add it to an existing node's mapping — yg tree lists the nodes.`,
               }) + '\n',
             );
           } else {

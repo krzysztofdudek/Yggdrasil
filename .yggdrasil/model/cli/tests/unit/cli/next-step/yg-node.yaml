@@ -14,14 +14,16 @@ description: >-
   sets it.
 aspects: []
 max_direct_relations:
-  limit: 18
+  limit: 19
   reason: >-
     Reviewed at exactly this count. The suite makes each registered code's finding
     with the module that emits it in a real run — five emitters and the loader —
     renders it through the report, and parses the step against the real
-    registrations of the seven commands a report's step can name; each of those is
+    registrations of the eight commands a report's step can name; each of those is
     one edge, and faking any of them would test a step no run produces.
 relations:
+  - target: cli/commands/owner
+    type: uses
   - target: cli/check-render-views
     type: uses
   - target: cli/core/check

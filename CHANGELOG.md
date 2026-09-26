@@ -9,10 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - `yg check`'s `next:` states what the fill it names really costs: every pending pair that fill records, advisory ones included, with the reviewer's share given as pairs and calls (`3 reviewer pairs · 9 calls · paid`), since a tier's consensus multiplies what each pair bills. In `--json`, `next.cost` gains `reviewerCalls`, and the three numbers equal the `--dry-run` budget of running that same command.
-- For a file no component owns, `next:` now points at `yg context --file <file>`, which names the components whose mapping it belongs in, instead of telling you to edit the file.
+- For a file no component owns, `next:` now points at `yg owner --file <file>`, which answers without an error and names the components whose mapping it likely belongs in (those mapping other files in its directory; `--json` lists them as `candidates`), instead of telling you to edit the file. A step's command in `--json` keeps a path with a space in it as one argument.
 - Every command that takes a rule id (`check --aspect`, `impact --aspect`, `aspect-test`, `simulate`, `aspects log`, `drill`, `drill add`, `incident add --aspect`) answers an unknown id with the same error: `aspect-not-found`, "rule '<id>' is not in the graph", next step `yg aspects`, in text and in the JSON error document alike.
 - A rule that applies to no component is reported once: one `aspect-effective-nowhere` warning in `yg check` and one nomination in `yg advise`, instead of an extra "orphaned" finding beside each. The orphaned finding remains for bundles, draft rules, and graphs with no code yet.
-- Two `yg advise` classes are renamed: `dead-attach` is now `aspect-effective-nowhere`, matching the check code, and `uncovered-hot-spot` is now `unguarded-hot-spot`. The old names still work in `yg advise dismiss` and `defer`, and dismissals or deferrals already recorded under them keep applying while their evidence is unchanged.
+- Two `yg advise` classes are renamed: `dead-attach` is now `aspect-effective-nowhere`, matching the check code, and `uncovered-hot-spot` is now `unguarded-hot-spot`. The old names still work in `yg advise dismiss` and `defer`, and dismissals or deferrals already recorded under them keep applying while their evidence is unchanged. In `yg advise --json` a renamed item carries `aliases` with its old id, for tools that keyed records by it.
 
 ### Fixed
 
