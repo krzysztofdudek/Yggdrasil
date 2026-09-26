@@ -156,7 +156,7 @@
     "cli/reference/relations/ruby": {"source":"a5fd0d411f984bcec647fb462d3c9fa519317600226032acb2060923dc82ff82"},
     "cli/reference/relations/rust": {"source":"8e8e1ac315552ea533ef917654dcaad9614a57df97206b5b4802352d9324445f"},
     "cli/reference/relations/typescript": {"source":"1b72a4e6388eabbc5c678b7dcf377a04f8a4d1550b6b10f65ad146f5580e9bd5"},
-    "cli/relations/core": {"log":{"last_entry_datetime":"2026-09-26T21:56:30.789Z","prefix_hash":"b8e68e3364a87f8826c075740272b4e4dc12b9e25168e7f5bdf531a9fb3ef135"},"source":"b4336033cbbc8ac4333fcfde728c5917f97ee66c7da90dbc8b1722fb7f159b02"},
+    "cli/relations/core": {"log":{"last_entry_datetime":"2026-09-26T23:11:12.563Z","prefix_hash":"0019f03912303f52e53dac3c128657e6d4b11ee1cc2cf32c23bc7fc2254453a4"},"source":"31f83eaea0ec6137e075d82dbc24f12628f3a7f9782a375d1f1b595486507ae2"},
     "cli/relations/extractors": {"log":{"last_entry_datetime":"2026-09-25T17:43:41.819Z","prefix_hash":"e2cf84368cca5e60e1c02252269d2d9812d21c52507cb43e1a8b3e87b6149346"},"source":"0314abeef69ff82907c185c3aab159899288331c9d8e50a15387aa9b7c2db032"},
     "cli/rules-artifacts": {"source":"5435a2fad261916d275a520e4dc9e76c197a65c5502d42fe4fdede17be05a3b5"},
     "cli/schemas": {"source":"770a48aa036e01c39add6a8523237f8b7190b59fc6c8ff51c41734b71753a6f5"},

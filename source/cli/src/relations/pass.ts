@@ -238,23 +238,87 @@ export async function runRelationPass(
   // 1. Register the loader hook once so tree-sitter grammars resolve under test/dev.
   ensureLoaderRegistered();
 
-  // 2. Enumerate every node's mapped files once; read bytes, hash, detect language.
-  //    Files unreadable are skipped silently. Each file is read exactly once, so the
-  //    hash captured here is reused everywhere (no re-read → the F8 taint guard is moot
-  //    in a single pass; we hash at read time and never re-read the same path).
-  //
-  //    expandMappingPathsWithinOwnGraph (not the neutral expandMappingPaths): this
-  //    enumeration decides which files belong to EACH node's own dependency-conformance
-  //    surface — a file the graph excludes globally (a nested project's own boundary, a
-  //    DEFAULT member of the excluded set, or a `coverage.excluded` root an adopter
-  //    configured) is not this node's source, whether a directory/glob entry swept it in
-  //    or the node's own mapping names it exactly, so an import inside it must never
-  //    become an undeclared-dependency refusal attributed to the first-party node whose
-  //    directory happens to contain it, and its bytes must never be read, hashed, or
-  //    parsed here at all.
+  // 2. Enumerate every mapped (and type-covered) file once; read bytes, hash, detect language.
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
+  const { fileRecords, recordByPath } = await enumerateFileRecords(graph, projectRoot, deps, coverage);
+
+  // 3. Owner index over the whole graph. Guarded against the same exclusion
+  // filter the file enumeration above already applies: a candidate reaching
+  // this index by TEXT alone — an import/reference TARGET resolved fresh from
+  // source, never itself enumerated as a node's own file above — must answer
+  // "no owner" for an excluded path, exactly like `expandMappingPathsWithinOwnGraph`
+  // already treats it as unmapped for enumeration. Without this, an import
+  // INTO an excluded subtree still names its textual owner and trips
+  // relation-undeclared-dependency, even though nothing enforces the target
+  // file and D7 ("UNMAPPED target -> coverage matter, never a violation")
+  // already exempts a target this graph does not own for any other reason.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
+  const ownerIndex = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion);
+  repointToTrueOwners(fileRecords, ownerIndex);
+
+  // 4. Per-file fact resolution — from the AST fact cache when unchanged, else one live walk.
+  //    Infrastructure parse failures met on the way are collected, deduped per language, and
+  //    returned on the result so the gate caller can surface each as a blocking issue (fail
+  //    closed).
+  const facts: FactSource = { deps, parseFailuresByLanguage: new Map(), grammarHashByExt: new Map() };
+  const { recordsByLanguage, factsByPath } = await resolveAllFacts(fileRecords, facts);
+  const symbolTable = buildSymbolTable(recordsByLanguage, factsByPath);
+  const csharpOptionsFor = csharpProjectOptions(projectRoot, recordsByLanguage, factsByPath);
+
+  // 5. Resolver composes owner index + symbol table + injected path resolution.
+  const resolver = makeResolver({
+    ownerIndex,
+    symbolTable,
+    resolvePathToFile: deps.resolvePathToFile,
+  });
+
+  // 6. Per node: resolve, verify undeclared cross-node dependencies, collect typed edges.
+  const usesOf = (record: FileRecord): DetectedDep[] | null => detectedUsesOf(record, deps, factsByPath, csharpOptionsFor);
+  const typed: TypedEdgeCollector = { graph, resolver, recordByPath, typedEdgesByFile: new Map() };
+  const { violationsByNode, detectedEdgesByNode } = verifyNodes(graph, fileRecords, resolver, usesOf, typed, deps);
+  collectTypeCoveredEdges(fileRecords, usesOf, typed);
+
+  // ADDITIVE read-only: expose each enumerated file's raw content hash (computed once from
+  // the freshly-read bytes at enumeration, independent of any AST-cache hit/miss). Lets the
+  // silent feature-field index pin an entry to exact bytes without re-reading or re-hashing.
+  const hashByPath = new Map<string, string>();
+  for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
+
+  return {
+    violationsByNode,
+    factsByPath,
+    detectedEdgesByNode,
+    hashByPath,
+    parseFailures: [...facts.parseFailuresByLanguage.values()],
+    typedEdges: { edgesFrom: (file: string) => typed.typedEdgesByFile.get(file) ?? [] },
+    fileOwnerType: fileOwnerTypes(graph, recordByPath),
+  };
+}
+
+/**
+ * Enumerate every node's mapped files once; read bytes, hash, detect language. Files
+ * unreadable are skipped silently. Each file is read exactly once, so the hash captured
+ * here is reused everywhere (no re-read → the F8 taint guard is moot in a single pass; we
+ * hash at read time and never re-read the same path).
+ *
+ * expandMappingPathsWithinOwnGraph (not the neutral expandMappingPaths): this
+ * enumeration decides which files belong to EACH node's own dependency-conformance
+ * surface — a file the graph excludes globally (a nested project's own boundary, a
+ * DEFAULT member of the excluded set, or a `coverage.excluded` root an adopter
+ * configured) is not this node's source, whether a directory/glob entry swept it in
+ * or the node's own mapping names it exactly, so an import inside it must never
+ * become an undeclared-dependency refusal attributed to the first-party node whose
+ * directory happens to contain it, and its bytes must never be read, hashed, or
+ * parsed here at all.
+ */
+async function enumerateFileRecords(
+  graph: Graph,
+  projectRoot: string,
+  deps: RelationPassDeps,
+  coverage: Parameters<typeof expandMappingPathsWithinOwnGraph>[2],
+): Promise<{ fileRecords: FileRecord[]; recordByPath: Map<string, FileRecord> }> {
   const fileRecords: FileRecord[] = [];
   const recordByPath = new Map<string, FileRecord>();
-  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   // A file's relation language: its extension's, except a `.h` header in a C++ directory,
   // which is parsed as C++ (relationLanguageForPath). The directory is listed only for a
   // `.h`, at most once per directory.
@@ -317,218 +381,231 @@ export async function runRelationPass(
     fileRecords.push(record);
     recordByPath.set(rel, record);
   }
+  return { fileRecords, recordByPath };
+}
 
-  // 3. Owner index over the whole graph. Guarded against the same exclusion
-  // filter the file enumeration above already applies: a candidate reaching
-  // this index by TEXT alone — an import/reference TARGET resolved fresh from
-  // source, never itself enumerated as a node's own file above — must answer
-  // "no owner" for an excluded path, exactly like `expandMappingPathsWithinOwnGraph`
-  // already treats it as unmapped for enumeration. Without this, an import
-  // INTO an excluded subtree still names its textual owner and trips
-  // relation-undeclared-dependency, even though nothing enforces the target
-  // file and D7 ("UNMAPPED target -> coverage matter, never a violation")
-  // already exempts a target this graph does not own for any other reason.
-  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
-  const ownerIndex = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion);
-
-  // Child-precedence: enumeration above records each file once under the FIRST node
-  // in graph insertion order whose mapping matches it — typically a globbing parent.
-  // But ownership (and therefore which node's declared relations sanction the file's
-  // outgoing dependencies) must honor child-precedence, exactly as `yg owner` and the
-  // pair-set carve-out do. Re-point every record at its true owner so a parent is
-  // never blamed for a dependency the child node that actually owns the file declared.
-  // A type-covered record (typeId set) has no node owner to re-point to child-precedence
-  // — it is skipped here, not merely a no-op, since it never has a node's declared
-  // relations to sanction anything in the first place.
+/**
+ * Child-precedence: enumeration records each file once under the FIRST node in graph
+ * insertion order whose mapping matches it — typically a globbing parent. But ownership
+ * (and therefore which node's declared relations sanction the file's outgoing
+ * dependencies) must honor child-precedence, exactly as `yg owner` and the pair-set
+ * carve-out do. Re-point every record at its true owner so a parent is never blamed for
+ * a dependency the child node that actually owns the file declared. A type-covered record
+ * (typeId set) has no node owner to re-point to child-precedence — it is skipped here,
+ * not merely a no-op, since it never has a node's declared relations to sanction anything
+ * in the first place.
+ */
+function repointToTrueOwners(fileRecords: FileRecord[], ownerIndex: ReturnType<typeof buildOwnerIndex>): void {
   for (const record of fileRecords) {
     if (record.typeId !== undefined) continue;
     const trueOwner = ownerIndex.ownerOf(record.path);
     if (trueOwner !== undefined) record.nodeId = trueOwner;
   }
+}
 
-  // Infrastructure parse failures collected during the pass, deduped per language.
-  // Populated ONLY by the parseFile-throws branch in parseSingle below; returned on
-  // the result so the gate caller can surface each as a blocking issue (fail closed).
-  const parseFailuresByLanguage = new Map<string, RelationParseFailure>();
+/** What per-file fact resolution works with, and what it accumulates across the run. */
+interface FactSource {
+  deps: RelationPassDeps;
+  /** Infrastructure parse failures, deduped per language — populated ONLY by parseSingle's throw branch. */
+  parseFailuresByLanguage: Map<string, RelationParseFailure>;
+  /** Grammar wasm hash per extension present in the run (null: no grammar → uncacheable). */
+  grammarHashByExt: Map<string, string | null>;
+}
 
-  // Parse a single file, returning a ParsedFile with a live WASM tree.
-  // The CALLER must call tree.delete() immediately after use — trees are never cached
-  // here to keep WASM heap usage bounded to O(1) trees at any moment.
-  async function parseSingle(record: FileRecord): Promise<ParsedFile | null> {
-    // No grammar registered for this file's extension → a legitimate, SILENT skip:
-    // the file is simply outside relation conformance. This is NOT an infra failure
-    // and must never surface as an error.
-    if (!record.language) return null;
-    try {
-      // A Vue/Svelte component is parsed as its script view (see sfcLanguage).
-      const view = sfcScriptView(record.path, record.content);
-      const content = view?.content ?? record.content;
-      const tree = await parseFile(view?.parsePath ?? record.path, content, record.language);
-      return { path: record.path, content, tree, language: record.language };
-    } catch (err) {
-      // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
-      // nodes) for malformed source and never throws on bad syntax — so any throw from
-      // parseFile is an INFRASTRUCTURE fault (missing/corrupt WASM grammar,
-      // Parser.init()/Language.load() rejection, or parser.parse() returning null),
-      // exactly the condition ast/runner.ts treats as AST_GRAMMAR_LOAD_FAILED. The old
-      // `catch { return null; }` collapsed this into "the file has no dependencies",
-      // silently zeroing the relation-conformance analysis for the file — repo-wide for a
-      // whole language if its grammar is missing — so `yg check` went green over code it
-      // never analyzed. Record the fault (deduped per language) so the caller surfaces it
-      // as a BLOCKING relation-parse-failed issue; still return null so the pass completes
-      // and every OTHER language is analyzed and reported. parseFile creates no tree when
-      // it throws, so there is nothing to delete here.
-      const message = err instanceof Error ? err.message : String(err);
-      const prior = parseFailuresByLanguage.get(record.language);
-      if (prior) {
-        prior.fileCount++;
-      } else {
-        parseFailuresByLanguage.set(record.language, {
-          language: record.language,
-          examplePath: record.path,
-          fileCount: 1,
-          message,
-        });
-      }
-      return null;
-    }
-  }
-
-  // Parse a file ONCE and return its pure extractor facts. The single walk runs
-  // `declarations()` (+ for non-C# `uses()`, + for C# the alias-UNRESOLVED `extractCsharpRefs`)
-  // inside ONE try/finally that ALWAYS deletes the tree — even if an extractor throws
-  // mid-extraction — so a thrown extractor never leaks a WASM tree. Returns `null` iff
-  // the parse itself failed or the file has no language, so callers can distinguish a
-  // failed parse from a legitimately empty file (never treat a failure as empty facts; a
-  // `null` is never written to the cache — design §14 Correction B). The facts are then reused
-  // by the symbol build, the C# pre-pass, and per-node resolution, so each file is parsed at
-  // most once here — including C#, whose candidate groups are now ASSEMBLED live from the
-  // cached pre-assembly extract (no re-parse).
-  async function extractFileFacts(
-    record: FileRecord,
-    extractor: DependencyExtractor,
-  ): Promise<FileFacts | null> {
-    const parsed = await parseSingle(record);
-    if (!parsed) return null;
-    try {
-      const declarations = extractor.declarations(parsed);
-      const isCsharp = record.language === 'csharp';
-      // C#: cache the alias-UNRESOLVED extract; the project-wide global-using aggregate is
-      // folded LIVE per node at assembly time (after the pre-pass) — never baked into the
-      // cached fact. Non-C#: `uses()` is a pure function of the file's bytes → cache it.
-      const uses = isCsharp ? null : extractor.uses(parsed);
-      const csharp = isCsharp ? extractCsharpRefs(parsed) : null;
-      // Structural feature vector over the SAME already-parsed tree (no second parse). This
-      // is speed-only instrumentation and never enters any verdict hash.
-      const features = countFeatures(parsed.tree.rootNode, parsed.language);
-      return { declarations, uses, csharp, features };
-    } finally {
-      parsed.tree.delete();
-    }
-  }
-
-  // Eager per-extension grammar wasm hash, memoized once per extension present in the run,
-  // BEFORE any cache lookup. Critical: on an all-hit run the parser is never invoked, so a
-  // lazily-derived grammar hash would never be produced and a grammar upgrade would go
-  // unnoticed (every file would stay a stale hit). `grammarDigest` itself memoizes per
-  // extension; this local map only caches the (extension → hash | null) lookup so a file whose
-  // extension has no grammar is recorded as `null` (→ uncacheable, always parsed live).
-  const grammarHashByExt = new Map<string, string | null>();
-  const grammarHashForExt = (ext: string): string | null => {
-    const hit = grammarHashByExt.get(ext);
-    if (hit !== undefined) return hit;
-    let h: string | null;
-    try {
-      h = grammarDigest(ext); // grammar wasm + web-tree-sitter runtime: either one changing re-parses
-    } catch {
-      h = null; // no grammar for this extension → cannot content-address → always parse live
-    }
-    grammarHashByExt.set(ext, h);
-    return h;
-  };
-
-  // Cache-backed fact resolution for one file. Computes the content-key (raw content hash +
-  // language + grammar wasm hash + extractor rev), tries the AST fact cache, and on a MISS
-  // parses live via `extractFileFacts` and writes the shard back — but ONLY on a successful
-  // parse (a `null` is fail-closed-to-parse: nothing is written, the file re-parses next run).
-  // A file with no grammar hash (no grammar for its extension) is never cacheable → parse live.
-  // The returned in-memory `FileFacts` is shaped per language: non-C# carries `uses`; C# carries
-  // the alias-UNRESOLVED `csharp` extract (assembled live downstream).
-  //
-  // When `deps.disableCache` is true, EVERY lookup is forced to a MISS and no shard is written.
-  // This is the cache-audit path: callers compare the returned facts against a prior cache-HIT
-  // run; any difference is an incomplete key or a broken round-trip → gate fails.
-  async function loadOrExtractFacts(
-    record: FileRecord,
-    extractor: DependencyExtractor,
-  ): Promise<FileFacts | null> {
-    const language = record.language!;
-    const isCsharp = language === 'csharp';
-    const grammarHash = grammarHashForExt(primaryExtensionForLanguage(language) ?? grammarExtensionForPath(record.path));
-
-    // No grammar hash → cannot key the cache. Parse live, do not cache.
-    if (grammarHash === null) return extractFileFacts(record, extractor);
-
-    // Cache-ENABLED path: read the shard; on a HIT skip the parse, on a MISS parse live and
-    // write the shard back. (The cache-audit BYPASS — never read, never write, always parse —
-    // lives at the `disableCache=true` return at the bottom of this function.)
-    if (!deps.disableCache) {
-      const key = factsKey({
-        contentHash: record.hash,
-        language,
-        grammarHash,
-        rev: extractor.rev,
+/**
+ * Parse a single file, returning a ParsedFile with a live WASM tree.
+ * The CALLER must call tree.delete() immediately after use — trees are never cached
+ * here to keep WASM heap usage bounded to O(1) trees at any moment.
+ */
+async function parseSingle(record: FileRecord, source: FactSource): Promise<ParsedFile | null> {
+  // No grammar registered for this file's extension → a legitimate, SILENT skip:
+  // the file is simply outside relation conformance. This is NOT an infra failure
+  // and must never surface as an error.
+  if (!record.language) return null;
+  try {
+    // A Vue/Svelte component is parsed as its script view (see sfcLanguage).
+    const view = sfcScriptView(record.path, record.content);
+    const content = view?.content ?? record.content;
+    const tree = await parseFile(view?.parsePath ?? record.path, content, record.language);
+    return { path: record.path, content, tree, language: record.language };
+  } catch (err) {
+    // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
+    // nodes) for malformed source and never throws on bad syntax — so any throw from
+    // parseFile is an INFRASTRUCTURE fault (missing/corrupt WASM grammar,
+    // Parser.init()/Language.load() rejection, or parser.parse() returning null),
+    // exactly the condition ast/runner.ts treats as AST_GRAMMAR_LOAD_FAILED. The old
+    // `catch { return null; }` collapsed this into "the file has no dependencies",
+    // silently zeroing the relation-conformance analysis for the file — repo-wide for a
+    // whole language if its grammar is missing — so `yg check` went green over code it
+    // never analyzed. Record the fault (deduped per language) so the caller surfaces it
+    // as a BLOCKING relation-parse-failed issue; still return null so the pass completes
+    // and every OTHER language is analyzed and reported. parseFile creates no tree when
+    // it throws, so there is nothing to delete here.
+    const message = err instanceof Error ? err.message : String(err);
+    const prior = source.parseFailuresByLanguage.get(record.language);
+    if (prior) {
+      prior.fileCount++;
+    } else {
+      source.parseFailuresByLanguage.set(record.language, {
+        language: record.language,
+        examplePath: record.path,
+        fileCount: 1,
+        message,
       });
+    }
+    return null;
+  }
+}
 
-      const cached = await loadFacts(deps.symbolIndexDir, language, key);
-      // A C# HIT is valid ONLY when the shard actually carries the `csharp` extract. A shard
-      // that matches the key but LACKS `csharp` (`cached.csharp === undefined`) is NOT a
-      // null-csharp hit — that would yield `csharp: null` and silently SKIP the file downstream
-      // (`facts.csharp === null` → continue), erasing a real C# cross-node edge → false green.
-      // Treat it as a MISS so the file falls through to the live parse below (fail-closed-to-PARSE,
-      // never fail-closed-to-empty). For non-C# files an absent `csharp` is legitimate (stays null).
-      if (cached && (!isCsharp || cached.csharp !== undefined)) {
-        // HIT — rebuild the in-memory per-file fact from the cached extractor output. The cache
-        // skips the PARSE, never the downstream join (symbol declare / resolve / assemble).
-        // `cached.csharp` is guaranteed present here for C# (guard above).
-        return {
-          declarations: cached.declarations,
-          uses: isCsharp ? null : cached.uses,
-          csharp: isCsharp ? cached.csharp! : null,
-          // Guaranteed present — `loadFacts` fail-closes to a MISS on a missing/malformed
-          // features field, so a returned cached fact always carries a valid vector.
-          features: cached.features,
-        };
-      }
+/**
+ * Parse a file ONCE and return its pure extractor facts. The single walk runs
+ * `declarations()` (+ for non-C# `uses()`, + for C# the alias-UNRESOLVED `extractCsharpRefs`)
+ * inside ONE try/finally that ALWAYS deletes the tree — even if an extractor throws
+ * mid-extraction — so a thrown extractor never leaks a WASM tree. Returns `null` iff
+ * the parse itself failed or the file has no language, so callers can distinguish a
+ * failed parse from a legitimately empty file (never treat a failure as empty facts; a
+ * `null` is never written to the cache — design §14 Correction B). The facts are then reused
+ * by the symbol build, the C# pre-pass, and per-node resolution, so each file is parsed at
+ * most once here — including C#, whose candidate groups are now ASSEMBLED live from the
+ * cached pre-assembly extract (no re-parse).
+ */
+async function extractFileFacts(
+  record: FileRecord,
+  extractor: DependencyExtractor,
+  source: FactSource,
+): Promise<FileFacts | null> {
+  const parsed = await parseSingle(record, source);
+  if (!parsed) return null;
+  try {
+    const declarations = extractor.declarations(parsed);
+    const isCsharp = record.language === 'csharp';
+    // C#: cache the alias-UNRESOLVED extract; the project-wide global-using aggregate is
+    // folded LIVE per node at assembly time (after the pre-pass) — never baked into the
+    // cached fact. Non-C#: `uses()` is a pure function of the file's bytes → cache it.
+    const uses = isCsharp ? null : extractor.uses(parsed);
+    const csharp = isCsharp ? extractCsharpRefs(parsed) : null;
+    // Structural feature vector over the SAME already-parsed tree (no second parse). This
+    // is speed-only instrumentation and never enters any verdict hash.
+    const features = countFeatures(parsed.tree.rootNode, parsed.language);
+    return { declarations, uses, csharp, features };
+  } finally {
+    parsed.tree.delete();
+  }
+}
 
-      // MISS — parse live. A failed parse writes NOTHING (fail-closed-to-parse).
-      const facts = await extractFileFacts(record, extractor);
-      if (!facts) return null;
+/**
+ * Eager per-extension grammar wasm hash, memoized once per extension present in the run,
+ * BEFORE any cache lookup. Critical: on an all-hit run the parser is never invoked, so a
+ * lazily-derived grammar hash would never be produced and a grammar upgrade would go
+ * unnoticed (every file would stay a stale hit). `grammarDigest` itself memoizes per
+ * extension; this memo only caches the (extension → hash | null) lookup so a file whose
+ * extension has no grammar is recorded as `null` (→ uncacheable, always parsed live).
+ */
+function grammarHashForExt(ext: string, source: FactSource): string | null {
+  const hit = source.grammarHashByExt.get(ext);
+  if (hit !== undefined) return hit;
+  let h: string | null;
+  try {
+    h = grammarDigest(ext); // grammar wasm + web-tree-sitter runtime: either one changing re-parses
+  } catch {
+    h = null; // no grammar for this extension → cannot content-address → always parse live
+  }
+  source.grammarHashByExt.set(ext, h);
+  return h;
+}
 
-      // Persist the pure extractor output. C# stores its alias-unresolved extract under `csharp`
-      // (with `uses: []` unused); non-C# stores `uses` (no `csharp`). `writeFacts` is create-only.
-      await writeFacts(deps.symbolIndexDir, language, key, {
-        declarations: facts.declarations,
-        uses: facts.uses ?? [],
-        features: facts.features,
-        ...(facts.csharp !== null ? { csharp: facts.csharp } : {}),
-      });
-      return facts;
+/**
+ * Cache-backed fact resolution for one file. Computes the content-key (raw content hash +
+ * language + grammar wasm hash + extractor rev), tries the AST fact cache, and on a MISS
+ * parses live via `extractFileFacts` and writes the shard back — but ONLY on a successful
+ * parse (a `null` is fail-closed-to-parse: nothing is written, the file re-parses next run).
+ * A file with no grammar hash (no grammar for its extension) is never cacheable → parse live.
+ * The returned in-memory `FileFacts` is shaped per language: non-C# carries `uses`; C# carries
+ * the alias-UNRESOLVED `csharp` extract (assembled live downstream).
+ *
+ * When `deps.disableCache` is true, EVERY lookup is forced to a MISS and no shard is written.
+ * This is the cache-audit path: callers compare the returned facts against a prior cache-HIT
+ * run; any difference is an incomplete key or a broken round-trip → gate fails.
+ */
+async function loadOrExtractFacts(
+  record: FileRecord,
+  extractor: DependencyExtractor,
+  source: FactSource,
+): Promise<FileFacts | null> {
+  const { deps } = source;
+  const language = record.language!;
+  const isCsharp = language === 'csharp';
+  const grammarHash = grammarHashForExt(primaryExtensionForLanguage(language) ?? grammarExtensionForPath(record.path), source);
+
+  // No grammar hash → cannot key the cache. Parse live, do not cache.
+  if (grammarHash === null) return extractFileFacts(record, extractor, source);
+
+  // Cache-ENABLED path: read the shard; on a HIT skip the parse, on a MISS parse live and
+  // write the shard back. (The cache-audit BYPASS — never read, never write, always parse —
+  // lives at the `disableCache=true` return at the bottom of this function.)
+  if (!deps.disableCache) {
+    const key = factsKey({
+      contentHash: record.hash,
+      language,
+      grammarHash,
+      rev: extractor.rev,
+    });
+
+    const cached = await loadFacts(deps.symbolIndexDir, language, key);
+    // A C# HIT is valid ONLY when the shard actually carries the `csharp` extract. A shard
+    // that matches the key but LACKS `csharp` (`cached.csharp === undefined`) is NOT a
+    // null-csharp hit — that would yield `csharp: null` and silently SKIP the file downstream
+    // (`facts.csharp === null` → continue), erasing a real C# cross-node edge → false green.
+    // Treat it as a MISS so the file falls through to the live parse below (fail-closed-to-PARSE,
+    // never fail-closed-to-empty). For non-C# files an absent `csharp` is legitimate (stays null).
+    if (cached && (!isCsharp || cached.csharp !== undefined)) {
+      // HIT — rebuild the in-memory per-file fact from the cached extractor output. The cache
+      // skips the PARSE, never the downstream join (symbol declare / resolve / assemble).
+      // `cached.csharp` is guaranteed present here for C# (guard above).
+      return {
+        declarations: cached.declarations,
+        uses: isCsharp ? null : cached.uses,
+        csharp: isCsharp ? cached.csharp! : null,
+        // Guaranteed present — `loadFacts` fail-closes to a MISS on a missing/malformed
+        // features field, so a returned cached fact always carries a valid vector.
+        features: cached.features,
+      };
     }
 
-    // Cache-audit BYPASS (disableCache=true): never read AND never write — parse every file
-    // fresh, proving the same facts emerge from parsing as the cache would have served.
-    return extractFileFacts(record, extractor);
+    // MISS — parse live. A failed parse writes NOTHING (fail-closed-to-parse).
+    const facts = await extractFileFacts(record, extractor, source);
+    if (!facts) return null;
+
+    // Persist the pure extractor output. C# stores its alias-unresolved extract under `csharp`
+    // (with `uses: []` unused); non-C# stores `uses` (no `csharp`). `writeFacts` is create-only.
+    await writeFacts(deps.symbolIndexDir, language, key, {
+      declarations: facts.declarations,
+      uses: facts.uses ?? [],
+      features: facts.features,
+      ...(facts.csharp !== null ? { csharp: facts.csharp } : {}),
+    });
+    return facts;
   }
 
-  // 4. Per-file fact resolution. Universe = all mapped files of an extractor-backed language
-  //    (broad universe so ambiguity is detected across the repo). Each such file's facts come
-  //    from the content-addressed AST cache when its bytes/grammar/extractor are unchanged
-  //    (NO parse), else from a live single walk (then cached). The result feeds the symbol
-  //    build, the C# pre-pass, and the per-node resolution below — no phase re-parses. A failed
-  //    parse (null) is simply absent from factsByPath (never recorded as empty facts), exactly
-  //    as the old per-phase `if (!parsed) continue;` skipped it.
-  const symbolTable = new SymbolTable();
+  // Cache-audit BYPASS (disableCache=true): never read AND never write — parse every file
+  // fresh, proving the same facts emerge from parsing as the cache would have served.
+  return extractFileFacts(record, extractor, source);
+}
+
+/**
+ * Per-file fact resolution. Universe = all mapped files of an extractor-backed language
+ * (broad universe so ambiguity is detected across the repo). Each such file's facts come
+ * from the content-addressed AST cache when its bytes/grammar/extractor are unchanged
+ * (NO parse), else from a live single walk (then cached). The result feeds the symbol
+ * build, the C# pre-pass, and the per-node resolution — no phase re-parses. A failed
+ * parse (null) is simply absent from factsByPath (never recorded as empty facts), exactly
+ * as the old per-phase `if (!parsed) continue;` skipped it.
+ */
+async function resolveAllFacts(
+  fileRecords: FileRecord[],
+  source: FactSource,
+): Promise<{ recordsByLanguage: Map<string, FileRecord[]>; factsByPath: Map<string, FileFacts> }> {
+  const { deps } = source;
   const recordsByLanguage = new Map<string, FileRecord[]>();
   for (const record of fileRecords) {
     if (!record.language) continue;
@@ -550,20 +627,26 @@ export async function runRelationPass(
     if (!record.language) return null;
     const extractor = deps.extractorFor(record.language);
     if (!extractor) return null;
-    return loadOrExtractFacts(record, extractor);
+    return loadOrExtractFacts(record, extractor, source);
   });
   for (const [i, record] of fileRecords.entries()) {
     const facts = factsInOrder[i];
     if (facts) factsByPath.set(record.path, facts);
   }
+  return { recordsByLanguage, factsByPath };
+}
 
-  // 4a. Build the shared SymbolTable by re-declaring EVERY file's declarations every run (cached
-  //     or fresh). The cache skips the PARSE, never the `declare()` — ambiguity (`defCount` /
-  //     `filesFor`, and Ruby's intentionally non-deduped reopenings) is a CROSS-FILE property; a
-  //     hit that skipped re-declaring would under-count `defCount`, make an ambiguous symbol look
-  //     unique, and silence a real ambiguity → false green (design §8 mandatory invariant). The
-  //     table is order-independent (`Map<key, Set<file>>`), so re-declaring all files in any order
-  //     reproduces the same table.
+/**
+ * Build the shared SymbolTable by re-declaring EVERY file's declarations every run (cached
+ * or fresh). The cache skips the PARSE, never the `declare()` — ambiguity (`defCount` /
+ * `filesFor`, and Ruby's intentionally non-deduped reopenings) is a CROSS-FILE property; a
+ * hit that skipped re-declaring would under-count `defCount`, make an ambiguous symbol look
+ * unique, and silence a real ambiguity → false green (design §8 mandatory invariant). The
+ * table is order-independent (`Map<key, Set<file>>`), so re-declaring all files in any order
+ * reproduces the same table.
+ */
+function buildSymbolTable(recordsByLanguage: Map<string, FileRecord[]>, factsByPath: Map<string, FileFacts>): SymbolTable {
+  const symbolTable = new SymbolTable();
   for (const [language, records] of recordsByLanguage) {
     for (const record of records) {
       const facts = factsByPath.get(record.path);
@@ -573,18 +656,30 @@ export async function runRelationPass(
       }
     }
   }
+  return symbolTable;
+}
 
-  // 4.5 C# global-using pre-pass (R5), scoped per PROJECT (M6/M7). A `global using N;` /
-  //     `global using A = N.T;` applies to every file of the project that declares it — the
-  //     nearest-ancestor `.csproj` — never to another project's files. `buildCsharpProjectScopes`
-  //     groups the C# files by project, unions each project's declared global usings and aliases
-  //     with the `<Using>` items and SDK implicit usings of its MSBuild files, and returns each
-  //     file's project scope; files under no `.csproj` share one implicit project (the pre-scoping
-  //     behaviour). A global alias name with 2+ distinct targets in one scope is passed through as
-  //     such and silenced at assembly (never last-writer-wins). This reads the CACHED per-file C#
-  //     extract (`facts.csharp.scope.globalPrefixes / globalAliases`) — NO C# re-parse — and MUST
-  //     complete before per-node assembly: a `global using` in any file of a project changes
-  //     another file's bare-name resolution.
+/** The project-scoped global usings and aliases a C# file's candidates are assembled with. */
+type CsharpOptionsFor = (file: string) => { projectGlobalUsings: string[]; projectGlobalUsingAliases: Array<[string, string]> };
+
+/**
+ * C# global-using pre-pass (R5), scoped per PROJECT (M6/M7). A `global using N;` /
+ * `global using A = N.T;` applies to every file of the project that declares it — the
+ * nearest-ancestor `.csproj` — never to another project's files. `buildCsharpProjectScopes`
+ * groups the C# files by project, unions each project's declared global usings and aliases
+ * with the `<Using>` items and SDK implicit usings of its MSBuild files, and returns each
+ * file's project scope; files under no `.csproj` share one implicit project (the pre-scoping
+ * behaviour). A global alias name with 2+ distinct targets in one scope is passed through as
+ * such and silenced at assembly (never last-writer-wins). This reads the CACHED per-file C#
+ * extract (`facts.csharp.scope.globalPrefixes / globalAliases`) — NO C# re-parse — and MUST
+ * complete before per-node assembly: a `global using` in any file of a project changes
+ * another file's bare-name resolution.
+ */
+function csharpProjectOptions(
+  projectRoot: string,
+  recordsByLanguage: Map<string, FileRecord[]>,
+  factsByPath: Map<string, FileFacts>,
+): CsharpOptionsFor {
   const csharpRecords = recordsByLanguage.get('csharp') ?? [];
   const csharpGlobalFacts: CsharpGlobalFacts[] = [];
   for (const record of csharpRecords) {
@@ -597,20 +692,41 @@ export async function runRelationPass(
     });
   }
   const csharpScopes = buildCsharpProjectScopes(projectRoot, csharpGlobalFacts);
-  const csharpOptionsFor = (file: string): { projectGlobalUsings: string[]; projectGlobalUsingAliases: Array<[string, string]> } => {
+  return (file) => {
     const scope = csharpScopes.get(file);
     return { projectGlobalUsings: scope?.usings ?? [], projectGlobalUsingAliases: scope?.aliases ?? [] };
   };
+}
 
-  // 5. Resolver composes owner index + symbol table + injected path resolution.
-  const resolver = makeResolver({
-    ownerIndex,
-    symbolTable,
-    resolvePathToFile: deps.resolvePathToFile,
-  });
+/**
+ * A file's detected uses: the cached `uses` for every non-C# file; for C# the candidate
+ * groups ASSEMBLED LIVE from the file's cached pre-assembly extract (`facts.csharp`) plus
+ * the project-wide aggregate — they fold the cross-file global-using aggregate as their
+ * lowest using tier (R5), so they cannot be cached assembled, and nothing is re-parsed.
+ * Null for a file with no extractor, and for one whose parse failed (absent from
+ * factsByPath — skipped, exactly as `if (!parsed) continue;` did).
+ */
+function detectedUsesOf(
+  record: FileRecord,
+  deps: RelationPassDeps,
+  factsByPath: Map<string, FileFacts>,
+  csharpOptionsFor: CsharpOptionsFor,
+): DetectedDep[] | null {
+  if (!record.language) return null;
+  const extractor = deps.extractorFor(record.language);
+  if (!extractor) return null;
+  const facts = factsByPath.get(record.path);
+  if (record.language === 'csharp') {
+    if (!facts || facts.csharp === null) return null;
+    return assembleCsharpCandidates(facts.csharp, csharpOptionsFor(record.path));
+  }
+  if (!facts || facts.uses === null) return null;
+  return facts.uses;
+}
 
-  // 7. Graph view for the verifier.
-  const graphView: RelationGraphView = {
+/** The graph view the verifier asks about hierarchy and declared relations. */
+function makeGraphView(graph: Graph): RelationGraphView {
+  return {
     isAncestorOf(a, b) {
       return b.startsWith(a + '/');
     },
@@ -627,115 +743,121 @@ export async function runRelationPass(
       return chain;
     },
   };
+}
 
-  // 6. Per node: collect detected uses (the cached `uses` for every non-C# file; for C# the
-  //    candidate groups ASSEMBLED LIVE from the cached extract + the project-global aggregate),
-  //    resolve each, verify undeclared cross-node dependencies, and form the LIVE result.
+/** One typed edge's target owner — a node, or a file its type covers. */
+type TypedEdgeOwner = { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string };
+
+/**
+ * The live type-relation gate's per-FILE edge index (TypedEdgeIndex) under construction,
+ * keyed by source file rather than owning node — a type-covered file has no node to group
+ * under — with what resolving a typed edge needs.
+ */
+interface TypedEdgeCollector {
+  graph: Graph;
+  resolver: ReturnType<typeof makeResolver>;
+  recordByPath: Map<string, FileRecord>;
+  typedEdgesByFile: Map<string, Array<{ toFile: string; toOwner: TypedEdgeOwner }>>;
+}
+
+/** Append one typed edge from `record.path`, creating its list on first use. */
+function pushTypedEdge(typed: TypedEdgeCollector, record: FileRecord, toFile: string, toOwner: TypedEdgeOwner): void {
+  let list = typed.typedEdgesByFile.get(record.path);
+  if (!list) {
+    list = [];
+    typed.typedEdgesByFile.set(record.path, list);
+  }
+  list.push({ toFile, toOwner });
+}
+
+/**
+ * Resolve one file's detected uses into the live type-relation gate's typed-edge index,
+ * generalized across node-owned and type-covered sources. Mirrors the node-edge walk's
+ * nearest-candidate-first precedence (a resolved candidate stops the group; an ambiguous
+ * one silences it with no edge), extended with ONE new resolution path: a candidate that
+ * `classify` reports `absent` (no node owns its resolved file, or it resolves to nothing)
+ * may STILL name a TYPE-COVERED file — checked via `resolver.resolveFile`, which `classify`
+ * never consults (it only ever asks `ownerIndex`). An edge whose target is neither a node
+ * nor a type-covered file (ambiguous/unmatched) is excluded here entirely, matching the
+ * design's "not gated" rule at the SOURCE rather than filtering it out downstream.
+ *
+ * A SECOND exclusion, equally at the source: an edge whose SOURCE is node-owned and whose
+ * TARGET resolves to a node (any node, same one or a different one) is EXCLUDED too — that
+ * shape is relation-conformance's exclusive territory. `verifyNodeDeps` already evaluates
+ * every node-owned file's node-to-node edges (exempting a same-node self-edge outright,
+ * `m === nodeId`, and reporting a genuinely undeclared cross-node one as
+ * `relation-undeclared-dependency`); the live type gate must never ALSO see that edge, or a
+ * same-node sibling import would wrongly trip a type's own self-relation policy (a node's
+ * internal file layout is not a "relation" at all), and a genuine cross-node violation would
+ * be reported TWICE under two different codes. The gate's rule is "at least one endpoint is
+ * type-covered" — a node-owned source only ever contributes an edge here when ITS target is
+ * type-covered (the `absent` branch below), never when the target is any node.
+ */
+function addTypedEdges(typed: TypedEdgeCollector, record: FileRecord, detected: DetectedDep[]): void {
+  const { graph, resolver } = typed;
+  for (const dep of detected) {
+    for (const cand of dep.candidates) {
+      const outcome = resolver.classify(cand, record.path, record.language!);
+      if (outcome.kind === 'resolved') {
+        // Node-owned source -> any node target: relation-undeclared-dependency's
+        // territory (same-node self-edges are its own exemption; cross-node ones are
+        // its own violation). Never double-covered by the type gate.
+        if (record.typeId !== undefined) {
+          const targetNode = graph.nodes.get(outcome.ownerNode);
+          if (targetNode) {
+            pushTypedEdge(typed, record, outcome.resolvedFile, { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type });
+          }
+        }
+        break; // nearest candidate bound — stop this dep's group
+      }
+      if (outcome.kind === 'ambiguous') break; // present-but-ambiguous → silence the group
+      // absent: the node-owner walk found nothing for this candidate. Check whether its
+      // raw resolved file (if any) is nonetheless a TYPE-COVERED file — invisible to
+      // `classify`, which only ever resolves against `ownerIndex`. A type-covered target
+      // is ALWAYS gate-relevant regardless of the source's own kind: relation-undeclared-
+      // dependency never sees it either way (it only walks a NODE's resolved deps, and a
+      // type-covered file belongs to no node), so there is no double-coverage risk here.
+      const file = resolver.resolveFile(cand, record.path, record.language!);
+      if (file) {
+        const targetRecord = typed.recordByPath.get(file);
+        if (targetRecord?.typeId !== undefined) {
+          pushTypedEdge(typed, record, file, { kind: 'type-covered', type: targetRecord.typeId });
+          break; // bound to a type-covered target — stop this dep's group
+        }
+      }
+      // else continue to the next, farther candidate
+    }
+  }
+}
+
+/**
+ * Per node: resolve every owned file's detected uses, verify undeclared cross-node
+ * dependencies, and form the LIVE result — plus the full detected edge set, and the typed
+ * edges a node-owned file contributes when the run has type-covered files.
+ */
+function verifyNodes(
+  graph: Graph,
+  fileRecords: FileRecord[],
+  resolver: ReturnType<typeof makeResolver>,
+  usesOf: (record: FileRecord) => DetectedDep[] | null,
+  typed: TypedEdgeCollector,
+  deps: RelationPassDeps,
+): { violationsByNode: Map<string, NodeViolations>; detectedEdgesByNode: Map<string, Set<string>> } {
+  const graphView = makeGraphView(graph);
   const violationsByNode = new Map<string, NodeViolations>();
   // ADDITIVE: the full set of resolved cross-node edges per source node (declared OR not),
   // for read-only consumers. Self / ancestor / descendant edges are not real edges between
   // two distinct nodes, so they are excluded here exactly as `verifyNodeDeps` skips them.
   const detectedEdgesByNode = new Map<string, Set<string>>();
-  // ADDITIVE: the live type-relation gate's per-FILE edge index (TypedEdgeIndex), keyed by
-  // source file rather than owning node — a type-covered file has no node to group under.
-  // Populated below from the SAME per-record candidate resolution both the node-owned loop
-  // and the type-covered loop already run; see `addTypedEdges`.
-  const typedEdgesByFile = new Map<
-    string,
-    Array<{ toFile: string; toOwner: { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string } }>
-  >();
-
-  // Resolve one file's detected uses into cross-node edges (shared by both paths below).
-  const resolveDetected = (record: FileRecord, detected: DetectedDep[], resolvedDeps: ResolvedDep[]): void => {
-    // Ordered first-unique-match-wins walk over each candidate group — the SINGLE
-    // definition shared verbatim with the reference-case runner (resolveDetectedEdges →
-    // resolveCandidateGroup), one row per (line, node). A resolved self-edge is pushed here
-    // and filtered downstream by verifyNodeDeps against the node's declared relations.
-    for (const { line, ownerNode } of resolveDetectedEdges(detected, resolver, record.path, record.language!)) {
-      resolvedDeps.push({ fromFile: record.path, line, ownerNode });
-    }
-  };
-
-  // Append one typed edge from `record.path`, creating its list on first use.
-  const pushTypedEdge = (
-    record: FileRecord,
-    toFile: string,
-    toOwner: { kind: 'node'; path: string; type: string } | { kind: 'type-covered'; type: string },
-  ): void => {
-    let list = typedEdgesByFile.get(record.path);
-    if (!list) {
-      list = [];
-      typedEdgesByFile.set(record.path, list);
-    }
-    list.push({ toFile, toOwner });
-  };
-
-  // Resolve one file's detected uses into the live type-relation gate's typed-edge index,
-  // generalized across node-owned and type-covered sources. Mirrors resolveDetected's
-  // nearest-candidate-first precedence (a resolved candidate stops the group; an ambiguous
-  // one silences it with no edge), extended with ONE new resolution path: a candidate that
-  // `classify` reports `absent` (no node owns its resolved file, or it resolves to nothing)
-  // may STILL name a TYPE-COVERED file — checked via `resolver.resolveFile`, which `classify`
-  // never consults (it only ever asks `ownerIndex`). An edge whose target is neither a node
-  // nor a type-covered file (ambiguous/unmatched) is excluded here entirely, matching the
-  // design's "not gated" rule at the SOURCE rather than filtering it out downstream.
-  //
-  // A SECOND exclusion, equally at the source: an edge whose SOURCE is node-owned and whose
-  // TARGET resolves to a node (any node, same one or a different one) is EXCLUDED too — that
-  // shape is relation-conformance's exclusive territory. `verifyNodeDeps` already evaluates
-  // every node-owned file's node-to-node edges (exempting a same-node self-edge outright,
-  // `m === nodeId`, and reporting a genuinely undeclared cross-node one as
-  // `relation-undeclared-dependency`); the live type gate must never ALSO see that edge, or a
-  // same-node sibling import would wrongly trip a type's own self-relation policy (a node's
-  // internal file layout is not a "relation" at all), and a genuine cross-node violation would
-  // be reported TWICE under two different codes. The gate's rule is "at least one endpoint is
-  // type-covered" — a node-owned source only ever contributes an edge here when ITS target is
-  // type-covered (the `absent` branch below), never when the target is any node.
-  const addTypedEdges = (record: FileRecord, detected: DetectedDep[]): void => {
-    for (const dep of detected) {
-      for (const cand of dep.candidates) {
-        const outcome = resolver.classify(cand, record.path, record.language!);
-        if (outcome.kind === 'resolved') {
-          // Node-owned source -> any node target: relation-undeclared-dependency's
-          // territory (same-node self-edges are its own exemption; cross-node ones are
-          // its own violation). Never double-covered by the type gate.
-          if (record.typeId !== undefined) {
-            const targetNode = graph.nodes.get(outcome.ownerNode);
-            if (targetNode) {
-              pushTypedEdge(record, outcome.resolvedFile, { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type });
-            }
-          }
-          break; // nearest candidate bound — stop this dep's group
-        }
-        if (outcome.kind === 'ambiguous') break; // present-but-ambiguous → silence the group
-        // absent: the node-owner walk found nothing for this candidate. Check whether its
-        // raw resolved file (if any) is nonetheless a TYPE-COVERED file — invisible to
-        // `classify`, which only ever resolves against `ownerIndex`. A type-covered target
-        // is ALWAYS gate-relevant regardless of the source's own kind: relation-undeclared-
-        // dependency never sees it either way (it only walks a NODE's resolved deps, and a
-        // type-covered file belongs to no node), so there is no double-coverage risk here.
-        const file = resolver.resolveFile(cand, record.path, record.language!);
-        if (file) {
-          const targetRecord = recordByPath.get(file);
-          if (targetRecord?.typeId !== undefined) {
-            pushTypedEdge(record, file, { kind: 'type-covered', type: targetRecord.typeId });
-            break; // bound to a type-covered target — stop this dep's group
-          }
-        }
-        // else continue to the next, farther candidate
-      }
-    }
-  };
 
   // A node-owned source can only EVER contribute a gate-relevant edge by
-  // reaching a type-covered target (the CRITICAL exclusion above rules out every
+  // reaching a type-covered target (the exclusion in addTypedEdges rules out every
   // node-to-node edge from a node-owned source). With zero type-covered files there
   // is no type-covered target to reach, so calling `addTypedEdges` for a node-owned
   // record would be pure waste — a second `resolver.classify` pass over every
-  // dependency this run already resolved once via `resolveDetected`, for a result
-  // that can never differ from "nothing." Guarding on this flag keeps flag-off (and
-  // any run with an empty `covered` map) exactly as cheap as before the
-  // type-relation gate existed.
+  // dependency this run already resolved once, for a result that can never differ
+  // from "nothing." Guarding on this flag keeps flag-off (and any run with an empty
+  // `covered` map) exactly as cheap as before the type-relation gate existed.
   const hasTypeCovered = (deps.typeCoveredFiles?.size ?? 0) > 0;
 
   for (const [nodeId] of graph.nodes) {
@@ -743,32 +865,17 @@ export async function runRelationPass(
     if (records.length === 0) continue; // node with NO mapped source files → no result
 
     const resolvedDeps: ResolvedDep[] = [];
-
     for (const record of records) {
-      if (!record.language) continue;
-      const extractor = deps.extractorFor(record.language);
-      if (!extractor) continue;
-
-      if (record.language === 'csharp') {
-        // C# candidate groups fold the cross-file global-using aggregate as their lowest using
-        // tier (R5), so they are ASSEMBLED LIVE here from the file's cached pre-assembly extract
-        // (`facts.csharp`) plus the project-wide aggregate built above — NO C# re-parse. This is
-        // where C# finally stops re-parsing unchanged files. A file whose parse failed is absent
-        // from factsByPath — skip it, exactly as `if (!parsed) continue;` did.
-        const facts = factsByPath.get(record.path);
-        if (!facts || facts.csharp === null) continue;
-        const detected = assembleCsharpCandidates(facts.csharp, csharpOptionsFor(record.path));
-        resolveDetected(record, detected, resolvedDeps);
-        if (hasTypeCovered) addTypedEdges(record, detected);
-        continue;
+      const detected = usesOf(record);
+      if (detected === null) continue;
+      // Ordered first-unique-match-wins walk over each candidate group — the SINGLE
+      // definition shared verbatim with the reference-case runner (resolveDetectedEdges →
+      // resolveCandidateGroup), one row per (line, node). A resolved self-edge is pushed here
+      // and filtered downstream by verifyNodeDeps against the node's declared relations.
+      for (const { line, ownerNode } of resolveDetectedEdges(detected, resolver, record.path, record.language!)) {
+        resolvedDeps.push({ fromFile: record.path, line, ownerNode });
       }
-
-      // Every non-C# file's uses() came from the single walk above (no re-parse). A file whose
-      // parse failed is absent from factsByPath — skip it, exactly as `if (!parsed) continue;` did.
-      const facts = factsByPath.get(record.path);
-      if (!facts || facts.uses === null) continue;
-      resolveDetected(record, facts.uses, resolvedDeps);
-      if (hasTypeCovered) addTypedEdges(record, facts.uses);
+      if (hasTypeCovered) addTypedEdges(typed, record, detected);
     }
 
     // ADDITIVE read-only edge set: every uniquely-resolved cross-node target, declared or
@@ -794,45 +901,38 @@ export async function runRelationPass(
       violationsByNode.set(nodeId, { verdict: 'approved', violations: [] });
     }
   }
+  return { violationsByNode, detectedEdgesByNode };
+}
 
-  // 6.5 Type-covered records (coverage.type_level): NOT visited by the per-node loop above
-  //     (keyed by nodeId; a type-covered record's nodeId is '' by construction — it has no
-  //     node to group under). Each is resolved individually here for the SAME
-  //     typedEdgesByFile, reusing the SAME cached facts (no re-parse) — a type-covered file
-  //     is enumerated and its facts extracted exactly like a node-owned one (step 2 /
-  //     section 4 above already cover it); only this candidate-resolution walk needs a
-  //     dedicated loop since it has no shared per-node grouping to batch against. Empty when
-  //     no type-covered records were enumerated (flag off, or no coverage scan ran).
+/**
+ * Type-covered records (coverage.type_level): NOT visited by the per-node loop (keyed by
+ * nodeId; a type-covered record's nodeId is '' by construction — it has no node to group
+ * under). Each is resolved individually here for the SAME typed-edge index, reusing the
+ * SAME cached facts (no re-parse) — a type-covered file is enumerated and its facts
+ * extracted exactly like a node-owned one; only this candidate-resolution walk needs a
+ * dedicated loop since it has no shared per-node grouping to batch against. Does nothing
+ * when no type-covered records were enumerated (flag off, or no coverage scan ran).
+ */
+function collectTypeCoveredEdges(
+  fileRecords: FileRecord[],
+  usesOf: (record: FileRecord) => DetectedDep[] | null,
+  typed: TypedEdgeCollector,
+): void {
   for (const record of fileRecords) {
-    if (record.typeId === undefined) continue; // node-owned — already handled above
-    if (!record.language) continue;
-    const extractor = deps.extractorFor(record.language);
-    if (!extractor) continue;
-
-    if (record.language === 'csharp') {
-      const facts = factsByPath.get(record.path);
-      if (!facts || facts.csharp === null) continue;
-      const detected = assembleCsharpCandidates(facts.csharp, csharpOptionsFor(record.path));
-      addTypedEdges(record, detected);
-      continue;
-    }
-
-    const facts = factsByPath.get(record.path);
-    if (!facts || facts.uses === null) continue;
-    addTypedEdges(record, facts.uses);
+    if (record.typeId === undefined) continue; // node-owned — already handled in verifyNodes
+    const detected = usesOf(record);
+    if (detected === null) continue;
+    addTypedEdges(typed, record, detected);
   }
+}
 
-  // ADDITIVE read-only: expose each enumerated file's raw content hash (computed once from
-  // the freshly-read bytes at enumeration, independent of any AST-cache hit/miss). Lets the
-  // silent feature-field index pin an entry to exact bytes without re-reading or re-hashing.
-  const hashByPath = new Map<string, string>();
-  for (const [rel, record] of recordByPath) hashByPath.set(rel, record.hash);
-
-  // ADDITIVE, read-only: every enumerated file's OWNER's type — a node-owned file's owning
-  // node's type, or a type-covered file's matched type. Built from the same fileRecords this
-  // pass already enumerated (both loops in step 2); no extra I/O. Consumed directly by the
-  // live type-relation gate to resolve an edge's SOURCE type — mirrors how each edge's own
-  // toOwner already carries the TARGET type.
+/**
+ * Every enumerated file's OWNER's type — a node-owned file's owning node's type, or a
+ * type-covered file's matched type. Built from the same records the pass already
+ * enumerated; no extra I/O. Consumed directly by the live type-relation gate to resolve an
+ * edge's SOURCE type — mirrors how each edge's own toOwner already carries the TARGET type.
+ */
+function fileOwnerTypes(graph: Graph, recordByPath: Map<string, FileRecord>): Map<string, string> {
   const fileOwnerType = new Map<string, string>();
   for (const [rel, record] of recordByPath) {
     if (record.typeId !== undefined) {
@@ -842,16 +942,7 @@ export async function runRelationPass(
       if (node) fileOwnerType.set(rel, node.meta.type);
     }
   }
-
-  return {
-    violationsByNode,
-    factsByPath,
-    detectedEdgesByNode,
-    hashByPath,
-    parseFailures: [...parseFailuresByLanguage.values()],
-    typedEdges: { edgesFrom: (file: string) => typedEdgesByFile.get(file) ?? [] },
-    fileOwnerType,
-  };
+  return fileOwnerType;
 }
 
 /**
