@@ -28,3 +28,5 @@ The drill's budget line agrees its counts with their nouns and says reviewer-rul
 A drill case that could not run now names its next step on a labelled next: line under the reason, instead of a sentence that folded the step into the reason.
 ## [2026-09-24T09:15:55.811Z]
 A drill case that could not be scored now carries a structured what, why and next, which the drill command renders in the one output grammar and puts in its JSON document, instead of the engine handing it a finished sentence.
+## [2026-09-26T02:52:35.813Z]
+The corpus walk skips markdown files and files named yg-aspect.yaml, so a case filed under either name was reported as measured while nothing ever ran it. Which file names can be cases is now one exported predicate, so the command that adds a case can refuse such a file before writing anything instead of disagreeing with the runner about it.

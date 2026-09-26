@@ -168,17 +168,17 @@ describe('aspect-parser', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('silently ignores unknown stability field', async () => {
+  it('refuses the retired stability field as retired', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-stability');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
     await writeFile(aspectPath, `name: Stable Aspect\nreviewer:\n  type: llm\nstability: protocol\n`, 'utf-8');
 
     const r = await parseAspect(tmpDir, aspectPath, 'stable');
-    const aspect = assertOk(r);
-    // unknown field should not cause an error
-    expect(aspect.name).toBe('Stable Aspect');
-    expect((aspect as unknown as Record<string, unknown>).stability).toBeUndefined();
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors[0].code).toBe('aspect-unknown-key');
+    expect(r.errors[0].messageData.what).toContain("'stability' (removed in 4.0.0");
 
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -224,7 +224,7 @@ describe('aspect-parser', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('silently ignores unknown anchors field', async () => {
+  it('refuses the retired anchors field as retired', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-aspect-anchors');
     await mkdir(tmpDir, { recursive: true });
     const aspectPath = path.join(tmpDir, 'yg-aspect.yaml');
@@ -235,9 +235,9 @@ describe('aspect-parser', () => {
     );
 
     const r = await parseAspect(tmpDir, aspectPath, 'logging');
-    const aspect = assertOk(r);
-    expect(aspect.name).toBe('Logging');
-    expect((aspect as unknown as Record<string, unknown>).anchors).toBeUndefined();
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors[0].code).toBe('aspect-unknown-key');
 
     await rm(tmpDir, { recursive: true, force: true });
   });

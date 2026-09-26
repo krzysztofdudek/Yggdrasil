@@ -5,7 +5,8 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises
 import { mkdtempSync, writeFileSync, readFileSync, chmodSync, rmSync } from 'node:fs';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { runFill } from '../../../src/core/fill.js';
+import { runFill, FillGatingError } from '../../../src/core/fill.js';
+import { applyPositiveClosure } from '../../../src/core/fill-closure.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 
@@ -169,10 +170,18 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logMd.replace('first entry body', 'TAMPERED HISTORY'),
     );
 
-    // Re-fill (the standard end-of-work path). Closure must NOT recompute the
-    // baseline over the tampered bytes and overwrite the committed anchor.
+    // Re-fill (the standard end-of-work path). A broken history now stops the
+    // fill before it records anything (log-integrity gates --approve); and closure,
+    // reached directly, must still NOT recompute the baseline over the tampered
+    // bytes and overwrite the committed anchor.
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    await expect(
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} }),
+    ).rejects.toBeInstanceOf(FillGatingError);
+    const tamperedLock = readLock(graph.rootPath);
+    await applyPositiveClosure(graph, projectRoot, tamperedLock, new Set(), async () => {
+      await writeLock(graph.rootPath, tamperedLock, { scope: 'logs' });
+    });
 
     const afterTamper = readLock(graph.rootPath).nodes['svc']?.log;
     expect(afterTamper?.prefix_hash).toBe(sealed?.prefix_hash);
@@ -302,5 +311,87 @@ describe('positive closure — byte-identical with a nodeless pair present', () 
     expect(withLeafEntry?.source).toBeDefined();
     expect(withoutLeafEntry?.source).toBeDefined();
     expect(withLeafEntry).toEqual(withoutLeafEntry);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A conflicted log.md (M2). A merge that conflicted in a node's log.md leaves
+// both sides' entries between git's markers, so a fresh entry "exists" and the
+// mandatory-log gate is satisfied. Recording the node's source fingerprint over
+// that log would close its cycle over entries nobody reconciled. Two layers hold
+// it: the fill refuses to run at all (log-conflict gates --approve before any
+// dispatch), and closure itself records nothing for such a node even when a
+// caller reaches it without that gate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONFLICTED_LOG =
+  '## [2026-05-11T10:00:00.000Z]\nfirst.\n' +
+  '<<<<<<< HEAD\n## [2026-05-11T11:00:00.000Z]\nours.\n' +
+  '=======\n## [2026-05-11T12:00:00.000Z]\ntheirs.\n' +
+  '>>>>>>> feature\n';
+
+describe('a conflicted log.md stops --approve and never closes its node', () => {
+  it('runFill refuses before any dispatch with log-conflict, and the recorded source stays put', async () => {
+    const projectRoot = await setupDetNode({ logRequired: true, logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n' });
+    let graph = await loadGraph(projectRoot);
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    const before = readLock(graph.rootPath).nodes['svc'];
+    expect(before?.source).toBeDefined();
+
+    // The source moves and the log comes out of a merge still conflicted.
+    await writeFile(path.join(projectRoot, 'src', 'svc.ts'), 'export const x = 2;\n');
+    await writeFile(path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md'), CONFLICTED_LOG);
+
+    graph = await loadGraph(projectRoot);
+    let thrown: unknown;
+    try {
+      await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(FillGatingError);
+    const gate = thrown as FillGatingError;
+    expect(gate.stage).toBe('structural');
+    expect(gate.issues.map((i) => i.code)).toEqual(['log-conflict']);
+    expect(gate.issues[0].next).toContain('yg log merge-resolve --node svc');
+
+    const after = readLock(graph.rootPath).nodes['svc'];
+    expect(after?.source).toBe(before?.source);
+    expect(after?.log).toEqual(before?.log);
+  });
+
+  it('--only-deterministic records no baseline and is not stopped by the conflicted log', async () => {
+    const projectRoot = await setupDetNode({ logRequired: true, logContent: CONFLICTED_LOG });
+    const graph = await loadGraph(projectRoot);
+    await expect(
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {}, onlyDeterministic: true }),
+    ).resolves.toBeDefined();
+  });
+
+  it('a --dry-run preview records no baseline and is not stopped by the conflicted log', async () => {
+    const projectRoot = await setupDetNode({ logRequired: true, logContent: CONFLICTED_LOG });
+    const graph = await loadGraph(projectRoot);
+    await expect(
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {}, dryRun: true }),
+    ).resolves.toBeDefined();
+  });
+
+  it('closure itself advances neither the source nor the log baseline of a node whose log holds markers', async () => {
+    const projectRoot = await setupDetNode({ logRequired: true, logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n' });
+    let graph = await loadGraph(projectRoot);
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    const before = readLock(graph.rootPath).nodes['svc'];
+
+    await writeFile(path.join(projectRoot, 'src', 'svc.ts'), 'export const x = 2;\n');
+    await writeFile(path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md'), CONFLICTED_LOG);
+    graph = await loadGraph(projectRoot);
+    const lock = readLock(graph.rootPath);
+    let persisted = false;
+    await applyPositiveClosure(graph, projectRoot, lock, new Set(), async () => {
+      persisted = true;
+    });
+    expect(lock.nodes['svc']?.source).toBe(before?.source);
+    expect(lock.nodes['svc']?.log).toEqual(before?.log);
+    expect(persisted).toBe(false);
   });
 });

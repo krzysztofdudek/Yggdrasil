@@ -194,10 +194,17 @@ const ERROR_CODE_PRIORITY: string[] = [
   'config-unknown-key',
   'architecture-invalid',
   'yaml-invalid',
+  // A component that is absent from the graph because the walk never reached it:
+  // its files read as unmapped, and a flow or relation naming it as missing.
+  'node-unreachable',
   'lock-invalid',
   // A conflicted log.md cannot be read, appended to or verified until the merge
-  // is reconciled — every step below it would fail on it first.
+  // is reconciled — every step below it would fail on it first. A rewritten
+  // history or a log that does not parse stops an --approve the same way, so
+  // they come before the fill that would abort on them.
   'log-conflict',
+  'log-integrity',
+  'log-format',
   'log-entry-missing',
   // No reviewer configured for an effective judgment rule: every --approve that
   // would fill its pairs stops here, so it comes before the pairs themselves.
@@ -206,8 +213,6 @@ const ERROR_CODE_PRIORITY: string[] = [
   'aspect-violation-enforced',
   'prompt-too-large',
   'aspect-companion-runtime-error',
-  'log-integrity',
-  'log-format',
 ];
 
 export function issuePriorityRank(issue: CheckIssue): number {

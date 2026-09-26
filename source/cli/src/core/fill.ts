@@ -8,7 +8,11 @@
  * Order (spec §7):
  *   1. Structural gate — validate(graph); a gating code (tier/reviewer config
  *      broken, an aspect-implies cycle, or an escaping mapping) aborts the
- *      whole fill (no fills, no LLM calls). One exception: a missing reviewer
+ *      whole fill (no fills, no LLM calls). So does a node log.md that is not
+ *      settled — conflict markers, a rewritten history, a body that does not
+ *      parse — for every run except --only-deterministic and --dry-run (neither
+ *      records a baseline), since closure would
+ *      record a baseline over it. One exception: a missing reviewer
  *      does not gate a run that would never call one (--only-deterministic),
  *      a preview (--dry-run), or a project whose judgment rules are all
  *      advisory — the deterministic pairs still fill, and the judgment pairs
@@ -97,7 +101,7 @@ import type { TypeCoverageResult } from './type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { validate } from './validator.js';
-import { APPROVE_GATING_CODES } from './check-codes.js';
+import { APPROVE_GATING_CODES, APPROVE_LOG_STATE_GATING_CODES } from './check-codes.js';
 import { debugWrite } from '../utils/debug-log.js';
 import type { RunFillOptions, RunFillResult } from './fill-contract.js';
 import { FillGatingError, detGateKey } from './fill-contract.js';
@@ -114,6 +118,7 @@ import {
 import { runDeterministicPhase } from './fill-det-phase.js';
 import { runLlmPhase } from './fill-llm-phase.js';
 import { logGateBlocks } from './fill-log-gate.js';
+import { classifyLogStateFromLock } from './check-log-state.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
 import { recordAspectStatuses } from './log/aspect-status.js';
@@ -239,9 +244,23 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // pairs stay unverified, named as having no reviewer.
   const reviewerMissingIsNoGate = (i: { code?: string; severity: string }): boolean =>
     i.code === 'config-reviewer-missing' && (onlyDeterministic || dryRun || i.severity !== 'error');
-  const gating = validation.issues.filter(
-    (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code) && !reviewerMissingIsNoGate(i),
-  );
+  // The committed lock, read once for everything this run decides: the log
+  // state just below, the pair classification, and every verdict written.
+  const lock = readLock(graph.rootPath);
+  // A log.md that is not settled (conflict markers, a rewritten history, a body
+  // that does not parse) stops a run that could close a node's cycle before it
+  // buys anything: closure would record a baseline over it. The same reading a
+  // plain check makes, so the two can never disagree about which log is broken.
+  // `--only-deterministic` and a `--dry-run` preview write no baseline and are
+  // not stopped by it.
+  const logStateIssues: CheckIssue[] = [];
+  if (!onlyDeterministic && !dryRun) await classifyLogStateFromLock(graph, projectRoot, lock, logStateIssues);
+  const gating = [
+    ...validation.issues.filter(
+      (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code) && !reviewerMissingIsNoGate(i),
+    ),
+    ...logStateIssues.filter((i) => i.code !== undefined && APPROVE_LOG_STATE_GATING_CODES.has(i.code)),
+  ];
   if (gating.length > 0) {
     const single = gating.length === 1;
     if (opts.gateIssuesOnError !== true) {
@@ -275,7 +294,6 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // preview, and never under --only-deterministic, whose one piece of
   // repository code is the script rules' check.mjs (the free CI step promises
   // exactly that, and it fills no reviewer pair that a companion could size).
-  const lock = readLock(graph.rootPath);
   const classification = await classifyFillPairs(
     graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
     !dryRun && !onlyDeterministic,

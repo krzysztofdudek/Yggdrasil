@@ -19,7 +19,7 @@ import { toPosixPath } from '../../utils/posix.js';
 import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
 import { computeLogBaselineFromContent } from './log-gate.js';
 import { validateAppendOnly } from '../log-integrity.js';
-import { validateFormat } from '../log-format.js';
+import { logHasConflictMarkers, validateFormat } from '../log-format.js';
 
 export interface LogMergeResolveInput {
   graph: Graph;
@@ -74,8 +74,6 @@ async function replayInProgress(repoRoot: string): Promise<{ kind: 'rebase' | 'c
   return picked === null ? null : { kind: 'cherry-pick', commit: picked };
 }
 
-/** Git conflict markers at line start — see the note at the check below. */
-const hasConflictMarkers = (text: string): boolean => /^<{7}/m.test(text) || /^>{7}/m.test(text);
 
 /**
  * What two sides of a merge share of a log, read off the two logs themselves:
@@ -471,7 +469,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   // H1 underline / horizontal rule and would false-positive. A real git
   // conflict always also emits the `<<<<<<<`/`>>>>>>>` markers, so dropping the
   // `=` alternative loses no true-positive detection.
-  const conflicted = hasConflictMarkers(currentLog);
+  const conflicted = logHasConflictMarkers(currentLog);
   if (conflicted && !midMerge) {
     return {
       ok: false,

@@ -1,0 +1,18 @@
+name: E2E Tests — Marketplace Check Against Install
+type: test-suite
+description: "Subprocess E2E holding the publisher's pre-publish check to the
+  install it vouches for, as a property over a matrix of packages each broken in
+  one way an install cares about: whenever marketplace check passes a package,
+  pack add must install it. Every malformed variant is also asserted to fail both
+  commands, so the property can never hold vacuously through a check that
+  refuses everything or an install that accepts anything. Every marketplace is a
+  plain directory built at test time and installed from by path into a fresh
+  consumer copy, touching no network."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-marketplace-install-parity.test.ts

@@ -8,7 +8,9 @@ version: "6.0.0"                  # managed by CLI — do not edit manually. Rec
                                   # version this config conforms to (advances only when the graph
                                   # format changes; NOT the CLI/package release version).
 
-quality:                          # optional — quality thresholds
+quality:                          # optional — quality thresholds. Only the key below is accepted;
+                                  #   any other is config-quality-unknown-key (a retired one, e.g.
+                                  #   max_node_chars, is named as retired).
   max_direct_relations: 10        #   maximum outgoing relations per node (warning if above)
 
 parallel: 1                       # optional — concurrency limit for the LLM (reviewer) fill phase only
@@ -120,7 +122,10 @@ reviewer:                         # required only once a reviewer rule is actual
       provider: ollama            #     provider id (one of: ollama, openai, anthropic, google,
                                   #                       openai-compatible, claude-code, codex, gemini-cli, copilot-cli)
       consensus: 1                #     positive odd integer >= 1 (3+ for majority vote). Per-tier.
-      config:                     #     provider-specific settings — same fields the provider accepts.
+      config:                     #     provider settings — model, endpoint, temperature, timeout, api_key and
+                                  #     nothing else: any other key is config-tier-unknown-key, a value of the
+                                  #     wrong type (temperature: hot) is config-tier-config-invalid. The CLI
+                                  #     providers read only model and timeout.
         model: "qwen3.5:9b"       #       model id
         endpoint: "http://localhost:11434"   # custom endpoint (required for openai-compatible; ollama defaults to http://localhost:11434)
         temperature: 0            #       reduces variability — keep at 0

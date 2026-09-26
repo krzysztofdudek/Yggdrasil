@@ -80,7 +80,8 @@ then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the use
   finding outside a measured change), else the issue code itself. The JSON
   document's \`label\` field carries the same word.
 - Order: errors by group — graph invalid, then code/graph errors, then gate
-  prerequisites (log-entry-missing, log-conflict, config-reviewer-missing), then
+  prerequisites (log-conflict, log-integrity, log-format, log-entry-missing,
+  config-reviewer-missing), then
   pending (unverified) — then warnings.
 - After the blocks: \`note:\` lines (standing facts, never counted), then \`next:\`
   and optionally \`then:\`. \`next:\` is the first step of the first block — never a
@@ -664,14 +665,16 @@ rule is sharpened enough to catch it. A corpus that only ever accepts cases a
 rule already passes can never tell anybody anything.
 
 NOTHING is written when: the rule is unknown or only bundles others (no rule
-source of its own), the spec is not \`<path>@<commit>\`, the commit is not in the
+source of its own), the spec is not \`<path>@<commit>\`, the file is one the drill
+never runs as a case (a \`.md\` file or one named \`yg-aspect.yaml\` — \`yg drill\`
+skips both, so the case would be reported as measured and never measured), the commit is not in the
 repository, the path was not there at that commit, the file is empty there, its
 content at that commit is not text (it carries a NUL byte), the same bytes are
 already a case (a second copy measures nothing and only inflates a count people
 read as coverage), or the two specs given to \`--violates\` and \`--satisfies\`
 resolve to the SAME case name. A case that turns out UNMEASURABLE —
-a check that needs the whole graph, or a reviewer that cannot be reached — is
-taken back out, because an unmeasurable fixture is worse than none.
+a check that needs the whole graph, a reviewer that cannot be reached, or a
+case the drill does not find — is taken back out and the command exits 1, because an unmeasurable fixture is worse than none.
 
 ## yg simulate
 
@@ -1488,7 +1491,15 @@ installed CLI's current content and sweeps away every artifact a retired
 per-platform installer used to write — the CLI used to install a different
 rules file per agent (13 installers in total); \`--upgrade\` removes all of
 those legacy files, reported as "Legacy per-platform artifacts cleaned up" in
-its output. With neither \`--provider\` nor \`--upgrade\` and a TTY, the
+its output. It also removes every key an earlier release read and this one
+refuses (a node's or node type's \`sizeExempt\`, a relation's \`failure\`,
+\`quality.max_node_chars\` / \`max_mapping_source_files\`, a tier's
+\`config.max_tokens\` / \`context_length_field\` / \`references\`, a rule's
+\`language\` / \`stability\` / \`anchors\` / \`id\`) from the graph and config files
+— never from a rule installed from a package — printing "Removed retired key
+'<key>' from <file>" for each; other keys and comments stay, but the writer may
+normalize indentation, so review the diff. A key nobody retired is left for
+\`yg check\` to name, never guessed at. With neither \`--provider\` nor \`--upgrade\` and a TTY, the
 interactive reconfiguration menu opens (refresh agent rules / configure
 reviewer); with neither and no TTY, the command reports that there is
 nothing to do and lists the available flags rather than guessing.
@@ -1705,8 +1716,10 @@ yg marketplace check
   git repository: consumers install from a URL and pin by tag, so there is
   nowhere to publish from until one exists.
 - \`check\` — the pre-publish check. Deterministic, free, no key, non-zero on any
-  refusal. Five questions: the manifests against the directories that exist;
-  every rule loading under the loader a consumer will use; every \`implies\`
+  refusal. Five questions: the manifests against each other (name, version), the
+  directories that exist and the running Yggdrasil (\`requires.yg\`), with nothing
+  in a package an install refuses (a symbolic link, a binary file) — so a package
+  it passes is one \`yg pack add\` installs; every rule loading under the loader a consumer will use; every \`implies\`
   resolving inside its own package; every setting read declared and every setting
   declared read; and portability — no review date, no reference path, no
   folder-anchored file filter, and a pair of drill cases on every script

@@ -440,6 +440,53 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
     }
   });
 
+  it('2h: --approve over a conflicted log.md stops before any fill and records nothing (exit 1)', () => {
+    const dir = deterministicFixture('conflict-approve');
+    try {
+      // services/orders owes a log entry for every source change.
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      const arch = readFileSync(archPath, 'utf-8');
+      const serviceBlock = arch.indexOf('  service:');
+      writeFileSync(
+        archPath,
+        arch.slice(0, serviceBlock) + arch.slice(serviceBlock).replace('log_required: false', 'log_required: true'),
+        'utf-8',
+      );
+      // Every service is log_required now, so the sibling owes its first entry too.
+      expect(run(['log', 'add', '--node', 'services/payments', '--reason', 'first verification'], dir).status).toBe(0);
+      seedOneEntryLogBaseline(dir, 'base entry');
+      const logsLock = path.join(dir, '.yggdrasil', 'yg-lock.logs.json');
+      const recorded = JSON.parse(readFileSync(logsLock, 'utf-8')).nodes['services/orders'];
+      expect(recorded.source).toBeDefined();
+
+      // The source moves, and the log comes out of a merge still conflicted —
+      // both sides carry a fresh entry, so the mandatory-log gate is satisfied.
+      appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '\nexport const extra = 1;\n', 'utf-8');
+      const log = readFileSync(ordersLogPath(dir), 'utf-8');
+      writeFileSync(
+        ordersLogPath(dir),
+        log +
+          '<<<<<<< HEAD\n## [2030-01-01T10:00:00.000Z]\nours.\n' +
+          '=======\n## [2030-01-01T11:00:00.000Z]\ntheirs.\n' +
+          '>>>>>>> feature\n',
+        'utf-8',
+      );
+
+      const { status, all } = run(['check', '--approve'], dir);
+      expect(status).toBe(1);
+      expect(all).toContain('ABORTED');
+      expect(all).toContain('log-conflict');
+      expect(all).toContain('yg log merge-resolve --node services/orders');
+      // Nothing was filled and nothing was recorded over the conflicted log.
+      expect(all).not.toMatch(/fill\s+done/);
+      const after = JSON.parse(readFileSync(logsLock, 'utf-8')).nodes['services/orders'];
+      expect(after.source).toBe(recorded.source);
+      expect(after.log).toEqual(recorded.log);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
   // =========================================================================
   // LOG ADD — error/guard paths
   // =========================================================================

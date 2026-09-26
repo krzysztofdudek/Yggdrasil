@@ -356,6 +356,15 @@ project on every fill.
 `yg check --approve --dry-run` prices exactly what the real run would buy — on a
 change that reaches no reviewer rule, that is nothing at all.
 
+One gate is not narrowed. A node `log.md` that is not settled — git conflict
+markers in it (`log-conflict`), a rewritten history (`log-integrity`) or a body
+that does not parse (`log-format`) — stops `yg check --approve` before it records
+anything, wherever that log is, even on a component your change never touched
+and even though the plain report shows the finding as a warning there. The fill
+would otherwise record a baseline beside a log nobody has reconciled. Fix the log
+(`yg log merge-resolve` for a conflict), then re-run. `--only-deterministic` and
+`--dry-run` record no baseline and are not stopped by it.
+
 This changes one thing about the written reason a component owes. Where a type
 asks for one, a component owes an entry whenever its source moves on from the
 state its recorded verdicts were given for, and that entry satisfies the requirement for every edit until the

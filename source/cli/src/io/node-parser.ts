@@ -6,6 +6,43 @@ import type { AspectStatus, NodeMeta, PortDef, Relation, RelationType } from '..
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
+import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
+
+/**
+ * The keys each block of a yg-node.yaml accepts. Anything else is refused by
+ * name (with the nearest accepted key): a misspelled `relation:` or `aspect:`
+ * would otherwise leave the relation or rule it declares out of the graph, and
+ * the check would pass without it.
+ */
+export const NODE_KEYS = ['name', 'type', 'description', 'aspects', 'relations', 'mapping', 'ports', 'max_direct_relations'] as const;
+export const NODE_RELATION_KEYS = ['target', 'type', 'portNames', 'consumes', 'event_name'] as const;
+export const NODE_PORT_KEYS = ['description', 'aspects'] as const;
+export const NODE_MAX_DIRECT_RELATIONS_KEYS = ['limit', 'reason'] as const;
+
+/** Node keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_KEYS: RetiredKeys = {
+  sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
+};
+
+/**
+ * Port keys an earlier release read, and what became of each. The parser refuses
+ * them with its own message below; `yg init --upgrade` removes them.
+ */
+export const RETIRED_NODE_PORT_KEYS: RetiredKeys = {
+  version: "removed in 6.0.0: contract versions are Horde's job now",
+  test: "removed in 6.0.0: contract tests are Horde's job now",
+};
+
+/** Relation keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_NODE_RELATION_KEYS: RetiredKeys = {
+  failure: 'removed in 4.0.0',
+};
+
+/** Throw naming every key of `block` outside `known`. */
+function refuseUnknownKeys(block: Record<string, unknown>, known: readonly string[], filePath: string, where: string, retired: RetiredKeys = {}): void {
+  const unknown = findUnknownKeys(block, known, retired);
+  if (unknown.length > 0) throw new Error(`yg-node.yaml at ${filePath}: ${describeUnknownKeys(where, unknown, known)}`);
+}
 
 const RELATION_TYPES: RelationType[] = [
   'uses',
@@ -35,12 +72,14 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
     throw new Error(`yg-node.yaml at ${filePath}: missing or empty 'type'`);
   }
 
+  refuseUnknownKeys(raw, NODE_KEYS, filePath, '', RETIRED_NODE_KEYS);
+
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
   const relations = parseRelations(raw.relations, filePath);
   const mapping = parseMapping(raw.mapping, filePath);
   const aspectsResult = parseAspects(raw.aspects, filePath);
   const ports = parsePorts(raw.ports, filePath);
-  const maxDirectRelations = parseMaxDirectRelations(raw.max_direct_relations);
+  const maxDirectRelations = parseMaxDirectRelations(raw.max_direct_relations, filePath);
   return {
     name: (raw.name as string).trim(),
     type: (raw.type as string).trim(),
@@ -68,10 +107,14 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
  */
 function parseMaxDirectRelations(
   raw: unknown,
+  filePath: string,
 ): { limit: number; reason: string } | undefined {
   if (raw === undefined || raw === null) return undefined;
   if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const obj = raw as Record<string, unknown>;
+  // A misspelled key (`limt`) is refused rather than tolerated: tolerance is for
+  // a malformed VALUE, which falls back to the strict global and keeps warning.
+  refuseUnknownKeys(obj, NODE_MAX_DIRECT_RELATIONS_KEYS, filePath, 'max_direct_relations');
   const limit = obj.limit;
   const reason = obj.reason;
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) return undefined;
@@ -132,6 +175,7 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
       throw new Error(`yg-node.yaml at ${filePath}: relations[${index}] must be an object`);
     }
     const obj = r as Record<string, unknown>;
+    refuseUnknownKeys(obj, NODE_RELATION_KEYS, filePath, `relations[${index}]`, RETIRED_NODE_RELATION_KEYS);
     const target = obj.target;
     const type = obj.type;
 
@@ -351,6 +395,8 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
         `yg-node.yaml at ${filePath}: ports.${name}.test was removed in 6.0.0 — delete this field from the YAML. Contract tests are Horde's job now.`,
       );
     }
+
+    refuseUnknownKeys(obj, NODE_PORT_KEYS, filePath, `ports.${name}`, RETIRED_NODE_PORT_KEYS);
 
     ports[name] = {
       description,

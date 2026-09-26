@@ -15,6 +15,7 @@ import { KNOWN_PROVIDERS } from '../utils/known-providers.js';
 import { loadConfigOverlay, deepMerge } from './secrets-parser.js';
 import { readFileOrDefault } from './read-or-default.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { closestKnownKey, describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
 
 export { KNOWN_PROVIDERS };
 
@@ -23,6 +24,31 @@ export class ConfigParseError extends Error {
     super(messageData.what);
   }
 }
+
+/** The keys `quality:` accepts. */
+export const QUALITY_KEYS = ['max_direct_relations'] as const;
+
+/** `quality:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_QUALITY_KEYS: RetiredKeys = {
+  max_node_chars: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
+  max_mapping_source_files: 'removed in 5.0.0 with the wide-node warning',
+};
+
+/** Tier `config:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
+  max_tokens: 'removed in 5.0.0; the reviewer no longer caps its reply',
+  context_length_field: 'never read by any release since 5.0.0',
+  references: 'removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them',
+};
+
+/**
+ * The keys a tier's `config:` block accepts. Every provider reads its settings
+ * from this one list; a key outside it is a typo (`modle:`) that would leave the
+ * setting at its default without a word. Not every provider uses every key —
+ * the CLI providers (claude-code, codex, gemini-cli, copilot-cli) take `model`
+ * and `timeout` and ignore `temperature` and `endpoint` — but each key is known.
+ */
+export const TIER_CONFIG_KEYS = ['model', 'endpoint', 'temperature', 'timeout', 'api_key'] as const;
 
 const DEFAULT_QUALITY: QualityConfig = {
   max_direct_relations: 10,
@@ -98,36 +124,6 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'signals', 'events', 'coverage', 'progressive', 'rules_artifacts',
 ];
 
-/** Levenshtein distance — small inputs only (config key names). */
-function editDistance(a: string, b: string): number {
-  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let diag = prev[0];
-    prev[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const up = prev[j];
-      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
-      diag = up;
-    }
-  }
-  return prev[b.length];
-}
-
-function closestKnownKey(key: string): string | undefined {
-  let best: string | undefined;
-  let bestDistance = Infinity;
-  for (const known of KNOWN_TOP_LEVEL_KEYS) {
-    const d = editDistance(key.toLowerCase(), known);
-    if (d < bestDistance) {
-      bestDistance = d;
-      best = known;
-    }
-  }
-  // A suggestion only when the key is plausibly a typo of a real one: at most a
-  // third of the key's length away (and never more than 3 edits).
-  return best !== undefined && bestDistance <= Math.min(3, Math.max(1, Math.floor(key.length / 3))) ? best : undefined;
-}
-
 /**
  * One top-level key the configuration does not know, with the file it sits in
  * (`yg-config.yaml`, or the local `yg-secrets.yaml` overlay) and the known key
@@ -143,7 +139,7 @@ function findUnknownTopLevelKeys(raw: Record<string, unknown>, filename: string)
   const found: UnknownConfigKey[] = [];
   for (const key of Object.keys(raw)) {
     if (KNOWN_TOP_LEVEL_KEYS.includes(key)) continue;
-    const suggestion = closestKnownKey(key);
+    const suggestion = closestKnownKey(key, KNOWN_TOP_LEVEL_KEYS);
     found.push({ file: filename, key, ...(suggestion !== undefined && { suggestion }) });
   }
   return found;
@@ -420,6 +416,8 @@ async function parseConfigInner(
       ? ((committedCoverage as Record<string, unknown>).type_level as boolean)
       : undefined;
 
+  refuseUnknownNestedKeys(baseRaw, filename);
+  if (overlay) refuseUnknownNestedKeys(overlay, 'yg-secrets.yaml');
   const raw = overlay ? deepMerge(baseRaw, overlay) : baseRaw;
 
   const versionField = readSchemaVersionField(raw);
@@ -434,6 +432,7 @@ async function parseConfigInner(
     }, 'config-invalid');
   }
   const qualityMap = qualityRaw as Record<string, unknown> | undefined;
+  if (qualityMap) refuseUnknownQualityKeys(qualityMap, filename);
   const quality: QualityConfig = qualityMap
     ? {
         max_direct_relations: parseMaxDirectRelations(qualityMap.max_direct_relations, filename),
@@ -805,6 +804,79 @@ function parseReviewer(raw: Record<string, unknown>, filename: string): Reviewer
   return { default: defaultName, tiers };
 }
 
+/**
+ * Refuse a `quality:` key the configuration does not accept, naming the file it
+ * sits in. Called on the committed file and on the local overlay SEPARATELY,
+ * before they are merged, so a key in the gitignored yg-secrets.yaml is reported
+ * where it is — the same rule the top-level unknown-key check follows.
+ */
+function refuseUnknownQualityKeys(qualityMap: Record<string, unknown>, filename: string): void {
+  const unknownQuality = findUnknownKeys(qualityMap, QUALITY_KEYS, RETIRED_QUALITY_KEYS);
+  if (unknownQuality.length > 0) {
+    throw new ConfigParseError({
+      what: `${filename}: ${describeUnknownKeys('quality', unknownQuality, QUALITY_KEYS)}`,
+      why: 'quality holds the named thresholds the check measures against; a misspelled one leaves its threshold at the default while the file appears to set it.',
+      next: unknownQuality[0].retired !== undefined
+        ? `Delete quality.${unknownQuality[0].key} from ${filename}.`
+        : unknownQuality[0].suggestion !== undefined
+        ? `Rename quality.${unknownQuality[0].key} to quality.${unknownQuality[0].suggestion}, or remove it.`
+        : `Remove quality.${unknownQuality[0].key}, or rename it to one of: ${QUALITY_KEYS.join(', ')}.`,
+    }, 'config-quality-unknown-key');
+  }
+}
+
+/** Refuse a key a tier's `config:` does not accept, naming the file it sits in (see refuseUnknownQualityKeys). */
+function refuseUnknownTierConfigKeys(c: Record<string, unknown>, name: string, filename: string): void {
+  const unknownConfigKeys = findUnknownKeys(c, TIER_CONFIG_KEYS, RETIRED_TIER_CONFIG_KEYS);
+  if (unknownConfigKeys.length > 0) {
+    throw new ConfigParseError({
+      what: `${filename}: ${describeUnknownKeys(`tier '${name}' config`, unknownConfigKeys, TIER_CONFIG_KEYS)}`,
+      why: "a tier's config: holds the provider settings every reviewer call of that tier is made with; a misspelled one leaves its setting at the provider's default while the file appears to set it.",
+      next: unknownConfigKeys[0].retired !== undefined
+        ? `Delete '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`
+        : unknownConfigKeys[0].suggestion !== undefined
+        ? `Rename '${unknownConfigKeys[0].key}' to '${unknownConfigKeys[0].suggestion}' under reviewer.tiers.${name}.config, or remove it.`
+        : `Remove '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`,
+    }, 'config-tier-unknown-key');
+  }
+}
+
+/**
+ * Check one file's `quality:` and tier `config:` blocks for unknown keys before
+ * the overlay is merged, so each finding names the file that carries it.
+ * Shape problems are left to the full parse after the merge.
+ */
+function refuseUnknownNestedKeys(raw: Record<string, unknown>, filename: string): void {
+  const isMapping = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if (isMapping(raw.quality)) refuseUnknownQualityKeys(raw.quality, filename);
+  const reviewer = raw.reviewer;
+  if (!isMapping(reviewer) || !isMapping(reviewer.tiers)) return;
+  for (const [tierName, tier] of Object.entries(reviewer.tiers)) {
+    if (isMapping(tier) && isMapping(tier.config)) refuseUnknownTierConfigKeys(tier.config, tierName, filename);
+  }
+}
+
+/**
+ * The first setting of a tier's `config:` whose value has the wrong type, or null.
+ * An empty value (`timeout:` with nothing after it) reads as absent, as before.
+ * `model` has its own check below (it may also come from a provider default).
+ */
+function tierConfigTypeError(c: Record<string, unknown>): { key: string; problem: string; fix: string } | null {
+  if (c.temperature !== undefined && c.temperature !== null && (typeof c.temperature !== 'number' || !Number.isFinite(c.temperature) || c.temperature < 0)) {
+    return { key: 'temperature', problem: 'must be a number >= 0', fix: 'to a number such as 0' };
+  }
+  if (c.timeout !== undefined && c.timeout !== null && (typeof c.timeout !== 'number' || !Number.isFinite(c.timeout) || c.timeout <= 0)) {
+    return { key: 'timeout', problem: 'must be a positive number of seconds', fix: 'to a number of seconds such as 300' };
+  }
+  if (c.endpoint !== undefined && c.endpoint !== null && typeof c.endpoint !== 'string') {
+    return { key: 'endpoint', problem: 'must be a URL string', fix: 'to a URL string' };
+  }
+  if (c.api_key !== undefined && c.api_key !== null && typeof c.api_key !== 'string') {
+    return { key: 'api_key', problem: 'must be a string', fix: 'to the key as a string (in yg-secrets.yaml, never the committed file)' };
+  }
+  return null;
+}
+
 function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new ConfigParseError({
@@ -862,6 +934,15 @@ function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
     }, 'config-tier-config-not-mapping');
   }
   const c = cfg as Record<string, unknown>;
+  refuseUnknownTierConfigKeys(c, name, filename);
+  const configTypeError = tierConfigTypeError(c);
+  if (configTypeError !== null) {
+    throw new ConfigParseError({
+      what: `${filename}: tier '${name}' config.${configTypeError.key} ${configTypeError.problem} (got ${JSON.stringify(c[configTypeError.key])}).`,
+      why: `A value of the wrong type is not read at all — config.${configTypeError.key} would silently fall back to its default.`,
+      next: `Set reviewer.tiers.${name}.config.${configTypeError.key} ${configTypeError.fix}, or remove it.`,
+    }, 'config-tier-config-invalid');
+  }
   const defaults = PROVIDER_DEFAULTS[t.provider as string] ?? {};
   const model = (c.model as string | undefined) ?? (defaults.model as string | undefined);
   if (!model || typeof model !== 'string') {

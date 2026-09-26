@@ -605,13 +605,34 @@ export function checkMappingEscapesRepo(graph: Graph): ValidationIssue[] {
   return issues;
 }
 
-// --- Directories have yg-node.yaml ---
+// --- Directories have yg-node.yaml, and every node is reachable ---
 
+/**
+ * Why a directory's subtree is not loaded: a directory above it with no
+ * yg-node.yaml (the loader walks nodes only through nodes), or a node above it
+ * whose yg-node.yaml did not load (the loader does not descend into it).
+ */
+type UnreachableCause = { kind: 'gap'; dir: string } | { kind: 'parse-failed'; node: string };
+
+/**
+ * Two findings from one walk of `model/`, mirroring exactly how the graph loader
+ * walks it (core/graph-loader.ts scanModelDirectory):
+ *
+ *  - `node-yaml-missing` — a directory holding files but no yg-node.yaml.
+ *  - `node-unreachable` — a yg-node.yaml the loader never reached, so its node
+ *    is not in the graph at all: a directory between it and `model/` has no
+ *    yg-node.yaml, or a node above it failed to load. Without this the node —
+ *    its rules, its relations, the files it maps — vanished without a word, and
+ *    the check passed over it (its files read as unmapped, or were quietly
+ *    enforced by a type instead). One finding per dropped node, naming the
+ *    topmost directory that cut it off — the one to fix first.
+ */
 export async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const modelDir = path.join(graph.rootPath, 'model');
+  const failedToLoad = new Set((graph.nodeParseErrors ?? []).map((e) => e.nodePath));
 
-  async function scanDir(dirPath: string, segments: string[]): Promise<void> {
+  async function scanDir(dirPath: string, segments: string[], cutOff: UnreachableCause | null): Promise<void> {
     const entries = await readSortedDir(dirPath);
     const hasNodeYaml = entries.some((e) => e.isFile() && e.name === 'yg-node.yaml');
 
@@ -635,9 +656,36 @@ export async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<Valida
       // directory-without-node covered by unmapped-files check
     }
 
+    if (hasNodeYaml && cutOff !== null) {
+      issues.push({
+        severity: 'error',
+        code: 'node-unreachable',
+        rule: 'node-unreachable',
+        ...issueMsg(cutOff.kind === 'gap'
+          ? {
+              what: `Node '${graphPath}' is not loaded: the directory '${cutOff.dir}' above it has no yg-node.yaml.`,
+              why: 'Nodes nest by directory, and the graph is read only through nodes — every directory between model/ and a node must itself be a node. This node, its rules, its relations and the files it maps are absent from the graph, so nothing it declares is enforced.',
+              next: `Create .yggdrasil/model/${cutOff.dir}/yg-node.yaml, or move the node out of '${cutOff.dir}' to sit directly under a node.`,
+            }
+          : {
+              what: `Node '${graphPath}' is not loaded: the node '${cutOff.node}' above it failed to load.`,
+              why: 'The graph is read only through nodes, so the children of a node whose yg-node.yaml does not load are not read either. This node, its rules, its relations and the files it maps are absent from the graph until the node above it loads.',
+              next: `Fix .yggdrasil/model/${cutOff.node}/yg-node.yaml (its own error is reported beside this one); this node loads with it.`,
+            }),
+        nodePath: graphPath,
+      });
+    }
+
+    // What cuts off everything beneath this directory: an inherited cut, this
+    // directory itself when it is no node, or this node when it did not load.
+    const below: UnreachableCause | null = cutOff
+      ?? (!hasNodeYaml ? { kind: 'gap', dir: graphPath }
+        : failedToLoad.has(graphPath) ? { kind: 'parse-failed', node: graphPath }
+          : null);
+
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      await scanDir(path.join(dirPath, entry.name), [...segments, entry.name]);
+      await scanDir(path.join(dirPath, entry.name), [...segments, entry.name], below);
     }
   }
 
@@ -645,7 +693,7 @@ export async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<Valida
     const rootEntries = await readSortedDir(modelDir);
     for (const entry of rootEntries) {
       if (!entry.isDirectory()) continue;
-      await scanDir(path.join(modelDir, entry.name), [entry.name]);
+      await scanDir(path.join(modelDir, entry.name), [entry.name], null);
     }
   } catch {
     // model/ may not exist

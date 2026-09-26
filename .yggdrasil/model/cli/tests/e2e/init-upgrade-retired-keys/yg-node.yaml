@@ -1,0 +1,17 @@
+name: E2E Tests — Upgrade Removes Retired Keys
+type: test-suite
+description: "Subprocess E2E for the upgrade's removal of keys earlier releases
+  read and the current one refuses. A graph shaped like one last written by a
+  5.0 release — a node's and a node type's size exemption, a retired quality
+  threshold and tier setting, a relation's failure field, a rule's stability,
+  language and id — goes through the upgrade, which must name every key it
+  removes, keep every other key and comment, and leave a graph whose next check
+  reports no unknown key. It also pins that a key nobody retired is left for the
+  owner and still named by the check, that a rule installed from a package is
+  never edited, and that a second upgrade removes nothing."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-init-upgrade-retired-keys.test.ts

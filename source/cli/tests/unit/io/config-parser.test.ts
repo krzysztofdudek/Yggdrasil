@@ -132,6 +132,24 @@ version: "4.0.0"
     await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
+  it.each([
+    ['quality', 'quality:\n  max_direct_relation: 3\n', 'config-quality-unknown-key'],
+    ['a tier config', 'reviewer:\n  tiers:\n    standard:\n      config:\n        modle: x\n', 'config-tier-unknown-key'],
+  ])('names yg-secrets.yaml, not yg-config.yaml, for an unknown key in %s that comes from the overlay', async (_label, overlay, code) => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay-nested');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: m\n',
+      'utf-8',
+    );
+    await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), overlay, 'utf-8');
+    const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+    expect((err as ConfigParseError).code).toBe(code);
+    expect((err as ConfigParseError).messageData.what.startsWith('yg-secrets.yaml:')).toBe(true);
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
+  });
+
   it('names yg-secrets.yaml when the unknown top-level key comes from the overlay', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay');
     await mkdir(tmpDir, { recursive: true });
@@ -362,7 +380,7 @@ reviewer:
       expect(cfg.reviewer?.tiers.deep.consensus).toBe(3);
     });
 
-    it('v5 single tier with temperature (max_tokens no longer a recognized field — silently ignored)', async () => {
+    it('v5 single tier with temperature and a leftover max_tokens: refused as retired, naming it', async () => {
       const tmpDir = path.join(FIXTURES_DIR, 'tmp-v5-ollama-tier');
       await mkdir(tmpDir, { recursive: true });
       const configPath = path.join(tmpDir, 'yg-config.yaml');
@@ -379,10 +397,10 @@ reviewer:
         max_tokens: 4096
 `, 'utf-8');
 
-      // max_tokens is now a removed field — silently ignored; temperature still parses
-      const cfg = await parseConfig(configPath);
-      expect(cfg.reviewer?.tiers.main.temperature).toBe(0.2);
-      expect((cfg.reviewer?.tiers.main as unknown as Record<string, unknown>)['max_tokens']).toBeUndefined();
+      // max_tokens was removed in 5.0.0; a key the schema does not read is refused
+      // (it used to be dropped without a word), and the error says it is retired.
+      await expect(parseConfig(configPath)).rejects.toMatchObject({ code: 'config-tier-unknown-key' });
+      await expect(parseConfig(configPath)).rejects.toThrow(/'max_tokens' \(removed in 5\.0\.0/);
     });
 
     it('v5 model defaults — claude-code without explicit model in config', async () => {
@@ -603,10 +621,15 @@ reviewer:
 `)).rejects.toMatchObject({ code: 'config-tier-unknown-key' });
     });
 
-    it('max_tokens in config is silently ignored (no longer a recognized field)', async () => {
-      // max_tokens was removed; it is now an unrecognized key in config: and must
-      // not cause a parse error regardless of its value.
-      const cfg = await parseWithYaml(`reviewer:
+    // --- Retired and misspelled keys: refused by name ---
+    // The parser used to read only the keys it recognized and drop the rest
+    // without a word, so a retired field or a typo left its setting at the
+    // default while the file appeared to set it. Every block now refuses a key it
+    // does not accept, naming a retired one as retired (delete it) and a typo with
+    // the nearest accepted key.
+
+    it('a leftover max_tokens in a tier config is refused as retired', async () => {
+      await expect(parseWithYaml(`reviewer:
   tiers:
     main:
       provider: claude-code
@@ -614,21 +637,11 @@ reviewer:
       config:
         model: haiku
         max_tokens: 0
-`);
-      expect(cfg.reviewer?.tiers.main).toBeDefined();
-      expect((cfg.reviewer?.tiers.main as unknown as Record<string, unknown>)['max_tokens']).toBeUndefined();
+`)).rejects.toMatchObject({ code: 'config-tier-unknown-key' });
     });
 
-    // --- Retired-field silent-ignore boundary (docs no longer promise an error) ---
-    // The parser reads only the keys it recognizes; retired `quality.*` fields and
-    // unknown `config.*` keys under a tier are SILENTLY IGNORED (no error, no
-    // warning). This is distinct from the unknown-KEY guard, which still rejects a
-    // typo'd top-level key under `reviewer:` or a tier (see the two guard tests
-    // below). The docs previously claimed a clear unknown-key error for retired
-    // fields — these tests pin the true behavior.
-
-    it('retired quality.max_node_chars is silently ignored (parses cleanly)', async () => {
-      const cfg = await parseWithYaml(`reviewer:
+    it('a retired quality.max_node_chars is refused as retired, naming the replacement', async () => {
+      const err = await parseWithYaml(`reviewer:
   tiers:
     main:
       provider: claude-code
@@ -636,16 +649,22 @@ reviewer:
       config: { model: haiku }
 quality:
   max_node_chars: 12000
-`);
-      // Resolves without error; the retired field is dropped, the recognized
-      // quality field still defaults.
-      expect(cfg.reviewer?.tiers.main).toBeDefined();
-      expect(cfg.quality?.max_direct_relations).toBe(10);
-      expect((cfg.quality as unknown as Record<string, unknown>)['max_node_chars']).toBeUndefined();
+`).catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: 'config-quality-unknown-key' });
+      expect((err as Error).message).toContain("'max_node_chars' (removed in 5.0.0");
+      expect((err as Error).message).toContain('max_prompt_chars');
     });
 
-    it('retired per-tier references: cap block under config is silently ignored', async () => {
-      const cfg = await parseWithYaml(`reviewer:
+    it('a misspelled quality key is refused with the key it is a typo of', async () => {
+      const err = await parseWithYaml(`quality:
+  max_direct_relation: 3
+`).catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: 'config-quality-unknown-key' });
+      expect((err as Error).message).toContain("did you mean 'max_direct_relations'?");
+    });
+
+    it('a retired per-tier references: cap block under config is refused as retired', async () => {
+      await expect(parseWithYaml(`reviewer:
   tiers:
     main:
       provider: claude-code
@@ -654,15 +673,11 @@ quality:
         model: haiku
         references:
           max_bytes: 4096
-`);
-      expect(cfg.reviewer?.tiers.main).toBeDefined();
-      expect(cfg.reviewer?.tiers.main.model).toBe('haiku');
+`)).rejects.toThrow(/'references' \(removed in 5\.0\.0/);
     });
 
-    it('config.context_length_field is silently ignored (mirrors max_tokens)', async () => {
-      // context_length_field was never read by the parser; like max_tokens it is an
-      // unrecognized config: key and must not cause a parse error.
-      const cfg = await parseWithYaml(`reviewer:
+    it('config.context_length_field is refused as retired', async () => {
+      await expect(parseWithYaml(`reviewer:
   tiers:
     main:
       provider: claude-code
@@ -670,9 +685,55 @@ quality:
       config:
         model: haiku
         context_length_field: num_ctx
+`)).rejects.toMatchObject({ code: 'config-tier-unknown-key' });
+    });
+
+    it('a misspelled tier config key is refused with the key it is a typo of', async () => {
+      await expect(parseWithYaml(`reviewer:
+  tiers:
+    main:
+      provider: ollama
+      consensus: 1
+      config:
+        model: qwen3
+        modle: other
+`)).rejects.toThrow(/'modle' \(did you mean 'model'\?\)/);
+    });
+
+    it.each([
+      ['temperature: hot', 'temperature'],
+      ['temperature: -1', 'temperature'],
+      ['timeout: abc', 'timeout'],
+      ['timeout: 0', 'timeout'],
+      ['endpoint: 42', 'endpoint'],
+      ['api_key: 42', 'api_key'],
+    ])('a tier config value of the wrong type (%s) is refused rather than defaulted', async (line, key) => {
+      const err = await parseWithYaml(`reviewer:
+  tiers:
+    main:
+      provider: ollama
+      consensus: 1
+      config:
+        model: qwen3
+        ${line}
+`).catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: 'config-tier-config-invalid' });
+      expect((err as Error).message).toContain(`config.${key}`);
+    });
+
+    it('an empty tier config value still reads as absent', async () => {
+      const cfg = await parseWithYaml(`reviewer:
+  tiers:
+    main:
+      provider: ollama
+      consensus: 1
+      config:
+        model: qwen3
+        timeout:
+        temperature:
 `);
-      expect(cfg.reviewer?.tiers.main).toBeDefined();
-      expect((cfg.reviewer?.tiers.main as unknown as Record<string, unknown>)['context_length_field']).toBeUndefined();
+      expect(cfg.reviewer?.tiers.main.timeout).toBeUndefined();
+      expect(cfg.reviewer?.tiers.main.temperature).toBe(0);
     });
 
     it('a typo under reviewer: STILL rejects config-reviewer-unknown-key (distinct from silent-ignore)', async () => {

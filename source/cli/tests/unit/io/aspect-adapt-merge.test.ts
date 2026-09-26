@@ -150,12 +150,9 @@ describe('what an adaptation is refused', () => {
   );
 
   it('refuses a key it does not recognise at all', async () => {
-    // A DELIBERATE asymmetry with yg-aspect.yaml, which tolerates an unknown
-    // top-level key. The two are written under different conditions: a rule's own
-    // file is authored once against the schema its author had, and tolerating a
-    // newer build's key is what lets one rule work across versions. An adaptation
-    // is written by someone tuning a rule they did not write, where a misspelled
-    // key reads as a change that was applied when it was silently dropped.
+    // An adaptation is written by someone tuning a rule they did not write, where
+    // a misspelled key reads as a change that was applied when it was silently
+    // dropped.
     const { result } = await parse(BASE, 'reviwer:\n  tier: cheap\n');
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -163,9 +160,14 @@ describe('what an adaptation is refused', () => {
     expect(result.errors[0].messageData.what).toContain('reviwer');
   });
 
-  it('the rule\'s OWN file still tolerates an unknown key — the other half of that asymmetry', async () => {
-    const { result } = await parse(`${BASE}somethingNewer: 1\n`);
-    expect(result.ok).toBe(true);
+  it('the rule\'s OWN file refuses an unknown key too, naming the key it is a typo of', async () => {
+    // A package whose rule needs a key a later release adds says so through its
+    // requires.yg, which an install enforces; an older build does not ignore it.
+    const { result } = await parse(`${BASE}stauts: advisory\n`);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('aspect-unknown-key');
+    expect(result.errors[0].messageData.what).toContain("'stauts' (did you mean 'status'?)");
   });
 
   it.each(['- a\n- b\n', '42\n'])('refuses an adaptation that is not a mapping (%j)', async (body) => {

@@ -184,6 +184,13 @@ Provider-specific options passed to the LLM client:
 | \`endpoint\` | string | Required for \`openai-compatible\` (no default host — else falls back to api.openai.com); \`ollama\` defaults to http://localhost:11434. |
 | \`timeout\` | number | Timeout in seconds, honored by every provider. Default 300 for the CLI providers and \`ollama\`, 60 for the hosted APIs (anthropic/openai/google/openai-compatible). Not folded into a verdict's hash (a transport knob). |
 
+These (and \`api_key\`, from the local overlay) are the only keys \`config:\`
+accepts: any other is \`config-tier-unknown-key\`, and a value of the wrong type
+(\`temperature: hot\`, \`timeout: abc\`) is \`config-tier-config-invalid\` rather than
+a silent fall back to the default. The CLI providers (claude-code, codex,
+gemini-cli, copilot-cli) read only \`model\` and \`timeout\`; \`temperature\` and
+\`endpoint\` are accepted there and have no effect.
+
 API keys do NOT belong in the committed config — put them in \`yg-secrets.yaml\`,
 the local overlay (see "Secrets and local overrides" below). API providers also
 read the provider API key from the standard \`*_API_KEY\` environment variable as
@@ -390,15 +397,18 @@ Refreshes the agent-rules artifacts this project carries (see
 \`rules_artifacts\` below), \`.gitattributes\`, and \`.yggdrasil/.gitignore\`
 (see "Local state" above); removes any legacy per-platform file a retired
 installer left behind, reported as "Legacy per-platform artifacts cleaned up";
-and lifts the config's version bookkeeping to the current schema. Retired \`quality.*\` fields
-(e.g. \`quality.max_node_chars\`) and retired/unknown \`config.*\` keys under a tier
-(e.g. a \`references:\` cap block or \`config.context_length_field\`) are SILENTLY
-IGNORED — no error, no warning. They are simply not read; the parser leaves them
-in your file untouched. Review the diff after upgrade and delete the dead lines
-by hand. This silent-ignore is distinct from the parser's unknown-KEY guard: a
-typo'd top-level key under \`reviewer:\` or under a tier (e.g. \`consesnsus:\`) is
-STILL a hard \`config-reviewer-unknown-key\` / \`config-tier-unknown-key\` error from
-\`yg check\` — a key typo is caught; a retired-field cleanup is not. Run from the
+and lifts the config's version bookkeeping to the current schema. It removes,
+and names, every field an earlier release read and this one refuses: retired
+\`quality.*\` fields (\`quality.max_node_chars\`), retired keys under a tier's
+\`config:\` (a \`references:\` cap block, \`config.max_tokens\`,
+\`config.context_length_field\`), a node's or node type's \`sizeExempt:\`, a
+relation's \`failure:\`, and a rule's \`language:\` / \`stability:\` / \`anchors:\` /
+\`id:\` (never in a rule installed from a package). Files are edited in place;
+the writer may normalize indentation, so review the diff. Every block of
+\`yg-config.yaml\`, \`yg-architecture.yaml\`, every \`yg-node.yaml\` and every
+\`yg-aspect.yaml\` refuses a key it does not accept (flow files are not held to
+this yet), and a typo is named with the key it
+probably meant (\`consesnsus\` → did you mean \`consensus\`?). Run from the
 repository root only. Review the diff before committing.
 
 ### Prompt size, not reference caps

@@ -85,6 +85,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'secrets-file-tracked',
   'duplicate-aspect-id',
   'node-yaml-missing',
+  // A yg-node.yaml the loader never reached — under a directory that is no node,
+  // or beneath a node that failed to load — so the node is absent from the graph
+  // and nothing it declares is enforced.
+  'node-unreachable',
   'implied-aspect-missing',
   'aspect-implies-cycle',
   'event-unpaired',
@@ -150,6 +154,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   // literal — always blocks (structural graph-shape error), like the other
   // aspect-contract codes.
   'aspect-errs-invalid',
+  // A key a yg-aspect.yaml does not accept (a typo such as `stauts:`). The rule is
+  // not loaded until it is corrected, rather than loaded at the defaults the
+  // misspelled key was meant to override.
+  'aspect-unknown-key',
   'mapping-escapes-repo',
   // The lock file is unparseable, garbled, conflict-markered, or an unknown
   // version. Fail closed — blocking, structural, independent of any pair state.
@@ -217,6 +225,7 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'config-tier-name-reserved',
   'config-reviewer-unknown-key',
   'config-tier-unknown-key',
+  'config-tier-config-invalid',
   'aspect-reviewer-missing',
   'aspect-reviewer-not-mapping',
   'aspect-reviewer-type-missing',
@@ -245,6 +254,26 @@ export const APPROVE_GATING_CODES = new Set<string>([
   // bytes must never flow into a reviewer prompt.
   'mapping-escapes-repo',
 ]);
+
+/**
+ * A node's log.md that is not settled: git conflict markers still in it, a
+ * recorded history that was rewritten, or a body that does not parse. A fill
+ * closes each log_required node's cycle by recording its source fingerprint and
+ * log baseline, so running one over such a log would record a baseline over
+ * entries nobody has reconciled — and every verdict bought meanwhile would sit
+ * beside a log the check keeps refusing. So these stop `--approve` before it
+ * dispatches anything, like {@link APPROVE_GATING_CODES}.
+ *
+ * Kept OUT of that set on purpose: in the check report these are scoped codes
+ * (progressive mode reports one the change did not reach as a warning), and a
+ * scoped code is never a structural gating code. The fill applies them
+ * unnarrowed all the same, exactly as its log-entry gate does — a recorded
+ * baseline must not rest on an unsettled log whoever left it. The fill stage
+ * computes them from the log files itself (they are not validator findings),
+ * and only for a run that can close a cycle: `--only-deterministic` and a
+ * `--dry-run` preview record no baseline and are not stopped by them.
+ */
+export const APPROVE_LOG_STATE_GATING_CODES = new Set<string>(['log-conflict', 'log-integrity', 'log-format']);
 
 /**
  * Wide-tier scoped codes — the codes progressive mode is ever allowed to consider
