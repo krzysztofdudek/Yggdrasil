@@ -92,11 +92,12 @@ The gate's "mapped source changed" test is computed from a per-node **source
 fingerprint** — one sha256 fold over the sorted \`[path, sha256(bytes)]\` list of
 ALL the node's mapped files (the full mapping, not the scope-filtered subject
 sets; binaries included by bytes). It lives in \`yg-lock.logs.json\` under
-\`nodes.<path>.source\`, written at positive closure — but ONLY for \`log_required\`
-nodes, since the fingerprint is the gate's drift basis and the gate never runs
-elsewhere. A non-log_required node records no \`source\`; it gets a \`nodes\` entry
-only when it owns a \`log.md\`, holding just the append-only \`log\` baseline
-(boundary datetime + prefix hash). When the section is empty (no log_required
+\`nodes.<path>.source\`, written by every full fill: for a \`log_required\` node at
+positive closure, for any other node whatever its verdicts say — so a type that
+opts in later is measured from its code as it already stood, at the cost of the
+committed logs lock changing whenever a full fill sees moved source. A node that
+owns a \`log.md\` also holds its append-only \`log\` baseline (boundary datetime +
+prefix hash). When the section is empty (no log_required
 node, no \`log.md\`), \`yg-lock.logs.json\` is not written at all — an empty committed
 husk is removed. There is no separate per-node state file.
 
@@ -116,9 +117,12 @@ change) does not stop it; the run records nothing over its code, and plain
 \`yg check\` keeps it red until its entry exists. Add the entries and re-run.
 
 An entry comments on a change to the node's OWN source, and only that: editing
-a rule, a relation, the lock or a verdict re-opens pairs but owes no entry. The source is the files the mapping names, so two cases owe one with no
-file edited: a changed mapping, and a node with no recorded baseline yet (a new
-node, or one whose type has only now opted into \`log_required\`). If a pair is refused, iterate on
+a rule, a relation, the lock or a verdict re-opens pairs but owes no entry. The source is the set of files the mapping names, so a changed mapping (a file
+moved between nodes) owes one. Switching a type to \`log_required\` does not:
+every full fill records every node's fingerprint, so the first entry is owed at
+the node's first real source change after the switch. A node with no recorded
+fingerprint at all (a new node, or one no full fill has run over since this
+release) owes its first entry. If a pair is refused, iterate on
 the code WITHOUT adding new log entries — one entry covers all edits until the node
 reaches closure. Under progressive mode a node can reach closure while some of its
 reviewer work is deliberately left unbought, so the next source change there needs

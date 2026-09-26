@@ -433,14 +433,14 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
     const dir = deterministicFixture('f1-only-det');
     const ygg = path.join(dir, '.yggdrasil');
     try {
-      // A full approve writes only the gitignored det cache here: this fixture is
-      // deterministic-only (no LLM verdicts) and non-log_required (no source), so
-      // BOTH committed files are empty → absent.
+      // A full approve: this fixture is deterministic-only, so no reviewer verdict
+      // file; the logs file holds each node's source fingerprint (recorded for every
+      // node by a full fill).
       expect(run(['check', '--approve'], dir).status).toBe(0);
       const nondetPath = nondetLockPath(ygg);
       const logsPath = logsLockPath(ygg);
       expect(existsSync(nondetPath)).toBe(false);
-      expect(existsSync(logsPath)).toBe(false);
+      const logsBefore = readFileSync(logsPath, 'utf-8');
 
       // Edit source → the deterministic pair goes unverified.
       appendFileSync(ordersFile(dir), '\nexport const onlyDetTouch = 1;\n');
@@ -451,10 +451,11 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // Progress (the `fill  …` lines) goes to STDERR; final report to STDOUT.
       expect(det.status).toBe(0);
 
-      // The committed files are untouched — zero churn in CI / pre-commit (both
-      // absent before, both absent after).
+      // The committed files are untouched — zero churn in CI / pre-commit: no
+      // reviewer file appears, and the logs file is byte-identical although the
+      // source moved (only a full fill records a fingerprint).
       expect(existsSync(nondetPath)).toBe(false);
-      expect(existsSync(logsPath)).toBe(false);
+      expect(readFileSync(logsPath, 'utf-8')).toBe(logsBefore);
       // The gitignored cache reflects the re-fill.
       expect(verdictFor(readLock(dir), 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
     } finally {

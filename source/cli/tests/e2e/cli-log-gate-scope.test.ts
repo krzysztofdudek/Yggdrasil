@@ -161,6 +161,36 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
     }
   }, 120_000);
 
+  it('switching a type to log_required owes no entry; the first real source change after it does', () => {
+    // Two components of a type that does not ask for entries, recorded by a full fill.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-log-scope-switch-'));
+    try {
+      cpSync(LIFECYCLE, dir, { recursive: true });
+      const archRel = path.join('.yggdrasil', 'yg-architecture.yaml');
+      write(dir, archRel, readFileSync(path.join(dir, archRel), 'utf-8').split('\n').filter((l) => l.trim() !== '- has-doc-comment').join('\n'));
+      rmSync(path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment'), FIXTURE_RM_OPTIONS);
+      runGitFixture(dir, ['init', '-q', '-b', 'main']);
+      const recorded = yg(dir, ['check', '--approve']);
+      expect(recorded.status, recorded.all).toBe(0);
+      runGitFixture(dir, ['add', '-A']);
+      runGitFixture(dir, ['commit', '-q', '-m', 'recorded']);
+      // The type opts in; no file of either component changes.
+      const arch = readFileSync(path.join(dir, archRel), 'utf-8');
+      const at = arch.indexOf('log_required: false', arch.indexOf('  service:'));
+      write(dir, archRel, `${arch.slice(0, at)}log_required: true${arch.slice(at + 'log_required: false'.length)}`);
+      const switched = yg(dir, ['check']);
+      expect(switched.all).not.toContain('log-entry-missing');
+      expect(switched.status, switched.all).toBe(0);
+      // The first real change to one component's source owes that component an entry, and only it.
+      appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '\nexport const later = 2;\n');
+      const edited = yg(dir, ['check']);
+      expect(owes(edited, 'services/orders')).toBe(true);
+      expect(edited.stdout).not.toContain('services/payments');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  }, 120_000);
+
   it('the free run is not stopped by a changed component whose only pending pairs are reviewer pairs it leaves alone', () => {
     const dir = baseline('reviewer-only', true);
     try {

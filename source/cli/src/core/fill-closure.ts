@@ -8,11 +8,12 @@
  * applyPositiveClosure's (c) for why that second case has to count and how
  * narrowly it is drawn.
  *
- * The `nodes.<path>.source` fingerprint is the log gate's drift basis and the gate
- * runs ONLY for log_required nodes — so closure records a source fingerprint ONLY
- * for log_required nodes. A non-log_required node never carries one (it would be
- * dead data that churns the committed logs lock on every source change); it gets
- * an entry only when it owns a log.md, holding just the append-only log baseline.
+ * The `nodes.<path>.source` fingerprint is the log gate's drift basis. It is
+ * recorded for EVERY node with mapped source, not only log_required ones: a node
+ * whose type opts into log_required later then already has a baseline, so an
+ * entry is owed at its first real source change after the switch, never merely
+ * for the switch (the owner's ruling). The price is churn — a full fill rewrites
+ * the committed logs lock for every node whose source moved — accepted on purpose.
  */
 
 import type { Graph } from '../model/graph.js';
@@ -145,10 +146,12 @@ export async function applyPositiveClosure(
     const archType = graph.architecture.node_types[node.meta.type];
     const logRequired = archType?.log_required ?? false;
 
-    // NON-log_required: reconcile to the minimal entry (log baseline only, no
-    // source fingerprint). Independent of verdict/gate state.
+    // NON-log_required: the log baseline when it owns a log.md, and the source
+    // fingerprint as it stands — no gate asks for an entry here, so the
+    // fingerprint is recorded whatever the verdicts say. It is what a later
+    // switch to log_required measures the first real change against.
     if (!logRequired) {
-      if (await reconcileNonLogRequiredEntry(projectRoot, nodePath, lock)) mutated = true;
+      if (await reconcileNonLogRequiredEntry(graph, projectRoot, nodePath, lock)) mutated = true;
       continue;
     }
 
@@ -235,18 +238,27 @@ function baselineTampered(content: string, priorLog: LockNodeEntry['log']): bool
 }
 
 /**
- * Reconcile a NON-log_required node's logs-lock entry to its minimal form: the
- * append-only log baseline when it owns a log.md (advance it, like any closure),
- * else preserve an existing baseline so a DELETED log.md is still caught as an
- * integrity violation — and NEVER a source fingerprint. A stale source left by an
- * earlier CLI version is stripped; a node with neither a log.md nor a prior
- * baseline holds no entry at all. Returns true when it changed the lock.
+ * Reconcile a NON-log_required node's logs-lock entry: the append-only log
+ * baseline when it owns a log.md (advance it, like any closure), else preserve an
+ * existing baseline so a DELETED log.md is still caught as an integrity violation;
+ * and the node's current source fingerprint when it has mapped source (an
+ * unreadable file keeps the one already recorded). A node with neither holds no
+ * entry at all. Returns true when it changed the lock.
  */
 async function reconcileNonLogRequiredEntry(
+  graph: Graph,
   projectRoot: string,
   nodePath: string,
   lock: LockFile,
 ): Promise<boolean> {
+  let source: string | undefined;
+  try {
+    source = await computeSourceFingerprint(graph, nodePath);
+  } catch (e) {
+    if (!(e instanceof FileUnreadableError)) throw e;
+    debugWrite(`[fill] baseline fingerprint for ${nodePath}: ${e.message}`);
+    source = lock.nodes[nodePath]?.source;
+  }
   const content = await readLogContent(projectRoot, nodePath);
   const logBaseline = computeLogBaselineFromContent(content);
   const existing = lock.nodes[nodePath];
@@ -257,16 +269,16 @@ async function reconcileNonLogRequiredEntry(
     ? existing?.log
     : (logBaseline ?? existing?.log);
 
-  // Desired entry: { log } when a baseline applies, otherwise no entry. Never a source.
-  if (!desiredLog) {
+  // Desired entry: { source?, log? } — no entry when neither applies.
+  if (!desiredLog && source === undefined) {
     if (existing === undefined) return false;
     delete lock.nodes[nodePath];
     return true;
   }
-  if (existing !== undefined && existing.source === undefined && logBaselineEquals(existing.log, desiredLog)) {
-    return false; // already minimal + current
+  if (existing !== undefined && existing.source === source && logBaselineEquals(existing.log, desiredLog)) {
+    return false; // already current
   }
-  lock.nodes[nodePath] = { log: desiredLog };
+  lock.nodes[nodePath] = { ...(source !== undefined ? { source } : {}), ...(desiredLog ? { log: desiredLog } : {}) };
   return true;
 }
 

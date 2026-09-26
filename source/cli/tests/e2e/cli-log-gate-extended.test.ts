@@ -487,13 +487,16 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
   // dead data that churns the committed lock). When the whole fixture is
   // non-log_required with no log.md, the logs-lock `nodes` section is empty, and an
   // empty committed lock file is not written at all (it is removed if present).
-  it('1H: a repo with no log_required node and no log.md produces no yg-lock.logs.json (empty → absent)', () => {
+  it('1H: a repo with no log_required node still records each node’s source fingerprint in yg-lock.logs.json', () => {
     const dir = deterministicFixture('no-source-non-lr');
     try {
       // every type ships log_required: false (fixture default) — do NOT enable it.
       expect(run(['check', '--approve'], dir).status).toBe(0);
-      // Nothing to record → the committed logs lock is absent, not an empty husk.
-      expect(existsSync(path.join(dir, '.yggdrasil', 'yg-lock.logs.json'))).toBe(false);
+      // A later switch to log_required is measured from these fingerprints, so
+      // there is something to record even with no log_required node.
+      const logsLock = JSON.parse(readFileSync(path.join(dir, '.yggdrasil', 'yg-lock.logs.json'), 'utf-8'));
+      expect(typeof logsLock.nodes['services/orders']?.source).toBe('string');
+      expect(logsLock.nodes['services/orders']?.log).toBeUndefined();
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -502,8 +505,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
   // --- 1I. A non-log_required node WITH a log.md still gets its integrity baseline ---
   // The append-only log baseline (`nodes.<path>.log`) protects an existing log's
   // history and is recorded for ANY node that owns a log.md, independent of
-  // log_required — but still WITHOUT a (dead) source fingerprint.
-  it('1I: a non-log_required node with a log.md records its log baseline (integrity) but no source', () => {
+  // log_required — beside the source fingerprint every node now carries.
+  it('1I: a non-log_required node with a log.md records its log baseline (integrity) and its source', () => {
     const dir = deterministicFixture('non-lr-with-log');
     try {
       // services/orders is log_required: false; give it a log.md anyway.
@@ -515,7 +518,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       const entry = logsLock.nodes['services/orders'];
       expect(entry).toBeDefined();
       expect(entry.log?.last_entry_datetime).toBeTruthy(); // integrity baseline kept
-      expect(entry.source).toBeUndefined();                // but no dead source fingerprint
+      expect(typeof entry.source).toBe('string');      // and the fingerprint a later switch measures from
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

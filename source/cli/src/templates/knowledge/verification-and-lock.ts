@@ -103,8 +103,8 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
     }
   },
   "nodes": {
-    "billing/cancel": {                       // present ONLY when log_required or a log.md exists
-      "source": "<sha256>",                  // source fingerprint — log gate basis; ONLY for log_required nodes
+    "billing/cancel": {                       // present when the node has mapped source or a log.md
+      "source": "<sha256>",                  // source fingerprint — log gate basis; recorded for every node
       "log": { "last_entry_datetime": "<ISO>", "prefix_hash": "<sha256>" }
     }
   },
@@ -149,9 +149,10 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   before these fields existed simply have neither.
 - \`nodes.<path>\` carries the source fingerprint (the log gate's contract,
   \`yg knowledge read log-management\`) and the append-only log integrity baseline.
-  The source fingerprint is the log gate's drift basis, so it is recorded ONLY for
-  \`log_required\` nodes — a non-log_required node gets a \`nodes\` entry only when it
-  owns a \`log.md\` (then holding just the \`log\` baseline, no \`source\`).
+  The source fingerprint is the log gate's drift basis. Every full fill records it
+  for every node with mapped source (a \`log_required\` node at positive closure),
+  so switching a type to \`log_required\` owes no entry until the node's source
+  really changes; the committed file changes whenever a full fill sees moved source.
 - \`aspects\` is an OPTIONAL FOURTH top-level section, aspectId → \`{ status? }\`:
   the status (\`draft\` / \`advisory\` / \`enforced\`) each rule was last seen at by
   a fill. It is REMEMBERED state, not a verdict — nothing in it is a
