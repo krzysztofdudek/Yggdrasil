@@ -361,28 +361,9 @@ export async function parseAspect(
 
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
 
-  // Rule-file presence drives kind inference when `reviewer:` is absent. The
-  // parser knows the aspect directory, so it can detect sibling content.md /
-  // check.mjs. `hasImplies` is a coarse check (non-empty array) — the full
-  // implies parse happens later; here we only need it to recognize an
-  // aggregating aspect (neither file + implies).
-  // A rule made of symlinks is refused before anything reads it: the readers
-  // below disagree about links (presence checks follow them, the artifact and
-  // support-file readers skip them), so a linked content.md was reviewed as an
-  // empty rule and a linked check.mjs ran code its hash never saw.
-  const linked = ruleDirSymlinks(aspectDir);
-  if (linked.length > 0) {
-    return refused([{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, linked.map((l) => `${toPosixPath(path.relative(options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed), path.join(aspectDir, l)))}`)) }]);
-  }
-
-  const hasContentMd = fileExistsSync(path.join(aspectDir, 'content.md'));
-  const hasCheckMjs = fileExistsSync(path.join(aspectDir, 'check.mjs'));
-  const hasCompanionMjs = fileExistsSync(path.join(aspectDir, 'companion.mjs'));
-  const hasImplies = Array.isArray(raw.implies) && raw.implies.length > 0;
-
-  const reviewerResult = parseReviewer(raw.reviewer, idTrimmed, { hasContentMd, hasCheckMjs, hasImplies });
-  if (!reviewerResult.ok) return refused(reviewerResult.errors);
-  const reviewer: AspectReviewerSpec = reviewerResult.value;
+  const kindResult = inferRuleKind(raw, aspectDir, idTrimmed, options);
+  if (!kindResult.ok) return refused(kindResult.errors);
+  const { reviewer, hasCompanionMjs } = kindResult.value;
 
   const sourcesResult = await readRuleSources(aspectDir, idTrimmed, options);
   if (!sourcesResult.ok) return refused(sourcesResult.errors);
@@ -429,22 +410,8 @@ export async function parseAspect(
   }
   const companionPath = companion?.path;
 
-  // config: — the values this rule's check.mjs / companion.mjs will read through
-  // ctx.config. The package declares the keys and their defaults; the adapt
-  // overrides the ones this repository wants different. Resolved here so the rest
-  // of the system sees one settled record and never has to consult two sources.
-  const configResult = resolveAspectConfig(
-    options.package?.configSchema ?? {},
-    (raw as Record<string, unknown>).config,
-    {
-      aspectId: options.package?.relativeId ?? idTrimmed,
-      packageName: options.package?.packageName ?? '(this repository)',
-      adaptFilePath: adapt.present ? adaptFilePath : aspectYamlPath,
-    },
-  );
-  if (!configResult.ok) {
-    return refused([{ code: configResult.code, messageData: configResult.messageData }]);
-  }
+  const configResult = resolveRuleConfig(raw, idTrimmed, options, adapt.present ? adaptFilePath : aspectYamlPath);
+  if (!configResult.ok) return refused(configResult.errors);
   const config = configResult.value;
 
   // An externally-named companion joins the aspect's artifacts under the name the
@@ -491,6 +458,68 @@ type FieldResult<T> = { ok: true; value: T } | { ok: false; errors: FieldErrors 
 /** One refusal, as a failed field parse. */
 function fieldRefusal(code: string, messageData: IssueMessage): { ok: false; errors: FieldErrors } {
   return { ok: false, errors: [{ code, messageData }] };
+}
+
+/**
+ * The rule's kind, from its `reviewer:` block or — when that is absent — from the
+ * rule files beside it.
+ *
+ * Rule-file presence drives kind inference when `reviewer:` is absent. The
+ * parser knows the aspect directory, so it can detect sibling content.md /
+ * check.mjs. `hasImplies` is a coarse check (non-empty array) — the full
+ * implies parse happens later; here we only need it to recognize an
+ * aggregating aspect (neither file + implies).
+ * A rule made of symlinks is refused before anything reads it: the readers
+ * below disagree about links (presence checks follow them, the artifact and
+ * support-file readers skip them), so a linked content.md was reviewed as an
+ * empty rule and a linked check.mjs ran code its hash never saw.
+ */
+function inferRuleKind(
+  raw: Record<string, unknown>,
+  aspectDir: string,
+  idTrimmed: string,
+  options: ParseAspectOptions,
+): FieldResult<{ reviewer: AspectReviewerSpec; hasCompanionMjs: boolean }> {
+  const linked = ruleDirSymlinks(aspectDir);
+  if (linked.length > 0) {
+    return fieldRefusal('aspect-source-symlink', aspectSourceSymlinkMessage(idTrimmed, linked.map((l) => `${toPosixPath(path.relative(options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed), path.join(aspectDir, l)))}`)));
+  }
+
+  const hasContentMd = fileExistsSync(path.join(aspectDir, 'content.md'));
+  const hasCheckMjs = fileExistsSync(path.join(aspectDir, 'check.mjs'));
+  const hasCompanionMjs = fileExistsSync(path.join(aspectDir, 'companion.mjs'));
+  const hasImplies = Array.isArray(raw.implies) && raw.implies.length > 0;
+
+  const reviewerResult = parseReviewer(raw.reviewer, idTrimmed, { hasContentMd, hasCheckMjs, hasImplies });
+  if (!reviewerResult.ok) return reviewerResult;
+  return { ok: true, value: { reviewer: reviewerResult.value, hasCompanionMjs } };
+}
+
+/**
+ * config: — the values this rule's check.mjs / companion.mjs will read through
+ * ctx.config. The package declares the keys and their defaults; the adapt
+ * overrides the ones this repository wants different. Resolved here so the rest
+ * of the system sees one settled record and never has to consult two sources.
+ * `configFilePath` is the file a refusal names: the adaptation when there is
+ * one, the rule's own file otherwise.
+ */
+function resolveRuleConfig(
+  raw: Record<string, unknown>,
+  idTrimmed: string,
+  options: ParseAspectOptions,
+  configFilePath: string,
+): FieldResult<Record<string, string | number | boolean>> {
+  const configResult = resolveAspectConfig(
+    options.package?.configSchema ?? {},
+    raw.config,
+    {
+      aspectId: options.package?.relativeId ?? idTrimmed,
+      packageName: options.package?.packageName ?? '(this repository)',
+      adaptFilePath: configFilePath,
+    },
+  );
+  if (!configResult.ok) return fieldRefusal(configResult.code, configResult.messageData);
+  return { ok: true, value: configResult.value };
 }
 
 /**
