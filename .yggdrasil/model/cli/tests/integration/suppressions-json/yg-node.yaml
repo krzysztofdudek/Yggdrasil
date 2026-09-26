@@ -14,6 +14,8 @@ description: >-
   pre-change golden — the new fields never reach the text formatter.
 aspects: []
 relations:
+  - target: cli/core/suppressions
+    type: uses
   - target: cli/portal/engine-api
     type: uses
   - target: cli/commands/suppressions

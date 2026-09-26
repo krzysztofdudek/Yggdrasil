@@ -1,27 +1,27 @@
-import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { scanSuppressionMarkers, scanSuppressionMarkersInComments } from '../../ast/suppress.js';
-import type { SuppressionMarkerInfo } from '../../ast/suppress.js';
-import { withParsedFile } from '../../ast/parser.js';
-import { getLanguageForExtension } from '../../utils/language-registry.js';
-import { buildIssueMessage } from '../../formatters/message-builder.js';
+import { scanMarkersForFile, type SuppressionMarkerInfo } from '../../structure/suppress-markers.js';
+import { readFileBytes } from '../../io/graph-fs.js';
+import type { IssueMessage } from '../../model/validation.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { debugWrite } from '../../utils/debug-log.js';
-import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse } from './suppress-eligibility.js';
+import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse, collectMappingEntries } from './eligibility.js';
 import { NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
-import type { CoverageConfig } from '../../model/graph.js';
+import type { CoverageConfig, Graph } from '../../model/graph.js';
+
+export type { SuppressionMarkerInfo };
 
 /**
- * portal/api/suppress-scan — the suppression scan, relocated here so the portal
- * facade OWNS it cleanly (it reaches the ast-adapter / language-registry / formatter)
- * and the `yg suppressions` command imports it from its source (command → facade).
+ * core/suppressions/scan — the one scan of `yg-suppress` markers every surface
+ * reads: the `yg suppressions` inventory, rule health, the attention layer, the
+ * portal's live inventory, and the reason-less marker warning `yg check` and
+ * the portal report alike (runCheck takes this scan's reason-less markers as an
+ * injected input, so both surfaces state the same finding).
  *
- * The scan logic is byte-for-byte the same one `yg suppressions` has always run, moved
- * verbatim from the command module — so the command's behavior and tests are unchanged.
- * `scanPortalSuppressions`, which adapts the report into the portal's flat marker shape
- * (with a resolved per-marker `risk` flag) for the live inventory, lives in the sibling
- * `suppress-adapt.ts` — split out so this file stays within its own file-size boundary,
- * re-exported below so an existing caller of this module's public surface needs no change.
+ * It returns data: each warning as a structured what / why / next, which the
+ * command layer renders, and which the portal adapts into its own marker shape.
+ * Files are read through the io layer and parsed through the structure layer
+ * (beside the honoring path's own parse); a file that cannot be read is
+ * skipped, never fatal.
  */
 
 // ── Types ──────────────────────────────────────────────────
@@ -34,7 +34,6 @@ interface FileMarkers {
 export interface SuppressionsReport {
   fileEntries: FileMarkers[];
   totalMarkers: number;
-  warnings: string[];
   /**
    * `"file:line"` keys of markers classified `file-level` — an UNCLOSED
    * `yg-suppress-disable` whose marker sits at the file head (first N non-empty
@@ -56,9 +55,9 @@ export interface SuppressionsReport {
    */
   ranges?: Array<{ file: string; aspect: string; from: number; to: number | null }>;
   /**
-   * One entry per warning pushed to `warnings`, in the same order, carrying the
-   * same rendered `message` plus the structured facts a machine consumer needs
-   * (`warnings` itself stays prose-only, unchanged). `aspect` is the specific
+   * One entry per warning, in scan order: the finding as a structured what /
+   * why / next (the formatters render it) plus the structured facts a machine
+   * consumer needs. `aspect` is the specific
    * aspect id the warning is about, except for `wildcard`: that warning is about
    * the marker silencing every aspect, not any one of them, so its `aspect` is
    * `null`. Optional for the same reason `fileLevelKeys` is.
@@ -68,7 +67,7 @@ export interface SuppressionsReport {
     file: string;
     line: number;
     aspect: string | null;
-    message: string;
+    messageData: IssueMessage;
   }>;
 }
 
@@ -93,55 +92,12 @@ function isBinaryContent(buf: Buffer): boolean {
  * `yg suppressions` inventory and the warning `yg check` raises for the same
  * marker, so the two surfaces word it identically.
  */
-export function reasonlessMarkerMessage(file: string, line: number, aspect: string): { what: string; why: string; next: string } {
+export function reasonlessMarkerMessage(file: string, line: number, aspect: string): IssueMessage {
   return {
     what: `yg-suppress marker at ${file}:${line} has no reason.`,
     why: 'A reason is required. A marker without one waives nothing: as soon as the check flags a line it covers, the fill rejects the marker (malformed-suppress-marker) and leaves the pair unverified — until then nothing else reports it.',
     next: `Add the reason after the marker in ${file}:${line} (\`yg-suppress(${aspect}) <why this is acceptable>\`) and ask the user to approve it first, or remove the marker.`,
   };
-}
-
-// ── Comment-aware marker scan ─────────────────────────────
-
-/**
- * Scan one file for yg-suppress markers, restricted to REAL comments exactly as
- * the reviewer-honoring path does.
- *
- * - AST-parseable languages (a registered tree-sitter grammar): parse the file
- *   and scan only its COMMENT nodes. A `yg-suppress(...)` that appears inside a
- *   TypeScript string literal — e.g. a test fixture or a template that documents
- *   the marker syntax — is code, not a comment, so it is never inventoried. This
- *   matches `collectSuppressions`, the path the reviewer uses to actually waive
- *   an aspect, so the inventory lists exactly the waivers that can take effect.
- * - Non-AST languages (no registered grammar, e.g. `.sql`, `.sh`): there is no
- *   parse tree, so fall back to the language-agnostic raw-line scan. This
- *   preserves suppress support for content-only deterministic checks in those
- *   files (the `feat(suppress): honor yg-suppress markers in non-AST-language
- *   files` behavior).
- *
- * If a parseable file fails to parse (a syntax error or a grammar that cannot be
- * loaded), fall back to the raw-line scan rather than dropping the file from the
- * inventory — a best-effort inventory is better than a silent omission for a
- * read-only, exit-0 informational command.
- */
-async function scanMarkersForFile(relFile: string, text: string): Promise<SuppressionMarkerInfo[]> {
-  const ext = path.extname(relFile).toLowerCase();
-  if (getLanguageForExtension(ext) === null) {
-    // No registered grammar — raw-line scan (parity with the honoring path's
-    // text fallback for non-AST languages). Pass relFile so the scan can mask
-    // Markdown fenced-code examples out (same shared helper the honoring path uses).
-    return scanSuppressionMarkers(text, relFile);
-  }
-  try {
-    return await withParsedFile(relFile, text, (tree) =>
-      // Pass the full source so the file-head window (atFileHead) is computed over
-      // the real file lines — identically to the non-AST raw-line scan.
-      scanSuppressionMarkersInComments(tree, relFile, text)
-    );
-  } catch (error) {
-    debugWrite(`[suppressions] parse fallback (raw scan): ${relFile}: ${error instanceof Error ? error.message : String(error)}`);
-    return scanSuppressionMarkers(text, relFile);
-  }
 }
 
 // ── Core scan ─────────────────────────────────────────────
@@ -156,7 +112,6 @@ export async function runSuppressionsScan(
   coverage: CoverageConfig = NO_COVERAGE_EXCLUDED,
 ): Promise<SuppressionsReport> {
   const fileEntries: FileMarkers[] = [];
-  const warnings: string[] = [];
   const ranges: NonNullable<SuppressionsReport['ranges']> = [];
   const warningRecords: NonNullable<SuppressionsReport['warningRecords']> = [];
   let totalMarkers = 0;
@@ -190,13 +145,10 @@ export async function runSuppressionsScan(
     ) continue;
 
     const absFile = path.join(projectRoot, relFile);
-    if (!existsSync(absFile)) continue;
-
-    let buf: Buffer;
-    try {
-      buf = readFileSync(absFile);
-    } catch (error) {
-      debugWrite(`[suppressions] read fallback: ${relFile}: ${error instanceof Error ? error.message : String(error)}`);
+    // A file that vanished or cannot be read carries no marker this scan can see.
+    const buf = await readFileBytes(absFile);
+    if (buf === null) {
+      debugWrite(`[suppressions] skipped, not readable: ${relFile}`);
       continue;
     }
 
@@ -271,27 +223,25 @@ export async function runSuppressionsScan(
     for (const m of markers) {
       // (a) Unknown aspect id — wildcard '*' is exempt
       if (!m.wildcard && !knownAspectIds.has(m.aspectId)) {
-        const msg = buildIssueMessage({
+        const msg: IssueMessage = {
           what: `Unknown aspect id "${m.aspectId}" in suppress marker at ${file}:${m.line}.`,
           why: 'The aspect does not exist in the graph. The suppression has no effect and likely refers to a renamed or deleted aspect.',
           next: `Run \`yg aspects\` to list defined aspect ids, then update or remove this marker.`,
-        });
-        warnings.push(msg);
-        warningRecords.push({ code: 'unknown-aspect', file, line: m.line, aspect: m.aspectId, message: msg });
+        };
+        warningRecords.push({ code: 'unknown-aspect', file, line: m.line, aspect: m.aspectId, messageData: msg });
       }
 
       // (b) Wildcard '*' usage
       if (m.wildcard && !seenWildcard.has(`${file}:${m.line}`)) {
         seenWildcard.add(`${file}:${m.line}`);
-        const msg = buildIssueMessage({
+        const msg: IssueMessage = {
           what: `Wildcard suppression "*" at ${file}:${m.line} silences ALL aspects.`,
           why: 'A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.',
           next: `Replace "*" with the specific aspect ids you intend to suppress.`,
-        });
-        warnings.push(msg);
+        };
         // No single aspect this warning is "about" — it is about the marker
         // silencing every aspect, present and future — so `aspect` is null.
-        warningRecords.push({ code: 'wildcard', file, line: m.line, aspect: null, message: msg });
+        warningRecords.push({ code: 'wildcard', file, line: m.line, aspect: null, messageData: msg });
       }
 
       // (d) Waiver on an under-approximating check (errs: under). Such a check
@@ -299,13 +249,12 @@ export async function runSuppressionsScan(
       // violations — so waiving it is a footgun. `enable` is a range terminator,
       // not a waiver, and a wildcard is already covered by (b), so skip both.
       if (!m.wildcard && m.kind !== 'enable' && underApproximatingAspectIds.has(m.aspectId)) {
-        const msg = buildIssueMessage({
+        const msg: IssueMessage = {
           what: `yg-suppress(${m.aspectId}) at ${file}:${m.line} waives a check labeled errs: under.`,
           why: 'suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.',
           next: `Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.`,
-        });
-        warnings.push(msg);
-        warningRecords.push({ code: 'waives-under', file, line: m.line, aspect: m.aspectId, message: msg });
+        };
+        warningRecords.push({ code: 'waives-under', file, line: m.line, aspect: m.aspectId, messageData: msg });
       }
 
       // (e) A waiver with no reason. It suppresses nothing: the first time the
@@ -317,9 +266,8 @@ export async function runSuppressionsScan(
       // scanned as one entry per aspect, but it lacks one reason, not several.
       if (m.kind !== 'enable' && m.reason.trim() === '' && !seenReasonless.has(`${file}:${m.line}`)) {
         seenReasonless.add(`${file}:${m.line}`);
-        const msg = buildIssueMessage(reasonlessMarkerMessage(file, m.line, m.wildcard ? '*' : m.aspectId));
-        warnings.push(msg);
-        warningRecords.push({ code: 'missing-reason', file, line: m.line, aspect: m.wildcard ? null : m.aspectId, message: msg });
+        const msg = reasonlessMarkerMessage(file, m.line, m.wildcard ? '*' : m.aspectId);
+        warningRecords.push({ code: 'missing-reason', file, line: m.line, aspect: m.wildcard ? null : m.aspectId, messageData: msg });
       }
     }
   }
@@ -331,32 +279,58 @@ export async function runSuppressionsScan(
     for (const [aspectId, lines] of disableMap) {
       for (const lineNum of lines) {
         if (fileLevelKeys.has(`${file}:${lineNum}`)) continue;
-        const msg = buildIssueMessage({
+        const msg: IssueMessage = {
           what: `Unbounded yg-suppress-disable("${aspectId}") at ${file}:${lineNum} has no matching yg-suppress-enable.`,
           why: 'Without a closing enable marker the suppression covers the rest of the file, which is almost always broader than intended and hides future violations added below this line.',
           next: `Add \`yg-suppress-enable(${aspectId})\` at the end of the suppressed block, or convert to a single-line \`yg-suppress(${aspectId}) <reason>\` if only one line needs suppression.`,
-        });
-        warnings.push(msg);
-        warningRecords.push({ code: 'unbounded-range', file, line: lineNum, aspect: aspectId, message: msg });
+        };
+        warningRecords.push({ code: 'unbounded-range', file, line: lineNum, aspect: aspectId, messageData: msg });
       }
     }
   }
 
-  return { fileEntries, totalMarkers, warnings, fileLevelKeys, ranges, warningRecords };
+  return { fileEntries, totalMarkers, fileLevelKeys, ranges, warningRecords };
 }
 
-// ── Output formatting ─────────────────────────────────────
-//
-// `formatSuppressionsOutput` (report → the `yg suppressions` text inventory) lives in
-// `./suppress-format.js`, split out to keep this file within its own size boundary; re-exported
-// here so every existing caller of this module's public surface keeps working unchanged.
+// ── Reason-less markers, for the check ────────────────────
 
-export { formatSuppressionsOutput } from './suppress-format.js';
+/** A `yg-suppress` marker with no reason, as runCheck takes it: where it is, and the finding worded. */
+export interface ReasonlessMarker {
+  file: string;
+  line: number;
+  messageData: IssueMessage;
+}
 
-// ── Portal adaptation ─────────────────────────────────────
-//
-// `scanPortalSuppressions` (report → the portal's flat, risk-resolved marker shape) lives in
-// `./suppress-adapt.js`, split out to keep this file within its own size boundary; re-exported
-// here so every existing caller of this module's public surface keeps working unchanged.
-
-export { scanPortalSuppressions } from './suppress-adapt.js';
+/**
+ * Every marker in a mapped source that carries no reason — the input runCheck
+ * turns into its `suppress-marker-missing-reason` warnings. Such a marker
+ * waives nothing and nothing else notices it: the check passes until the day a
+ * violation lands in its range, and only then does the fill reject the marker
+ * and leave the pair unverified. Scanned here, once, by whichever surface is
+ * about to report a check, so the command line and the portal state the same
+ * finding. Limited to mapped sources (the only files a marker can waive in),
+ * and a file without the marker token is skipped unparsed, so it costs one read
+ * of each mapped file and nothing more. Best effort: a scan that fails reports
+ * nothing rather than failing the check.
+ */
+export async function scanReasonlessMarkers(graph: Graph, projectRoot: string, repoFiles: string[]): Promise<ReasonlessMarker[]> {
+  try {
+    const mappingEntries = collectMappingEntries(graph);
+    if (mappingEntries.length === 0) return [];
+    const report = await runSuppressionsScan(
+      projectRoot,
+      repoFiles.filter((f) => isMappedSource(f, mappingEntries)),
+      new Set(graph.aspects.map((a) => a.id)),
+      mappingEntries,
+      new Set(),
+      new Set(),
+      graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
+    );
+    return (report.warningRecords ?? [])
+      .filter((w) => w.code === 'missing-reason')
+      .map((w) => ({ file: w.file, line: w.line, messageData: w.messageData }));
+  } catch (error) {
+    debugWrite(`[suppressions] reason-less marker scan skipped: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
+}

@@ -8,7 +8,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
-import { fail, paint, writeOut } from './output.js';
+import { aspectNotFound, fail, paint, writeOut } from './output.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -621,11 +621,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   }
   const candidateStat = statSync(candidateDir, { throwIfNoEntry: false });
   if (!candidateStat || !candidateStat.isDirectory()) {
-    fail({
-      what: `Candidate rule '${candidateId}' was not found.`,
-      why: 'simulate replays an existing aspect from this project as the candidate; there is no aspect with that id to replay.',
-      next: 'Pass the id of an existing script rule (a directory under .yggdrasil/aspects/ with a check.mjs).',
-    });
+    fail(aspectNotFound(candidateId, 'simulate replays an existing script rule from this project as the candidate, so the rule must exist in the graph.'), 'aspect-not-found');
     return 1;
   }
 

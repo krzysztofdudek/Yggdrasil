@@ -1,0 +1,34 @@
+name: Suppressions
+type: engine
+description: >-
+  The one scan of yg-suppress markers every surface reads. It finds each marker
+  in the files a marker can waive in (mapped sources and type-covered files; the
+  shared eligibility rule keeps generated mirrors, logs and prose docs out),
+  asking the structure layer (which parses code; the engine may not) for each
+  file's markers, from real comments where a grammar exists and raw lines where none does,
+  classifies file-level waivers, records each disable's range, and states every
+  defect it finds (unknown rule, wildcard, unbounded range, a waiver of an
+  errs-under check, a marker with no reason) as structured what / why / next —
+  it words nothing itself; the formatters render it. It also maps each active
+  waiver to the verification units it covers, and hands the check its
+  reason-less markers, which runCheck takes as an injected input so the command
+  line and the portal report the same warning from the same scan. Files are read
+  through the io layer; a file that cannot be read is skipped, never fatal.
+aspects: []
+relations:
+  - target: cli/structure
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/relations/core
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/suppressions/scan.ts
+  - source/cli/src/core/suppressions/eligibility.ts
+  - source/cli/src/core/suppressions/coverage.ts

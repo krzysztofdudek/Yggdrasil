@@ -6,7 +6,7 @@ import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet, filterExcludedFromGraph
 import type { Graph, CoverageConfig } from '../../model/graph.js';
 
 /**
- * portal/api/suppress-eligibility — the ONE file-eligibility rule shared by the
+ * core/suppressions/eligibility — the ONE file-eligibility rule shared by the
  * reviewer-honoring path and the `yg suppressions` audit inventory, split out of
  * the scan module so neither file grows past its focused boundary and the rule
  * lives in exactly one place.

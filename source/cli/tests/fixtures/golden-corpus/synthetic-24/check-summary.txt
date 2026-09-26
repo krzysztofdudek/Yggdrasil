@@ -7,5 +7,5 @@ errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 revi
 warnings  uncovered 4
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 --- stderr

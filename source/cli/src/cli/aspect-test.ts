@@ -37,7 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
-import { fail, field, paint, writeErr, writeOut, notice } from './output.js';
+import { aspectNotFound, fail, field, paint, writeErr, writeOut, notice } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -253,11 +253,7 @@ export function registerAspectTestCommand(program: Command): void {
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          fail({
-              what: `Aspect '${opts.aspect}' not found.`,
-              why: `yg aspect-test requires an aspect declared in .yggdrasil/aspects/.`,
-              next: `Run 'yg aspects' to list available aspects, or check the spelling of '${opts.aspect}'.`,
-            });
+          fail(aspectNotFound(String(opts.aspect), 'aspect-test runs one rule live, so the rule must exist in the graph.'), 'aspect-not-found');
           process.exit(1);
           return;
         }

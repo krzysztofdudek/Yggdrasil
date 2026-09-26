@@ -99,7 +99,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[3].count).toBe(26);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
-    expect(engineApi!.count).toBe(22);
+    // 20 since the suppression scan moved into the engine: the facade dropped the
+    // parser, language-registry and formatter edges it held only for that scan and
+    // gained one to the engine's scan.
+    expect(engineApi!.count).toBe(20);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

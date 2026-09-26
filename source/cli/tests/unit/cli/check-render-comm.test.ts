@@ -10,7 +10,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatOutput, formatAbort, enrichCheckJson, abortCheckJson } from '../../../src/cli/check-render-views.js';
 import { buildCheckJson, checkJsonIssueOf } from '../../../src/core/check-json.js';
-import { computeSuggestedNext } from '../../../src/core/check-suggested-next.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import { unverifiedMessage, detRefusedMessage } from '../../../src/formatters/lock-issue-messages.js';
 
@@ -29,7 +28,6 @@ function result(issues: CheckIssue[], extra: Partial<CheckResult> = {}): CheckRe
     coveredFiles: 0,
     totalFiles: 0,
     issues,
-    suggestedNext: computeSuggestedNext(issues),
     advisoryWarnings: 0,
     draftSkipped: 0,
     verifiedDet: 0,
@@ -219,12 +217,15 @@ describe('a graph that did not load as written leads the report', () => {
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[unverified]'));
     expect(out.indexOf('error[yaml-invalid]')).toBeLessThan(out.indexOf('error[flow-node-broken]'));
     expect(out).toContain('next: edit .yggdrasil/model/model/cart/yg-node.yaml  (yaml-invalid — 2 errors need a code or graph fix)');
-    expect(out).toContain('then: yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+    expect(out).toContain('then: yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
   });
 
   it('a config that does not parse outranks everything else in Next', () => {
-    const configInvalid = { severity: 'error', code: 'config-invalid', rule: 'invalid-config', messageData: { what: 'yg-config.yaml does not parse: x', why: 'defaults used', next: 'Fix the syntax error in .yggdrasil/yg-config.yaml.' } } as CheckIssue;
-    expect(computeSuggestedNext([unverified('app/a', 'r'), yamlInvalid, configInvalid])).toBe('Fix the syntax error in .yggdrasil/yg-config.yaml.');
+    const configInvalid = { severity: 'error', code: 'config-invalid', rule: 'invalid-config', messageData: { what: 'yg-config.yaml does not parse: x', why: 'defaults used', next: 'Fix the syntax error in .yggdrasil/yg-config.yaml.', step: { file: '.yggdrasil/yg-config.yaml' } } } as CheckIssue;
+    const r = result([unverified('app/a', 'r'), yamlInvalid, configInvalid]);
+    const next = enrichCheckJson(buildCheckJson(r), r).next!;
+    expect(next.text).toBe('edit .yggdrasil/yg-config.yaml');
+    expect(next.target.file).toBe('.yggdrasil/yg-config.yaml');
   });
 
   it('prints no banner on an ordinary run', () => {
@@ -281,13 +282,13 @@ describe('counts agree with their nouns, and the fill command names its cost', (
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r')]), { kind: 'full' }, false, false));
     expect(out.split('\n')[0]).toBe('yg check: FAIL  1 error   1 node');
     expect(out).toContain('error[unverified] 1 pair with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid — ask the user to approve it first)');
   });
 
   it('the unverified block\'s fill says what it costs, free and paid apart', () => {
     const out = stripAnsi(formatOutput(result([unverified('app/a', 'r'), unverified('app/b', 's', 'node:app/b', 'deterministic')]), { kind: 'full' }, false, false));
     expect(out).toContain('error[unverified] 2 pairs with no verdict yet');
-    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · paid — ask the user to approve it first)');
+    expect(out).toContain('  fix:  yg check --approve  (1 script pair · free + 1 reviewer pair · 1 call · paid — ask the user to approve it first)');
   });
 });
 

@@ -9,8 +9,19 @@ import {
   issuePriorityRank,
 } from '../../../src/cli/group-issues.js';
 import { OUTSIDE_CODES } from '../../../src/core/check-codes.js';
-import { computeSuggestedNext } from '../../../src/core/check.js';
-import type { CheckIssue } from '../../../src/core/check.js';
+import type { CheckIssue, CheckResult } from '../../../src/core/check.js';
+import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { buildCheckJson } from '../../../src/core/check-json.js';
+
+/** The step the report's one Next engine names for these findings (the `next:` step, without its annotations). */
+function nextStep(issues: CheckIssue[]): string | null {
+  const r = {
+    projectName: 't', nodeCount: 0, nodeTypeCounts: new Map(), aspectCount: 0, flowCount: 0,
+    coveredFiles: 0, totalFiles: 0, issues, advisoryWarnings: 0, draftSkipped: 0,
+    verifiedDet: 0, verifiedLlm: 0, pairs: [],
+  } as CheckResult;
+  return enrichCheckJson(buildCheckJson(r), r).next?.text ?? null;
+}
 
 function iss(p: Partial<CheckIssue>): CheckIssue {
   return {
@@ -202,11 +213,11 @@ describe('groupIssues — fileCount', () => {
 
 // ── F3: bare `--top` group === the rule `Next:` names (single ordering) ───────
 // issuePriorityRank (drives which group bare `--top` renders, via groupIssues)
-// and computeSuggestedNext (drives the `Next:` line) must order UNRANKED errors
+// and the report's Next engine (drives the `next:` line) must order UNRANKED errors
 // identically. Before the fix, groupIssues sorted every unranked error
 // alphabetically by code — so `unmapped-files` (coverage) could take the top slot
 // over a structural code, and within structural the alphabetical pick differed
-// from computeSuggestedNext's emission-order pick — letting bare `--top` render a
+// from the old engine's emission-order pick — letting bare `--top` render a
 // different rule than `Next:` pointed at. Both surfaces now share ONE ordering:
 // structural < coverage < completeness < other, alphabetical-by-code within a
 // category. These pin the invariant on the exact issue sets the review flagged.
@@ -233,7 +244,7 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
     ];
     // Bare `--top` renders groupIssues(errors)[0] (errors first, sliced at n=1).
     const topGroup = groupIssues(errors)[0];
-    const next = computeSuggestedNext(errors);
+    const next = nextStep(errors);
     expect(next).not.toBeNull();
     // Structural beats coverage; the alphabetically-first structural wins the slot.
     expect(topGroup.code).toBe('event-unpaired');
@@ -251,7 +262,7 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
       structuralIssue('when-predicate-invalid', 'nodeC'), // 'w' — sorts after 'u'
     ];
     const topGroup = groupIssues(errors)[0];
-    const next = computeSuggestedNext(errors);
+    const next = nextStep(errors);
     // OLD: alphabetical-across-all put unmapped-files first (u<w) → `--top` showed
     // coverage while `Next:` pointed at the structural error. NEW: structural < coverage.
     expect(topGroup.code).toBe('when-predicate-invalid');
@@ -260,25 +271,25 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
 
   it('other-error only (mapping-path-missing): Next is no longer null and names the group bare --top renders', () => {
     // mapping-path-missing is an "other" error (not structural/coverage/
-    // completeness). Previously computeSuggestedNext returned null here while
+    // completeness). An older engine once returned null here while
     // `--top` still rendered its group — no `Next:` to agree with. Now `Next:`
     // names it, holding the invariant even on an other-error-only red repo.
     const errors: CheckIssue[] = [
       iss({
         code: 'mapping-path-missing', rule: 'mapping-path-missing', aspectId: undefined, nodePath: 'broken',
-        messageData: { what: 'mapping path missing on broken', why: 'x', next: 'yg fix mapping on broken' },
+        messageData: { what: 'mapping path missing on broken', why: 'x', next: 'yg context --node broken' },
       }),
     ];
     const topGroup = groupIssues(errors)[0];
-    const next = computeSuggestedNext(errors);
+    const next = nextStep(errors);
     expect(topGroup.code).toBe('mapping-path-missing');
-    expect(next).toBe('yg fix mapping on broken'); // the issue's own next, alphabetically-first
+    expect(next).toBe('yg context --node broken'); // the issue's own next
   });
 });
 
-// ── computeSuggestedNext's structural fallback names the FILE for a
+// ── The Next engine's structural fallback names the FILE for a
 //    nodeless (type-covered-file) structural issue, never '.yggdrasil'. ──────
-describe('computeSuggestedNext — nodeless structural fallback', () => {
+describe('Next — nodeless structural fallback', () => {
   it('names the subject FILE (from the unit key) when the chosen structural issue has no component', () => {
     const errors: CheckIssue[] = [{
       severity: 'error',
@@ -292,9 +303,9 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
         next: 'Fix permissions.',
       },
     } as CheckIssue];
-    const next = computeSuggestedNext(errors);
+    const next = nextStep(errors);
     // The finding's own step leads — never 'Fix file-unreadable in …'.
-    expect(next).toContain('Fix permissions.');
+    expect(next).toContain('Fix permissions');
     expect(next).not.toContain('Fix file-unreadable');
     expect(next).not.toContain('.yggdrasil');
   });
@@ -306,8 +317,8 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
       rule: 'duplicate-aspect-id',
       messageData: { what: 'two rules share an id', why: 'y', next: 'fix it' },
     } as CheckIssue];
-    const next = computeSuggestedNext(errors);
-    expect(next!.startsWith('fix it\n')).toBe(true);
+    const next = nextStep(errors);
+    expect(next).toBe('fix it');
     // With no next of its own it would name the graph directory; the repo-level issue's own step leads.
     expect(next).not.toContain('Fix duplicate-aspect-id');
   });
@@ -315,34 +326,34 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
 
 // A pair this run's fill already proved cannot run (see
 // core/type-visibility.ts's cannotRunUnverifiedMessage) carries its own real
-// remedy as `next`, never the generic 'yg check --approve'. computeSuggestedNext
+// remedy as `next`, never the generic 'yg check --approve'. The Next engine
 // must not let that pair's `next` win the overall `Next:` slot while a pair
 // --approve genuinely CAN still change is sitting right next to it — the run
 // would tell the reader to re-run the one command it just proved is useless
 // for one member, while staying silent about the pair it would actually help.
-describe('computeSuggestedNext — a pair this run proved cannot run never displaces a pair --approve can still fill', () => {
+describe('Next — a pair this run proved cannot run never displaces a pair --approve can still fill', () => {
   const cannotRunNext =
     'Give the file a component of its own (a yg-node.yaml mapping it), or fix what the reason above names in check.mjs / yg-architecture.yaml — not another --approve.';
 
   it('picks the fillable pair\'s generic command when a fillable AND a cannot-run unverified pair both exist', () => {
     const errors: CheckIssue[] = [
       iss({
-        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts', pairKind: 'deterministic', unverifiedCause: 'check-failed-to-run',
         messageData: { what: 'w', why: 'y', next: cannotRunNext },
       }),
-      iss({ aspectId: 'fillable-y', nodePath: 'a' }), // default messageData.next: 'yg check --approve'
+      iss({ aspectId: 'fillable-y', nodePath: 'a', pairKind: 'deterministic' }), // default messageData.next: 'yg check --approve'
     ];
-    expect(computeSuggestedNext(errors)).toBe('yg check --approve');
+    expect(nextStep(errors)).toBe('yg check --approve --only-deterministic');
   });
 
   it('falls back to the cannot-run pair\'s own remedy only once EVERY unverified pair is unfillable', () => {
     const errors: CheckIssue[] = [
       iss({
-        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts', pairKind: 'deterministic', unverifiedCause: 'check-failed-to-run',
         messageData: { what: 'w', why: 'y', next: cannotRunNext },
       }),
     ];
-    expect(computeSuggestedNext(errors)).toBe(cannotRunNext);
+    expect(nextStep(errors)).toBe(cannotRunNext.split(/(?<=\.)\s+/)[0].replace(/\.$/, ''));
   });
 });
 

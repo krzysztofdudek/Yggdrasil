@@ -1,7 +1,7 @@
 name: Build & Check Pipeline Integration Tests
 type: test-suite
 description: "End-to-end smoke tests for the build, check, and validation
-  pipelines, plus the shared integration-test bootstrap (setup.ts)."
+  pipelines, plus the shared integration-test bootstrap (setup.ts). Also holds yg check and the portal worklist to the same findings on a fixture carrying a reason-less yg-suppress marker, and guards that no command reaches into the portal facade for the suppression scan."
 aspects: []
 relations:
   [
@@ -9,10 +9,13 @@ relations:
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
     { target: cli/formatters, type: uses },
+    { target: cli/check-render-views, type: uses },
+    { target: cli/portal/pipeline, type: uses },
     { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/integration/build-pipeline.test.ts
   - source/cli/tests/integration/check-pipeline.test.ts
+  - source/cli/tests/integration/check-portal-issue-parity.test.ts
   - source/cli/tests/integration/validation-pipeline.test.ts
   - source/cli/tests/setup.ts

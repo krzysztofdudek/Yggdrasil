@@ -48,7 +48,7 @@ const FORBIDDEN = new Set([
  * merely verbose. Keyed by (file, value) — never by file alone — so an exempt
  * file stays fully guarded for every OTHER name.
  *
- * portal/api/suppress-eligibility.ts · '.clinerules' — Cline's LEGACY
+ * core/suppressions/eligibility.ts · '.clinerules' — Cline's LEGACY
  * single-file convention: a repository-root file literally NAMED `.clinerules`,
  * with no extension, which `yg init` has never written. The eligibility rule
  * matches it by BASE NAME to classify it as prose. The shared constant is the
@@ -58,7 +58,7 @@ const FORBIDDEN = new Set([
  * this one value, in this one file, must NOT be imported.
  */
 const VALUE_EXEMPTIONS = new Map([
-  ['source/cli/src/portal/api/suppress-eligibility.ts', new Set(['.clinerules'])],
+  ['source/cli/src/core/suppressions/eligibility.ts', new Set(['.clinerules'])],
 ]);
 
 function isExempt(filePath, lowerValue) {

@@ -41,8 +41,9 @@ import type { DrillResultLine } from '../io/drill-results-store.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
-import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
+import { runSuppressionsScan } from '../core/suppressions/scan.js';
+import { scanPortalSuppressions } from '../portal/api/suppress-adapt.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
 import { computePortalBoundary } from '../portal/api/boundary.js';
 import {
   edgeUniverse,
@@ -64,7 +65,7 @@ import { failAndExit, count, field, heading, decorated, paint, writeOut } from '
 const NOMINATION_CAP = 10;
 
 /**
- * How many recent commits the uncovered-hot-spot churn signal looks back over.
+ * How many recent commits the unguarded-hot-spot churn signal looks back over.
  *
  * CHANGE POLICY: this window is a deliberate PARAMETER, not an incidental default.
  * The churn count and the "last N commits" provenance are folded into each hot-spot
@@ -326,7 +327,7 @@ async function gatherSuppressData(
 /**
  * The type-level classification lattice (coverage.type_level), classified ONCE
  * for this one `yg advise` invocation and shared by every source that needs it
- * (the decorative-rule signal's expected-pairs pass, the dead-attach source,
+ * (the decorative-rule signal's expected-pairs pass, the effective-nowhere source,
  * and the suppress scan's file eligibility — a live waiver on a file enforced
  * by its architecture type alone must be inventoried too), so no downstream
  * caller classifies the repo's files a second time. Undefined when the flag is
@@ -428,7 +429,7 @@ function parseNameOnlyLog(output: string): string[][] {
 
 /**
  * Fetch and parse the READ-ONLY window of git history BOTH churn sources need —
- * the uncovered-hot-spot class (per-node) and the type-covered-churn class
+ * the unguarded-hot-spot class (per-node) and the type-covered-churn class
  * (per-file, for a file no node owns). ONE subprocess pair (a shallow probe + one
  * `git log`) serves both counting functions from the SAME `touchesByCommit`
  * array, so turning on the type-level tier never doubles the git cost of `yg
@@ -475,7 +476,7 @@ function gatherChurnHistory(projectRoot: string): string[][] | undefined {
 }
 
 /**
- * The per-node half of the churn signal, for the uncovered-hot-spot nomination:
+ * The per-node half of the churn signal, for the unguarded-hot-spot nomination:
  * count `touchesByCommit` (already fetched once by `gatherChurnHistory` and
  * shared with the type-covered-churn source below) via the SAME owner index the
  * checker uses. `touchesByCommit` undefined ⇒ history unknown ⇒ silent
@@ -708,7 +709,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (currentUnits !== undefined) {
     sources.typeEnforcedFiles = currentUnits.typeEnforcedFiles;
   }
-  // The uncovered-hot-spot source needs both the churn map and the window it was
+  // The unguarded-hot-spot source needs both the churn map and the window it was
   // measured over; supply them only when churn is KNOWN (git history readable), so a
   // no-git / shallow clone leaves the class silent instead of fabricating churn.
   if (churnByNode !== undefined) {
@@ -883,6 +884,7 @@ function buildAdviseJson(
       next: nom.next,
       evidenceHash: nom.evidenceHash,
     };
+    if (nom.aliases !== undefined && nom.aliases.length > 0) item.aliases = nom.aliases.map((a) => a.id);
     if (nom.provenance !== undefined) item.provenance = nom.provenance;
     return item;
   };
@@ -908,8 +910,10 @@ function buildAdviseJson(
 function resolveNominationOrFail(noms: Nomination[], id: string): Nomination {
   // Match on the RAW id — the canonical id is what decisions bind to; only the
   // rendered forms below are sanitized (the id embeds raw repo strings, and both
-  // the echoed argument and the known-id list must stay injection-safe).
-  const nomination = noms.find((n) => n.id === id);
+  // the echoed argument and the known-id list must stay injection-safe). A
+  // retired id of a renamed class (a nomination's `aliases`) still names the
+  // item; the decision is then recorded under its current id.
+  const nomination = noms.find((n) => n.id === id || (n.aliases ?? []).some((a) => a.id === id));
   if (nomination === undefined) {
     const knownIds = noms.map((n) => quoteData(n.id));
     failAndExit({

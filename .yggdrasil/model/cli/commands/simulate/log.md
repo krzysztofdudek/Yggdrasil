@@ -86,3 +86,5 @@ The same idea went by several names across the docs, the agent manual and the CL
 Two release lines met here: one that routes every piece of CLI output through the shared output layer with count() for grammatical numbers, and one that gives each meaning a single word across the CLI text (reviewer rule, script rule, bundle, passed, look-alike group, type-covered file, status) with retired synonyms guarded against. Both are kept whole in this node: its messages use the glossary's words and still go through the output layer, so neither change undoes the other.
 ## [2026-09-25T13:16:53.824Z]
 An unexpected failure of the replay now goes through the command contract shared unexpected-error path, and every step of the realpath walk records its failure in the debug log, so no fallback in this command is silent.
+## [2026-09-25T21:13:51.302Z]
+simulate now refuses a candidate id that names no rule with the shared aspect-not-found error. An unknown rule id used to be refused in about six different wordings under two codes depending on the command, so an agent could not recognise the one situation or learn one remedy.

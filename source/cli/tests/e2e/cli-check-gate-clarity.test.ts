@@ -785,7 +785,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const fresh = json(run(['check', '--json'], dir));
         const freshCauses = fresh.issues.filter((i) => i.code === 'unverified').map((i) => i.cause);
         expect(freshCauses.every((c) => c === 'deterministic-not-run')).toBe(true);
-        expect(fresh.suggestedNext).toBe('yg check --approve --only-deterministic');
+        // The free lane, with what it records: every pending script pair, the advisory ones too.
+        expect(fresh.suggestedNext).toMatch(/^yg check --approve --only-deterministic\b/);
         expect(run(['check'], dir).stdout).toMatch(/^error\[unverified\] \d+ pairs? whose script check has not run on this checkout — free to run$/m);
         // Filled, then the code moves: the verdict is stale, not "not yet reviewed".
         run(['check', '--approve', '--only-deterministic'], dir);

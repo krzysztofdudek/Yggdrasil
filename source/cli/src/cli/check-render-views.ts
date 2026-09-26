@@ -95,6 +95,8 @@ export interface NextStep {
 interface Action {
   text: string;
   command?: string;
+  /** The command as its arguments, when the emitter handed them over: the JSON form, never re-split on spaces. */
+  argv?: string[];
   target: { node?: string; file?: string };
   /** The step is the user's decision: named as one to ask for, never a command to run blindly. */
   requiresUser?: boolean;
@@ -151,16 +153,19 @@ function embeddedCommand(line: string): string | undefined {
 }
 
 /**
- * A repository file a fix names (`.yggdrasil/model/app/svc-05/yg-node.yaml`),
- * to edit. The graph's own two files are named by their place in the repository
- * even when the fix names them bare.
+ * A graph file a fix with no step of its own names as the one to change
+ * (`.yggdrasil/model/app/svc-05/yg-node.yaml`; the graph's own two files by
+ * their place even when named bare). Only ever a graph file: a source file a
+ * sentence mentions may be the file to change or only the file it talks about
+ * (an unmapped file is not edited — it is given an owner), and only its emitter
+ * knows which, so a step about a source file comes from the emitter as data.
  */
-function namedFile(line: string): string | undefined {
-  const m = /(?:^|\s)((?:\.?[\w@-]+\/)*[\w.@-]+\.(?:ya?ml|md|mjs|cjs|js|ts|tsx|json))\b/.exec(line);
-  if (m === null) return undefined;
-  if (/^yg-(?:architecture|config)\.yaml$/.test(m[1])) return `.yggdrasil/${m[1]}`;
-  // A bare name (`yg-node.yaml`) is not a location: which one is not said.
-  return m[1].includes('/') ? m[1] : undefined;
+function namedGraphFile(line: string): string | undefined {
+  for (const m of line.matchAll(/(?:^|\s|`)((?:\.?[\w@-]+\/)*[\w.@-]+\.(?:ya?ml|md|mjs|json))\b/g)) {
+    if (/^yg-(?:architecture|config)\.yaml$/.test(m[1])) return `.yggdrasil/${m[1]}`;
+    if (m[1].startsWith('.yggdrasil/')) return m[1];
+  }
+  return undefined;
 }
 
 /**
@@ -175,15 +180,26 @@ function isCodeFile(file: string): boolean {
   return !/\.(?:md|mdx|markdown|txt|rst|adoc|json|jsonc|json5|ya?ml|toml|ini|cfg|conf|lock|xml|csv|tsv|svg|png|jpe?g|gif|webp|ico|pdf|html?|css|scss|map|log|env)$/i.test(base);
 }
 
-/** Fill what the CLI knows into a step's placeholders: a node, a code file. */
-function fillPlaceholders(text: string, b: CheckBlock): string {
+/** One argument as a shell reads it: quoted when it holds a space or a quote, so the printed step runs as one command. */
+function shellWord(token: string): string {
+  return /^[\w@%+=:,./-]+$/.test(token) ? token : `'${token.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Fill what the CLI knows into a step's placeholders: a node, a code file.
+ * `anyFile`: when no member names a code file, the first file of any kind —
+ * for a step that reads about a file (`yg context --file`), where a README is
+ * as good a start as any, unlike one that designs a type for it.
+ */
+function fillPlaceholders(text: string, b: CheckBlock, anyFile = false): string {
   const first = b.members[0];
   let out = text;
   if (first.nodePath !== undefined) out = out.split('<node>').join(toPosixPath(first.nodePath));
   // A path each member states for itself is the first member's, like its node.
   const own = b.slot?.values.get(first);
   if (b.slot !== undefined && own !== undefined) out = out.split(b.slot.placeholder).join(own);
-  const file = b.members.flatMap((m) => m.uncoveredFiles ?? []).find(isCodeFile);
+  const files = b.members.flatMap((m) => m.uncoveredFiles ?? []);
+  const file = files.find(isCodeFile) ?? (anyFile ? files[0] : undefined);
   if (file !== undefined) out = out.replace(/<(?:uncovered-)?path>/g, toPosixPath(file));
   return out;
 }
@@ -196,9 +212,9 @@ function decisionOf(b: CheckBlock): string | undefined {
   return codeInfo(b.code).decision ?? (b.cause === 'reviewer-missing' ? CONFIGURE_REVIEWER_STEP : undefined);
 }
 
-/** A pending block one recording run fills. */
+/** A pending block one recording run fills — an advisory one too: a fill fills every pending pair. */
 function isFill(b: CheckBlock): boolean {
-  return b.severity === 'error' && b.tier === 'T3' && b.fix?.startsWith('yg check --approve') === true;
+  return b.tier === 'T3' && b.fix?.startsWith('yg check --approve') === true;
 }
 
 /**
@@ -228,6 +244,21 @@ function blockAction(b: CheckBlock): Action | undefined {
     const unit = node ?? (first.unitKey?.startsWith('file:') ? toPosixPath(first.unitKey.slice(5)) : undefined);
     return { text: `change the code${unit !== undefined ? ` of ${unit}` : ''} so it satisfies ${b.aspectId ?? first.aspectId ?? 'the rule'}`, target };
   }
+  // The step the emitter handed over as data: a command, or the file to edit.
+  const step = first.messageData.step;
+  if (step !== undefined) {
+    if ('file' in step) {
+      const file = fillPlaceholders(step.file, b);
+      return { text: step.text !== undefined ? fillPlaceholders(step.text, b) : `edit ${file}`, target: { ...target, file } };
+    }
+    // A step that only reads about a file may name any file; one that designs a type names code.
+    const anyFile = step.argv[1] === 'owner' || step.argv[1] === 'context';
+    const argv = step.argv.map((t) => fillPlaceholders(t, b, anyFile));
+    if (!argv.some((t) => /^<[a-z-]+>$/.test(t))) {
+      const text = argv.map(shellWord).join(' ');
+      return { text, command: text, argv, target };
+    }
+  }
   const raw = b.fix ?? first.messageData.next ?? '';
   // A hint about where the provider's full output goes is never the step.
   const lines = raw.replace(/\s*For the provider's full output[^\n]*/g, '').split('\n').map((l) => l.trim()).filter((l) => l !== '');
@@ -243,17 +274,14 @@ function blockAction(b: CheckBlock): Action | undefined {
   const line = fillPlaceholders(written, b);
   const command = leadingCommand(line);
   if (command !== undefined) return { text: command, command, target };
-  // A file the fix itself names — not one the CLI filled into a placeholder,
-  // which belongs to the command around it.
-  // Only a fix that says to change a file names where to go; a file mentioned
-  // in passing (a mapping it refers to) is not the step.
+  // No step as data and no command to run. A fix that says to change something
+  // and names a graph file points at it — the component's own yg-node.yaml or
+  // log.md when named bare, since the CLI knows the component. A source file is
+  // never taken from the words (see namedGraphFile).
   const verb = /^(?:fix|edit|correct|add|remove|change|update|declare|set|rename|move|create|define)\b/i.test(written);
-  // A node's own file named bare (`yg-node.yaml`, `log.md`) is that node's file, which the CLI knows.
-  const bareOwn = verb && node !== undefined ? /(?:^|\s)(yg-node\.yaml|log\.md)\b/.exec(written) : null;
-  // The node a templated fix names is the first member's (the CLI knows it).
-  const own = node !== undefined ? written.split('<node>').join(node) : written;
-  const file = verb ? namedFile(own) ?? (bareOwn !== null ? `.yggdrasil/model/${node}/${bareOwn[1]}` : undefined) : undefined;
-  if (file !== undefined) return { text: `edit ${fillPlaceholders(file, b)}`, target: { ...target, file } };
+  const bareOwn = verb && node !== undefined ? /(?:^|\s|`)(yg-node\.yaml|log\.md)\b/.exec(written) : null;
+  const file = verb ? namedGraphFile(node !== undefined ? written.split('<node>').join(node) : written) ?? (bareOwn !== null ? `.yggdrasil/model/${node}/${bareOwn[1]}` : undefined) : undefined;
+  if (file !== undefined) return { text: `edit ${file}`, target: { ...target, file } };
   // A command that still holds a placeholder the CLI could not fill (no code
   // file to name) is not a step; the sentence before it is.
   const embedded = embeddedCommand(line);
@@ -295,10 +323,11 @@ function needsCodeOrGraphFix(b: CheckBlock): boolean {
 /**
  * The recording run a report names, and what running it costs — the whole
  * command, never one block's share of it. `yg check --approve` fills every
- * pending pair, the reviewer's too, so when the step is only the free script
- * pairs it is `--only-deterministic`, which cannot spend anything; a step that
- * does call the reviewer states the full cost and asks the user first (the
- * agent protocol: a paid run is the user's decision).
+ * pending pair — advisory ones too, whatever their severity — so when the step
+ * is only the free script pairs it is `--only-deterministic`, which cannot
+ * spend anything; a step that does call the reviewer states the full cost, as
+ * pairs and calls, and asks the user first (the agent protocol: a paid run is
+ * the user's decision).
  */
 interface FillStep {
   command: string;
@@ -306,17 +335,41 @@ interface FillStep {
   paid: boolean;
 }
 
-function fillStep(fills: CheckBlock[], lead: CheckBlock | undefined): FillStep {
-  const total = fills.reduce<BlockCost>((c, b) => ({ free: c.free + (b.cost?.free ?? 0), reviewerPairs: c.reviewerPairs + (b.cost?.reviewerPairs ?? 0) }), { free: 0, reviewerPairs: 0 });
-  const scriptOnly = total.reviewerPairs === 0 || (lead !== undefined && (lead.cost?.reviewerPairs ?? 0) === 0);
-  if (scriptOnly) return { command: 'yg check --approve --only-deterministic', cost: { free: total.free, reviewerPairs: 0 }, paid: false };
-  return { command: 'yg check --approve', cost: total, paid: true };
+const NO_COST: BlockCost = { free: 0, reviewerPairs: 0, reviewerCalls: 0 };
+
+/**
+ * Every pair a recording run of this tree would fill, priced the way its own
+ * cost preview prices them: each pending script pair, free, anywhere in the
+ * project; each pending reviewer pair the run answers for, at its tier's
+ * consensus. A reviewer pair outside a measured change is left to `--full`,
+ * and one waiting on a reviewer that is not configured bills nothing.
+ */
+function pendingCost(issues: CheckIssue[]): BlockCost {
+  const out = { ...NO_COST };
+  for (const i of issues) {
+    if ((i.code !== 'unverified' && i.code !== 'unverified-outside') || i.unverifiedCause === 'reviewer-missing') continue;
+    if (i.pairKind === 'deterministic') out.free++;
+    else if (i.pairKind === 'llm' && i.code === 'unverified') {
+      out.reviewerPairs++;
+      out.reviewerCalls += i.reviewerCalls ?? 1;
+    }
+  }
+  return out;
+}
+
+function fillStep(pending: BlockCost, lead: CheckBlock | undefined): FillStep {
+  const scriptOnly = pending.reviewerPairs === 0 || (lead !== undefined && (lead.cost?.reviewerPairs ?? 0) === 0);
+  if (scriptOnly) return { command: 'yg check --approve --only-deterministic', cost: { ...NO_COST, free: pending.free }, paid: false };
+  return { command: 'yg check --approve', cost: pending, paid: true };
 }
 
 /** A fill step's cost in words, with the ask when it is paid. */
 function fillWords(step: FillStep): string {
   return `${costWords(step.cost)}${step.paid ? ' — ask the user to approve it first' : ''}`;
 }
+
+const sameCost = (a: BlockCost, b: BlockCost | undefined): boolean =>
+  b !== undefined && a.free === b.free && a.reviewerPairs === b.reviewerPairs && a.reviewerCalls === b.reviewerCalls;
 
 /**
  * The Next contract. `next:` is the first step of the first block — the
@@ -328,7 +381,12 @@ function fillWords(step: FillStep): string {
  * after a free script-only fill — the paid review it left for the user to
  * approve.
  */
-export function computeNext(blocks: CheckBlock[], result: Pick<CheckResult, 'issues'>): NextStep {
+export function computeNext(
+  blocks: CheckBlock[],
+  result: Pick<CheckResult, 'issues'>,
+  /** The whole run's findings, when `result` is a narrowed view of it: a fill's cost is always the whole command's. */
+  whole: CheckIssue[] = result.issues,
+): NextStep {
   const errors = blocks.filter((b) => b.severity === 'error');
   const pool = errors.length > 0 ? errors : blocks;
   const remaining = remainingOf(blocks);
@@ -339,31 +397,31 @@ export function computeNext(blocks: CheckBlock[], result: Pick<CheckResult, 'iss
     const text = `yg check --full  (${count(n, 'obligation')} outside your changes)`;
     return {
       text,
-      json: { command: ['yg', 'check', '--full'], text, target: {}, cost: { free: 0, reviewerPairs: 0 }, remaining, requiresUser: false, then: null },
+      json: { command: ['yg', 'check', '--full'], text, target: {}, cost: { ...NO_COST }, remaining, requiresUser: false, then: null },
     };
   }
   const first = pool.find((b) => blockAction(b) !== undefined);
   if (first === undefined) return { json: null };
-  const fills = errors.filter(isFill);
+  const pending = pendingCost(whole);
   let action = blockAction(first)!;
-  let cost: BlockCost = { free: 0, reviewerPairs: 0 };
+  let cost: BlockCost = { ...NO_COST };
   let then: string | undefined;
   if (isFill(first)) {
-    const step = fillStep(fills, first);
+    const step = fillStep(pending, first);
     action = { text: step.command, command: step.command, target: action.target, ...(step.paid ? { requiresUser: true } : {}) };
     cost = step.cost;
     // A free script-only step leaves the reviewer's pairs: name that paid run next.
-    const left = fillStep(fills, undefined);
-    if (!step.paid && left.paid) then = `yg check --approve  (${count(left.cost.reviewerPairs, 'reviewer pair')} · paid — ask the user to approve it first)`;
-  } else if (first.tier !== 'T3' && fills.length > 0) {
+    const left = fillStep(pending, undefined);
+    if (!step.paid && left.paid) then = `yg check --approve  (${fillWords({ ...left, cost: { ...left.cost, free: 0 } })})`;
+  } else if (first.tier !== 'T3' && errors.some(isFill)) {
     // Then: the fill, once the fixes above it are in.
-    const step = fillStep(fills, undefined);
+    const step = fillStep(pending, undefined);
     then = `${step.command}  (${fillWords(step)})`;
   }
   // One parenthetical: which block the step belongs to, what it costs, and what remains.
   const annotations: string[] = [];
   if (pool.length > 1) annotations.push(first.label);
-  if (isFill(first)) annotations.push(fillWords(fillStep(fills, first)));
+  if (isFill(first)) annotations.push(fillWords(fillStep(pending, first)));
   const ownFixes = needsCodeOrGraphFix(first) ? first.members.length : 0;
   if (first.tier !== 'T3' && first.severity === 'error' && remaining.needsFix > ownFixes) {
     annotations.push(`${count(remaining.needsFix, 'error')} ${remaining.needsFix === 1 ? 'needs' : 'need'} a code or graph fix`);
@@ -372,9 +430,11 @@ export function computeNext(blocks: CheckBlock[], result: Pick<CheckResult, 'iss
   const fixFirstLine = first.fix?.split('\n')[0].trim();
   // One block of its kind (the only error, or the only finding) whose fix IS
   // the step: the step would only repeat it.
-  const repeatsFix = pool.length === 1 && then === undefined && fixFirstLine !== undefined && fixFirstLine.replace(/\.$/, '') === action.text;
+  // A fill that costs more than its own block (pending pairs elsewhere) says so.
+  const repeatsFix = pool.length === 1 && then === undefined && fixFirstLine !== undefined && fixFirstLine.replace(/\.$/, '') === action.text
+    && (!isFill(first) || sameCost(cost, first.cost));
   const json: CheckJsonNext = {
-    command: action.requiresUser === true && action.command === undefined ? null : commandArgv(action.command),
+    command: action.requiresUser === true && action.command === undefined ? null : action.argv ?? commandArgv(action.command),
     text: action.text,
     target: action.target,
     cost,
@@ -436,7 +496,7 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     lines.push(...renderBlocks(own, { capMembers: false }, emoji));
     if (filtered.length === 0) lines.push('', `note: rule '${view.id}' has no findings in this run.`);
     // The step for this rule, when it has one of its own; otherwise the run's.
-    const ownStep = computeNext(own, { issues: result.issues.filter((i) => i.aspectId === view.id) });
+    const ownStep = computeNext(own, { issues: result.issues.filter((i) => i.aspectId === view.id) }, result.issues);
     if (render.coverage && result.typeVisibility && result.typeVisibility.byType.length > 0) {
       lines.push('', renderTypeVisibilityBlock(result, { countsOnly: false }));
     }
@@ -625,10 +685,10 @@ export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf
   if (first !== undefined) {
     doc.suggestedNext = first.a!.text;
     doc.next = {
-      command: commandArgv(first.a!.command),
+      command: first.a!.argv ?? commandArgv(first.a!.command),
       text: first.a!.text,
       target: first.a!.target,
-      cost: { free: 0, reviewerPairs: 0 },
+      cost: { ...NO_COST },
       remaining: remainingOf(blocks),
       requiresUser: first.a!.requiresUser === true,
       then: abort.retry ?? null,

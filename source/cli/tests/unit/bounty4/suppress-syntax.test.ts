@@ -40,6 +40,9 @@ import {
   runSuppressionsScan,
   formatSuppressionsOutput,
 } from '../../../src/cli/suppressions.js';
+import { suppressionWarningText } from '../../../src/cli/suppressions.js';
+/** The scan's warnings in the words the inventory prints them in. */
+const warningTexts = (r: { warningRecords?: Parameters<typeof suppressionWarningText>[0][] }): string[] => (r.warningRecords ?? []).map(suppressionWarningText);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -356,7 +359,7 @@ describe('spec: a typo id is inert — it suppresses only its (nonexistent) own 
     const root = freshDir('case');
     write(root, 'c.ts', '// yg-suppress(KNOWN) wrong case, tracked\nx();\n');
     const report = await runSuppressionsScan(root, ['c.ts'], new Set(['known']));
-    expect(report.warnings.some(w => w.includes('Unknown aspect id "KNOWN"'))).toBe(true);
+    expect(warningTexts(report).some(w => w.includes('Unknown aspect id "KNOWN"'))).toBe(true);
   });
 });
 
@@ -511,7 +514,7 @@ describe('spec note: the inventory scanner does not enforce the reason requireme
     // A reason-less marker passes every check silently until a violation lands
     // in its range, and only then fails the fill — so the inventory is where it
     // must surface, when it is written.
-    expect(report.warnings.filter(w => /has no reason/.test(w))).toHaveLength(1);
+    expect(warningTexts(report).filter(w => /has no reason/.test(w))).toHaveLength(1);
     expect(report.warningRecords?.filter(w => w.code === 'missing-reason')).toHaveLength(1);
     expect(report.totalMarkers).toBe(1);
   });
@@ -520,7 +523,7 @@ describe('spec note: the inventory scanner does not enforce the reason requireme
     const root = freshDir('enable-noreason');
     write(root, 'r.ts', '// yg-suppress-disable(known) legacy block\nx();\n// yg-suppress-enable(known)\n');
     const report = await runSuppressionsScan(root, ['r.ts'], new Set(['known']));
-    expect(report.warnings.some(w => /has no reason/.test(w))).toBe(false);
+    expect(warningTexts(report).some(w => /has no reason/.test(w))).toBe(false);
   });
 });
 
@@ -533,7 +536,6 @@ describe('spec: inventory rendering (formatSuppressionsOutput)', () => {
     const out = formatSuppressionsOutput({
       fileEntries: [{ file: 'a.ts', markers: [{ line: 1, aspectId: '*', kind: 'single', wildcard: true, reason: 'r' }] }],
       totalMarkers: 1,
-      warnings: [],
     });
     expect(out).toContain('[wildcard]');
     expect(out).toContain('single(*)');
@@ -543,7 +545,6 @@ describe('spec: inventory rendering (formatSuppressionsOutput)', () => {
     const out = formatSuppressionsOutput({
       fileEntries: [{ file: 'a.ts', markers: [{ line: 1, aspectId: 'x', kind: 'single', wildcard: false, reason: 'r' }] }],
       totalMarkers: 1,
-      warnings: [],
     });
     expect(out).toContain('1 marker across 1 file.');
   });

@@ -1,0 +1,64 @@
+name: CLI Next Step Tests
+type: test-suite
+description: >-
+  Unit tests that hold the step a check report points at to the Next contract,
+  code by code: for every code the output registry names, the finding is made
+  by the module that emits it in a real run (the coverage builders, the pair
+  translation, the lock reader over a corrupt lock, the graph loader and
+  validator over broken graph files), and its step must be a command that
+  parses against the real command tree, a command whose only gap is what a
+  person supplies, a graph file to change, the location of a violation, or a
+  decision named as the user's — never a source file read out of a sentence.
+  Also guards that one engine computes that step: the one that ran inside the
+  check, only for the report to overwrite it, stays gone, and only the report
+  sets it.
+aspects: []
+max_direct_relations:
+  limit: 19
+  reason: >-
+    Reviewed at exactly this count. The suite makes each registered code's finding
+    with the module that emits it in a real run — five emitters and the loader —
+    renders it through the report, and parses the step against the real
+    registrations of the eight commands a report's step can name; each of those is
+    one edge, and faking any of them would test a step no run produces.
+relations:
+  - target: cli/commands/owner
+    type: uses
+  - target: cli/check-render-views
+    type: uses
+  - target: cli/core/check
+    type: uses
+  - target: cli/output
+    type: uses
+  - target: cli/core/check-coverage-tiers
+    type: uses
+  - target: cli/io/lock-store
+    type: uses
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/validator
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/core/verify-lock
+    type: uses
+  - target: cli/formatters
+    type: uses
+  - target: cli/tests/support
+    type: uses
+  - target: cli/commands/init
+    type: uses
+  - target: cli/commands/build-context
+    type: uses
+  - target: cli/commands/aspects
+    type: uses
+  - target: cli/commands/check
+    type: uses
+  - target: cli/commands/log
+    type: uses
+  - target: cli/commands/find
+    type: uses
+  - target: cli/commands/type-suggest
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/next-step-registry.test.ts

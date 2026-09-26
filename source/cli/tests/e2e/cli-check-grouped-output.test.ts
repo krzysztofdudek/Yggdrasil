@@ -187,7 +187,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
 
       // Shared why + fix lines render once for the whole group (NOT once per node).
       expect(out.match(/The lock holds no entry for this pair/g)?.length).toBe(1);
-      expect(out).toMatch(new RegExp(`^  fix:  yg check --approve  \\(${nodes.length} reviewer pairs · paid — ask the user to approve it first\\)$`, 'm'));
+      expect(out).toMatch(new RegExp(`^  fix:  yg check --approve  \\(${nodes.length} reviewer pairs · ${nodes.length} calls · paid — ask the user to approve it first\\)$`, 'm'));
 
       // Every affected node is listed by --details as "shared @ <node>".
       const details = strip(run(['check', '--details'], dir).stdout);
@@ -247,7 +247,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // The partial residual: the relation error needs a code/graph fix first,
       // then --approve fills the 4 unverified pairs.
       expect(out).toMatch(/^next: edit \.yggdrasil\/model\/importer\/yg-node\.yaml {2}\(relation-undeclared-dependency\)$/m);
-      expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · paid — ask the user to approve it first\)$/m);
+      expect(out).toMatch(/^then: yg check --approve {2}\(4 reviewer pairs · 4 calls · paid — ask the user to approve it first\)$/m);
       const doc = JSON.parse(run(['check', '--json'], dir).stdout) as { next: { remaining: { needsFix: number; fillable: number } } };
       expect(doc.next.remaining).toEqual({ needsFix: 1, fillable: 4, needsUser: 0, waitingOnReviewer: 0 });
     } finally {

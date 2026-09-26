@@ -65,7 +65,7 @@ relations:
     type: calls
   - target: cli/io/incident-ledger
     type: calls
-  - target: cli/portal/engine-api
+  - target: cli/core/suppressions
     type: calls
   - target: cli/core/type-effective
     type: calls

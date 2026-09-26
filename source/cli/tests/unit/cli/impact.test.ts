@@ -280,7 +280,7 @@ describe('impact command', () => {
           { cwd, encoding: 'utf-8' },
         );
         expect(result.status).toBe(1);
-        expect(result.stderr).toContain('Aspect not found');
+        expect(result.stderr).toContain("error[aspect-not-found]: rule 'does-not-exist' is not in the graph");
       });
     });
 

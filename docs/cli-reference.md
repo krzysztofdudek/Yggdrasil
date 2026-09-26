@@ -288,7 +288,7 @@ argument vector — the form `yg-check/1`'s `next.command` takes — set only wh
 the step is one command a reader can run as given (no `<placeholder>`, no
 optional `[part]`), else `null`. Every command that takes a node answers a node
 it does not know with this same `node-not-found` error and `yg find "<path>"` as
-its step. The exit code is unchanged (1). A command whose own JSON document
+its step. Every command that takes a rule id — `yg check --aspect`, `yg impact --aspect`, `yg aspect-test --aspect`, `yg simulate <id>`, `yg aspects log add|read --aspect`, `yg drill --aspect`, `yg drill add --aspect`, `yg incident add --aspect` — answers a rule it does not know the same way: `aspect-not-found`, `rule '<id>' is not in the graph`, and `yg aspects` (the list of every rule id) as its step; only the `why:` differs, saying what that command needed the rule for. The exit code is unchanged (1). A command whose own JSON document
 answers the failure — `yg context --json` on a file no component owns — writes
 that document instead, never both.
 
@@ -356,14 +356,14 @@ The step to take first comes twice. `suggestedNext` is the text of the report's 
   "command": ["yg", "check", "--approve"],
   "text": "yg check --approve",
   "target": { "node": "payments" },
-  "cost": { "free": 0, "reviewerPairs": 1 },
+  "cost": { "free": 0, "reviewerPairs": 1, "reviewerCalls": 3 },
   "remaining": { "needsFix": 0, "fillable": 1, "needsUser": 0, "waitingOnReviewer": 0 },
   "requiresUser": true,
   "then": null
 }
 ```
 
-`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on; `cost` is the cost of running `command` — the whole command, never one block's share of it (script pairs free, reviewer pairs paid; zero for a step that is not a fill). A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost, and its text says `ask the user to approve it first`. `requiresUser` is true when the step needs the user's approval before it runs: a fill that calls the paid reviewer, or a decision only the user makes — configuring a reviewer (`ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft`, whose `command` is `null`). `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a fill, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
+`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on; `cost` is the cost of running `command` — the whole command, never one block's share of it: every pending pair it fills, advisory ones included (script pairs free, reviewer pairs paid; zero for a step that is not a fill). `reviewerCalls` is what the reviewer pairs bill — each pair its tier's consensus — so `free`, `reviewerPairs` and `reviewerCalls` equal the `dryRunBudget` (`deterministic`, `pairs` minus `deterministic`, `reviewerCalls`) of running `command` with `--dry-run --json` on the same tree, and the text states the reviewer's share the same way: `3 reviewer pairs · 9 calls · paid`. A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost, and its text says `ask the user to approve it first`. `requiresUser` is true when the step needs the user's approval before it runs: a fill that calls the paid reviewer, or a decision only the user makes — configuring a reviewer (`ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft`, whose `command` is `null`). `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a fill, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
 
 `yg check --json --compact` writes the same document without what a reader can recompute — for a reader that pays per token, since the full document runs to 15–40 times the text report: `pairs` lists only the pairs that are not approved (`totals.verdicts.approved` still counts them all), an issue leaves out its `why` and `next` when its group states them, and its `label` and `unitRef` (its group's label, its `unit` parsed), the JSON is not indented, and `compact: true` marks the form. Every other field keeps its shape. `--compact` without `--json` is refused.
 
@@ -515,14 +515,14 @@ error[unmapped] 1 file belongs to no node
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+  fix:  yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 
 warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
   at:   .clinerules/yggdrasil.md
         …
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 ```
 
 **The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors in 4 blocks · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A count is of **findings** — one per node, pair, file group or repository fact a check reports, the same unit as the JSON document's `totals` — while the report below groups findings into **blocks**; whenever the two numbers differ the count says how many blocks hold them (`34 errors in 4 blocks`: 24 unverified pairs, 8 refusals, one broken relation and one unmapped-file finding, in four blocks), so a count never reads as the number of blocks under it. The JSON document carries the blocks as `groups`. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
@@ -531,7 +531,7 @@ then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve
 
 - `at:` — where: one line per member. A refusal lists `<unit>  <file>:<line>  <message>` per violation (a reviewer refusal: the unit and the reviewer's reason); a coverage block lists files; an unverified block lists one line per rule (`readable-names  24 pairs · 24 nodes · reviewer`, or `<aspect> @ <unit>` for a single pair). At most 12 members are listed, then `… +K more  (<command>)` names the view that lists the rest — `yg check --aspect <id>` for a block about one rule, `yg check --details` otherwise.
 - `why:` — the reason, stated once per block. Members whose reason differs are split into blocks of their own. A reason every member gives but for its own node is stated once as a shared fact (`so the component was not loaded`, `the node's yg-node.yaml`) — never with a `<node>` placeholder or a path the node was substituted into; the members themselves are listed under `at:`.
-- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; one that also names one path of each member's own (the file a node maps, for `yg type-suggest --file`) is stated once with `<path>` in it too, ends `for each node above, <path> as listed beside it`, and `at:` lists each member's `<path> = …`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid — ask the user to approve it first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
+- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; one that also names one path of each member's own (the file a node maps, for `yg type-suggest --file`) is stated once with `<path>` in it too, ends `for each node above, <path> as listed beside it`, and `at:` lists each member's `<path> = …`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · 24 calls · paid — ask the user to approve it first)` — a fill of script pairs alone is `yg check --approve --only-deterministic`, which cannot bill the reviewer pairs pending elsewhere in the run. A heading its members share but for their own node is said once for all of them (`2 nodes have undeclared dependencies on other nodes`), never with a `<node>` in it.
 
 The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
 
@@ -539,7 +539,7 @@ The label comes from one registry, and the JSON document's `label` field is the 
 
 **After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
 
-- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)`), never a restated code, and never a fill while a code or graph error stands. A fill states the cost of the whole command it names: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft` — and a paid one says `ask the user to approve it first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
+- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)`), never a restated code, and never a fill while a code or graph error stands. For a file no node owns the step is `yg owner --file <file>`, which answers without an error and names the candidate owners — never an edit of the file itself (a file with no type and no node gets `yg type-suggest --file <file>`); a command is built from its arguments, so a path with a space stays one; a step is taken from what the finding's emitter hands over as data, and a fix's own words only ever supply a graph file to change. A fill states the cost of the whole command it names — every pending pair it fills, advisory ones too, the reviewer's share as pairs and calls: when the first block is script pairs alone the step is `yg check --approve --only-deterministic` (free), and `then:` names the paid run. A step that is the user's decision is worded as one to ask for — `ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft` — and a paid one says `ask the user to approve it first`. When other blocks remain it is annotated with the block it belongs to and what still needs a code or graph fix: `(refused — 10 errors need a code or graph fix)` (pairs waiting for a reviewer, and a decision of the user's, are never counted there).
 - `then:` is the step after it — typically the fill, once the fixes are in.
 - There is no `next:` at all when the report holds exactly one error block (or, with no errors, one finding) whose `fix:` already is the step: the line would only repeat it.
 
@@ -606,7 +606,7 @@ errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 revi
 warnings  uncovered 4
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid — ask the user to approve it first)
+then: yg check --approve  (24 reviewer pairs · 24 calls · paid — ask the user to approve it first)
 ```
 
 Nothing is dropped: every finding the verdict line counts is under exactly one label. `--summary nodes` prints one row per node instead (or per file, or `(repository)` for a finding about neither) — each label with its count, the busiest 24 rows first, the rest counted in one `… +K more rows with N findings  (yg check --details)` line.
@@ -849,7 +849,7 @@ is not governed by aspect status — it is an error whatever a rule's
 | `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to reviewer rules only. |
 | `log-entry-missing` | error | A `log_required` node changed source without a fresh log entry. Enforced read-only — a blocking error on plain `yg check`, not only at `--approve`. |
 | `log-cycle-open` | warning | A `log_required` node's source moved past its recorded baseline and its newest log entry keeps satisfying the requirement, because no full `yg check --approve` has recorded a new baseline (`--only-deterministic` never does). Never blocks. Fix: a full `yg check --approve`. |
-| `suppress-marker-missing-reason` | warning | A `yg-suppress` marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. Fix: add the reason (the user approves it) or remove the marker. |
+| `suppress-marker-missing-reason` | warning | A `yg-suppress` marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. Reported by every check, and by the portal's worklist from the same scan. Fix: add the reason (the user approves it) or remove the marker. |
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
@@ -857,7 +857,7 @@ is not governed by aspect status — it is an error whatever a rule's
 | `aspect-review-overdue` | warning | A rule's `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
 | `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Only artifacts this project carries are compared: an artifact switched off under `rules_artifacts` in `yg-config.yaml` is never mentioned. Fix: `yg init --upgrade`. |
 | `coverage-required-shadowed` | warning | A plain (non-glob) `coverage.required` root sits entirely inside a plain `coverage.excluded` root — exclusion is absolute, so every file under that required root is silenced before the required/not-required split ever runs, and the required line can never make anything block. Fix: remove the required line, or narrow the excluded root so it no longer contains it. |
-| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a `per: node` one) on at least one type-covered file; a `per: node` rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is `per: node` and the type's only instances are type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule `per: file`. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. |
+| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a `per: node` one) on at least one type-covered file; a `per: node` rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is `per: node` and the type's only instances are type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule `per: file`. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. A dead rule is reported once: when nothing references it at all, it is not also reported as `orphaned-aspect`, which remains for what this check never speaks for — a bundle, a draft rule, or a graph with no code yet. |
 | `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a type-covered file of the type counts as an instance, but only lets a `per: file` default count as reached there — a `per: node` default stays reported unreachable. Usually fixed by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there — but when the type's only instances are type-covered files and the default is `per: node`, there is no `when` at fault: give a matching file a component of its own, or make the default `per: file`. When that type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`. |
 
 ### `yg log`
@@ -1259,20 +1259,16 @@ own words, a case name, a file and line, shown in quotes with their source, neve
 instruction) — and the exact next step, which always ends `— ask the user to approve it first.`
 
 ```text
-yg advise: 1 attention item · 2 nominations
+yg advise: 1 attention item · 1 nomination
 
 attention
   no incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement
 
 nominations
 
-nomination[dead-attach] Aspect 'no-console' has a rule source but is effective on zero nodes.
-  why:  Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
+nomination[aspect-effective-nowhere] Aspect 'no-console' has a rule source but is effective on zero nodes.
+  why:  Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — a dead rule that looks enforced.
   fix:  Check the attach sites and 'when' predicate (yg impact --aspect no-console). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands — ask the user to approve it first.
-
-nomination[orphaned-aspect] Aspect 'no-console' is defined but not referenced by any node, architecture type, or flow.
-  why:  Orphaned aspects add noise to the graph without enforcing any requirements.
-  fix:  Either add it to a node/architecture/flow or remove it — ask the user to approve it first.
 ```
 
 The first line counts both sections. Each attention item is one indented line; each nomination is a block in the same grammar as a `yg check` finding — `nomination[<class>] <what>`, `why:`, `fix:`, and with `--ids` an `id:` line. An empty section reads an indented `none right now`; past the cap a closing `… +K more  (yg advise --all)` line says how many are hidden.
@@ -1283,13 +1279,13 @@ the last two are whole-codebase observations:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
 2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
-3. **A rule effective nowhere** — it ships a rule source and is not draft, yet lands on no component.
-4. **An orphaned rule** — nothing references it at all.
+3. **A rule effective nowhere** (`aspect-effective-nowhere`, the same code `yg check` reports) — it ships a rule source and is not draft, yet lands on no component. A dead rule is one nomination: the same rule is never also offered as an orphan.
+4. **An orphaned rule** (`orphaned-aspect`) — nothing references it at all, and the class above does not already cover it: a bundle (no rule source of its own), a draft rule, or a rule in a graph with no code yet.
 5. **A rule past its `review_by:` date** — it is running unreviewed.
 6. **Promote a clean-record advisory rule** — it has passing verdicts and no refusals while advisory.
 7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
 8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
-9. **An unguarded hot spot** — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
+9. **An unguarded hot spot** (`unguarded-hot-spot`) — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
 10. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
 11. **A look-alike group** — see below.
 12. **An architecture cut** — see below.
@@ -1319,6 +1315,8 @@ yg advise defer <id> --until 2027-01-31 --reason "…"   # hide until a date, th
 yg advise import proposals.json                        # take in another tool's proposals
 ```
 
+Two classes were renamed: `dead-attach` is now `aspect-effective-nowhere`, and `uncovered-hot-spot` is now `unguarded-hot-spot`. The old names still work as aliases: `yg advise dismiss` and `yg advise defer` accept an id under either name, and a dismissal or deferral recorded under the old name in `.yggdrasil/advise-decisions.jsonl` keeps applying to the renamed item while its evidence is unchanged. New decisions are recorded under the new name.
+
 `--reason` is mandatory (recorded precedent must carry a human-signed justification). Decisions
 are written one per line to `.yggdrasil/advise-decisions.jsonl`, which is **committed** (recorded
 precedent — honored on every clone) and carries a `merge=union` attribute so branches merge cleanly.
@@ -1339,7 +1337,11 @@ of the data — so `--all` changes nothing about which items appear and is refus
 together with `--json`; `--ids` is likewise refused, because every item carries its
 id already. An item another tool proposed carries a `provenance` object naming that
 tool and the commit it measured at; an item this graph derived itself carries none,
-which is what makes its presence meaningful.
+which is what makes its presence meaningful. An item whose class was renamed carries
+`aliases`, the ids it was known by before (`dead-attach:<rule>` for
+`aspect-effective-nowhere:<rule>`, `uncovered-hot-spot:<node>` for
+`unguarded-hot-spot:<node>`), so a reader that keyed records by the old id still
+finds it; a dismiss or defer accepts the old id too.
 
 #### `yg advise import`
 
@@ -1449,7 +1451,12 @@ yg owner --file <path> --json
 `--json` prints the `yg-owner/1` document instead of the sentence: `file`, `kind`
 (`node`, `type`, `unmapped`, `missing` or `excluded`), `node`, `type`, `direct`
 (whether a mapping names the file itself rather than an ancestor directory),
-`mappingPath`, `enforced` (for a type owner), `excludedBecause` and `next`.
+`mappingPath`, `enforced` (for a type owner), `excludedBecause`, `candidates` and `next`.
+For a file no component maps, `yg owner --file` answers without an error and names the
+candidate owners — the components mapping other files in its directory, most first — in
+the text and as `candidates` (`[{ node, sameDirEntries }]`, empty when nothing in that
+directory is mapped), with `next` the first candidate's `yg context --node`. It is the
+step `yg check` names for an unmapped file.
 
 ```text
 $ yg owner --file src/handlers/capturePayment.ts

@@ -350,7 +350,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   // Line-anchored regex: real git conflict markers START a line. The `^…/m` anchoring keeps
   // an embedded run of 7 angle brackets inside a `reason` string from false-positiving.
   if (ctx.committed && /^(?:<<<<<<<|=======|>>>>>>>)/m.test(raw)) {
-    throw new LockInvalidError({
+    throw lockInvalid(ctx, 'take one side of', {
       what: `${ctx.fileName} contains git conflict markers — the file was not resolved after a merge`,
       why: 'a conflict-markered lock file cannot be parsed; allowing partial content would let stale or wrong verdicts pass as valid, silently breaking enforcement',
       next:
@@ -369,7 +369,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new LockInvalidError({
+    throw lockInvalid(ctx, 'restore', {
       what: `${ctx.fileName} contains unparseable JSON`,
       why: 'a garbled lock file cannot be read; allowing partial content would silently skip enforcement on unreadable entries',
       next: recoveryNext(ctx),
@@ -377,7 +377,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   }
 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new LockInvalidError({
+    throw lockInvalid(ctx, 'restore', {
       what: `${ctx.fileName} does not contain a JSON object`,
       why: 'the lock file must be a JSON object with a numeric version field; a non-object cannot be validated',
       next: recoveryNext(ctx),
@@ -387,7 +387,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   const obj = parsed as Record<string, unknown>;
 
   if (typeof obj.version !== 'number') {
-    throw new LockInvalidError({
+    throw lockInvalid(ctx, 'restore', {
       what: `${ctx.fileName} is missing a numeric version field`,
       why: 'the lock file format requires a numeric version field to validate compatibility; without it the file cannot be trusted',
       next: recoveryNext(ctx),
@@ -395,7 +395,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   }
 
   if (obj.version !== 1 && obj.version !== 2) {
-    throw new LockInvalidError({
+    throw lockInvalid(ctx, 'restore', {
       what: `${ctx.fileName} has unsupported version ${obj.version} (this CLI reads version 1 or 2)`,
       why: 'an unrecognized lock version means the file was written by a different or newer CLI; parsing it would risk silently misinterpreting its structure',
       next: recoveryNext(ctx),
@@ -428,9 +428,19 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * The fail-closed error for one lock file, with its first step as data: the
+ * file it is about, restored (or, over a conflict, one side taken wholesale) —
+ * never edited by hand, and never a fill, which would re-verify over it.
+ */
+function lockInvalid(ctx: ParseCtx, how: 'restore' | 'take one side of', messageData: IssueMessage): LockInvalidError {
+  const file = `.yggdrasil/${ctx.fileName}`;
+  return new LockInvalidError({ ...messageData, step: { file, text: how === 'restore' ? `restore ${file} from git` : `take one side of ${file} wholesale` } });
+}
+
 /** Raise the canonical fail-closed corruption error with file-specific recovery. */
 function throwMalformed(detail: string, ctx: ParseCtx): never {
-  throw new LockInvalidError({
+  throw lockInvalid(ctx, 'restore', {
     what: `${ctx.fileName} is structurally malformed — ${detail}`,
     why: 'the lock is the only persisted verification state; a malformed lock cannot be trusted, and silently treating it as empty would let unverified code pass as verified (fail open)',
     next: recoveryNext(ctx),

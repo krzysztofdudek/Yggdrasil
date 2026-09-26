@@ -52,7 +52,6 @@
  *                               scope is about to treat as inherited, so the
  *                               pure comparer can re-admit any whose content
  *                               provably moved despite git reporting otherwise
- *   - check-suggested-next.ts — the one `next` a finished check points at
  *
  * `runAttentionDump` — the read-only calibration lens behind a hidden flag —
  * stays HERE rather than moving to a sibling of its own: this is the single
@@ -63,6 +62,8 @@
 import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
+import { fileUnit } from '../model/lock.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { excludeNestedGraphSubtrees, listMappedButExcludedFiles } from '../io/repo-scanner.js';
@@ -86,7 +87,6 @@ import { runLockPhase } from './check-lock-phase.js';
 import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
-import { computeSuggestedNext } from './check-suggested-next.js';
 import { applyChangeScope, countOutside, countBaselineNoise } from './check-progressive.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
@@ -107,7 +107,6 @@ import { count } from '../utils/count.js';
 
 export type { CheckIssue, CheckResult } from './check-contract.js';
 export { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
-export { computeSuggestedNext } from './check-suggested-next.js';
 export {
   normalizeRoot,
   matchesRoot,
@@ -171,6 +170,13 @@ export interface RunCheckOptions {
   now?: () => Date;
   /** INJECTED rules-artifacts snapshot for the committed-digest staleness gate. Absent ⇒ skipped. */
   rulesArtifacts?: RulesArtifacts;
+  /**
+   * INJECTED result of the suppression scan: every `yg-suppress` marker in a
+   * mapped source that carries no reason, each with its finding already worded
+   * (the scan reads the files; core reads none). Each becomes a
+   * `suppress-marker-missing-reason` warning. Absent ⇒ that check is skipped.
+   */
+  reasonlessSuppressMarkers?: ReadonlyArray<{ file: string; line: number; messageData: IssueMessage }>;
   /**
    * INJECTED real `git ls-files` output (null when git is absent or the probe
    * failed), for the tracked∩gitignored anomaly check. Absent or null ⇒ that
@@ -333,6 +339,20 @@ export async function runCheck(
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
 
+  // 1d. A `yg-suppress` marker with no reason waives nothing, and nothing else
+  // notices it until a violation lands in its range and the fill rejects the
+  // marker. Warned here, where every surface that reports a check — the
+  // command line and the portal alike — gets it from the same injected scan.
+  const reasonlessMarkerIssues: CheckIssue[] = options?.reasonlessSuppressMarkers
+    ? options.reasonlessSuppressMarkers.map((m): CheckIssue => ({
+        severity: 'warning',
+        code: 'suppress-marker-missing-reason',
+        rule: 'suppress-marker-missing-reason',
+        messageData: m.messageData,
+        unitKey: fileUnit(m.file),
+      }))
+    : [];
+
   // `coverage`/`earlyTypeCoverage` moved above section 1 (K15); read again below.
 
   // Byte cache OWNED here rather than by the verification below, so the byte
@@ -418,6 +438,7 @@ export async function runCheck(
     ...reviewOverdueIssues,
     ...digestGateIssues,
     ...coverageIssues,
+    ...reasonlessMarkerIssues,
   ];
 
   // Byte guard, gathered BEFORE the classification below reads the scope: the
@@ -503,7 +524,6 @@ export async function runCheck(
   // findings, so it stays true on a run that happens to list none.
   const coverageRequiresNothing = (graph.config.coverage ?? DEFAULT_COVERAGE).required.length === 0;
 
-  const suggestedNext = computeSuggestedNext(allIssues);
   const advisoryWarnings = allIssues.filter(i => i.code === 'aspect-violation-advisory').length;
   const draftSkipped = countDraftAspectsAcrossGraph(graph);
 
@@ -538,7 +558,6 @@ export async function runCheck(
     coveredFiles,
     totalFiles,
     issues: allIssues,
-    suggestedNext,
     advisoryWarnings,
     draftSkipped,
     verifiedDet,

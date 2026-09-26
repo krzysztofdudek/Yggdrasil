@@ -21,5 +21,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/check-lock.test.ts
-  - source/cli/tests/unit/core/suggested-next-branch-coverage.test.ts
   - source/cli/tests/unit/core/earlier-release-verdict.test.ts

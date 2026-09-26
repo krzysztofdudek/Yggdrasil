@@ -22,6 +22,14 @@ import type { BurnSet } from '../../../src/core/progressive-scope.js';
 import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/core/check-codes.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
+import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { buildCheckJson } from '../../../src/core/check-json.js';
+import type { CheckResult as ReportedResult } from '../../../src/core/check.js';
+
+/** The `next:` line a report of this result prints — the one Next engine lives where the report is rendered. */
+function reportNext(result: ReportedResult): string | null {
+  return enrichCheckJson(buildCheckJson(result), result).suggestedNext;
+}
 
 let tmpDir: string;
 beforeEach(() => {
@@ -95,7 +103,8 @@ describe('runCheck — verdict-lock issue emission', () => {
     const issue = result.issues.find((i) => i.code === 'unverified');
     expect(issue).toBeDefined();
     expect(issue!.severity).toBe('error');
-    expect(result.suggestedNext).toBe('yg check --approve');
+    // Its own step is the fill (this fixture's rules also lack a rule source, which the report ranks first).
+    expect(reportNext({ ...result, issues: result.issues.filter((i) => i.code === 'unverified') })).toMatch(/^yg check --approve\b/);
   });
 
   it('missing entry on advisory aspect → unverified WARNING (never blocks)', async () => {
@@ -162,7 +171,9 @@ describe('runCheck — verdict-lock issue emission', () => {
     const result = await runCheck(graph, null);
     expect(result.issues.filter((i) => i.code === 'lock-invalid')).toHaveLength(1);
     expect(result.issues.some((i) => i.code === 'unverified')).toBe(false);
-    expect(result.suggestedNext).toContain('git checkout');
+    // Restored from git, never edited by hand and never re-filled over.
+    expect(reportNext(result)).toMatch(/^restore \.yggdrasil\/yg-lock\.nondeterministic\.json from git\b/);
+    expect(reportNext(result)).not.toContain('--approve');
   });
 });
 
@@ -261,9 +272,9 @@ describe('runCheck — deterministic refusal + log integrity/format', () => {
     expect(issue!.messageData.next).toContain(`.yggdrasil/model/svc/log.md`);
     // The :610 log-integrity suggestedNext branch fires for this error and must
     // likewise name the committed log baseline, not the zombie name.
-    expect(result.suggestedNext).not.toBeNull();
-    expect(result.suggestedNext!).toContain('.yggdrasil/yg-lock.logs.json');
-    expect(result.suggestedNext!).not.toMatch(/yg-lock\.json(?![\w.])/);
+    expect(reportNext(result)).not.toBeNull();
+    expect(reportNext(result)).toContain('.yggdrasil/yg-lock.logs.json');
+    expect(reportNext(result)).not.toMatch(/yg-lock\.json(?![\w.])/);
   });
 
   it('a malformed log (bad format) → log-format error', async () => {
@@ -336,7 +347,7 @@ describe('runCheck — git conflict markers in log.md', () => {
       verdicts: [{ aspectId: 'det', unitKey: nodeUnit('svc'), verdict: 'approved' }],
     });
     const result = await runCheck(graph, null);
-    expect(result.suggestedNext).toBe('yg log merge-resolve --node svc');
+    expect(reportNext({ ...result, issues: result.issues.filter((i) => i.code.startsWith('log-')) })).toBe('yg log merge-resolve --node svc');
   });
 
   it('setext H1 underline (bare =======) under a heading does NOT false-positive', async () => {
@@ -390,7 +401,8 @@ describe('runCheck — recovery strings only name git-tracked lock files', () =>
     // Collect every recovery string the agent could be steered to: the
     // top-level suggestedNext plus each log-integrity/log-format issue's `next`.
     const recoveryStrings: string[] = [];
-    if (result.suggestedNext) recoveryStrings.push(result.suggestedNext);
+    const next = reportNext(result);
+    if (next !== null) recoveryStrings.push(next);
     for (const issue of result.issues) {
       if (issue.code === 'log-integrity' || issue.code === 'log-format') {
         recoveryStrings.push(issue.messageData.next);
@@ -557,15 +569,13 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     await writeLock(rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
 
     const unscoped = await runCheck(graph, null);
-    expect(unscoped.suggestedNext).toBe('yg check --approve');
+    expect(reportNext(unscoped)).toMatch(/^yg check --approve\b/);
 
     const scoped = await runCheck(graph, null, { runCompanionHooks: false,       changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
     });
     expect(scoped.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
-    expect(scoped.suggestedNext).not.toBe('yg check --approve');
-    expect(scoped.suggestedNext).toBe(
-      "1 obligation outside your changes — run 'yg check --full' for the complete audit",
-    );
+    expect(reportNext(scoped)).not.toMatch(/--approve/);
+    expect(reportNext(scoped)).toBe('yg check --full  (1 obligation outside your changes)');
   });
 
   it('a global scope leaves every issue exactly as an unscoped run reports it', async () => {
@@ -580,7 +590,7 @@ describe('runCheck — change scope classifies the assembled issues', () => {
 
     expect(withoutOption.issues.length).toBeGreaterThan(0);
     expect(globalScope.issues).toEqual(withoutOption.issues);
-    expect(globalScope.suggestedNext).toBe(withoutOption.suggestedNext);
+    expect(reportNext(globalScope)).toBe(reportNext(withoutOption));
     expect(globalScope.outsideCount).toBe(0);
     expect(globalScope.changedInputCount).toBe(3);
   });

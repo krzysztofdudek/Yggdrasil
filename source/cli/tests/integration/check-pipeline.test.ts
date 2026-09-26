@@ -3,6 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck } from '../../src/core/check.js';
+import { enrichCheckJson } from '../../src/cli/check-render-views.js';
+import { buildCheckJson } from '../../src/core/check-json.js';
+import type { CheckResult as ReportedResult } from '../../src/core/check.js';
+
+/** The `next:` line a report of this result prints — the one Next engine lives where the report is rendered. */
+function reportNext(result: ReportedResult): string | null {
+  return enrichCheckJson(buildCheckJson(result), result).suggestedNext;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
@@ -15,7 +23,7 @@ describe('check-pipeline', () => {
 
     expect(result.nodeCount).toBeGreaterThan(0);
     expect(result.issues).toBeDefined();
-    expect(result.suggestedNext === null || typeof result.suggestedNext === 'string').toBe(true);
+    expect(reportNext(result) === null || typeof reportNext(result) === 'string').toBe(true);
   });
 
   it('runCheck returns all required CheckResult fields', async () => {

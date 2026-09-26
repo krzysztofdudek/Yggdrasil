@@ -40,10 +40,15 @@ export interface GroupRenderOptions {
   capMembers: boolean;
 }
 
-/** What a fill named by a block's fix costs: script pairs are free, reviewer pairs are paid. */
+/**
+ * What a fill costs: script pairs are free, reviewer pairs are paid — each one
+ * as many reviewer calls as its tier's consensus asks for, so the calls are
+ * the bill and the pairs are what it buys.
+ */
 export interface BlockCost {
   free: number;
   reviewerPairs: number;
+  reviewerCalls: number;
 }
 
 /** One finding block: the data a text view renders and the JSON document mirrors. */
@@ -234,13 +239,18 @@ function costOf(members: CheckIssue[]): BlockCost {
   return {
     free: members.filter((m) => m.pairKind === 'deterministic').length,
     reviewerPairs: members.filter((m) => m.pairKind === 'llm').length,
+    reviewerCalls: members.reduce((n, m) => n + (m.pairKind === 'llm' ? (m.reviewerCalls ?? 1) : 0), 0),
   };
 }
 
-/** A block's cost, in words: `24 script pairs · free`, `24 reviewer pairs · paid`, or both. */
+/**
+ * A cost, in words: `24 script pairs · free`, `3 reviewer pairs · 9 calls ·
+ * paid`, or both — the reviewer's share always as pairs AND calls, since a
+ * tier's consensus multiplies what each pair bills.
+ */
 export function costWords(cost: BlockCost): string {
   const free = cost.free > 0 ? `${count(cost.free, 'script pair')} · free` : '';
-  const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · paid` : '';
+  const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · ${count(cost.reviewerCalls, 'call')} · paid` : '';
   return [free, paid].filter((p) => p !== '').join(' + ');
 }
 

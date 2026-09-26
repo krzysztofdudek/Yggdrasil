@@ -81,7 +81,8 @@ exit: 0
     "target": {},
     "cost": {
       "free": 0,
-      "reviewerPairs": 0
+      "reviewerPairs": 0,
+      "reviewerCalls": 0
     },
     "remaining": {
       "needsFix": 0,

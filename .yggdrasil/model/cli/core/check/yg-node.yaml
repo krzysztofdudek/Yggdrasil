@@ -14,8 +14,9 @@ description: "Unified check orchestrator — it also projects its own finished
   Runs validation, coverage, the
   prompt-size gate, and lock verification (read-only: every expected pair's
   stored verdict is re-hashed against current inputs and rendered as pass,
-  cached refusal, or unverified), then log integrity, and computes the suggested
-  next command. Write-free: the lock is produced only by the fill stage behind
+  cached refusal, or unverified), then log integrity. It computes no next step:
+  the report's one step is worked out where the report is rendered, from the
+  findings, so there is one engine for it. Write-free: the lock is produced only by the fill stage behind
   yg check --approve. When coverage.type_level is on, the coverage section also
   runs the type-level classification lattice (core/type-coverage.ts) over every
   uncovered file: a single classifying-type match is silently satisfied, 2+
@@ -45,8 +46,9 @@ description: "Unified check orchestrator — it also projects its own finished
   than merely agreeing what to do with an answer: a component file that is no
   rule check's subject (mapped documentation; a binary asset, which a prose rule
   is never given) belongs to the component and to no subject set, and a half that
-  asked only about subjects never saw it. Then the single next step a finished
-  check points at.
+  asked only about subjects never saw it. It also turns the suppression scan's
+  reason-less markers, handed in by the caller like the review clock and the
+  rules snapshot, into warnings, so every surface reporting a check states them.
   The orchestrator owns the byte cache the verification fills, so the guard
   compares the very bytes each verdict was re-hashed from rather than reading
   the same files again, and reports how many findings the guard kept."
@@ -139,7 +141,6 @@ mapping:
   - source/cli/src/core/check-aspect-status.ts
   - source/cli/src/core/check-coverage-scan.ts
   - source/cli/src/core/check-coverage-phase.ts
-  - source/cli/src/core/check-suggested-next.ts
   - source/cli/src/core/check-progressive.ts
   - source/cli/src/core/check-byte-guard.ts
   - source/cli/src/core/feature-index-write.ts

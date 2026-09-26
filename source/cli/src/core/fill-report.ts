@@ -15,7 +15,6 @@ import type { IssueMessage } from '../model/validation.js';
 import type { FillEventSink, FillUsageTotals, FillProgressCounts } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
-import { computeSuggestedNext } from './check-suggested-next.js';
 import { toPosixPath } from '../utils/posix.js';
 
 /** One pair's infrastructure diagnostic, collected by a phase for grouped emission. */
@@ -223,8 +222,9 @@ export interface FillCauseItem extends InfraDiagnosticItem {
  * `yg-check/1` document (whose consumers never see stderr) holds no trace of
  * the failure at all. Each matching `unverified` finding takes the cause and
  * the diagnostic this run already emitted for it — the same what/why/next —
- * and `suggestedNext` is recomputed, so an infrastructure cause outranks the
- * pairs one more `--approve` would fill.
+ * so the report's step, worked out from the findings when it is rendered,
+ * names the infrastructure cause before the pairs one more `--approve` would
+ * fill.
  *
  * Only this run's report carries it: a later plain `yg check` reads the lock
  * alone and has no record of a failure it did not witness.
@@ -233,7 +233,6 @@ export function annotateFillCauses(result: CheckResult, items: FillCauseItem[]):
   if (items.length === 0) return;
   const byPair = new Map<string, FillCauseItem>();
   for (const item of items) byPair.set(`${item.aspectId} ${toPosixPath(item.unitKey)}`, item);
-  let changed = false;
   for (const issue of result.issues) {
     if (issue.code !== 'unverified' || issue.aspectId === undefined || issue.unitKey === undefined) continue;
     // A nodeless pair the report already traced to its runtime reason keeps that
@@ -243,7 +242,5 @@ export function annotateFillCauses(result: CheckResult, items: FillCauseItem[]):
     if (item === undefined) continue;
     issue.unverifiedCause = item.cause;
     issue.messageData = item.messageData;
-    changed = true;
   }
-  if (changed) result.suggestedNext = computeSuggestedNext(result.issues);
 }

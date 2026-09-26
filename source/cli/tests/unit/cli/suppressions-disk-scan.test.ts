@@ -31,7 +31,7 @@ vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
 import { registerSuppressionsCommand } from '../../../src/cli/suppressions.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
-import { computeSuppressionScanUniverse } from '../../../src/portal/api/suppress-eligibility.js';
+import { computeSuppressionScanUniverse } from '../../../src/core/suppressions/eligibility.js';
 
 const mockLoadGraph = vi.mocked(loadGraphOrAbort);
 const mockWalkRepoFiles = vi.mocked(walkRepoFiles);
