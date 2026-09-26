@@ -22,7 +22,7 @@ export const AUTO_APPROVE_READ_ONLY_CASES =
 
 /** What besides the rule file itself is folded into a rule's hash. */
 export const RULE_SUPPORT_FILES =
-  "A rule is more than its rule file: every other file in the rule's directory is folded into the rule's hash too — a helper module `check.mjs` or `companion.mjs` imports, a table it ships — so editing one re-opens every pair of the rule, exactly as editing `content.md` or `check.mjs` does. Left out: `yg-aspect.yaml`, `log.md`, a package rule's adaptation and its log, a generator's `provenance.json`, `node_modules`, and every file under a dot-named entry that is not code (`.mjs`, `.js`, `.cjs`); a file under `drills/` or in a nested rule's directory counts only when the rule's code imports it. A module imported from outside the rule's directory is not folded in.";
+  "A rule is more than its rule file: every other file in the rule's directory is folded into the rule's hash too — a helper module `check.mjs` or `companion.mjs` imports, a table it ships — so editing one re-opens every pair of the rule, exactly as editing `content.md` or `check.mjs` does. Left out: `yg-aspect.yaml`, `log.md`, a package rule's adaptation and its log, a generator's `provenance.json`, `node_modules`, and every file under a dot-named entry that is not code (`.mjs`, `.js`, `.cjs`); a file under `drills/` or in a nested rule's directory counts only when the rule's code names it by a literal relative specifier (an `import`, `require` or `new URL(…, import.meta.url)`), and a gitignored dot-named file never counts. A module imported from outside the rule's directory is not folded in.";
 
 /** Which line a single-line `yg-suppress` marker waives, trailing markers included. */
 export const SUPPRESS_SINGLE_LINE_SCOPE =

@@ -141,4 +141,21 @@ describe('the rule hash and the files beside the rule', () => {
     const aspect = await load(rule({ 'check.mjs': importing, 'node_modules/pkg/index.mjs': 'export default 1;\n' }));
     expect(aspect.supportFiles).toBeUndefined();
   });
+
+  it('folds a module only under its exact on-disk spelling, so every filesystem hashes the same', async () => {
+    const importing = (spec: string) => `import { h } from '${spec}';\nexport function check() { return h ? [] : []; }\n`;
+    const helper = { 'drills/_lib/helper.mjs': 'export const h = 1;\n' };
+    const loose = await load(rule({ ...helper, 'check.mjs': importing('./drills/_lib/Helper.mjs') }));
+    expect(loose.supportFiles).toBeUndefined();
+    const exact = await load(rule({ ...helper, 'check.mjs': importing('./drills/_lib/helper.mjs') }));
+    expect(exact.supportFiles?.map(([p]) => p)).toEqual(['drills/_lib/helper.mjs']);
+  });
+
+  it('leaves out dot-named code the repository ignores (.venv, .cache, .turbo)', async () => {
+    const files = { '.cache/tool.mjs': 'export const t = 1;\n', '.lib/helper.mjs': 'export const h = 1;\n' };
+    const unignored = await load(rule(files));
+    expect(unignored.supportFiles?.map(([p]) => p)).toEqual(['.cache/tool.mjs', '.lib/helper.mjs']);
+    const ignored = await load(rule({ ...files, '.gitignore': '.cache/\n' }));
+    expect(ignored.supportFiles?.map(([p]) => p)).toEqual(['.lib/helper.mjs']);
+  });
 });

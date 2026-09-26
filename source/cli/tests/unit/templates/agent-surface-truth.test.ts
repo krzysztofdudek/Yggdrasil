@@ -89,9 +89,15 @@ describe('status words in the manual are the glossary definitions', () => {
   });
 
   it('the manual never calls status rendering only, and the aspect-status topic says it is not', () => {
-    expect(AGENT_RULES_CONTENT.replace(/not rendering only/g, '')).not.toMatch(/rendering only/);
+    expect(AGENT_RULES_CONTENT.replace(/not rendering only/gi, '')).not.toMatch(/rendering only/i);
     expect(topic('aspect-status')).toContain('it is NOT rendering only');
   });
+
+  for (const name of Object.keys(KNOWLEDGE_TOPICS)) {
+    it(`knowledge topic ${name} never calls status rendering only`, () => {
+      expect(topic(name).replace(/not rendering only/gi, '')).not.toMatch(/rendering only/i);
+    });
+  }
 });
 
 describe('the manual and the references say what the commands do', () => {
