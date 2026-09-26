@@ -7,6 +7,7 @@ import { MARKETPLACE_FILENAME, PACKAGE_FILENAME, PACKAGES_DIR } from '../model/p
 import { checkPackageRequires, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
 import { inspectPackageTree, listPackageAspectDirs } from '../io/package-store.js';
 import { listIgnoredUntrackedPaths } from '../utils/git-introspect.js';
+import { isGitRepositoryRoot } from '../utils/git-pack-fetch.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { listDirEntries, readTextFile, statKind } from '../io/graph-fs.js';
 import { collectConfigReads } from '../structure/config-reads.js';
@@ -168,13 +169,17 @@ export interface MarketplaceCheckOptions {
 }
 
 /**
- * What the source will carry, relative to the marketplace root: everything except
- * what git ignores (an install clones the published tag, so an ignored
- * `node_modules/` a package author installed locally never reaches a consumer).
- * Outside a git repository nothing is ignored — `yg pack add` from a plain
- * directory copies whatever is on disk.
+ * What the source will carry, relative to the marketplace root. `yg pack add`
+ * reads a marketplace as a git repository only when it is the ROOT of one: it
+ * then clones the published tag, so what git ignores (a `node_modules/` a
+ * package author installed locally) never reaches a consumer and is left out
+ * here too. Anything else — a plain directory, or a marketplace nested inside
+ * another repository's working tree — is copied as it is on disk, ignored files
+ * included, so nothing is left out. The same question the install asks, so the
+ * two can never disagree about which kind of source this is.
  */
 async function publishedFilter(root: string): Promise<(relPath: string) => boolean> {
+  if (!(await isGitRepositoryRoot(root))) return () => true;
   const ignored = await listIgnoredUntrackedPaths(root);
   if (ignored === null || ignored.length === 0) return () => true;
   return (relPath) =>

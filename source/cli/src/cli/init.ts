@@ -40,7 +40,7 @@ import {
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
   stripRetiredKeys,
-  type RetiredKeyRemoval,
+  type RetiredKeysResult,
 } from './init-scaffold.js';
 import { fail, next, thenStep, paint, writeOut } from './output.js';
 
@@ -487,7 +487,7 @@ export interface VersionUpgradeResult {
    * Keys an earlier release read and this one refuses, removed from the graph
    * and configuration files by this run — one per key, with its file.
    */
-  retiredKeysRemoved: RetiredKeyRemoval[];
+  retiredKeys: RetiredKeysResult;
   /** True when a migration withheld the version bump (incomplete upgrade). */
   withheld: boolean;
   /**
@@ -625,10 +625,13 @@ async function readUnknownConfigKeys(yggRoot: string): Promise<IssueMessage[]> {
  * What an upgrade says about the retired keys it removed: one line per key and
  * file, then how the files were rewritten, so the owner knows to read the diff.
  */
-export function renderRetiredKeysRemoved(removed: RetiredKeyRemoval[]): string {
+export function renderRetiredKeysRemoved(result: RetiredKeysResult): string {
   return [
-    ...removed.map((r) => `Removed retired key '${r.key}' from ${r.file} (${r.reason}).`),
-    'Each file was edited in place: every other key and comment is kept, except a comment on a removed key itself; the writer may normalize indentation. Review with git diff before committing.',
+    ...result.removed.map((r) => `Removed retired key '${r.key}' from ${r.file} (${r.reason}).`),
+    ...(result.removed.length > 0
+      ? ['Each file was edited in place: every other key and comment is kept, except a comment on a removed key itself; the writer may normalize indentation. Review with git diff before committing.']
+      : []),
+    ...result.untouched.map((u) => `Left ${u.file} untouched: it holds retired keys, but it could not be written back without them (${u.reason}). Delete them by hand; yg check names each one.`),
   ].join('\n');
 }
 
@@ -675,10 +678,10 @@ export async function runVersionUpgrade(
   // Keys earlier releases read and this one refuses are removed here, after the
   // migrations (which may still read them) and before the unknown-key scan, so
   // the scan names only what is the owner's to correct.
-  const retiredKeysRemoved = await stripRetiredKeys(projectRoot, yggRoot);
+  const retiredKeys = await stripRetiredKeys(projectRoot, yggRoot);
 
   return {
-    retiredKeysRemoved,
+    retiredKeys,
     unknownConfigKeys: await readUnknownConfigKeys(yggRoot),
     rulesPaths: report.written,
     rulesRemoved: report.removed,
@@ -773,7 +776,7 @@ async function existingInit(projectRoot: string): Promise<void> {
     for (const action of result.migrationActions) {
       p.log.info(action);
     }
-    if (result.retiredKeysRemoved.length > 0) p.log.info(renderRetiredKeysRemoved(result.retiredKeysRemoved));
+    if (result.retiredKeys.removed.length + result.retiredKeys.untouched.length > 0) p.log.info(renderRetiredKeysRemoved(result.retiredKeys));
     for (const warning of result.migrationWarnings) {
       p.log.warning(buildIssueMessage({ what: `warning: ${warning}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }));
     }
@@ -967,7 +970,7 @@ export function registerInitCommand(program: Command): void {
           if (result.exclusionNotice) {
             writeOut(paint.yellow(`${result.exclusionNotice}\n`));
           }
-          if (result.retiredKeysRemoved.length > 0) writeOut(`${renderRetiredKeysRemoved(result.retiredKeysRemoved)}\n`);
+          if (result.retiredKeys.removed.length + result.retiredKeys.untouched.length > 0) writeOut(`${renderRetiredKeysRemoved(result.retiredKeys)}\n`);
           for (const unknown of result.unknownConfigKeys) {
             writeOut(paint.yellow(`${buildIssueMessage(unknown)}\n`));
           }

@@ -10,7 +10,8 @@
  *      broken, an aspect-implies cycle, or an escaping mapping) aborts the
  *      whole fill (no fills, no LLM calls). So does a node log.md that is not
  *      settled — conflict markers, a rewritten history, a body that does not
- *      parse — for every run except --only-deterministic, since closure would
+ *      parse — for every run except --only-deterministic and --dry-run (neither
+ *      records a baseline), since closure would
  *      record a baseline over it. One exception: a missing reviewer
  *      does not gate a run that would never call one (--only-deterministic),
  *      a preview (--dry-run), or a project whose judgment rules are all
@@ -250,9 +251,10 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // that does not parse) stops a run that could close a node's cycle before it
   // buys anything: closure would record a baseline over it. The same reading a
   // plain check makes, so the two can never disagree about which log is broken.
-  // `--only-deterministic` writes no baseline and is not stopped by it.
+  // `--only-deterministic` and a `--dry-run` preview write no baseline and are
+  // not stopped by it.
   const logStateIssues: CheckIssue[] = [];
-  if (!onlyDeterministic) await classifyLogStateFromLock(graph, projectRoot, lock, logStateIssues);
+  if (!onlyDeterministic && !dryRun) await classifyLogStateFromLock(graph, projectRoot, lock, logStateIssues);
   const gating = [
     ...validation.issues.filter(
       (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code) && !reviewerMissingIsNoGate(i),

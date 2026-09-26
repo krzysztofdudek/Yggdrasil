@@ -132,6 +132,24 @@ version: "4.0.0"
     await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
+  it.each([
+    ['quality', 'quality:\n  max_direct_relation: 3\n', 'config-quality-unknown-key'],
+    ['a tier config', 'reviewer:\n  tiers:\n    standard:\n      config:\n        modle: x\n', 'config-tier-unknown-key'],
+  ])('names yg-secrets.yaml, not yg-config.yaml, for an unknown key in %s that comes from the overlay', async (_label, overlay, code) => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay-nested');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(
+      path.join(tmpDir, 'yg-config.yaml'),
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: m\n',
+      'utf-8',
+    );
+    await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), overlay, 'utf-8');
+    const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+    expect((err as ConfigParseError).code).toBe(code);
+    expect((err as ConfigParseError).messageData.what.startsWith('yg-secrets.yaml:')).toBe(true);
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
+  });
+
   it('names yg-secrets.yaml when the unknown top-level key comes from the overlay', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay');
     await mkdir(tmpDir, { recursive: true });

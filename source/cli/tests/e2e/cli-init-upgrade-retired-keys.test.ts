@@ -16,6 +16,7 @@
 //   2. a key nobody retired → left in place, still named by `yg check`
 //   3. a rule installed from a package → its files are never edited
 //   4. a second upgrade → removes nothing (idempotent)
+//   5. a file the writer cannot render back → left untouched and named
 //
 // Every repository is built at test time; nothing reaches the network, and no
 // reviewer is called (the rules are script rules, and nothing is filled).
@@ -90,6 +91,11 @@ const LEGACY: Record<string, string> = {
     '  - target: app/other',
     '    type: uses',
     '    failure: retry',
+    'ports:',
+    '  api:',
+    '    description: "The model API."',
+    '    version: 2',
+    '    test: tests/api.contract.ts',
     'mapping:',
     '  - src/schema.ts',
     '',
@@ -135,6 +141,8 @@ describe.skipIf(!distExists)('CLI E2E — yg init --upgrade removes retired keys
         "Removed retired key 'node_types.entity.sizeExempt' from .yggdrasil/yg-architecture.yaml",
         "Removed retired key 'sizeExempt' from .yggdrasil/model/app/schema/yg-node.yaml",
         "Removed retired key 'relations[0].failure' from .yggdrasil/model/app/schema/yg-node.yaml",
+        "Removed retired key 'ports.api.version' from .yggdrasil/model/app/schema/yg-node.yaml",
+        "Removed retired key 'ports.api.test' from .yggdrasil/model/app/schema/yg-node.yaml",
         "Removed retired key 'id' from .yggdrasil/aspects/no-todo/yg-aspect.yaml",
         "Removed retired key 'stability' from .yggdrasil/aspects/no-todo/yg-aspect.yaml",
         "Removed retired key 'language' from .yggdrasil/aspects/no-todo/yg-aspect.yaml",
@@ -160,6 +168,8 @@ describe.skipIf(!distExists)('CLI E2E — yg init --upgrade removes retired keys
       expect(node).not.toContain('failure');
       expect(node).toContain('# the one model file');
       expect(node).toContain('target: app/other');
+      expect(node).toContain('description: "The model API."');
+      expect(node).not.toMatch(/^\s+(version|test):/m);
       const rule = read(dir, '.yggdrasil/aspects/no-todo/yg-aspect.yaml');
       expect(rule).not.toMatch(/^(id|stability|language):/m);
       expect(rule).toContain('name: NoTodo');
@@ -196,6 +206,23 @@ describe.skipIf(!distExists)('CLI E2E — yg init --upgrade removes retired keys
       const upgraded = run(['init', '--upgrade'], dir);
       expect(upgraded.all).not.toContain('packages/acme');
       expect(read(dir, packaged)).toBe(body);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('5: a file the writer cannot render back is left untouched and named, and the others are still cleaned', () => {
+    // The anchor lives on the retired key; removing it would leave the alias
+    // below pointing at nothing, so that file stays exactly as it was.
+    const aliased = '.yggdrasil/model/app/other/yg-node.yaml';
+    const body = 'name: Other\ntype: entity\nsizeExempt: &why\n  reason: one file\ndescription: *why\nmapping:\n  - src/other.ts\n';
+    const dir = build('alias', { [aliased]: body });
+    try {
+      const upgraded = run(['init', '--upgrade'], dir);
+      expect(upgraded.status).toBe(0);
+      expect(upgraded.all).toContain(`Left ${aliased} untouched`);
+      expect(read(dir, aliased)).toBe(body);
+      expect(upgraded.all).toContain("Removed retired key 'sizeExempt' from .yggdrasil/model/app/schema/yg-node.yaml");
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

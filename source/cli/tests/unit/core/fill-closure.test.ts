@@ -368,6 +368,14 @@ describe('a conflicted log.md stops --approve and never closes its node', () => 
     ).resolves.toBeDefined();
   });
 
+  it('a --dry-run preview records no baseline and is not stopped by the conflicted log', async () => {
+    const projectRoot = await setupDetNode({ logRequired: true, logContent: CONFLICTED_LOG });
+    const graph = await loadGraph(projectRoot);
+    await expect(
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {}, dryRun: true }),
+    ).resolves.toBeDefined();
+  });
+
   it('closure itself advances neither the source nor the log baseline of a node whose log holds markers', async () => {
     const projectRoot = await setupDetNode({ logRequired: true, logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n' });
     let graph = await loadGraph(projectRoot);

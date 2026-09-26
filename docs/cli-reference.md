@@ -549,7 +549,7 @@ The view decides the volume, not the terminal: a pipe (an agent, CI) gets exactl
 
 When part of the graph did not load as written — `yg-config.yaml`, `yg-architecture.yaml`, a component's `yg-node.yaml` or the lock — a `partial:` line under the verdict says what was left out: `partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first.` That finding's block comes first (it is graph-invalid), and `next:` names its fix.
 
-A `log.md` that is not settled — git conflict markers still in it (`log-conflict`), a recorded history that was rewritten (`log-integrity`), or a body that does not parse (`log-format`) — stops `yg check --approve` the same way, before anything is filled: the fill would record the node's baseline over it. `--only-deterministic` records no baseline and is not stopped by it.
+A `log.md` that is not settled — git conflict markers still in it (`log-conflict`), a recorded history that was rewritten (`log-integrity`), or a body that does not parse (`log-format`) — stops `yg check --approve` the same way, before anything is filled: the fill would record the node's baseline over it. `--only-deterministic` and `--dry-run` record no baseline and are not stopped by it.
 
 When `yg check --approve` stops at a gate before recording anything, the stop is reported on stdout like any result: a `yg check: ABORTED  nothing recorded — 24 nodes need a log entry first` verdict line, the gating block, and a `next:` / `then:` pair whose re-run is the command you ran, with its flags (under `--json`, the document described above with `exit.status: aborted`):
 

@@ -238,9 +238,11 @@ names its own code:
 
 Everything \`yg pack add\` refuses about a package's manifests and files is asked
 here, through the same readers, so a package this check passes is one that
-installs. What git ignores is left out — an install clones the tag and never sees
-it — so a locally installed \`node_modules/\` passes while \`.gitignore\` covers it;
-outside a git repository nothing is left out.
+installs. When the marketplace is the ROOT of a git repository, what git ignores is
+left out — an install clones the tag and never sees it — so a locally installed
+\`node_modules/\` passes while \`.gitignore\` covers it. A plain directory, or a
+marketplace nested inside another repository's working tree, is copied from disk
+by \`yg pack add\`, ignored files included, so there nothing is left out.
 
 And four warnings, which do not fail the check: \`package-config-unused\` (declared
 and never read), \`package-config-dynamic\` (the rule reaches its settings through a

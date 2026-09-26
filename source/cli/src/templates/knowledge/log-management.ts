@@ -248,7 +248,7 @@ Until it is reconciled, \`yg check --approve\` refuses to run (\`log-conflict\`,
 ABORTED before anything is filled): recording the node's baseline over a
 conflicted log would close its cycle over entries nobody reconciled. The same
 holds for a rewritten history (\`log-integrity\`) and a log that does not parse
-(\`log-format\`). \`--only-deterministic\` records no baseline and still runs.
+(\`log-format\`). \`--only-deterministic\` and \`--dry-run\` record no baseline and still run.
 
 When BOTH \`log.md\` and \`yg-lock.logs.json\` conflicted, the order is: resolve the lock
 (take ONE side wholesale — during a rebase \`--ours\` is the upstream) → \`yg log merge-resolve --node <path>\` per conflicted

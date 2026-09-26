@@ -1,6 +1,9 @@
 /**
  * source/cli/src/utils/known-keys.ts — the one reading of "a key this block does
- * not know", shared by every graph and configuration file parser.
+ * not know", shared by the parsers of yg-config.yaml (and its yg-secrets.yaml
+ * overlay), yg-architecture.yaml, yg-node.yaml and yg-aspect.yaml. Flow files
+ * are not held to it yet: a flow that fails to load still stops every command,
+ * so refusing its keys waits on flow errors becoming per-file findings.
  *
  * A key the schema does not declare is almost always a typo (`relation` for
  * `relations`, `stauts` for `status`), and a parser that ignored it would drop

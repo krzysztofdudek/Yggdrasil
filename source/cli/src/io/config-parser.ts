@@ -416,6 +416,8 @@ async function parseConfigInner(
       ? ((committedCoverage as Record<string, unknown>).type_level as boolean)
       : undefined;
 
+  refuseUnknownNestedKeys(baseRaw, filename);
+  if (overlay) refuseUnknownNestedKeys(overlay, 'yg-secrets.yaml');
   const raw = overlay ? deepMerge(baseRaw, overlay) : baseRaw;
 
   const versionField = readSchemaVersionField(raw);
@@ -430,18 +432,7 @@ async function parseConfigInner(
     }, 'config-invalid');
   }
   const qualityMap = qualityRaw as Record<string, unknown> | undefined;
-  const unknownQuality = qualityMap ? findUnknownKeys(qualityMap, QUALITY_KEYS, RETIRED_QUALITY_KEYS) : [];
-  if (unknownQuality.length > 0) {
-    throw new ConfigParseError({
-      what: `${filename}: ${describeUnknownKeys('quality', unknownQuality, QUALITY_KEYS)}`,
-      why: 'quality holds the named thresholds the check measures against; a misspelled one leaves its threshold at the default while the file appears to set it.',
-      next: unknownQuality[0].retired !== undefined
-        ? `Delete quality.${unknownQuality[0].key} from ${filename}.`
-        : unknownQuality[0].suggestion !== undefined
-        ? `Rename quality.${unknownQuality[0].key} to quality.${unknownQuality[0].suggestion}, or remove it.`
-        : `Remove quality.${unknownQuality[0].key}, or rename it to one of: ${QUALITY_KEYS.join(', ')}.`,
-    }, 'config-quality-unknown-key');
-  }
+  if (qualityMap) refuseUnknownQualityKeys(qualityMap, filename);
   const quality: QualityConfig = qualityMap
     ? {
         max_direct_relations: parseMaxDirectRelations(qualityMap.max_direct_relations, filename),
@@ -814,6 +805,58 @@ function parseReviewer(raw: Record<string, unknown>, filename: string): Reviewer
 }
 
 /**
+ * Refuse a `quality:` key the configuration does not accept, naming the file it
+ * sits in. Called on the committed file and on the local overlay SEPARATELY,
+ * before they are merged, so a key in the gitignored yg-secrets.yaml is reported
+ * where it is — the same rule the top-level unknown-key check follows.
+ */
+function refuseUnknownQualityKeys(qualityMap: Record<string, unknown>, filename: string): void {
+  const unknownQuality = findUnknownKeys(qualityMap, QUALITY_KEYS, RETIRED_QUALITY_KEYS);
+  if (unknownQuality.length > 0) {
+    throw new ConfigParseError({
+      what: `${filename}: ${describeUnknownKeys('quality', unknownQuality, QUALITY_KEYS)}`,
+      why: 'quality holds the named thresholds the check measures against; a misspelled one leaves its threshold at the default while the file appears to set it.',
+      next: unknownQuality[0].retired !== undefined
+        ? `Delete quality.${unknownQuality[0].key} from ${filename}.`
+        : unknownQuality[0].suggestion !== undefined
+        ? `Rename quality.${unknownQuality[0].key} to quality.${unknownQuality[0].suggestion}, or remove it.`
+        : `Remove quality.${unknownQuality[0].key}, or rename it to one of: ${QUALITY_KEYS.join(', ')}.`,
+    }, 'config-quality-unknown-key');
+  }
+}
+
+/** Refuse a key a tier's `config:` does not accept, naming the file it sits in (see refuseUnknownQualityKeys). */
+function refuseUnknownTierConfigKeys(c: Record<string, unknown>, name: string, filename: string): void {
+  const unknownConfigKeys = findUnknownKeys(c, TIER_CONFIG_KEYS, RETIRED_TIER_CONFIG_KEYS);
+  if (unknownConfigKeys.length > 0) {
+    throw new ConfigParseError({
+      what: `${filename}: ${describeUnknownKeys(`tier '${name}' config`, unknownConfigKeys, TIER_CONFIG_KEYS)}`,
+      why: "a tier's config: holds the provider settings every reviewer call of that tier is made with; a misspelled one leaves its setting at the provider's default while the file appears to set it.",
+      next: unknownConfigKeys[0].retired !== undefined
+        ? `Delete '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`
+        : unknownConfigKeys[0].suggestion !== undefined
+        ? `Rename '${unknownConfigKeys[0].key}' to '${unknownConfigKeys[0].suggestion}' under reviewer.tiers.${name}.config, or remove it.`
+        : `Remove '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`,
+    }, 'config-tier-unknown-key');
+  }
+}
+
+/**
+ * Check one file's `quality:` and tier `config:` blocks for unknown keys before
+ * the overlay is merged, so each finding names the file that carries it.
+ * Shape problems are left to the full parse after the merge.
+ */
+function refuseUnknownNestedKeys(raw: Record<string, unknown>, filename: string): void {
+  const isMapping = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if (isMapping(raw.quality)) refuseUnknownQualityKeys(raw.quality, filename);
+  const reviewer = raw.reviewer;
+  if (!isMapping(reviewer) || !isMapping(reviewer.tiers)) return;
+  for (const [tierName, tier] of Object.entries(reviewer.tiers)) {
+    if (isMapping(tier) && isMapping(tier.config)) refuseUnknownTierConfigKeys(tier.config, tierName, filename);
+  }
+}
+
+/**
  * The first setting of a tier's `config:` whose value has the wrong type, or null.
  * An empty value (`timeout:` with nothing after it) reads as absent, as before.
  * `model` has its own check below (it may also come from a provider default).
@@ -891,18 +934,7 @@ function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
     }, 'config-tier-config-not-mapping');
   }
   const c = cfg as Record<string, unknown>;
-  const unknownConfigKeys = findUnknownKeys(c, TIER_CONFIG_KEYS, RETIRED_TIER_CONFIG_KEYS);
-  if (unknownConfigKeys.length > 0) {
-    throw new ConfigParseError({
-      what: `${filename}: ${describeUnknownKeys(`tier '${name}' config`, unknownConfigKeys, TIER_CONFIG_KEYS)}`,
-      why: "a tier's config: holds the provider settings every reviewer call of that tier is made with; a misspelled one leaves its setting at the provider's default while the file appears to set it.",
-      next: unknownConfigKeys[0].retired !== undefined
-        ? `Delete '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`
-        : unknownConfigKeys[0].suggestion !== undefined
-        ? `Rename '${unknownConfigKeys[0].key}' to '${unknownConfigKeys[0].suggestion}' under reviewer.tiers.${name}.config, or remove it.`
-        : `Remove '${unknownConfigKeys[0].key}' from reviewer.tiers.${name}.config.`,
-    }, 'config-tier-unknown-key');
-  }
+  refuseUnknownTierConfigKeys(c, name, filename);
   const configTypeError = tierConfigTypeError(c);
   if (configTypeError !== null) {
     throw new ConfigParseError({
