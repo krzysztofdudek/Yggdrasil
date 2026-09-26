@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Security:** a component mapping entry written with Windows separators that climbs out of the repository (`..\secret`, `src\..\..\x` in `yg-node.yaml`) is now refused as escaping it, on every OS. The node parser checked the entry as written, where a backslash is an ordinary character, so on Windows such an entry could map a file outside the repository into a component; aspect references and package paths were already checked in POSIX form.
 - After a `check.mjs` that crashed, `next:` is `edit` that `check.mjs`, and `then:` is the command you ran with its flags. It used to be `yg check --approve`, which bills the reviewer after a free `--only-deterministic` run.
 - `next:` for an edited or missing copy of an installed package is `yg pack update <name> --reinstall`, package name included; in `--json` the command used to lose the name and was one the CLI refuses. A misspelled key in `yg-config.yaml` or `yg-secrets.yaml` now points `next:` at the file to change.
 - `yg context` refuses only over an error in what it reads — the architecture, a rule or flow file, a component the loader never reached, a configuration that did not load, the lock. A misspelled key in `yg-secrets.yaml` (or any other error that does not change a node's context) is named on stderr and the context is given; it used to refuse, blocking the step an agent runs before every edit.

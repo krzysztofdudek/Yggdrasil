@@ -1,6 +1,7 @@
 // yg-suppress(silent-missing-files) Reads a declared, expected graph file; a missing one is a real graph error, so throwing is correct. silent-missing-files governs the loader's optional-directory handling (aspects/, flows/), not parser reads of expected files.
 import { readFile } from 'node:fs/promises';
 import { escapesRepo } from '../utils/repo-path-escape.js';
+import { toPosixPath } from '../utils/posix.js';
 import { parse as parseYaml } from 'yaml';
 import type { AspectStatus, NodeMeta, PortDef, Relation, RelationType } from '../model/graph.js';
 
@@ -262,7 +263,9 @@ function validateRelativePath(pathValue: string, filePath: string, fieldName: st
   if (normalized === '') {
     throw new Error(`yg-node.yaml at ${filePath}: '${fieldName}' must be non-empty`);
   }
-  if (escapesRepo(normalized)) {
+  // Checked in POSIX form: a backslash is a separator on Windows, so '..\\x'
+  // climbs out of the repository there and must be refused on every OS.
+  if (escapesRepo(toPosixPath(normalized))) {
     throw new Error(`yg-node.yaml at ${filePath}: '${fieldName}' must be relative to repository root and must not escape it`);
   }
   return normalized;

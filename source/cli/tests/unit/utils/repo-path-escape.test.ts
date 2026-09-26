@@ -44,8 +44,9 @@ describe('escapesRepo — the shared path-escape check', () => {
 
   it('treats a backslash as an ordinary character: callers convert with toPosixPath first', () => {
     // Lexical and POSIX-only by contract: raw Windows separators are one segment,
-    // so the escape is visible only after conversion. Every parser that accepts
-    // input that may carry backslashes converts it before asking.
+    // so the escape is visible only after conversion. Every caller (node mappings,
+    // aspect references and companions, package paths and lock records) converts
+    // with toPosixPath before asking, so '..\\x' is refused as escaping on every OS.
     expect(escapesRepo('..\\secret')).toBe(false);
     expect(escapesRepo(toPosixPath('..\\secret'))).toBe(true);
     expect(escapesRepo(toPosixPath('a\\..\\..\\b'))).toBe(true);
