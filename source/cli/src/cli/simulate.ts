@@ -795,7 +795,7 @@ export function registerSimulateCommand(program: Command): void {
   program
     .command('simulate')
     .description(
-      'Replay a candidate script rule over the history it can honestly reach (read-only, in an isolated clone; reports per-commit outcomes, never gates)',
+      'Replay a candidate script rule over the history it can honestly reach (runs its check.mjs once per commit in an isolated clone, writes nothing to your repository; reports per-commit outcomes, never gates)',
     )
     .argument('<candidate>', 'aspect id of the candidate script rule to replay')
     .option('--node <path>', 'the node whose files the candidate replays over at each commit — mutually exclusive with --file')

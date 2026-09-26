@@ -102,7 +102,7 @@
       id: 'status',
       term: 'status',
       group: 'Rules',
-      def: 'How much a rule’s refusals count: draft, advisory or enforced, set by `status:` in the rule’s own file.',
+      def: 'How much the refusals of a rule count: draft, advisory or enforced. Set by `status:` on the rule, and raisable — never lowerable — at any site that attaches it; the effective status is the highest.',
       not: 'standing, enforcement level',
       see: '/aspect-status',
     },
@@ -117,7 +117,7 @@
       id: 'advisory',
       term: 'advisory',
       group: 'Rules',
-      def: 'A rule whose refusals show as warnings. They never block.',
+      def: 'A rule whose refusals show as warnings. They never block — except a pair whose prompt is too large to judge (`prompt-too-large`), an error at any status.',
       see: '/aspect-status',
     },
     {

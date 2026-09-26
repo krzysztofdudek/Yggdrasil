@@ -1632,7 +1632,7 @@ yg schemas read node
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
 | `yg drill --aspect <id>` / `add`                                 | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); `add` takes a real file at a commit into that corpus. Never writes the lock |
-| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a script rule over reachable history in an isolated clone; read-only, exits 0 |
+| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a script rule over reachable history in an isolated clone; runs its `check.mjs`, writes nothing to your repository, exits 0 |
 
 ### `yg drill`
 
@@ -1828,7 +1828,10 @@ to drop or re-roll a recorded verdict.
 Replays a candidate **script** rule over the history it can honestly reach —
 "if I had shipped this rule, what would it have caught?" It replays the candidate's
 `check.mjs` over recent commits in an **isolated temp clone**, one fresh subprocess
-per commit, strictly read-only: your working tree is left byte-for-byte unchanged.
+per commit. It writes nothing to your repository — your working tree is left
+byte-for-byte unchanged — but it does **run** the candidate's `check.mjs`, once per
+replayed commit, with your process's permissions: see the trust table in
+[The lock](/the-lock#what-yg-check-proves-and-against-whom).
 
 ```bash
 yg simulate <candidate> --node <node-path>                 # replay over the last 20 commits
@@ -2193,7 +2196,9 @@ yg pack new <name>
   that already exists.
 
 **Installing a package runs its author's code.** A rule's script runs in your
-process on every `yg check`. What is sandboxed is what a rule may READ through
+process whenever a check fills verdicts (`--approve`, `--only-deterministic`, a
+configured `auto_approve`) and in `yg aspect-test`, `yg drill`, `yg simulate` and
+`yg adopt` — a plain `yg check` runs none of it. What is sandboxed is what a rule may READ through
 the context it is handed, not the module itself.
 
 Machine-readable documents `yg pack` and `yg marketplace` read and write:

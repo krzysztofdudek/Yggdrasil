@@ -472,9 +472,12 @@ reference byte cap; the prompt limit bounds the whole payload.
 ## Aspect status
 
 Reviewer rules declare \`status: draft | advisory | enforced\` (default \`enforced\`).
-Status is rendering only. Draft produces no pairs (zero cost). Advisory and
-enforced both verify; they differ only in how a refused or unverified pair
-renders. The authoring ladder mirrors script rules: start at \`draft\`,
+Status is never a hash input, but it is not rendering only
+(\`yg knowledge read aspect-status\`). Draft produces no pairs (zero cost).
+Advisory and enforced both verify; for a reviewer rule they differ in how a
+refused or unverified pair renders and whether it blocks — an advisory pair never
+blocks except a \`prompt-too-large\` one, an error at any status — and in that
+only enforced pairs hold back a node's positive closure. The authoring ladder mirrors script rules: start at \`draft\`,
 iterate with \`yg aspect-test\` (\`--dry-run\` previews the prompt for free; a
 live run calls the reviewer), promote when the rule is stable.
 See: \`yg knowledge read aspect-status\`.

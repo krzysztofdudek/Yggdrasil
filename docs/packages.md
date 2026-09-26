@@ -11,8 +11,12 @@ manifest at its root, and a package is a directory inside it. A version is a git
 tag. What you type is what you get.
 
 ::: danger Installing a package runs its author's code
-A rule ships a script, and that script runs in your process on every `yg check`,
-with everything your process can reach. What is fenced is what a rule may
+A rule ships a script, and that script runs in your process whenever a check
+fills verdicts — `yg check --approve`, the free `--only-deterministic` step, a
+bare `yg check` under a configured `auto_approve` — and in `yg aspect-test`,
+`yg drill`, `yg simulate` and `yg adopt`, with everything your process can
+reach. A plain `yg check` runs none of it (the full list is in
+[The lock](/the-lock#what-yg-check-proves-and-against-whom)). What is fenced is what a rule may
 **read** through the context it is handed — not the module itself. Install a
 package only from a source you would give a shell to, and read what you are
 installing.

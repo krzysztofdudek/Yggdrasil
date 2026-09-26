@@ -1,3 +1,5 @@
+import { AUTO_APPROVE_READ_ONLY_CASES } from './shared-text.js';
+
 export const summary = 'yg-config.yaml fields: version, reviewer tiers, quality thresholds, parallelism, auto_approve (automatic fill mode — not a human approval), rules_artifacts (which agent-rules files this project carries), progressive (measure changes against a branch)';
 
 export const content = `# Configuration (yg-config.yaml)
@@ -50,9 +52,12 @@ auto_approve: false               # Controls the behavior of bare yg check (with
                                   #   false (default): read-only — no writes, no LLM calls, no API keys.
                                   #   "deterministic": behaves as yg check --approve --only-deterministic
                                   #     (free, keyless local fills only).
-                                  #   "full": behaves as yg check --approve (may call the reviewer).
+                                  #   "full": behaves as yg check --approve (may call the reviewer) —
+                                  #     except under CI (the CI variable set): there bare yg check
+                                  #     stays read-only and says so on stderr.
                                   # Explicit CLI flags (--approve, --no-approve, --only-deterministic)
-                                  # ALWAYS override this setting.
+                                  # ALWAYS override this setting. A triage view (--top, --summary,
+                                  # --aspect, --details) never fills, whatever this says.
                                   # CI / pre-commit: always use the explicit flag form.
 
 debug: false                      # When true, appends all command output to .yggdrasil/.debug.log (default: false)
@@ -430,12 +435,20 @@ not a human approval. Three modes:
 |---|---|
 | \`false\` (default) | Read-only. No writes, no LLM calls, no API keys. |
 | \`"deterministic"\` | Behaves as \`yg check --approve --only-deterministic\` — fills only script pairs (free, keyless, local). |
-| \`"full"\` | Behaves as \`yg check --approve\` — fills the unverified pairs that run answers for, and may call the reviewer (requires keys). |
+| \`"full"\` | Behaves as \`yg check --approve\` — fills the unverified pairs that run answers for, and may call the reviewer (requires keys). Held back under CI: see below. |
 
 **Precedence:** Explicit CLI flags (\`--approve\`, \`--no-approve\`,
 \`--only-deterministic\`) ALWAYS override \`auto_approve\` regardless of the
 configured value. Setting \`--no-approve\` on the command line forces read-only
 even when \`auto_approve: full\`.
+
+${AUTO_APPROVE_READ_ONLY_CASES}
+
+The CI hold-back exists because \`auto_approve\` lives in the committed
+\`yg-config.yaml\`: one developer's local convenience reaches every pipeline,
+and a config-driven fill in CI would record fresh verdicts over a change nobody
+re-verified. \`deterministic\` is not held back — it is free, keyless, and the
+recommended CI cache rebuild, so it cannot make a stale change green.
 
 **When a fill is triggered by \`auto_approve\`:** a pre-run banner on stderr warns
 that reviewer calls will be made, and the PASS header shows \`(auto-filled)\` to

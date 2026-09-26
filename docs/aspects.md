@@ -29,7 +29,7 @@ name: Audit Logging
 description: "Every mutation must emit an audit event"
 ```
 
-The `content.md` file *is* the rule. The reviewer reads it and checks your source against it, so write it the way you'd write a code-review comment — concrete and actionable, not aspirational.
+The `content.md` file *is* the rule. The reviewer reads it and checks your source against it, so write it the way you'd write a code-review comment — concrete and actionable, not aspirational. It is the only file of the directory the reviewer is shown as the rule: another file you keep beside it (a `guidance.md`, notes) never reaches the reviewer, though it is folded into the rule's hash, so editing it re-opens the rule's verdicts all the same ([The lock](/the-lock#what-makes-a-verdict-valid)). To show the reviewer another file, list it under `references:`.
 
 ```markdown
 <!-- .yggdrasil/aspects/audit-logging/content.md -->

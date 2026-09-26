@@ -1,3 +1,5 @@
+import { AUTO_APPROVE_READ_ONLY_CASES, RULE_SUPPORT_FILES } from './shared-text.js';
+
 export const summary =
   'The verdict lock: format (v1), pairs/units, hash ingredients + exclusions + observation fold, relation conformance computed live (no cached relation verdict), caching policy (refusals final, three exits), merge procedure, garbage-collection, revert recipe, park-with-draft';
 
@@ -23,7 +25,11 @@ relation conformance live; see below). Exception: if \`auto_approve\` is set in
 like \`--approve\` (may call the reviewer). Explicit CLI flags (\`--approve\`,
 \`--no-approve\`, \`--only-deterministic\`) ALWAYS override \`auto_approve\`. CI and
 pre-commit should always use the explicit flag form to stay key-free and
-deterministic regardless of project config. \`yg check --approve\` (a fill, not a
+deterministic regardless of project config.
+
+${AUTO_APPROVE_READ_ONLY_CASES}
+
+\`yg check --approve\` (a fill, not a
 human approval) fills every
 unverified pair it answers for and then reports (the whole project, or — under
 progressive mode — every free check plus the reviewer work your change is
@@ -208,10 +214,19 @@ The hash folds, for both kinds:
 aspect:  <aspect id>
 scope:   <canonical scope; absent normalizes to {per: node, files: none}>
 node:    <owning node path>                 // pins per-file units to their context
-rule:    sha256(content.md | check.mjs bytes)
+rule:    sha256(content.md | check.mjs bytes), folded with the
+         [path, sha256(bytes)] of every support file when there are any
 files:   [ [path, sha256(bytes)], ... ]     // subject files, sorted
 verdict: "approved" | "refused"             // the discrete token — tamper evidence
+kind:    "llm" | "deterministic"            // the two kinds can never collide
 \`\`\`
+
+${RULE_SUPPORT_FILES} A rule directory holding nothing but its own files hashes
+exactly as the bare rule file always did.
+
+Script pairs also fold \`contract: 2\`: it marks verdicts recorded since checks
+began observing the grammar of every syntax tree they read, so a verdict recorded
+before that was re-opened once (a free \`yg check --approve --only-deterministic\`).
 
 Reviewer pairs additionally fold their prompt inputs: the aspect description, each
 reference \`[path, sha256(bytes), description]\`, and the resolved tier's NAME.
@@ -253,6 +268,9 @@ graph-files:<node>     → sha256 of the sorted path list .files of <node>, reac
 grammar:<language>     → sha256 of the grammar wasm and the web-tree-sitter runtime
                          that built a syntax tree the check (or its yg-suppress
                          scan) read — a grammar upgrade re-opens exactly those
+config:<key>           → sha256 of the canonical JSON of a rule setting the check
+                         read ('missing' when nothing declares it) — adapting
+                         a key no check reads re-opens nothing
 \`\`\`
 
 Observation-completeness is load-bearing: a script verdict is reusable
@@ -278,7 +296,8 @@ recorded only when the check reads it.
 ### Excluded from the hash, deliberately
 
 - **\`status\`** — \`advisory ↔ enforced ↔ draft\` flips never invalidate a verdict
-  (rendering only).
+  (status decides how a verdict renders and what it blocks, never whether it is
+  valid — \`yg knowledge read aspect-status\`).
 - **\`reason\`** / free-text output — only the discrete verdict token is folded.
 - **Node description** — not hashed, AND not sent to the reviewer. It is
   documentation for people reading the graph; editing one re-verifies nothing
@@ -302,9 +321,13 @@ recorded only when the check reads it.
   costing no reviewer call.
 - **\`when\` / \`implies\` / port declarations** — applicability is recomputed live
   each run and acts through the expected-pair set, not through invalidation.
-- **CLI version / prompt scaffold** — upgrading Yggdrasil must not invalidate
-  verdicts. The flip side is binding: the hash canonicalization is a frozen
-  contract, changed only as a deliberate breaking decision.
+- **CLI version / prompt scaffold** — neither is an input, so an upgrade re-opens
+  nothing by that alone. What a verdict's hash folds can still change in a
+  release, as a deliberate decision its changelog names: it has happened for rule
+  directories holding support files, and for script verdicts that read a syntax
+  tree. So pin the CLI version in CI and raise the pin in a commit of its own —
+  a CI that floats to a newer release, or a team split across two versions,
+  re-opens verdicts nobody changed.
 
 Validity is checked by recomputing the hash from current inputs plus the stored
 verdict token; a mismatch — whether from an input change or a hand-edited verdict
