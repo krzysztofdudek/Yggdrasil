@@ -9,8 +9,8 @@
  * format constants, so every caller keeps importing them from where it always did.
  */
 
-import type { FamilyCandidate, FamilyCandidatesData, Nomination } from './advise-nominations.js';
-import { CLASS_RANK, hashEvidence, quoteData } from './advise-nominations.js';
+import type { FamilyCandidate, FamilyCandidatesData, Nomination } from './advise-shared.js';
+import { CLASS_RANK, hashEvidence, quoteData } from './advise-shared.js';
 import { count } from '../utils/count.js';
 
 /**

@@ -11,8 +11,8 @@
  * its item is worded and bound exactly as before.
  */
 
-import type { ArchitectureCutCycle, Nomination } from './advise-nominations.js';
-import { CLASS_RANK, hashEvidence, quoteData } from './advise-nominations.js';
+import type { ArchitectureCutCycle, Nomination } from './advise-shared.js';
+import { CLASS_RANK, hashEvidence, quoteData } from './advise-shared.js';
 
 
 /**

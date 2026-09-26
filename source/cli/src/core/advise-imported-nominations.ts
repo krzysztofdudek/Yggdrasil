@@ -17,8 +17,8 @@
  */
 
 import type { ImportedAdvice } from '../io/advise-imported-store.js';
-import type { Nomination } from './advise-nominations.js';
-import { CLASS_RANK, asApprovalNext, hashEvidence, quoteData } from './advise-nominations.js';
+import type { Nomination } from './advise-shared.js';
+import { CLASS_RANK, asApprovalNext, hashEvidence, quoteData } from './advise-shared.js';
 
 /** How many of a producer's evidence keys the feed shows before it stops. */
 const MAX_EVIDENCE_KEYS = 6;

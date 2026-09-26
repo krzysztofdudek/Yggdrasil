@@ -53,4 +53,5 @@ mapping:
   - source/cli/src/core/advise-import.ts
   - source/cli/src/core/advise-imported-nominations.ts
   - source/cli/src/core/advise-package-nominations.ts
+  - source/cli/src/core/advise-shared.ts
   - source/cli/src/core/node-churn.ts
