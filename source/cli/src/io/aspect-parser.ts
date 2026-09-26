@@ -329,52 +329,11 @@ export async function parseAspect(
       }],
     };
   }
+  const refused = (errors: FieldErrors): ParseAspectResult => ({ ok: false, aspectId: idTrimmed, errors });
 
-  const content = await readFile(aspectYamlPath, 'utf-8');
-  const rawBase = parseYaml(content) as Record<string, unknown>;
-
-  if (!rawBase || typeof rawBase !== 'object' || Array.isArray(rawBase)) {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{
-        code: 'yaml-invalid',
-        messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: file is empty or not a YAML mapping`,
-          why: 'aspect definitions must be a YAML mapping',
-          next: 'add a valid YAML mapping (name, description, reviewer, etc.)',
-        },
-      }],
-    };
-  }
-
-  // A key the rule's own file does not declare is refused by name: a misspelled
-  // `stauts:` would otherwise load the rule at its default status — enforced —
-  // and a misspelled `scope:` or `when:` would widen it, all without a word.
-  // Checked on the rule's own file, before the adaptation is merged in: the
-  // adaptation refuses its own unknown keys, against its own narrower list.
-  const unknownAspectKeys = findUnknownKeys(rawBase, ASPECT_KEYS, RETIRED_ASPECT_KEYS);
-  if (unknownAspectKeys.length > 0) {
-    const relYaml = options.package !== undefined ? `the installed copy of '${options.package.relativeId}' from package '${options.package.packageName}'` : aspectYamlPath;
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{
-        code: 'aspect-unknown-key',
-        messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys('', unknownAspectKeys, ASPECT_KEYS)}`,
-          why: `Rule '${idTrimmed}' is not loaded until the key is corrected: loading it without the key would run the rule differently from what its file says.`,
-          next: options.package !== undefined
-            ? `The file is ${relYaml}, which is not yours to edit. Ask the package author for a version without the key, or check that this Yggdrasil satisfies the package's requires.yg — a key from a newer release is unknown to an older one.`
-            : unknownAspectKeys[0].retired !== undefined
-              ? `Delete '${unknownAspectKeys[0].key}' from ${aspectYamlPath}.`
-            : unknownAspectKeys[0].suggestion !== undefined
-              ? `Rename '${unknownAspectKeys[0].key}' to '${unknownAspectKeys[0].suggestion}' in ${aspectYamlPath}, or remove it (yg schemas read aspect lists the accepted keys).`
-              : `Remove '${unknownAspectKeys[0].key}' from ${aspectYamlPath}, or rename it to an accepted key (yg schemas read aspect lists them).`,
-        },
-      }],
-    };
-  }
+  const rawBaseResult = await readAspectYaml(aspectYamlPath, idTrimmed, options);
+  if (!rawBaseResult.ok) return refused(rawBaseResult.errors);
+  const rawBase = rawBaseResult.value;
 
   // The consumer's adaptation, merged over the rule's own definition BEFORE any
   // of it is validated. Doing it here — rather than patching an AspectDef
@@ -384,28 +343,20 @@ export async function parseAspect(
   const adaptFilePath = path.join(aspectDir, ADAPT_FILENAME);
   const adaptResult = await parseAspectAdapt(aspectDir, idTrimmed);
   if (!adaptResult.ok) {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{ code: adaptResult.code, messageData: adaptResult.messageData }],
-    };
+    return refused([{ code: adaptResult.code, messageData: adaptResult.messageData }]);
   }
   const adapt = adaptResult.value;
   const raw = adapt.present ? mergeAdaptOverAspect(rawBase, adapt.keys) : rawBase;
 
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{
-        code: 'aspect-name-missing',
-        messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: missing or empty 'name'`,
-          why: 'every aspect must declare a name',
-          next: 'add `name: <YourAspectName>` to the file',
-        },
-      }],
-    };
+    return refused([{
+      code: 'aspect-name-missing',
+      messageData: {
+        what: `yg-aspect.yaml at ${aspectYamlPath}: missing or empty 'name'`,
+        why: 'every aspect must declare a name',
+        next: 'add `name: <YourAspectName>` to the file',
+      },
+    }]);
   }
 
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
@@ -421,11 +372,7 @@ export async function parseAspect(
   // empty rule and a linked check.mjs ran code its hash never saw.
   const linked = ruleDirSymlinks(aspectDir);
   if (linked.length > 0) {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, linked.map((l) => `${toPosixPath(path.relative(options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed), path.join(aspectDir, l)))}`)) }],
-    };
+    return refused([{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, linked.map((l) => `${toPosixPath(path.relative(options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed), path.join(aspectDir, l)))}`)) }]);
   }
 
   const hasContentMd = fileExistsSync(path.join(aspectDir, 'content.md'));
@@ -434,286 +381,35 @@ export async function parseAspect(
   const hasImplies = Array.isArray(raw.implies) && raw.implies.length > 0;
 
   const reviewerResult = parseReviewer(raw.reviewer, idTrimmed, { hasContentMd, hasCheckMjs, hasImplies });
-  if (!reviewerResult.ok) {
-    return { ok: false, aspectId: idTrimmed, errors: reviewerResult.errors };
-  }
+  if (!reviewerResult.ok) return refused(reviewerResult.errors);
   const reviewer: AspectReviewerSpec = reviewerResult.value;
 
-  // The adapt file is excluded from artifacts alongside yg-aspect.yaml. Artifacts
-  // ARE the rule's content — content.md / check.mjs / companion.mjs are read from
-  // here and hashed into the verdict — and the consumer's own adaptation is not
-  // part of what the package published. Left in, it would ride into the rule hash
-  // and make every adapted rule look like a different rule.
-  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME]);
-  // Everything else the rule's code can reach — a helper module, a shipped table
-  // — is a verdict input too. See readSupportFileHashes for what is left out.
-  const projectRootForRule = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
-  const support = await readSupportFileHashes(
-    aspectDir,
-    ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME, 'log.md', 'provenance.json', 'content.md', 'check.mjs', 'companion.mjs'],
-    projectRootForRule,
-  );
-  // A symbolic link the rule's code names — under drills/, in a nested rule's
-  // directory, through a linked dot-named directory — is refused like a linked
-  // file beside the rule: following it would fold bytes from wherever it points.
-  if (support.linked.length > 0) {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, support.linked.map((l) => `${toPosixPath(path.relative(projectRootForRule, path.join(aspectDir, l)))}`)) }],
-    };
-  }
-  const supportFiles = support.files;
+  const sourcesResult = await readRuleSources(aspectDir, idTrimmed, options);
+  if (!sourcesResult.ok) return refused(sourcesResult.errors);
+  const { artifacts, supportFiles } = sourcesResult.value;
 
-  let status: AspectStatus | undefined;
-  if (raw.status !== undefined) {
-    if (
-      typeof raw.status !== 'string' ||
-      !ASPECT_STATUS_VALUES.includes(raw.status as AspectStatus)
-    ) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-status-invalid',
-          messageData: aspectStatusInvalidMessage({
-            aspectId: idTrimmed,
-            value: String(raw.status),
-            aspectDir,
-          }),
-        }],
-      };
-    }
-    status = raw.status as AspectStatus;
-  }
+  const labelsResult = parseRuleLabels(raw, idTrimmed, aspectDir);
+  if (!labelsResult.ok) return refused(labelsResult.errors);
+  const { status, reviewBy, errs } = labelsResult.value;
 
-  // review_by: — optional standing review-by date (bare ISO `YYYY-MM-DD`).
-  // Presence-gated and strict when present (mirrors the status block above): a
-  // malformed date must NOT silently never-fire, so a present-but-invalid value
-  // is the blocking parse error aspect-review-by-malformed via the same errors
-  // path aspect-status-invalid uses. Valid on ANY aspect kind — review cadence is
-  // independent of reviewer kind, so no cross-field check downstream. NEVER a hash
-  // ingredient (the pair-hash builders do not read reviewBy).
-  let reviewBy: string | undefined;
-  if (raw.review_by !== undefined) {
-    if (typeof raw.review_by !== 'string' || !isValidReviewByDate(raw.review_by)) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-review-by-malformed',
-          messageData: aspectReviewByMalformedMessage({
-            aspectId: idTrimmed,
-            value: String(raw.review_by),
-            aspectDir,
-          }),
-        }],
-      };
-    }
-    reviewBy = raw.review_by;
-  }
-
-  // errs: — optional deterministic-check error-direction label. Strict when
-  // present: accept ONLY the three literals here; whether errs is legal on THIS
-  // aspect's reviewer kind is a cross-field contract enforced downstream
-  // (checkAspectErrsDirection), so a valid literal on an LLM/aggregate aspect is
-  // tolerated by the parser and flagged by the validator. NEVER a hash ingredient.
-  let errs: ErrsDirection | undefined;
-  if (raw.errs !== undefined) {
-    if (typeof raw.errs !== 'string' || !ERRS_DIRECTION_VALUES.includes(raw.errs as ErrsDirection)) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-errs-invalid',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares errs: '${String(raw.errs)}' (not a valid value).`,
-            why: 'errs must be one of: over, under, exact.',
-            next: `Edit .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml and set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".`,
-          },
-        }],
-      };
-    }
-    errs = raw.errs as ErrsDirection;
-  }
-
-  let implies: string[] | undefined;
-  let impliesWhens: Record<string, WhenPredicate> | undefined;
-  let impliesStatusInherit: Record<string, StatusInherit> | undefined;
-  if (raw.implies !== undefined) {
-    if (!Array.isArray(raw.implies)) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-implies-not-array',
-          messageData: {
-            what: `yg-aspect.yaml at ${aspectYamlPath}: 'implies' must be an array`,
-            why: 'implies declares dependent aspects as a list',
-            next: 'replace value with [aspect-id-1, aspect-id-2, ...]',
-          },
-        }],
-      };
-    }
-    implies = [];
-    for (let i = 0; i < raw.implies.length; i++) {
-      let parsed;
-      try {
-        parsed = parseAspectAttachment(
-          raw.implies[i],
-          `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}]`,
-          'implies-edge',
-        );
-      } catch (err) {
-        const msg = (err as Error).message;
-        if (msg.includes('status_inherit must be one of')) {
-          // Reachable only after parseAspectAttachment validated `id`; status_inherit
-          // is checked last, so the entry is guaranteed to be an object with a string id.
-          const entry = raw.implies[i] as { id: string; status_inherit?: unknown };
-          return {
-            ok: false,
-            aspectId: idTrimmed,
-            errors: [{
-              code: 'implies-status-inherit-invalid',
-              messageData: impliesStatusInheritInvalidMessage({
-                implierId: idTrimmed,
-                impliedId: entry.id,
-                value: String(entry.status_inherit),
-                aspectDir,
-              }),
-            }],
-          };
-        }
-        // parseAspectAttachment parses an implies edge's own when: via parseWhen with
-        // a ctx suffixed `/when`, so every when-parse failure on the edge carries
-        // `/when` in its message — the top-level shape as `.../when: ...` and every
-        // nested structural failure as `.../when/relations/...`, `.../when/node/...`,
-        // etc. Match the `/when` prefix (NOT the exact `/when:` shape) so a nested
-        // typo inside the predicate is routed here too, not thrown. A malformed when:
-        // must surface as a structured parse error, not an uncaught throw that the
-        // loader surfaces as a non-actionable "file an issue" abort of the whole run.
-        if (msg.includes('/when')) {
-          return {
-            ok: false,
-            aspectId: idTrimmed,
-            errors: [{
-              code: 'aspect-when-invalid',
-              messageData: {
-                what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] when predicate is invalid: ${msg}`,
-                why: 'an implies-edge when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
-                next: 'correct the when: predicate — see yg knowledge read conditional-aspects',
-              },
-            }],
-          };
-        }
-        // Any remaining parseAspectAttachment validation failure (missing/blank id,
-        // unknown field, wrong entry type) must also become a structured result —
-        // parseAspect's contract is a {ok}|{ok:false,errors} union that never throws
-        // for validation. An uncaught throw here escapes to the loader and aborts the
-        // ENTIRE graph load with a generic "this is a bug" message instead of a scoped
-        // per-aspect error. Mirror the top-level when: catch-all below.
-        return {
-          ok: false,
-          aspectId: idTrimmed,
-          errors: [{
-            code: 'aspect-implies-invalid',
-            messageData: {
-              what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] is invalid: ${msg}`,
-              why: 'each implies entry must be an aspect id string, or an object { id, when?, status_inherit? }',
-              next: 'fix the implies entry — see yg schemas read aspect',
-            },
-          }],
-        };
-      }
-      // Inside a package, an implies target is written RELATIVE — the package
-      // author cannot know the install path, and an id they hard-coded would break
-      // the moment a consumer installed under a different identity. The install
-      // prefix is applied here, so everything downstream (the implied-aspect
-      // existence check, the implies-cycle check) works on real installed ids.
-      let targetId = parsed.id;
-      if (options.package !== undefined) {
-        const pkg = options.package;
-        if (parsed.id.includes('/')) {
-          return {
-            ok: false,
-            aspectId: idTrimmed,
-            errors: [{
-              code: 'package-implies-not-relative',
-              messageData: {
-                what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${parsed.id}', which is a full path.`,
-                why: 'A package is written without knowing where it will be installed, so it names its own rules by their directory name alone. A full path would bind the package to one install location.',
-                next: `Change implies[${i}] to just the directory name of the rule inside the package.`,
-              },
-            }],
-          };
-        }
-        if (!pkg.aspectDirs.includes(parsed.id)) {
-          return {
-            ok: false,
-            aspectId: idTrimmed,
-            errors: [{
-              code: 'package-implies-outside-package',
-              messageData: {
-                what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${parsed.id}', which is not a rule of that package.`,
-                why: 'A package stands on its own: it may bundle its own rules, but it may not depend on a rule from your repository or from another package, which could be absent, renamed, or something else entirely.',
-                next: `Remove '${parsed.id}' from the implies: of '${pkg.relativeId}', or ask the package author to ship it inside the package.`,
-              },
-            }],
-          };
-        }
-        targetId = `${pkg.idPrefix}/${parsed.id}`;
-      }
-      implies.push(targetId);
-      if (parsed.when) {
-        (impliesWhens ??= {})[targetId] = parsed.when;
-      }
-      if (parsed.statusInherit) {
-        (impliesStatusInherit ??= {})[targetId] = parsed.statusInherit;
-      }
-    }
-  }
+  const impliesResult = raw.implies !== undefined
+    ? parseImplies(raw.implies, idTrimmed, aspectYamlPath, aspectDir, options.package)
+    : { ok: true as const, value: {} as ParsedImplies };
+  if (!impliesResult.ok) return refused(impliesResult.errors);
+  const { implies, impliesWhens, impliesStatusInherit } = impliesResult.value;
 
   let when: WhenPredicate | undefined;
   if (raw.when !== undefined) {
-    try {
-      when = parseWhen(raw.when, `yg-aspect.yaml at ${aspectYamlPath}: when`);
-    } catch (err) {
-      // A malformed aspect-level when: must surface as a structured parse error,
-      // NOT propagate as a throw — an uncaught throw here escapes parseAspect
-      // (whose contract is a {ok}|{ok:false,errors} union) and is swallowed by the
-      // loader, silently dropping this aspect (and any scanned after it) with a
-      // clean PASS. A WhenPredicateInvalidError already carries the file-atom
-      // cross-hint text; surface it verbatim so the guidance is preserved.
-      const message = err instanceof Error ? err.message : String(err);
-      // parseWhen embeds the file-atom cross-hint directly in its message text
-      // (it throws a plain Error, not a typed class), so detect by content.
-      const isFileAtomHint = message.includes('file atom');
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-when-invalid',
-          messageData: {
-            what: isFileAtomHint
-              ? message
-              : `yg-aspect.yaml at ${aspectYamlPath}: when predicate is invalid: ${message}`,
-            why: isFileAtomHint
-              ? 'the aspect-level when: uses the node-predicate grammar (node/relations/descendants atoms); path/content are file atoms and belong in scope.files'
-              : 'when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
-            next: isFileAtomHint
-              ? 'move the file filter to scope.files, or use a node-family atom in when:'
-              : 'correct the when: predicate — see yg knowledge read conditional-aspects',
-          },
-        }],
-      };
-    }
+    const whenResult = parseAspectWhen(raw.when, aspectYamlPath);
+    if (!whenResult.ok) return refused(whenResult.errors);
+    when = whenResult.value;
   }
 
   // references: optional, normalized to Array<{ path, description? }>
   let references: Array<{ path: string; description?: string }> | undefined;
   if (raw.references !== undefined) {
     const referencesResult = parseReferences(raw.references, reviewer.type, idTrimmed, aspectYamlPath, options.package !== undefined ? adaptFilePath : undefined);
-    if (!referencesResult.ok) return { ok: false, aspectId: idTrimmed, errors: referencesResult.errors };
+    if (!referencesResult.ok) return refused(referencesResult.errors);
     references = referencesResult.value;
   }
 
@@ -721,78 +417,17 @@ export async function parseAspect(
   let scope: ScopeDef | undefined;
   if (raw.scope !== undefined) {
     const scopeResult = parseScope(raw.scope, idTrimmed, aspectYamlPath, reviewer.type);
-    if (!scopeResult.ok) {
-      return { ok: false, aspectId: idTrimmed, errors: scopeResult.errors };
-    }
+    if (!scopeResult.ok) return refused(scopeResult.errors);
     scope = scopeResult.value;
   }
 
-  // companion: — an aspect may name its companion module instead of shipping one
-  // beside its rule. This is what an adapt uses to point a package's rule at a
-  // resolver written HERE: the package cannot know your repository's layout, so
-  // the hook that decides which of your files the reviewer should also see has to
-  // be yours. The path is repo-relative and must exist NOW, at load time — a
-  // companion discovered missing on the first run of the rule would surface as an
-  // infrastructure failure in the middle of a review instead of as a graph error.
-  let companionPath: string | undefined;
-  let companionSource: string | undefined;
+  let companion: { path: string; source: string } | undefined;
   if (raw.companion !== undefined) {
-    if (typeof raw.companion !== 'string' || raw.companion.trim() === '') {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-companion-invalid',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares companion: '${String(raw.companion)}', which is not a path.`,
-            why: 'companion: names one repository-relative module file that resolves the extra files a reviewer should see.',
-            next: `Set companion: to a repo-relative path such as 'tools/my-companion.mjs', or remove the key.`,
-          },
-        }],
-      };
-    }
-    const normalized = toPosixPath(raw.companion.trim());
-    if (escapesRepo(normalized)) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-companion-escape',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares companion: '${raw.companion}', which leaves the repository root.`,
-            why: 'A companion runs on every check; one living outside the repository would make the result depend on a file no clone and no CI runner has.',
-            next: `Move the module inside the repository and give companion: a repo-relative path.`,
-          },
-        }],
-      };
-    }
-    const root = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
-    const linkedCompanion = symlinkOnPath(root, normalized);
-    if (linkedCompanion !== null) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, [toPosixPath(linkedCompanion)]) }],
-      };
-    }
-    try {
-      companionSource = await readFile(path.resolve(root, normalized), 'utf-8');
-    } catch {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-companion-missing',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares companion: '${normalized}', but there is no readable file there.`,
-            why: 'The companion is loaded on every review this rule produces; a missing one would stop the rule mid-run rather than at load.',
-            next: `Create ${normalized}, or correct the companion: path${adapt.present ? ` in ${adaptFilePath}` : ''}.`,
-          },
-        }],
-      };
-    }
-    companionPath = normalized;
+    const companionResult = await parseCompanion(raw.companion, idTrimmed, aspectDir, options, adapt.present ? adaptFilePath : undefined);
+    if (!companionResult.ok) return refused(companionResult.errors);
+    companion = companionResult.value;
   }
+  const companionPath = companion?.path;
 
   // config: — the values this rule's check.mjs / companion.mjs will read through
   // ctx.config. The package declares the keys and their defaults; the adapt
@@ -808,11 +443,7 @@ export async function parseAspect(
     },
   );
   if (!configResult.ok) {
-    return {
-      ok: false,
-      aspectId: idTrimmed,
-      errors: [{ code: configResult.code, messageData: configResult.messageData }],
-    };
+    return refused([{ code: configResult.code, messageData: configResult.messageData }]);
   }
   const config = configResult.value;
 
@@ -821,9 +452,9 @@ export async function parseAspect(
   // the companion hash is taken from the artifacts, so an edit to YOUR module
   // invalidates the verdicts it helped produce, exactly as an edit to a packaged
   // companion.mjs would.
-  const allArtifacts = companionSource === undefined
+  const allArtifacts = companion === undefined
     ? artifacts
-    : [...artifacts.filter((a) => a.filename !== 'companion.mjs'), { filename: 'companion.mjs', content: companionSource }]
+    : [...artifacts.filter((a) => a.filename !== 'companion.mjs'), { filename: 'companion.mjs', content: companion.source }]
         .sort((a, b) => a.filename.localeCompare(b.filename));
 
   return {
@@ -849,6 +480,361 @@ export async function parseAspect(
       ...(supportFiles.length > 0 && { supportFiles }),
     },
   };
+}
+
+/** The refusals a field parse can end in, in the parser's one error shape. */
+type FieldErrors = Array<{ code: string; messageData: IssueMessage }>;
+
+/** A field parse: its value, or the refusals it ends in. */
+type FieldResult<T> = { ok: true; value: T } | { ok: false; errors: FieldErrors };
+
+/** One refusal, as a failed field parse. */
+function fieldRefusal(code: string, messageData: IssueMessage): { ok: false; errors: FieldErrors } {
+  return { ok: false, errors: [{ code, messageData }] };
+}
+
+/**
+ * Read the rule's own yg-aspect.yaml: a YAML mapping with only accepted keys.
+ *
+ * A key the rule's own file does not declare is refused by name: a misspelled
+ * `stauts:` would otherwise load the rule at its default status — enforced —
+ * and a misspelled `scope:` or `when:` would widen it, all without a word.
+ * Checked on the rule's own file, before the adaptation is merged in: the
+ * adaptation refuses its own unknown keys, against its own narrower list.
+ */
+async function readAspectYaml(
+  aspectYamlPath: string,
+  idTrimmed: string,
+  options: ParseAspectOptions,
+): Promise<FieldResult<Record<string, unknown>>> {
+  const content = await readFile(aspectYamlPath, 'utf-8');
+  const rawBase = parseYaml(content) as Record<string, unknown>;
+
+  if (!rawBase || typeof rawBase !== 'object' || Array.isArray(rawBase)) {
+    return fieldRefusal('yaml-invalid', {
+      what: `yg-aspect.yaml at ${aspectYamlPath}: file is empty or not a YAML mapping`,
+      why: 'aspect definitions must be a YAML mapping',
+      next: 'add a valid YAML mapping (name, description, reviewer, etc.)',
+    });
+  }
+
+  const unknownAspectKeys = findUnknownKeys(rawBase, ASPECT_KEYS, RETIRED_ASPECT_KEYS);
+  if (unknownAspectKeys.length > 0) {
+    const relYaml = options.package !== undefined ? `the installed copy of '${options.package.relativeId}' from package '${options.package.packageName}'` : aspectYamlPath;
+    return fieldRefusal('aspect-unknown-key', {
+      what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys('', unknownAspectKeys, ASPECT_KEYS)}`,
+      why: `Rule '${idTrimmed}' is not loaded until the key is corrected: loading it without the key would run the rule differently from what its file says.`,
+      next: options.package !== undefined
+        ? `The file is ${relYaml}, which is not yours to edit. Ask the package author for a version without the key, or check that this Yggdrasil satisfies the package's requires.yg — a key from a newer release is unknown to an older one.`
+        : unknownAspectKeys[0].retired !== undefined
+          ? `Delete '${unknownAspectKeys[0].key}' from ${aspectYamlPath}.`
+        : unknownAspectKeys[0].suggestion !== undefined
+          ? `Rename '${unknownAspectKeys[0].key}' to '${unknownAspectKeys[0].suggestion}' in ${aspectYamlPath}, or remove it (yg schemas read aspect lists the accepted keys).`
+          : `Remove '${unknownAspectKeys[0].key}' from ${aspectYamlPath}, or rename it to an accepted key (yg schemas read aspect lists them).`,
+    });
+  }
+  return { ok: true, value: rawBase };
+}
+
+/**
+ * The rule's artifacts and support files — every verdict input its directory holds.
+ *
+ * The adapt file is excluded from artifacts alongside yg-aspect.yaml. Artifacts
+ * ARE the rule's content — content.md / check.mjs / companion.mjs are read from
+ * here and hashed into the verdict — and the consumer's own adaptation is not
+ * part of what the package published. Left in, it would ride into the rule hash
+ * and make every adapted rule look like a different rule.
+ */
+async function readRuleSources(
+  aspectDir: string,
+  idTrimmed: string,
+  options: ParseAspectOptions,
+): Promise<FieldResult<{ artifacts: AspectDef['artifacts']; supportFiles: NonNullable<AspectDef['supportFiles']> }>> {
+  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME]);
+  // Everything else the rule's code can reach — a helper module, a shipped table
+  // — is a verdict input too. See readSupportFileHashes for what is left out.
+  const projectRootForRule = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+  const support = await readSupportFileHashes(
+    aspectDir,
+    ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME, 'log.md', 'provenance.json', 'content.md', 'check.mjs', 'companion.mjs'],
+    projectRootForRule,
+  );
+  // A symbolic link the rule's code names — under drills/, in a nested rule's
+  // directory, through a linked dot-named directory — is refused like a linked
+  // file beside the rule: following it would fold bytes from wherever it points.
+  if (support.linked.length > 0) {
+    return fieldRefusal('aspect-source-symlink', aspectSourceSymlinkMessage(idTrimmed, support.linked.map((l) => `${toPosixPath(path.relative(projectRootForRule, path.join(aspectDir, l)))}`)));
+  }
+  return { ok: true, value: { artifacts, supportFiles: support.files } };
+}
+
+/**
+ * The three labels a rule carries about itself — `status:`, `review_by:` and
+ * `errs:` — each optional and strict when present.
+ */
+function parseRuleLabels(
+  raw: Record<string, unknown>,
+  idTrimmed: string,
+  aspectDir: string,
+): FieldResult<{ status?: AspectStatus; reviewBy?: string; errs?: ErrsDirection }> {
+  let status: AspectStatus | undefined;
+  if (raw.status !== undefined) {
+    if (
+      typeof raw.status !== 'string' ||
+      !ASPECT_STATUS_VALUES.includes(raw.status as AspectStatus)
+    ) {
+      return fieldRefusal('aspect-status-invalid', aspectStatusInvalidMessage({
+        aspectId: idTrimmed,
+        value: String(raw.status),
+        aspectDir,
+      }));
+    }
+    status = raw.status as AspectStatus;
+  }
+
+  // review_by: — optional standing review-by date (bare ISO `YYYY-MM-DD`).
+  // Presence-gated and strict when present (mirrors the status block above): a
+  // malformed date must NOT silently never-fire, so a present-but-invalid value
+  // is the blocking parse error aspect-review-by-malformed via the same errors
+  // path aspect-status-invalid uses. Valid on ANY aspect kind — review cadence is
+  // independent of reviewer kind, so no cross-field check downstream. NEVER a hash
+  // ingredient (the pair-hash builders do not read reviewBy).
+  let reviewBy: string | undefined;
+  if (raw.review_by !== undefined) {
+    if (typeof raw.review_by !== 'string' || !isValidReviewByDate(raw.review_by)) {
+      return fieldRefusal('aspect-review-by-malformed', aspectReviewByMalformedMessage({
+        aspectId: idTrimmed,
+        value: String(raw.review_by),
+        aspectDir,
+      }));
+    }
+    reviewBy = raw.review_by;
+  }
+
+  // errs: — optional deterministic-check error-direction label. Strict when
+  // present: accept ONLY the three literals here; whether errs is legal on THIS
+  // aspect's reviewer kind is a cross-field contract enforced downstream
+  // (checkAspectErrsDirection), so a valid literal on an LLM/aggregate aspect is
+  // tolerated by the parser and flagged by the validator. NEVER a hash ingredient.
+  let errs: ErrsDirection | undefined;
+  if (raw.errs !== undefined) {
+    if (typeof raw.errs !== 'string' || !ERRS_DIRECTION_VALUES.includes(raw.errs as ErrsDirection)) {
+      return fieldRefusal('aspect-errs-invalid', {
+        what: `Aspect '${idTrimmed}' declares errs: '${String(raw.errs)}' (not a valid value).`,
+        why: 'errs must be one of: over, under, exact.',
+        next: `Edit .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml and set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".`,
+      });
+    }
+    errs = raw.errs as ErrsDirection;
+  }
+  return { ok: true, value: { status, reviewBy, errs } };
+}
+
+/** The parsed `implies:` block: target ids in order, and each edge's own when / status_inherit. */
+interface ParsedImplies {
+  implies?: string[];
+  impliesWhens?: Record<string, WhenPredicate>;
+  impliesStatusInherit?: Record<string, StatusInherit>;
+}
+
+/** Parse the `implies:` block (present): an array of attachment entries. */
+function parseImplies(
+  rawImplies: unknown,
+  idTrimmed: string,
+  aspectYamlPath: string,
+  aspectDir: string,
+  pkg: AspectPackageContext | undefined,
+): FieldResult<ParsedImplies> {
+  if (!Array.isArray(rawImplies)) {
+    return fieldRefusal('aspect-implies-not-array', {
+      what: `yg-aspect.yaml at ${aspectYamlPath}: 'implies' must be an array`,
+      why: 'implies declares dependent aspects as a list',
+      next: 'replace value with [aspect-id-1, aspect-id-2, ...]',
+    });
+  }
+  const implies: string[] = [];
+  let impliesWhens: Record<string, WhenPredicate> | undefined;
+  let impliesStatusInherit: Record<string, StatusInherit> | undefined;
+  for (let i = 0; i < rawImplies.length; i++) {
+    let parsed;
+    try {
+      parsed = parseAspectAttachment(
+        rawImplies[i],
+        `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}]`,
+        'implies-edge',
+      );
+    } catch (err) {
+      return impliesEntryRefusal(err, rawImplies[i], i, idTrimmed, aspectYamlPath, aspectDir);
+    }
+    // Inside a package, an implies target is written RELATIVE — the package
+    // author cannot know the install path, and an id they hard-coded would break
+    // the moment a consumer installed under a different identity. The install
+    // prefix is applied here, so everything downstream (the implied-aspect
+    // existence check, the implies-cycle check) works on real installed ids.
+    let targetId = parsed.id;
+    if (pkg !== undefined) {
+      const target = packageImpliesTarget(parsed.id, i, pkg);
+      if (!target.ok) return target;
+      targetId = target.value;
+    }
+    implies.push(targetId);
+    if (parsed.when) {
+      (impliesWhens ??= {})[targetId] = parsed.when;
+    }
+    if (parsed.statusInherit) {
+      (impliesStatusInherit ??= {})[targetId] = parsed.statusInherit;
+    }
+  }
+  return { ok: true, value: { implies, impliesWhens, impliesStatusInherit } };
+}
+
+/**
+ * The structured refusal for an implies entry parseAspectAttachment threw on.
+ * parseAspect's contract is a {ok}|{ok:false,errors} union that never throws for
+ * validation: an uncaught throw would escape to the loader and abort the ENTIRE
+ * graph load with a generic "this is a bug" message instead of a scoped
+ * per-aspect error.
+ */
+function impliesEntryRefusal(
+  err: unknown,
+  entry: unknown,
+  i: number,
+  idTrimmed: string,
+  aspectYamlPath: string,
+  aspectDir: string,
+): { ok: false; errors: FieldErrors } {
+  const msg = (err as Error).message;
+  if (msg.includes('status_inherit must be one of')) {
+    // Reachable only after parseAspectAttachment validated `id`; status_inherit
+    // is checked last, so the entry is guaranteed to be an object with a string id.
+    const edge = entry as { id: string; status_inherit?: unknown };
+    return fieldRefusal('implies-status-inherit-invalid', impliesStatusInheritInvalidMessage({
+      implierId: idTrimmed,
+      impliedId: edge.id,
+      value: String(edge.status_inherit),
+      aspectDir,
+    }));
+  }
+  // parseAspectAttachment parses an implies edge's own when: via parseWhen with
+  // a ctx suffixed `/when`, so every when-parse failure on the edge carries
+  // `/when` in its message — the top-level shape as `.../when: ...` and every
+  // nested structural failure as `.../when/relations/...`, `.../when/node/...`,
+  // etc. Match the `/when` prefix (NOT the exact `/when:` shape) so a nested
+  // typo inside the predicate is routed here too, not thrown. A malformed when:
+  // must surface as a structured parse error, not an uncaught throw that the
+  // loader surfaces as a non-actionable "file an issue" abort of the whole run.
+  if (msg.includes('/when')) {
+    return fieldRefusal('aspect-when-invalid', {
+      what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] when predicate is invalid: ${msg}`,
+      why: 'an implies-edge when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
+      next: 'correct the when: predicate — see yg knowledge read conditional-aspects',
+    });
+  }
+  // Any remaining parseAspectAttachment validation failure (missing/blank id,
+  // unknown field, wrong entry type) becomes a structured result too — mirroring
+  // the top-level when: catch-all.
+  return fieldRefusal('aspect-implies-invalid', {
+    what: `yg-aspect.yaml at ${aspectYamlPath}: implies[${i}] is invalid: ${msg}`,
+    why: 'each implies entry must be an aspect id string, or an object { id, when?, status_inherit? }',
+    next: 'fix the implies entry — see yg schemas read aspect',
+  });
+}
+
+/** A package rule's relative implies target, prefixed with the package's install path. */
+function packageImpliesTarget(id: string, i: number, pkg: AspectPackageContext): FieldResult<string> {
+  if (id.includes('/')) {
+    return fieldRefusal('package-implies-not-relative', {
+      what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${id}', which is a full path.`,
+      why: 'A package is written without knowing where it will be installed, so it names its own rules by their directory name alone. A full path would bind the package to one install location.',
+      next: `Change implies[${i}] to just the directory name of the rule inside the package.`,
+    });
+  }
+  if (!pkg.aspectDirs.includes(id)) {
+    return fieldRefusal('package-implies-outside-package', {
+      what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${id}', which is not a rule of that package.`,
+      why: 'A package stands on its own: it may bundle its own rules, but it may not depend on a rule from your repository or from another package, which could be absent, renamed, or something else entirely.',
+      next: `Remove '${id}' from the implies: of '${pkg.relativeId}', or ask the package author to ship it inside the package.`,
+    });
+  }
+  return { ok: true, value: `${pkg.idPrefix}/${id}` };
+}
+
+/**
+ * The aspect-level `when:` (present). A malformed one must surface as a
+ * structured parse error, NOT propagate as a throw — an uncaught throw here
+ * escapes parseAspect (whose contract is a {ok}|{ok:false,errors} union) and is
+ * swallowed by the loader, silently dropping this aspect (and any scanned after
+ * it) with a clean PASS. A WhenPredicateInvalidError already carries the
+ * file-atom cross-hint text; surface it verbatim so the guidance is preserved.
+ */
+function parseAspectWhen(rawWhen: unknown, aspectYamlPath: string): FieldResult<WhenPredicate> {
+  try {
+    return { ok: true, value: parseWhen(rawWhen, `yg-aspect.yaml at ${aspectYamlPath}: when`) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // parseWhen embeds the file-atom cross-hint directly in its message text
+    // (it throws a plain Error, not a typed class), so detect by content.
+    const isFileAtomHint = message.includes('file atom');
+    return fieldRefusal('aspect-when-invalid', {
+      what: isFileAtomHint
+        ? message
+        : `yg-aspect.yaml at ${aspectYamlPath}: when predicate is invalid: ${message}`,
+      why: isFileAtomHint
+        ? 'the aspect-level when: uses the node-predicate grammar (node/relations/descendants atoms); path/content are file atoms and belong in scope.files'
+        : 'when: must be a valid node predicate (node/relations/descendants atoms and all_of/any_of/not combinators)',
+      next: isFileAtomHint
+        ? 'move the file filter to scope.files, or use a node-family atom in when:'
+        : 'correct the when: predicate — see yg knowledge read conditional-aspects',
+    });
+  }
+}
+
+/**
+ * companion: (present) — an aspect may name its companion module instead of
+ * shipping one beside its rule. This is what an adapt uses to point a package's
+ * rule at a resolver written HERE: the package cannot know your repository's
+ * layout, so the hook that decides which of your files the reviewer should also
+ * see has to be yours. The path is repo-relative and must exist NOW, at load
+ * time — a companion discovered missing on the first run of the rule would
+ * surface as an infrastructure failure in the middle of a review instead of as
+ * a graph error. `adaptFilePath` is the adaptation the path came from, if any.
+ */
+async function parseCompanion(
+  rawCompanion: unknown,
+  idTrimmed: string,
+  aspectDir: string,
+  options: ParseAspectOptions,
+  adaptFilePath: string | undefined,
+): Promise<FieldResult<{ path: string; source: string }>> {
+  if (typeof rawCompanion !== 'string' || rawCompanion.trim() === '') {
+    return fieldRefusal('aspect-companion-invalid', {
+      what: `Aspect '${idTrimmed}' declares companion: '${String(rawCompanion)}', which is not a path.`,
+      why: 'companion: names one repository-relative module file that resolves the extra files a reviewer should see.',
+      next: `Set companion: to a repo-relative path such as 'tools/my-companion.mjs', or remove the key.`,
+    });
+  }
+  const normalized = toPosixPath(rawCompanion.trim());
+  if (escapesRepo(normalized)) {
+    return fieldRefusal('aspect-companion-escape', {
+      what: `Aspect '${idTrimmed}' declares companion: '${rawCompanion}', which leaves the repository root.`,
+      why: 'A companion runs on every check; one living outside the repository would make the result depend on a file no clone and no CI runner has.',
+      next: `Move the module inside the repository and give companion: a repo-relative path.`,
+    });
+  }
+  const root = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+  const linkedCompanion = symlinkOnPath(root, normalized);
+  if (linkedCompanion !== null) {
+    return fieldRefusal('aspect-source-symlink', aspectSourceSymlinkMessage(idTrimmed, [toPosixPath(linkedCompanion)]));
+  }
+  try {
+    return { ok: true, value: { path: normalized, source: await readFile(path.resolve(root, normalized), 'utf-8') } };
+  } catch {
+    return fieldRefusal('aspect-companion-missing', {
+      what: `Aspect '${idTrimmed}' declares companion: '${normalized}', but there is no readable file there.`,
+      why: 'The companion is loaded on every review this rule produces; a missing one would stop the rule mid-run rather than at load.',
+      next: `Create ${normalized}, or correct the companion: path${adaptFilePath !== undefined ? ` in ${adaptFilePath}` : ''}.`,
+    });
+  }
 }
 
 interface RuleFileFacts {
