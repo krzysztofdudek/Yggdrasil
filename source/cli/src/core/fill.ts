@@ -59,17 +59,23 @@
  *
  * This module is the orchestrator: it owns the ORDER above and nothing else.
  * The cohesive stages live in sibling files and are wired in here:
+ *   - fill-coverage-phase.ts — type-level classification + relation pass
+ *                           (computed once, before step 1)
+ *   - fill-gate-phase.ts  — the structural gate (step 1)
  *   - fill-classify.ts    — pair classification + cost budget (step 2)
  *   - fill-prompt-size-backfill.ts — records the assembled prompt's size onto
  *                           verdicts written before that field existed
  *   - fill-report.ts      — header, prune summary, grouped diagnostics, summary
  *   - fill-dry-run.ts     — the --dry-run cost preview
  *   - fill-writer.ts      — the serialized lock writer + verdict telemetry
- *   - fill-log-gate.ts    — the per-node mandatory-log gate (§9)
+ *   - fill-log-gate.ts    — the per-node mandatory-log gate (step 3 / §9)
  *   - fill-det-phase.ts   — the deterministic phase (step 5)
  *   - fill-det.ts         — the deterministic per-pair filler
+ *   - fill-closing-phase.ts — closure, rule standings, GC (steps 7, 7b, 8)
  *   - fill-closure.ts     — positive closure (step 7 / §7.5)
  *   - fill-gc.ts          — GC + canonical rewrite (step 8 / §3.2)
+ *   - fill-report-phase.ts — summaries, the re-run read, the convergence
+ *                           sentinel (step 9)
  *
  * Beneath all of them sit the stage's phase-agnostic primitives, which belong to
  * no single step and are therefore owned separately from this stage:
@@ -94,54 +100,26 @@
 import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
-import { runCheck, scanUncoveredFiles } from './check.js';
-import type { CheckIssue } from './check.js';
-import { readLock } from '../io/lock-store.js';
-import type { TypeCoverageInput } from './pairs.js';
-import { verifyLock } from './verify-lock.js';
-import { computeTypeCoverageCached } from './type-coverage.js';
-import type { TypeCoverageResult } from './type-coverage.js';
-import { FileContentCache } from '../io/file-content-cache.js';
-import { DEFAULT_COVERAGE } from '../io/config-parser.js';
-import { validate } from './validator.js';
-import { APPROVE_GATING_CODES, APPROVE_LOG_STATE_GATING_CODES } from './check-codes.js';
-import { debugWrite } from '../utils/debug-log.js';
+import type { FillDispatchCounts, FillEventSink } from '../model/fill-event.js';
+import type { IssueMessage } from '../model/validation.js';
 import type { RunFillOptions, RunFillResult } from './fill-contract.js';
-import { FillGatingError, detGateKey } from './fill-contract.js';
+import { detGateKey } from './fill-contract.js';
+import { prepareFillCoverage } from './fill-coverage-phase.js';
+import { runStructuralGate } from './fill-gate-phase.js';
 import { classifyFillPairs } from './fill-classify.js';
+import type { FillPairSets } from './fill-classify.js';
 import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
 import { acquireFillExclusion, createVerdictWriter, type FillExclusion } from './fill-writer.js';
-import { previewPruneSummary, dryRunBreakdown } from './fill-dry-run.js';
-import {
-  annotateFillCauses,
-  emitDetGateSkips,
-  emitGroupedDiagnostics,
-  reportFillTotals,
-} from './fill-report.js';
+import { runDryRunPreview } from './fill-dry-run.js';
+import { emitDetGateSkips, emitDispatchHeader, emitGroupedDiagnostics, interruptedEvent } from './fill-report.js';
 import { runDeterministicPhase } from './fill-det-phase.js';
+import type { DetPhaseResult } from './fill-det-phase.js';
 import { runLlmPhase } from './fill-llm-phase.js';
-import { logGateBlocks } from './fill-log-gate.js';
-import { classifyLogStateFromLock } from './check-log-state.js';
-import { applyPositiveClosure } from './fill-closure.js';
-import { garbageCollectAndRewrite } from './fill-gc.js';
-import { recordAspectStatuses } from './log/aspect-status.js';
-import { countPostUnverified, reportDivergenceIfDetected } from './fill-divergence.js';
+import { runLogGatePhase } from './fill-log-gate.js';
+import { runClosingPhase } from './fill-closing-phase.js';
+import { runReportPhase } from './fill-report-phase.js';
 import { ProgressTracker } from './fill-progress.js';
-import type { FillEventSink } from '../model/fill-event.js';
 import { textFillSink } from '../formatters/fill-text.js';
-// ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
-//    so a `relations:` applicability atom is answered identically here. ──
-import { runProjectRelationPass } from '../relations/pass.js';
-import type { RelationPassResult } from '../relations/pass.js';
-import { count } from '../utils/count.js';
-
-/**
- * What reviews the reviewer-rule pairs of a project with no reviewer: configuring
- * one is the user's decision (it sends code to that provider), so it is asked
- * for, with `--model` (required by every provider but claude-code) and the
- * draft alternative in view.
- */
-const CONFIGURE_REVIEWER_NEXT = 'Ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft.';
 
 // ============================================================
 // Public surface
@@ -167,132 +145,58 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   }
 }
 
+/** The per-run settings every step reads, resolved once from the options. */
+interface FillRun {
+  emit: FillEventSink;
+  emitIssue: (msg: IssueMessage) => void;
+  startedAt: number;
+  projectRoot: string;
+  onlyDeterministic: boolean;
+  dryRun: boolean;
+  /** The command every "then re-run" line names. */
+  retry: string;
+  reviewerConfigured: boolean;
+}
+
+function resolveFillRun(graph: Graph, opts: RunFillOptions): FillRun {
+  return {
+    // Everything this run says goes out as FillEvent data. A caller that supplies
+    // no event sink gets the events worded by the fill-text formatter into its
+    // plain-text `write` sink — the engine itself never composes one of those
+    // sentences, and writes to no stream of its own.
+    emit: opts.onEvent ?? textFillSink(opts.write ?? ((): void => {})),
+    emitIssue: opts.emitIssue ?? ((): void => {}),
+    startedAt: opts.now(),
+    projectRoot: path.dirname(graph.rootPath),
+    onlyDeterministic: opts.onlyDeterministic ?? false,
+    dryRun: opts.dryRun ?? false,
+    // The command every "then re-run" line names — the one the user actually ran,
+    // so a retry never silently drops --only-deterministic or --dry-run and turns
+    // a free run into a paid one (or into one that aborts).
+    retry: opts.retryCommand ?? 'yg check --approve',
+    reviewerConfigured: graph.config.reviewer !== undefined,
+  };
+}
+
 async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?: FillExclusion): Promise<RunFillResult> {
-  // Everything this run says goes out as FillEvent data. A caller that supplies
-  // no event sink gets the events worded by the fill-text formatter into its
-  // plain-text `write` sink — the engine itself never composes one of those
-  // sentences, and writes to no stream of its own.
-  const emit: FillEventSink = opts.onEvent ?? textFillSink(opts.write ?? ((): void => {}));
-  const emitIssue = opts.emitIssue ?? ((): void => {});
-  const startedAt = opts.now();
-  const projectRoot = path.dirname(graph.rootPath);
-  const onlyDeterministic = opts.onlyDeterministic ?? false;
-  const dryRun = opts.dryRun ?? false;
-  // The command every "then re-run" line names — the one the user actually ran,
-  // so a retry never silently drops --only-deterministic or --dry-run and turns
-  // a free run into a paid one (or into one that aborts).
-  const retry = opts.retryCommand ?? 'yg check --approve';
-  const reviewerConfigured = graph.config.reviewer !== undefined;
-  const isTTY = opts.isTTY;
-  const now = opts.now;
-  // Deterministic-phase thread budget (injected; engine reads no system state).
-  // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
-  const detConcurrency = Math.max(1, Math.floor(opts.detConcurrency ?? 1));
-  const detTaskBudgetMs = Math.max(0, Math.floor(opts.detTaskBudgetMs ?? 0));
-  // Committed-events opt-in (RZ-14). Read from the resolved config once and passed
-  // to the writer: when ON, LLM verification-fill events graduate to the committed
-  // shared stream; every other event stays in the local sidecar.
-  const committedLlm = graph.config.events?.committed_llm === true;
+  const run = resolveFillRun(graph, opts);
+  const { emit, emitIssue, projectRoot, onlyDeterministic, dryRun, retry } = run;
 
-  // The type-level classification lattice (coverage.type_level), computed ONCE
-  // for this whole fill run and threaded into every downstream consumer below:
-  // the structural gate's own reviewer-presence check (validate →
-  // checkReviewerPresence), pair classification (verifyLock — critically, the
-  // one thing that keeps a nodeless pair from being pruned as detached), GC
-  // (garbageCollectAndRewrite), and both of this run's own runCheck calls below
-  // (as precomputedTypeCoverage — otherwise runCheck would classify a second
-  // time from scratch, reading every uncovered file's bytes twice). Undefined
-  // at flag-off or when no file walk ran this call (opts.coverageVisibleFiles
-  // === null) — every consumer already treats that as "nothing to do."
-  // computeTypeCoverageCached constructs its own persistent
-  // .yggdrasil/.type-class-cache/ instance, so `yg check --approve` reads and
-  // writes it exactly like a plain `yg check` does, instead of the
-  // classification-cache bypass that shipped before.
-  const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
-  let typeCoverageInput: TypeCoverageInput | undefined;
-  let typeCoverageResult: TypeCoverageResult | undefined;
-  // The import-resolution pass this call made, if it made one. Held so the
-  // report below can be handed it instead of parsing every mapped source file a
-  // second time — see runCheck's `precomputedRelationPass`. Stays undefined when
-  // type-level coverage is off, in which case this stage never needed the pass
-  // and the report runs the run's ONLY one.
-  let relPassResult: RelationPassResult | undefined;
-  if (opts.coverageVisibleFiles !== null && coverage.typeLevel) {
-    const uncoveredForGate = scanUncoveredFiles(graph, opts.coverageVisibleFiles);
-    typeCoverageResult = await computeTypeCoverageCached(graph, uncoveredForGate, new FileContentCache());
-
-    // Relation pass (parse + resolve), run ONCE for this fill call — after the
-    // type coverage is classified (so its typeCoveredFiles map is available)
-    // and BEFORE the structural gate / verifyLock below, so a `relations:`
-    // atom in an aspect's `when:` is answered from the SAME edge index
-    // runCheck's own pass builds. Without this, this run's own pair
-    // computation (which pairs get filled) would silently disagree with a
-    // separate `yg check`'s (which pairs are expected) — a positively-gated
-    // rule never filled, a negated one always filled.
-    relPassResult = await runProjectRelationPass(graph, projectRoot, typeCoverageResult.covered);
-
-    typeCoverageInput = {
-      covered: typeCoverageResult.covered,
-      ambiguousPaths: typeCoverageResult.ambiguous.map((a) => a.file),
-      edges: relPassResult.typedEdges,
-    };
-  }
+  // Type-level classification + relation pass, once for the whole run.
+  const coverage = await prepareFillCoverage(graph, opts.coverageVisibleFiles, projectRoot);
+  const typeCoverageInput = coverage.typeCoverageInput;
 
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────
-  const validation = await validate(graph, 'all', undefined, typeCoverageInput);
-  // A missing reviewer leaves nothing unclear for a run that calls none: a
-  // deterministic-only fill and a preview go ahead (each says what it could not
-  // do), and so does a run whose judgment rules are all advisory — the check
-  // reports that at warning severity, since advisory never blocks. The judgment
-  // pairs stay unverified, named as having no reviewer.
-  const reviewerMissingIsNoGate = (i: { code?: string; severity: string }): boolean =>
-    i.code === 'config-reviewer-missing' && (onlyDeterministic || dryRun || i.severity !== 'error');
-  // The committed lock, read once for everything this run decides: the log
-  // state just below, the pair classification, and every verdict written.
-  const lock = readLock(graph.rootPath);
-  // A log.md that is not settled (conflict markers, a rewritten history, a body
-  // that does not parse) stops a run that could close a node's cycle before it
-  // buys anything: closure would record a baseline over it. The same reading a
-  // plain check makes, so the two can never disagree about which log is broken.
-  // `--only-deterministic` and a `--dry-run` preview write no baseline and are
-  // not stopped by it.
-  const logStateIssues: CheckIssue[] = [];
-  if (!onlyDeterministic && !dryRun) await classifyLogStateFromLock(graph, projectRoot, lock, logStateIssues);
-  const gating = [
-    ...validation.issues.filter(
-      (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code) && !reviewerMissingIsNoGate(i),
-    ),
-    ...logStateIssues.filter((i) => i.code !== undefined && APPROVE_LOG_STATE_GATING_CODES.has(i.code)),
-  ];
-  if (gating.length > 0) {
-    const single = gating.length === 1;
-    if (opts.gateIssuesOnError !== true) {
-      emitIssue({
-        what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
-        why: `A fill records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
-        next: `Fix the errors below, then re-run: ${retry}`,
-      });
-      for (const i of gating) emitIssue(i.messageData);
-    }
-    throw new FillGatingError(
-      gating.map((i) => ({ code: i.code!, what: i.messageData.what, why: i.messageData.why, next: i.messageData.next })),
-      'structural',
-      gating.map((i) => ({
-        code: i.code!,
-        severity: 'error',
-        rule: i.rule,
-        messageData: i.messageData,
-        ...(i.nodePath !== undefined ? { nodePath: i.nodePath } : {}),
-        ...(i.aspectId !== undefined ? { aspectId: i.aspectId } : {}),
-      })),
-      retry,
-    );
-  }
+  // The committed lock it returns is read once for everything this run decides.
+  const lock = await runStructuralGate({
+    graph, projectRoot, typeCoverage: typeCoverageInput, onlyDeterministic, dryRun, retry,
+    gateIssuesOnError: opts.gateIssuesOnError, emitIssue,
+  });
 
   // ── Step 2: Classify pairs through the SAME engine plain check uses. ───────
   // The change scope narrows the PAID half of the fill set and nothing else —
-  // see fill-classify.ts. `reportNodeSet` below is also the log gate's set —
-  // the components this run fills a pair of, the same ones the report counts.
+  // see fill-classify.ts. `reportNodeSet` is also the log gate's set — the
+  // components this run fills a pair of, the same ones the report counts.
   // companion.mjs runs only where a reviewer pair may be filled: never in a
   // preview, and never under --only-deterministic, whose one piece of
   // repository code is the script rules' check.mjs (the free CI step promises
@@ -301,88 +205,12 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
     !dryRun && !onlyDeterministic,
   );
-  const {
-    verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
-    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk,
-    reportNodeSet, reportFileSet, reviewerCallBudget,
-  } = classification;
+  const { verification, detPairs, llmPairs, aspectById, reportNodeSet } = classification;
+  const headerCounts = dispatchCounts(classification, run);
 
-  // ── Pre-dispatch header (EXACT) — printed by the preview below, or after the
-  //    log gate for a real run, so a gated run never announces a fill. ──────
-  const writeHeader = (withNoReviewerNote = true): void => {
-    emit({
-      type: 'dispatch',
-      counts: {
-        fillPairs: detPairs.length + llmPairs.length,
-        nodeCount: reportNodeSet.size,
-        fileCount: reportFileSet.size,
-        detPairs: detPairs.length,
-        reviewerCallBudget,
-        skippedLlmPairs,
-        skippedOutsideLlmPairs,
-        reviewerConfigured,
-        preview: dryRun,
-      },
-    });
-    // Judgment pairs in the fill set with no reviewer to call: only a preview or
-    // an all-advisory project gets here (the structural gate stops the rest).
-    if (withNoReviewerNote) writeNoReviewerNote();
-  };
-  const writeNoReviewerNote = (): void => {
-    if (!reviewerConfigured && llmPairs.length > 0) {
-      // Structured what / why / next; the renderer lays it out under the header.
-      const noReviewer = {
-        what: `No reviewer is configured — the ${count(llmPairs.length, 'reviewer pair')} counted here cannot be reviewed.`,
-        why: dryRun
-          ? 'Reviewer rules are decided only by the configured reviewer; a fill would record the script rules and leave these pairs unverified.'
-          : 'Reviewer rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
-        next: CONFIGURE_REVIEWER_NEXT,
-      };
-      emit({ type: 'no-reviewer', message: noReviewer });
-    }
-  };
-
-  // ── Dry-run: cost preview, no writes. ──────────────────────────────────────
-  // Prints the budget header itself, and is placed BEFORE the serialized writer is
-  // constructed, so the no-write guarantee is STRUCTURAL — there is no writer to
-  // invoke and no fill loop is reached. This INTENTIONALLY bypasses the step-3
-  // log gate below (a cost preview must not require a fresh log entry); only the
-  // step-1 structural/config gate, which already ran above, can abort a preview.
+  // ── Dry-run: cost preview, no writes — returns before the writer exists. ──
   if (dryRun) {
-    // The priced pairs first, then what a missing reviewer means for them, so
-    // the preview ends on its own caveat rather than on a list.
-    writeHeader(false);
-    emit({ ...dryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }), reviewerConfigured });
-    writeNoReviewerNote();
-    const prunePreview = await previewPruneSummary(graph, lock, {
-      typeCoverage: typeCoverageInput,
-      detAspectIdsOnDisk,
-      onlyDeterministic,
-    });
-    emit({ type: 'prune', ...prunePreview });
-    const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
-      // A preview executes no repository code; its verification (below) ran none.
-      runCompanionHooks: false,
-      nowUtc: opts.reviewNowUtc,
-      rulesArtifacts: opts.rulesArtifacts,
-      reasonlessSuppressMarkers: opts.reasonlessSuppressMarkers,
-      trackedFiles: opts.trackedFiles,
-      precomputedTypeCoverage: typeCoverageResult,
-      // A preview writes nothing — it returns before the verdict writer is even
-      // constructed — so both of these still describe exactly what this call
-      // classified moments ago. Handing them over is what makes a cost preview
-      // cost like the read it is, instead of re-hashing every pair and
-      // re-parsing every mapped source file to rediscover what is already here.
-      precomputedRelationPass: relPassResult,
-      precomputedVerification: verification,
-      // The same measurement the preview priced against, so the report under a
-      // budget describes the same run that budget is for: a preview that priced
-      // only the change's obligations must not then print a wall of findings
-      // the change is not accountable for as though the fill would clear them.
-      changeScope: opts.changeScope,
-    });
-    const dryRunBudget = { pairs: detPairs.length + llmPairs.length, nodes: reportNodeSet.size, files: reportFileSet.size, deterministic: detPairs.length, reviewerCalls: reviewerCallBudget };
-    return { checkResult, dryRunBudget, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
+    return runDryRunPreview(graph, { opts, lock, classification, coverage, headerCounts, onlyDeterministic, emit });
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
@@ -390,28 +218,15 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // written (0 before that: an interrupt then has nothing of this run to report).
   let interruptTotal = 0;
   const writer = createVerdictWriter({
-    graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha, exclusion,
+    graph, lock, now: opts.now, onlyDeterministic,
+    // Committed-events opt-in (RZ-14). Read from the resolved config once and passed
+    // to the writer: when ON, LLM verification-fill events graduate to the committed
+    // shared stream; every other event stays in the local sidecar.
+    committedLlm: graph.config.events?.committed_llm === true,
+    deterministicAspectIds: classification.deterministicAspectIds, sha: opts.sha, exclusion,
     onInterrupted: (saved, flushed) => {
       if (interruptTotal === 0) return;
-      const total = interruptTotal;
-      const pairs = count(total, 'pair');
-      emit({
-        type: 'interrupted',
-        saved,
-        total,
-        flushed,
-        message: flushed
-          ? {
-            what: `Interrupted — ${saved} of ${pairs} ${saved === 1 ? 'has' : 'have'} a verdict saved from this run.`,
-            why: 'A signal stopped the run. Every verdict finished before it is in the lock; the reviewer calls still running were stopped, and the pairs without a verdict stay unverified.',
-            next: `Re-run: ${retry} — it resumes, reviewing only the pairs without a verdict.`,
-          }
-          : {
-            what: `Interrupted — the final lock write FAILED; up to ${saved} of ${pairs} may have lost the verdict this run gave them.`,
-            why: 'A signal stopped the run, and writing the verdicts still held in memory to the lock failed. The reviewer calls still running were stopped.',
-            next: `Re-run: ${retry} — every pair without a verdict in the lock is reviewed again.`,
-          },
-      });
+      emit(interruptedEvent(saved, interruptTotal, flushed, retry));
     },
   });
 
@@ -428,56 +243,17 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     await backfillPromptSizes(lock, verification.pairs, writer.persistLock);
   }
 
-  // ── Step 3: Log gate per node (§9). A node this run fills a pair of, whose
-  // log_required type saw its own source change (or first verification) with no
-  // fresh entry, needs a justification entry first. If ANY such node needs one,
-  // --approve approves NOTHING this run and stops (no fill, no report) — the
-  // per-node messages tell the user which entries to add, then re-run.
-  const blockedNodes = new Set<string>();
-  const logGateIssues: CheckIssue[] = [];
-  for (const nodePath of reportNodeSet) {
-    const node = graph.nodes.get(nodePath);
-    if (!node) continue;
-    const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
-    if (blocked === null) continue;
-    blockedNodes.add(nodePath);
-    logGateIssues.push({ code: 'log-entry-missing', severity: 'error', rule: 'log-entry-missing', messageData: blocked, nodePath });
-    if (opts.gateIssuesOnError !== true) emitIssue(blocked);
-  }
-  if (blockedNodes.size > 0) {
-    throw new FillGatingError([{
-      code: 'log-entry-required',
-      what: `${count(blockedNodes.size, 'node')} ${blockedNodes.size === 1 ? 'needs' : 'need'} a fresh log entry before --approve.`,
-      why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was filled this run.',
-      next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
-    }], 'log-gate', logGateIssues, retry);
-  }
-
-  // ── Step 4: Pre-dispatch header (EXACT). ──────────────────────────────────
-  writeHeader();
-
-  // ── Progress tracker — covers all fill pairs (det + LLM). ─────────────────
-  // The tracker is created here (after pair counts are known) so it can
-  // initialise the milestone interval from the total pair count.
-  // It is NOT responsible for setting up real timers — that is done below so
-  // that tests can drive the tracker directly via onTick() with a fake clock.
-  const totalPairs = detPairs.length + llmPairs.length;
-  interruptTotal = totalPairs;
-  const tracker = new ProgressTracker(totalPairs, {
-    isTTY,
-    now,
-    columns: opts.columns,
-    milestoneInterval: opts.milestoneInterval,
-    stillWorkingIntervalMs: opts.stillWorkingIntervalMs,
+  // ── Step 3: Log gate per node (§9) — throws when any node owes an entry. ──
+  const blockedNodes = await runLogGatePhase({
+    graph, projectRoot, nodePaths: reportNodeSet, lock, retry, gateIssuesOnError: opts.gateIssuesOnError, emitIssue,
   });
 
-  // Set up a real timer for heartbeat ticks (TTY rewrite or still-working check).
-  // The interval matches the stillWorkingIntervalMs default / configured value so
-  // we tick often enough to detect a stall. We use a short interval (5s) for
-  // the TTY rewrite so the elapsed-seconds counter stays current.
-  const tickIntervalMs = isTTY ? 5000 : (opts.stillWorkingIntervalMs ?? 30000);
-  const tickInterval = setInterval(() => { tracker.onTick(emit); }, tickIntervalMs);
-  tickInterval.unref?.(); // don't keep the process alive if everything else finishes
+  // ── Step 4: Pre-dispatch header (EXACT). ──────────────────────────────────
+  emitDispatchHeader(emit, headerCounts);
+
+  const totalPairs = detPairs.length + llmPairs.length;
+  interruptTotal = totalPairs;
+  const { tracker, stopTicking } = startProgress(totalPairs, opts, emit);
 
   // The architecture-reach cache for nodeless (component-free) pairs — shared
   // across EVERY fillDetPair call AND every fillLlmPair companion resolution
@@ -494,7 +270,12 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   const det = await runDeterministicPhase({
     graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-    detConcurrency, detWorkerCeiling: opts.detWorkerCeiling, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit,
+    // Deterministic-phase thread budget (injected; engine reads no system state).
+    // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
+    detConcurrency: Math.max(1, Math.floor(opts.detConcurrency ?? 1)),
+    detWorkerCeiling: opts.detWorkerCeiling,
+    detTaskBudgetMs: Math.max(0, Math.floor(opts.detTaskBudgetMs ?? 0)),
+    typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit,
   });
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────
@@ -504,15 +285,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   emitGroupedDiagnostics(det.malformedSuppressItems, 'malformed-suppress', emitIssue);
 
   // ── Deterministic gate: report units whose LLM fills are skipped. ──────────
-  // Keyed on detGateKey — one refusing FILE must skip only that file's
-  // paid review, never every other type-covered file's (the cross-contamination
-  // this gate must never reproduce).
-  const llmSkippedByDetGate = new Set<string>();
-  for (const pair of llmPairs) {
-    if (det.detEnforcedRefusedNodes.has(detGateKey(pair))) {
-      llmSkippedByDetGate.add(detGateKey(pair));
-    }
-  }
+  const llmSkippedByDetGate = detGateSkips(classification, det);
   emitDetGateSkips(llmSkippedByDetGate, emitIssue, retry);
 
   // ── Step 6: LLM fills — grouped by resolved tier; one provider per tier. ───
@@ -525,173 +298,19 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   emitGroupedDiagnostics(llm.companionRuntimeItems, 'companion', emitIssue);
   emitGroupedDiagnostics(llm.poolInfraItems, 'pool-infra', emitIssue);
 
-  // ── Step 7: Positive closure (§7.5). ──────────────────────────────────────
-  // Re-classify against the POST-FILL lock so closure sees the verdicts just
-  // written. A node with a missing/stale fingerprint closes (records source +
-  // log baseline) only when ALL its enforced effective pairs are approved.
-  // Deliberate post-fill re-classification: must see freshly-written verdicts —
-  // do not thread step-2 (pre-fill verifyLock) results through. blockedNodes
-  // (the step-4 log-gate set) is threaded so a node whose pairs were skipped this
-  // run can never close over its stale verdicts.
-  // Skipped under --only-deterministic: closure records source + log baseline to the
-  // COMMITTED logs file, which a deterministic-only / CI run must never write.
-  if (!onlyDeterministic) {
-    // The skipped set is what lets closure tell a pair this run was told not to
-    // buy from one that is unverified because something went wrong. Without it a
-    // scoped run would leave every such component's cycle open forever, and an
-    // open cycle lets ONE justification entry answer for every later edit — see
-    // applyPositiveClosure's own note on (c).
-    await applyPositiveClosure(
-      graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput,
-      skippedOutsideLlmPairKeys,
-    );
-  }
-
-  // ── Step 7b: Rule standings. ───────────────────────────────────────────────
-  // The standing each rule was last seen at is remembered here, and a standing
-  // that moved since — a promotion or a demotion made by hand, which is the only
-  // way a status changes today — is written into that rule's own log once. The
-  // memory is LOCAL — it rides with the gitignored verdict cache — so the
-  // ordinary writer persists it in both modes. The log line is NOT local: it is
-  // appended to the rule's committed log (`log.md` beside a rule of this
-  // repository's own, `yg-aspect.adapt.log.md` beside the adaptation of a rule
-  // installed from a package, never a file inside the package's copy). So under
-  // --only-deterministic, which writes no committed file, the log line is not
-  // written and the memory of that rule is not advanced: the warning keeps
-  // standing until a full `--approve` writes the line or somebody records the
-  // change with `yg aspects log add`.
-  const statuses = await recordAspectStatuses(graph, lock, now(), { writeLogs: !onlyDeterministic });
-  if (statuses.changed) await writer.persistLock();
-  for (const drift of statuses.recorded) {
-    emit({ type: 'rule-status', aspectId: drift.aspectId, from: drift.from, to: drift.to });
-  }
-
-  // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
-  // Deliberate post-fill re-classification: must see freshly-written verdicts —
-  // do not thread step-2 (pre-fill verifyLock) results through. typeCoverageInput
-  // IS threaded (computed once at the top of this run) — this is the anti-prune
-  // lever: without it, the first --approve after enabling the feature would
-  // prune every file-level result as detached.
-  const pruneSummary = await garbageCollectAndRewrite(graph, lock, writer.persistLock, {
-    typeCoverage: typeCoverageInput,
-    detAspectIdsOnDisk,
-    scope: onlyDeterministic ? 'deterministic' : 'all',
+  // ── Steps 7, 7b, 8: closure, rule standings, GC — over the POST-FILL lock. ──
+  const pruneSummary = await runClosingPhase({
+    graph, projectRoot, lock, blockedNodes, writer, typeCoverage: typeCoverageInput,
+    skippedOutsideLlmPairKeys: classification.skippedOutsideLlmPairKeys,
+    detAspectIdsOnDisk: classification.detAspectIdsOnDisk, onlyDeterministic, now: opts.now, emit,
   });
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────
-  emit({ type: 'prune', ...pruneSummary });
-  reportFillTotals({
-    reviewerCallsMade: llm.reviewerCallsMade,
-    infraFailures: llm.infraFailures,
-    runtimeErrors: det.runtimeErrors,
-    companionRuntimeErrors: llm.companionRuntimeErrors,
-    malformedSuppressErrors: det.malformedSuppressErrors,
-    skippedLlmPairs,
-    skippedOutsideLlmPairs,
-    infraReport: llm.infraReport,
-    detApproved: det.approved,
-    detRefused: det.refused,
-    skippedByDetGate: llmSkippedByDetGate.size,
-    reviewerConfigured,
-    retry,
-    // Refusals the lock already held for unchanged inputs: they stand after
-    // this run, so its closing line must not claim every pair is valid.
-    cachedRefusals: verification.pairs.filter((vp) => vp.state.kind === 'refused').length,
-    elapsedMs: Math.max(0, opts.now() - startedAt),
-    usage: llm.usage,
-    outcomes: tracker.counts(),
-  }, emit, emitIssue);
-
-  // Drain all queued progress writes first, then stop the timer and clear the TTY line.
-  await writer.drain();
-  clearInterval(tickInterval);
-  tracker.clearLine(emit);
-
-  // The `yg check --approve` combiner prints this report after filling. This IS the
-  // reporting path for `--approve`, so it maintains the silent feature-field index when the
-  // CLI asks (best-effort, byproduct-free elsewhere). The dry-run re-check above returns
-  // before reaching here, so a cost preview never writes it regardless of the flag.
-  const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
-    // A real fill already ran the repository's rule code; its report sizes a
-    // stale companion pair with the companions resolved, as the fill itself did.
-    // Under --only-deterministic no companion ran, and the report runs none
-    // either: it sizes such a pair exactly as a plain `yg check` does.
-    runCompanionHooks: !onlyDeterministic,
-    writeFeatureIndex: opts.writeFeatureIndex,
-    now: opts.featureIndexNow,
-    nowUtc: opts.reviewNowUtc,
-    rulesArtifacts: opts.rulesArtifacts,
-    reasonlessSuppressMarkers: opts.reasonlessSuppressMarkers,
-    trackedFiles: opts.trackedFiles,
-    precomputedTypeCoverage: typeCoverageResult,
-    // Same pass, reused: a fill writes lock and log files, never source, so what
-    // it resolved before the fill it would resolve identically now. Deliberately
-    // NOT accompanied by precomputedVerification — this run DID write verdicts,
-    // so the lock must be re-verified for the report to describe it.
-    precomputedRelationPass: relPassResult,
-    // The in-process fill→check handoff (core/type-visibility.ts's own module
-    // comment names this the missing piece): THIS run's own runtimeDispositions,
-    // so the report it is about to build can name a component-free disposition
-    // by reason instead of a bare "unverified" caveat. A run that never fills
-    // (plain `yg check`, or a later separate invocation) passes nothing here and
-    // gets runCheck's own empty-array default — the qualified fallback wording.
-    runtimeDispositions: det.runtimeDispositions,
-    // This run's own measurement, so a recording run and a plain read of the
-    // same working tree agree about the build. Without it the two disagreed by
-    // construction: a project could pass `yg check` and fail `yg check
-    // --approve` on findings the change never reached, and the command the
-    // failing report pointed at was the one that answered for everything.
-    changeScope: opts.changeScope,
+  const checkResult = await runReportPhase({
+    graph, opts, lock, classification, coverage, det, llm, pruneSummary,
+    skippedByDetGate: llmSkippedByDetGate.size, reviewerConfigured: run.reviewerConfigured,
+    onlyDeterministic, retry, startedAt: run.startedAt, writer, tracker, stopTicking, emit, emitIssue,
   });
-
-  // The report above is rebuilt from the lock, which records verdicts and never
-  // failures — so every pair this run could not fill would read as merely "not
-  // yet reviewed", pointing back at the command that just failed on it. Name
-  // each one's cause and its real fix on the report (and so in --json) instead.
-  annotateFillCauses(checkResult, [
-    ...det.runtimeItems.map((item) => ({ ...item, cause: 'check-failed-to-run' as const })),
-    ...det.malformedSuppressItems.map((item) => ({ ...item, cause: 'suppress-marker-invalid' as const })),
-    ...llm.unreachableItems.map((item) => ({ ...item, cause: 'reviewer-unreachable' as const })),
-    ...llm.poolInfraItems.map((item) => ({
-      ...item,
-      cause: reviewerConfigured ? 'reviewer-failed' as const : 'reviewer-missing' as const,
-    })),
-  ], retry);
-
-  // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
-  // Detect the exact 0-fill divergence: the pre-fill classification reported ZERO
-  // pairs to fill, yet the post-fill report finds unverified pairs, with NO
-  // verdict written in between. That triad is a genuine convergence gap (the
-  // classifier disagreed with itself over unchanged inputs) that would otherwise
-  // be silent. On fire: emit ONE notice and record a bounded evidence dump via
-  // the injected io writer. This NEVER alters exit codes, verdicts, the lock, or
-  // fill flow, and is wrapped in a swallow-all — a sentinel failure must never
-  // fail a fill.
-  try {
-    // Both spellings of the same finding — see countPostUnverified.
-    const postUnverified = countPostUnverified(checkResult.issues);
-    // Deliberately the UNFILTERED classification count, not the fill set: the
-    // pathology is "the classifier found nothing to do, yet pairs are still
-    // unverified afterwards". A run that found work and then narrowed it away
-    // has an obvious, honest reason for the leftovers, and priming the sentinel
-    // with the narrowed number would fire it on every scoped run.
-    const shape = { toFill: unverifiedPairs.length, postUnverified, lockWrites: writer.lockWrites };
-    await reportDivergenceIfDetected(shape, lock, {
-      emitIssue,
-      divergenceWrite: opts.divergenceWrite,
-      // Read-only enumeration (only invoked on fire): a fresh verifyLock pass
-      // names the divergent pairs; buildDivergenceDump attaches each pair's
-      // already-stored lock hash — nothing is re-hashed and nothing is written.
-      enumerate: async () => {
-        const postVerification = await verifyLock(graph, lock, typeCoverageInput);
-        return postVerification.pairs
-          .filter((vp) => vp.state.kind === 'unverified')
-          .map((vp) => ({ aspectId: vp.pair.aspectId, unitKey: vp.pair.unitKey }));
-      },
-    });
-  } catch (e) {
-    debugWrite(`[fill] convergence sentinel failed (swallowed): ${e instanceof Error ? e.message : String(e)}`);
-  }
 
   return {
     checkResult,
@@ -702,4 +321,64 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     malformedSuppressErrors: det.malformedSuppressErrors,
     runtimeDispositions: det.runtimeDispositions,
   };
+}
+
+/** The pre-dispatch header's counts: what will actually be filled, and what was left alone. */
+function dispatchCounts(classification: FillPairSets, run: FillRun): Required<FillDispatchCounts> {
+  const { detPairs, llmPairs, reportNodeSet, reportFileSet } = classification;
+  return {
+    fillPairs: detPairs.length + llmPairs.length,
+    nodeCount: reportNodeSet.size,
+    fileCount: reportFileSet.size,
+    detPairs: detPairs.length,
+    reviewerCallBudget: classification.reviewerCallBudget,
+    skippedLlmPairs: classification.skippedLlmPairs,
+    skippedOutsideLlmPairs: classification.skippedOutsideLlmPairs,
+    reviewerConfigured: run.reviewerConfigured,
+    preview: run.dryRun,
+  };
+}
+
+/**
+ * The progress tracker over all fill pairs (det + LLM), and the real timer that
+ * drives its heartbeat. The tracker is created once the pair counts are known so
+ * it can initialise the milestone interval from the total; it sets up no timer
+ * of its own, so tests can drive it directly via onTick() with a fake clock.
+ */
+function startProgress(
+  totalPairs: number,
+  opts: RunFillOptions,
+  emit: FillEventSink,
+): { tracker: ProgressTracker; stopTicking: () => void } {
+  const tracker = new ProgressTracker(totalPairs, {
+    isTTY: opts.isTTY,
+    now: opts.now,
+    columns: opts.columns,
+    milestoneInterval: opts.milestoneInterval,
+    stillWorkingIntervalMs: opts.stillWorkingIntervalMs,
+  });
+  // A real timer for heartbeat ticks (TTY rewrite or still-working check). The
+  // interval matches the stillWorkingIntervalMs default / configured value so
+  // we tick often enough to detect a stall. We use a short interval (5s) for
+  // the TTY rewrite so the elapsed-seconds counter stays current.
+  const tickIntervalMs = opts.isTTY ? 5000 : (opts.stillWorkingIntervalMs ?? 30000);
+  const tickInterval = setInterval(() => { tracker.onTick(emit); }, tickIntervalMs);
+  tickInterval.unref?.(); // don't keep the process alive if everything else finishes
+  return { tracker, stopTicking: () => { clearInterval(tickInterval); } };
+}
+
+/**
+ * The units whose LLM fills the deterministic gate skips this run. Keyed on
+ * detGateKey — one refusing FILE must skip only that file's paid review, never
+ * every other type-covered file's (the cross-contamination this gate must never
+ * reproduce).
+ */
+function detGateSkips(classification: FillPairSets, det: DetPhaseResult): Set<string> {
+  const llmSkippedByDetGate = new Set<string>();
+  for (const pair of classification.llmPairs) {
+    if (det.detEnforcedRefusedNodes.has(detGateKey(pair))) {
+      llmSkippedByDetGate.add(detGateKey(pair));
+    }
+  }
+  return llmSkippedByDetGate;
 }

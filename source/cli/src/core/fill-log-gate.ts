@@ -7,20 +7,66 @@
  * path (core/check.ts) and positive closure can consult it without depending on
  * the fill stage. This module adds only the fill-stage WRAPPER (logGateBlocks)
  * that emits the `log-entry-missing` diagnostic when the gate blocks a node whose
- * pairs are being filled.
+ * pairs are being filled, and the phase (runLogGatePhase) that asks it of every
+ * such node and stops the run when any of them blocks.
  */
 
 import type { Graph, GraphNode } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckIssue } from './check.js';
 import { logGateBlocksNode } from './log/log-gate.js';
+import { FillGatingError } from './fill-contract.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
+
+/**
+ * Step 3 of the fill stage: the log gate over every component the run fills a
+ * pair of. A node whose log_required type saw its own source change (or first
+ * verification) with no fresh entry needs a justification entry first. If ANY
+ * such node needs one, --approve approves NOTHING this run and stops (no fill,
+ * no report) — the per-node messages tell the user which entries to add, then
+ * re-run. Returns the (empty) blocked set when nothing blocks.
+ */
+export async function runLogGatePhase(params: {
+  graph: Graph;
+  projectRoot: string;
+  /** The components this run fills a pair of — the same ones the report counts. */
+  nodePaths: Iterable<string>;
+  lock: LockFile;
+  retry: string;
+  /** See RunFillOptions.gateIssuesOnError. */
+  gateIssuesOnError: boolean | undefined;
+  emitIssue: (msg: IssueMessage) => void;
+}): Promise<Set<string>> {
+  const { graph, projectRoot, lock, retry, emitIssue } = params;
+  const blockedNodes = new Set<string>();
+  const logGateIssues: CheckIssue[] = [];
+  for (const nodePath of params.nodePaths) {
+    const node = graph.nodes.get(nodePath);
+    if (!node) continue;
+    const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
+    if (blocked === null) continue;
+    blockedNodes.add(nodePath);
+    logGateIssues.push({ code: 'log-entry-missing', severity: 'error', rule: 'log-entry-missing', messageData: blocked, nodePath });
+    if (params.gateIssuesOnError !== true) emitIssue(blocked);
+  }
+  if (blockedNodes.size > 0) {
+    throw new FillGatingError([{
+      code: 'log-entry-required',
+      what: `${count(blockedNodes.size, 'node')} ${blockedNodes.size === 1 ? 'needs' : 'need'} a fresh log entry before --approve.`,
+      why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was filled this run.',
+      next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
+    }], 'log-gate', logGateIssues, retry);
+  }
+  return blockedNodes;
+}
 
 /**
  * Step-4 log gate: consults logGateBlocksNode (the shared predicate) and returns
  * the `log-entry-missing` message when a node blocks (null when it does not).
  * The caller decides where the message goes: onto the diagnostic stream, or
- * into the abort it raises. fill.ts asks it of every component the run would
+ * into the abort it raises. runLogGatePhase asks it of every component the run would
  * fill a pair of, collects every blocked one and, if any exist, throws
  * FillGatingError so the run fills NOTHING (no pair on any node is verified until
  * each of those entries exists). A changed component the run fills nothing of is
@@ -41,7 +87,7 @@ import { toPosixPath } from '../utils/posix.js';
  * reader looking for a change that never happened, so the message says which
  * of the two it is.
  */
-export async function logGateBlocks(
+async function logGateBlocks(
   graph: Graph,
   projectRoot: string,
   node: GraphNode,

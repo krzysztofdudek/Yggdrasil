@@ -12,10 +12,73 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import type { FillEventSink, FillUsageTotals, FillProgressCounts } from '../model/fill-event.js';
+import type { FillEvent, FillEventSink, FillUsageTotals, FillProgressCounts, FillDispatchCounts } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
+
+/**
+ * What reviews the reviewer-rule pairs of a project with no reviewer: configuring
+ * one is the user's decision (it sends code to that provider), so it is asked
+ * for, with `--model` (required by every provider but claude-code) and the
+ * draft alternative in view.
+ */
+const CONFIGURE_REVIEWER_NEXT = 'Ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft.';
+
+/**
+ * The pre-dispatch header (EXACT): counts of what will actually be filled, plus
+ * what was deliberately left alone and why. Printed by a preview, or after the
+ * log gate for a real run, so a gated run never announces a fill. With
+ * `withNoReviewerNote`, the missing-reviewer note follows it.
+ */
+export function emitDispatchHeader(emit: FillEventSink, counts: Required<FillDispatchCounts>, withNoReviewerNote = true): void {
+  emit({ type: 'dispatch', counts });
+  // Judgment pairs in the fill set with no reviewer to call: only a preview or
+  // an all-advisory project gets here (the structural gate stops the rest).
+  if (withNoReviewerNote) emitNoReviewerNote(emit, counts.fillPairs - counts.detPairs, counts.reviewerConfigured, counts.preview);
+}
+
+/** The note under the header when reviewer pairs are counted but no reviewer is configured. */
+export function emitNoReviewerNote(emit: FillEventSink, llmPairCount: number, reviewerConfigured: boolean, dryRun: boolean): void {
+  if (!reviewerConfigured && llmPairCount > 0) {
+    // Structured what / why / next; the renderer lays it out under the header.
+    const noReviewer = {
+      what: `No reviewer is configured — the ${count(llmPairCount, 'reviewer pair')} counted here cannot be reviewed.`,
+      why: dryRun
+        ? 'Reviewer rules are decided only by the configured reviewer; a fill would record the script rules and leave these pairs unverified.'
+        : 'Reviewer rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
+      next: CONFIGURE_REVIEWER_NEXT,
+    };
+    emit({ type: 'no-reviewer', message: noReviewer });
+  }
+}
+
+/**
+ * The event a signal-stopped run reports: how many of `total` pairs have a
+ * verdict saved from this run, and whether the final lock write carrying them
+ * succeeded.
+ */
+export function interruptedEvent(saved: number, total: number, flushed: boolean, retry: string): Extract<FillEvent, { type: 'interrupted' }> {
+  const pairs = count(total, 'pair');
+  return {
+    type: 'interrupted',
+    saved,
+    total,
+    flushed,
+    message: flushed
+      ? {
+        what: `Interrupted — ${saved} of ${pairs} ${saved === 1 ? 'has' : 'have'} a verdict saved from this run.`,
+        why: 'A signal stopped the run. Every verdict finished before it is in the lock; the reviewer calls still running were stopped, and the pairs without a verdict stay unverified.',
+        next: `Re-run: ${retry} — it resumes, reviewing only the pairs without a verdict.`,
+      }
+      : {
+        what: `Interrupted — the final lock write FAILED; up to ${saved} of ${pairs} may have lost the verdict this run gave them.`,
+        why: 'A signal stopped the run, and writing the verdicts still held in memory to the lock failed. The reviewer calls still running were stopped.',
+        next: `Re-run: ${retry} — every pair without a verdict in the lock is reviewed again.`,
+      },
+  };
+}
 
 /** One pair's infrastructure diagnostic, collected by a phase for grouped emission. */
 // InfraDiagnosticItem lives in fill-shared.ts (see there); re-exported for this module's callers.
