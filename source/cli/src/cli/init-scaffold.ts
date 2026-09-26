@@ -1,11 +1,16 @@
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { parseDocument } from 'yaml';
+import { parseDocument, isMap, isScalar, isSeq, type Document } from 'yaml';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules } from '../templates/platform.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
+import type { RetiredKeys } from '../utils/known-keys.js';
+import { RETIRED_NODE_KEYS, RETIRED_NODE_RELATION_KEYS } from '../io/node-parser.js';
+import { RETIRED_NODE_TYPE_KEYS } from '../io/architecture-parser.js';
+import { RETIRED_ASPECT_KEYS } from '../io/aspect-parser.js';
+import { RETIRED_QUALITY_KEYS, RETIRED_TIER_CONFIG_KEYS } from '../io/config-parser.js';
 import { FILL_DIVERGENCE_GITIGNORE_LINE, RUN_LOCK_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
 
@@ -304,4 +309,140 @@ export async function writeRulesArtifactsConfig(
   doc.setIn(['rules_artifacts', 'claude_md'], artifacts.claudeMd);
   doc.setIn(['rules_artifacts', 'clinerules'], artifacts.clinerules);
   await writeFile(configPath, doc.toString(), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Retired keys — removed by `yg init --upgrade`
+// ---------------------------------------------------------------------------
+
+/** One retired key an upgrade removed: the file (relative to the repository root) and where in it. */
+export interface RetiredKeyRemoval {
+  file: string;
+  key: string;
+  /** What became of the key, as the parser that refuses it words it. */
+  reason: string;
+}
+
+/** Every file of `name` under `dir`, depth-first, sorted; symbolic links are never followed. */
+async function filesNamed(dir: string, name: string, skipDir: (abs: string) => boolean = () => false): Promise<string[]> {
+  const out: string[] = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (e: unknown) {
+    debugWrite(`[init] retired-key walk: ${dir}: ${e instanceof Error ? e.message : String(e)}`);
+    return out;
+  }
+  for (const entry of [...entries].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!skipDir(abs)) out.push(...(await filesNamed(abs, name, skipDir)));
+    } else if (entry.isFile() && entry.name === name) {
+      out.push(abs);
+    }
+  }
+  return out;
+}
+
+/**
+ * Remove, from one YAML file, every retired key the `targets` callback finds in
+ * its parsed document, and write the file back only when something was removed.
+ *
+ * Edits the YAML DOCUMENT, so the comments and the other keys of the file stay
+ * as written; a comment attached to a removed key goes with it, and the writer
+ * may normalize indentation. A file that does not parse is left alone —
+ * `yg check` names it.
+ */
+async function stripFile(
+  projectRoot: string,
+  absPath: string,
+  targets: (doc: Document) => Array<{ path: Array<string | number>; key: string; reason: string }>,
+): Promise<RetiredKeyRemoval[]> {
+  let text: string;
+  try {
+    text = await readFile(absPath, 'utf-8');
+  } catch (e: unknown) {
+    debugWrite(`[init] retired-key read: ${absPath}: ${e instanceof Error ? e.message : String(e)}`);
+    return [];
+  }
+  const doc = parseDocument(text);
+  if (doc.errors.length > 0) return [];
+  const found = targets(doc);
+  if (found.length === 0) return [];
+  for (const t of found) doc.deleteIn(t.path);
+  await writeFile(absPath, doc.toString({ lineWidth: 0 }), 'utf-8');
+  const file = path.relative(projectRoot, absPath).split(path.sep).join('/');
+  return found.map((t) => ({ file, key: t.key, reason: t.reason }));
+}
+
+/** The keys of the mapping at `at` in `doc` that `retired` names, as removal targets. */
+function retiredIn(doc: Document, at: Array<string | number>, retired: RetiredKeys, label: string): Array<{ path: Array<string | number>; key: string; reason: string }> {
+  const node = at.length === 0 ? doc.contents : doc.getIn(at, true);
+  if (!isMap(node)) return [];
+  const out: Array<{ path: Array<string | number>; key: string; reason: string }> = [];
+  for (const pair of node.items) {
+    const key = isScalar(pair.key) ? String(pair.key.value) : undefined;
+    if (key !== undefined && Object.prototype.hasOwnProperty.call(retired, key)) {
+      out.push({ path: [...at, key], key: label === '' ? key : `${label}.${key}`, reason: retired[key] });
+    }
+  }
+  return out;
+}
+
+/** The keys of the mapping at `at`; empty when it is not a mapping. */
+function mapEntries(doc: Document, at: Array<string | number>): string[] {
+  const node = doc.getIn(at, true);
+  if (!isMap(node)) return [];
+  return node.items.flatMap((pair) => (isScalar(pair.key) ? [String(pair.key.value)] : []));
+}
+
+/**
+ * Remove every key an earlier release read and this one refuses, from every
+ * graph and configuration file of the project: a node's `sizeExempt` and a
+ * relation's `failure`, a node type's `sizeExempt`, a rule's `language`,
+ * `stability`, `anchors` and `id`, and in `yg-config.yaml` and the local
+ * `yg-secrets.yaml` the retired `quality.*` keys and the retired keys of each
+ * tier's `config:`. The lists are the parsers' own, so an upgrade removes
+ * exactly what `yg check` would otherwise refuse as retired, and nothing it
+ * would refuse as a typo: a key nobody retired is the owner's to correct, and
+ * guessing what it meant would be worse than naming it.
+ *
+ * Rules installed from a package are left alone: their files are the package's,
+ * and editing them would break the record of what was installed.
+ */
+export async function stripRetiredKeys(projectRoot: string, yggRoot: string): Promise<RetiredKeyRemoval[]> {
+  const removed: RetiredKeyRemoval[] = [];
+
+  for (const name of ['yg-config.yaml', 'yg-secrets.yaml']) {
+    removed.push(...(await stripFile(projectRoot, path.join(yggRoot, name), (doc) => [
+      ...retiredIn(doc, ['quality'], RETIRED_QUALITY_KEYS, 'quality'),
+      ...mapEntries(doc, ['reviewer', 'tiers']).flatMap((tier) =>
+        retiredIn(doc, ['reviewer', 'tiers', tier, 'config'], RETIRED_TIER_CONFIG_KEYS, `reviewer.tiers.${tier}.config`),
+      ),
+    ])));
+  }
+
+  removed.push(...(await stripFile(projectRoot, path.join(yggRoot, 'yg-architecture.yaml'), (doc) =>
+    mapEntries(doc, ['node_types']).flatMap((type) =>
+      retiredIn(doc, ['node_types', type], RETIRED_NODE_TYPE_KEYS, `node_types.${type}`),
+    ),
+  )));
+
+  for (const nodeFile of await filesNamed(path.join(yggRoot, 'model'), 'yg-node.yaml')) {
+    removed.push(...(await stripFile(projectRoot, nodeFile, (doc) => {
+      const relations = doc.getIn(['relations'], true);
+      const relationCount = isSeq(relations) ? relations.items.length : 0;
+      return [
+        ...retiredIn(doc, [], RETIRED_NODE_KEYS, ''),
+        ...Array.from({ length: relationCount }, (_, i) => retiredIn(doc, ['relations', i], RETIRED_NODE_RELATION_KEYS, `relations[${i}]`)).flat(),
+      ];
+    })));
+  }
+
+  const packagesDir = path.join(yggRoot, 'aspects', 'packages');
+  for (const aspectFile of await filesNamed(path.join(yggRoot, 'aspects'), 'yg-aspect.yaml', (abs) => abs === packagesDir)) {
+    removed.push(...(await stripFile(projectRoot, aspectFile, (doc) => retiredIn(doc, [], RETIRED_ASPECT_KEYS, ''))));
+  }
+
+  return removed;
 }

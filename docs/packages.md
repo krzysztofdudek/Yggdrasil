@@ -462,7 +462,14 @@ Two things are different inside a package:
 - **`requires.yg` is a promise.** It says which versions of Yggdrasil the package
   was written against. Installing refuses when the running version does not
   satisfy it, naming both. `pack new` writes `^<major>.0.0` — the running major,
-  and not the next one.
+  and not the next one. It is also what carries a rule across releases: every
+  `yg-aspect.yaml` accepts only the keys its release knows, so a rule using a key
+  a later release added must say so here, and an older Yggdrasil then refuses the
+  install instead of loading the rule without the key. The check happens only at
+  install and update, never while a graph loads: if you move the CLI back to an
+  older version after installing, a rule carrying a key that version does not
+  know fails to load with `aspect-unknown-key`. Take a release of the package
+  built for the version you run, or move the CLI forward again.
 
 Publish a version by tagging it `pack/<package>@<version>`:
 

@@ -486,14 +486,17 @@ is **not** migrated — the upgrade leaves the `reviewer:` block untouched, so a
 config still in that shape then fails `yg check` with a `config-reviewer-unknown-key`
 error on `active`. Convert it to `reviewer.tiers` by hand (see the tier fields
 above).
-The upgrade leaves retired fields in your files, and `yg check` names each one
-as retired so you can delete it: `quality.max_node_chars` and
-`quality.max_mapping_source_files` (`config-quality-unknown-key`), a tier's
-`config.references:` size caps, `config.max_tokens` and
-`config.context_length_field` (`config-tier-unknown-key`), a node's `sizeExempt:`
-(`yaml-invalid`), and a rule's `language:`, `stability:`, `anchors:` or `id:`
-(`aspect-unknown-key`). Until 6.1.0 these were ignored without a word. Run from
-the repository root only. Review the diff before committing.
+The upgrade also removes fields earlier releases read and this one refuses,
+naming each one it removes: `quality.max_node_chars` and
+`quality.max_mapping_source_files`, a tier's `config.references:` size caps,
+`config.max_tokens` and `config.context_length_field`, a node's or node type's
+`sizeExempt:`, a relation's `failure:`, and a rule's `language:`, `stability:`,
+`anchors:` or `id:`. Until 6.1.0 these were ignored without a word; now `yg check`
+refuses any of them the upgrade has not removed, and any other key the schema
+does not know (with the key it is probably a typo of) — those are yours to fix.
+The files are edited in place, keeping every other key and comment, but the
+writer may normalize indentation. Run from the repository root only. Review the
+diff before committing.
 
 ---
 

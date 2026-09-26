@@ -39,6 +39,8 @@ import {
   ensureGitattributes,
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
+  stripRetiredKeys,
+  type RetiredKeyRemoval,
 } from './init-scaffold.js';
 import { fail, next, thenStep, paint, writeOut } from './output.js';
 
@@ -481,6 +483,11 @@ export interface VersionUpgradeResult {
    * here rather than leaving the first `yg check` to find it.
    */
   unknownConfigKeys: IssueMessage[];
+  /**
+   * Keys an earlier release read and this one refuses, removed from the graph
+   * and configuration files by this run — one per key, with its file.
+   */
+  retiredKeysRemoved: RetiredKeyRemoval[];
   /** True when a migration withheld the version bump (incomplete upgrade). */
   withheld: boolean;
   /**
@@ -614,6 +621,17 @@ async function readUnknownConfigKeys(yggRoot: string): Promise<IssueMessage[]> {
   }
 }
 
+/**
+ * What an upgrade says about the retired keys it removed: one line per key and
+ * file, then how the files were rewritten, so the owner knows to read the diff.
+ */
+export function renderRetiredKeysRemoved(removed: RetiredKeyRemoval[]): string {
+  return [
+    ...removed.map((r) => `Removed retired key '${r.key}' from ${r.file} (${r.reason}).`),
+    'Each file was edited in place: every other key and comment is kept, except a comment on a removed key itself; the writer may normalize indentation. Review with git diff before committing.',
+  ].join('\n');
+}
+
 export async function runVersionUpgrade(
   projectRoot: string,
   yggRoot: string,
@@ -654,7 +672,13 @@ export async function runVersionUpgrade(
 
   const excludedCount = await currentExcludedCount(projectRoot);
 
+  // Keys earlier releases read and this one refuses are removed here, after the
+  // migrations (which may still read them) and before the unknown-key scan, so
+  // the scan names only what is the owner's to correct.
+  const retiredKeysRemoved = await stripRetiredKeys(projectRoot, yggRoot);
+
   return {
+    retiredKeysRemoved,
     unknownConfigKeys: await readUnknownConfigKeys(yggRoot),
     rulesPaths: report.written,
     rulesRemoved: report.removed,
@@ -749,6 +773,7 @@ async function existingInit(projectRoot: string): Promise<void> {
     for (const action of result.migrationActions) {
       p.log.info(action);
     }
+    if (result.retiredKeysRemoved.length > 0) p.log.info(renderRetiredKeysRemoved(result.retiredKeysRemoved));
     for (const warning of result.migrationWarnings) {
       p.log.warning(buildIssueMessage({ what: `warning: ${warning}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }));
     }
@@ -820,7 +845,7 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
-    .option('--upgrade', 'Non-interactive: refresh agent rules, lift the config version (running its migrations), top up .yggdrasil/.gitignore with any missing entries, remove files retired installers left behind, and split a legacy yg-lock.json into the lock triad')
+    .option('--upgrade', 'Non-interactive: refresh agent rules, lift the config version (running its migrations), top up .yggdrasil/.gitignore with any missing entries, remove files retired installers left behind, remove keys earlier releases read and this one refuses (naming each), and split a legacy yg-lock.json into the lock triad')
     .option('--platform <name>', `Deprecated — accepted for backward compatibility only; agent rules now install identically for every agent, so this only prints a notice and is otherwise ignored (formerly one of: ${DEPRECATED_PLATFORMS.join(', ')})`)
     .option('--provider <name>', `Configure a reviewer non-interactively — fresh or existing repo (${ALL_PROVIDERS.join(', ')})`)
     .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
@@ -942,6 +967,7 @@ export function registerInitCommand(program: Command): void {
           if (result.exclusionNotice) {
             writeOut(paint.yellow(`${result.exclusionNotice}\n`));
           }
+          if (result.retiredKeysRemoved.length > 0) writeOut(`${renderRetiredKeysRemoved(result.retiredKeysRemoved)}\n`);
           for (const unknown of result.unknownConfigKeys) {
             writeOut(paint.yellow(`${buildIssueMessage(unknown)}\n`));
           }

@@ -2021,6 +2021,8 @@ older CLI. On a project still using the older single-file `yg-lock.json`,
 verdict verbatim, with no re-verification — and gitignores the deterministic
 cache. See [The lock](/the-lock) for the file layout.
 
+`--upgrade` also removes every key an earlier release read and this one refuses — a node's or a node type's `sizeExempt`, a relation's `failure`, `quality.max_node_chars` and `quality.max_mapping_source_files`, a tier's `config.max_tokens`, `config.context_length_field` and `config.references`, and a rule's `language`, `stability`, `anchors` and `id` — from the graph and configuration files (the local `yg-secrets.yaml` included; rules installed from a package are left alone), printing one `Removed retired key '<key>' from <file>` line for each. Each file is edited in place: every other key and comment stays, except a comment on the removed key itself, and the writer may normalize indentation or the spacing of a flow list, so review the diff. A key nobody retired is never guessed at: `yg check` names it, with the key it is probably a typo of, for you to fix.
+
 If the project requires its whole tree to be mapped, `--upgrade` also warns
 that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 `.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
@@ -2029,7 +2031,7 @@ from the artifacts this project actually carries, so one that has switched an
 artifact off under `rules_artifacts` is shown a shorter list. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
 
-`--upgrade` names every file it touched: the rules files it rewrote, and any
+`--upgrade` names every file it touched: the rules files it rewrote, every retired key it removed, and any
 line it appended to `.yggdrasil/.gitignore` or `.gitattributes` (for example
 the look-alike group (`.family-candidates.*`) ignore lines a 6.0.0 project lacks). It says "nothing
 changed" only when that is true.

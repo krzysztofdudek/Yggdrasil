@@ -28,14 +28,14 @@ export class ConfigParseError extends Error {
 /** The keys `quality:` accepts. */
 export const QUALITY_KEYS = ['max_direct_relations'] as const;
 
-/** `quality:` keys an earlier release read, and what became of each. */
-const RETIRED_QUALITY_KEYS: RetiredKeys = {
+/** `quality:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_QUALITY_KEYS: RetiredKeys = {
   max_node_chars: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
   max_mapping_source_files: 'removed in 5.0.0 with the wide-node warning',
 };
 
-/** Tier `config:` keys an earlier release read, and what became of each. */
-const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
+/** Tier `config:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
   max_tokens: 'removed in 5.0.0; the reviewer no longer caps its reply',
   context_length_field: 'never read by any release since 5.0.0',
   references: 'removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them',

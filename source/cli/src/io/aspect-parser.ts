@@ -48,8 +48,8 @@ export const ASPECT_KEYS = [
   'when', 'references', 'scope', 'companion', 'config',
 ] as const;
 
-/** yg-aspect.yaml keys an earlier release read (or never read), and what became of each. */
-const RETIRED_ASPECT_KEYS: RetiredKeys = {
+/** yg-aspect.yaml keys an earlier release read (or never read), and what became of each. `yg init --upgrade` removes them. */
+export const RETIRED_ASPECT_KEYS: RetiredKeys = {
   id: "never read: a rule's id is its directory path under aspects/",
   language: "removed in 5.0.0: a script rule reads each file's language from its extension",
   stability: 'removed in 4.0.0',
