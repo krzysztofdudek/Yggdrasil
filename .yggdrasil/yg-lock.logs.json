@@ -3,7 +3,7 @@
   "verdicts": {
   },
   "nodes": {
-    "cli/adopt-transaction": {"source":"7a8db6393afd5413d025ffeb0ab3ee52cae3c4963c1c4bdaba2bd0c573462950"},
+    "cli/adopt-transaction": {"log":{"last_entry_datetime":"2026-09-26T20:25:58.550Z","prefix_hash":"0ad447285d81ac859b160df346a40f5ab35e6eb08f440bf5485161ca10feaf96"},"source":"9ae358b8e88639682695c66ef9a959fb5f718b31ae66714dd3648c431d7336fe"},
     "cli/ast": {"log":{"last_entry_datetime":"2026-05-26T10:52:08.726Z","prefix_hash":"9fbde98b0c903f19473c74f077b29fc098aef162424f6cf383c8fcfcaf361ea1"}},
     "cli/ast/report": {"log":{"last_entry_datetime":"2026-09-23T20:30:50.531Z","prefix_hash":"b19ad63c609edf59814141ab7e6710f614ca6ff6f2ce77c8e3510a1cd6df8369"},"source":"9020104f118e2519b1a06fe58f256250c0e98c10047a092114cc0121c84f04ec"},
     "cli/ast/runtime": {"log":{"last_entry_datetime":"2026-09-26T05:28:47.416Z","prefix_hash":"2c272d318c2f52b5fe5edde547dfcb461c3b9ff358f21560d357d95182f9681e"},"source":"8ada5235b14e0c2d16a66291d4e176b6f21ddf997b4d5a098b0da7ccd6832459"},
@@ -11,7 +11,7 @@
     "cli/check-render-header": {"log":{"last_entry_datetime":"2026-08-03T07:58:42.635Z","prefix_hash":"2fc54f0ab6e48f1987216ce9ef85df720e0d9a2ede17dd40ccdadae2f0de7dbc"},"source":"a362435b10c296a86fecd668d2cc34e3a18ef13f01b63a274f90ca3fdccc7630"},
     "cli/check-render-views": {"log":{"last_entry_datetime":"2026-09-25T21:50:36.729Z","prefix_hash":"d83124b6e827269e09d8a2a21f6e6be0f61ebba933bd9dc778befcba8c07b8f7"},"source":"3a45b9ce71cc6bd6a7d7db4675f1a997c6bf6a68a7d9444f5c76330023ba318b"},
     "cli/cli-version": {"source":"8e21a88eb24c1153a5082bbee8646a5b84bde3f005ffbd364f746586eb42bc06"},
-    "cli/commands/adopt": {"log":{"last_entry_datetime":"2026-09-24T15:11:08.600Z","prefix_hash":"a912aaa1ca556c9c579bbaa55f853fd89fc3f8010773fb9375691d92acdd0422"},"source":"217a77dc847f8a4eced91920f30b6d038277759962a16b2606afd81ae9e8934d"},
+    "cli/commands/adopt": {"log":{"last_entry_datetime":"2026-09-26T20:25:57.967Z","prefix_hash":"de019e6986ae3f869f3249a251944ca1281d0af816dc0f760735617c44c58363"},"source":"3eb49dcd6f7012637b3f85f0a3e929cf6ea0c83128c5d82a511e01a9085b48c9"},
     "cli/commands/advise": {"log":{"last_entry_datetime":"2026-09-26T01:09:49.478Z","prefix_hash":"8a0969cf49f2d72969fe311a5af428ae3a2afe906b749dddfb6e1b7014b04f60"},"source":"237c3bf4cf365b71f18ab9023af3f8005d59e1f87beecc408ad806daee183b1f"},
     "cli/commands/aspect-test": {"log":{"last_entry_datetime":"2026-09-25T21:13:50.088Z","prefix_hash":"17aaea0e7fb2419711f6ae61b2e770831507522e353c52f0e52a37f3076645a4"},"source":"119c4b174f3fc520c90d7283cc32c49b5d4cbbf4d8519842eb9736508394075a"},
     "cli/commands/aspects": {"log":{"last_entry_datetime":"2026-09-26T05:28:45.106Z","prefix_hash":"a90d0410a822f9b2060d9ad371770915a36134726feaa790ac2b63d42cc2471a"},"source":"3c3c418d4a6be20ad95f6cb83e0322af349e54e421bc5ad487fd2b23c113090b"},
@@ -371,7 +371,7 @@
     "cli/tests/unit/bounty4/working-with-architecture": {"source":"4a7db3c0b17dda736cc1736394d0f564ea2a9de79c44c940ffa0c35e2eb49106"},
     "cli/tests/unit/bounty4/writing-deterministic-aspects": {"source":"dbfe16f07604ef97eba5f46bdd07c4c44adee8cb1c34709c45d9e6aba9fc67a9"},
     "cli/tests/unit/cli": {"log":{"last_entry_datetime":"2026-05-15T08:46:12.723Z","prefix_hash":"3567d21a93afc6e149dc361f4bbf9eb79fa3b9f997ebbf33789d2cbd20562d53"}},
-    "cli/tests/unit/cli/adopt": {"source":"0462580fecd2784df515f5e837aca4d7dce3fb6da2623429df8e4d74fb6f8fbc"},
+    "cli/tests/unit/cli/adopt": {"source":"e08179f59e92ae08c79a95ccaf49576f4405a0bf05cc2f4fcbb126686b507825"},
     "cli/tests/unit/cli/advise": {"log":{"last_entry_datetime":"2026-09-25T21:14:17.589Z","prefix_hash":"868b3fb25f478a89eec57484561962b49a74641fae0232f43b74b77dc3737c0b"},"source":"ecaa2651b40f5b871f8f6c10d6306a674cb679659f8c64d82646f64d0f9eb8a2"},
     "cli/tests/unit/cli/general": {"log":{"last_entry_datetime":"2026-05-31T06:24:49.143Z","prefix_hash":"91996a06aca0711ba49fd5cb1b73e71a0755f5f0f4136c3a36afbf45e763847a"},"source":"6c03c24ee22eb8443a10b6e35a5517d661bcabb171f06865183743ee249c83d7"},
     "cli/tests/unit/cli/graph": {"log":{"last_entry_datetime":"2026-09-25T21:14:18.483Z","prefix_hash":"00d3e18c6bfa7cca424273f3d5ac84879a0477127b77a6fd13e99a069081dffb"},"source":"59cca5d68542cdab8a540c0a7454c4daab4179acc0453b24a1bdf9cd27a31251"},

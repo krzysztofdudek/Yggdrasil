@@ -2,7 +2,7 @@
   "version": 1,
   "verdicts": {
     "cli-command-contract": {
-      "file:source/cli/src/cli/adopt.ts": {"filledAt":"2026-09-25T13:08:48.517Z","filledSha":"cf6b1e1466177f9969e58fd03cfd65841e58dc0c","hash":"37a436ecafbccd52cb56b8c5c84b2a0b2a97a7ef4eaaaf8ae26a81b50cae7841","promptChars":30916,"verdict":"approved"},
+      "file:source/cli/src/cli/adopt.ts": {"filledAt":"2026-09-26T20:28:07.319Z","filledSha":"d87da71dfc6cb81e67daecda1f5fce70a47e75ef","hash":"201e930bed5391ca24a598ba46f18b815a2d87be43de7f6abe3d0910e05a7333","promptChars":33707,"verdict":"approved"},
       "file:source/cli/src/cli/advise.ts": {"filledAt":"2026-09-26T01:11:26.307Z","filledSha":"22c4a7942030457bed03276d3280f7ef1218151a","hash":"dc113c1a18bfda843c9ae134de026943b904aee8d5fa78b171bf7317e9fb0f46","promptChars":68436,"verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"filledAt":"2026-09-25T21:55:23.336Z","filledSha":"65bfb3967dca0f28fcb57cf217fa7f3d33781654","hash":"519ba111e085f18cfe97f79e07daa190b2c6655a61e5f41cd04b739c62e661f7","promptChars":81259,"verdict":"approved"},
       "file:source/cli/src/cli/aspects-log.ts": {"filledAt":"2026-09-25T21:54:47.952Z","filledSha":"65bfb3967dca0f28fcb57cf217fa7f3d33781654","hash":"743e9112bb4e3bf3945e0583e8fc853825cd4c52afc1e511a0b92ff686702a76","promptChars":21935,"verdict":"approved"},
@@ -296,7 +296,7 @@
       "file:source/cli/src/structure/types.ts": {"filledAt":"2026-09-24T01:26:20.701Z","filledSha":"865c140b160b2705473923689d3e5b766818b97a","hash":"9dc7530a0041a4668d7b38508fcda2090dae365581c815cb1494749f70feda96","promptChars":8945,"verdict":"approved"}
     },
     "diagnostic-logging": {
-      "file:source/cli/src/cli/adopt.ts": {"filledAt":"2026-09-25T13:09:36.713Z","filledSha":"cf6b1e1466177f9969e58fd03cfd65841e58dc0c","hash":"cf6a844c631f24ca198bcb8c2ea00bfb578fa2956f3b004df1b59de20239856f","promptChars":28015,"verdict":"approved"},
+      "file:source/cli/src/cli/adopt.ts": {"filledAt":"2026-09-26T20:27:40.367Z","filledSha":"d87da71dfc6cb81e67daecda1f5fce70a47e75ef","hash":"2733355d342713516cd605dbeea8b94088e303fcb2b9a24605653d97b62f54e7","promptChars":30806,"verdict":"approved"},
       "file:source/cli/src/cli/advise.ts": {"filledAt":"2026-09-26T01:11:23.056Z","filledSha":"22c4a7942030457bed03276d3280f7ef1218151a","hash":"1edf224080cb2c3fd79eca5f29556dbdc16da1c569b6f1edd174d290a9b79670","promptChars":65535,"verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"filledAt":"2026-09-25T21:55:56.977Z","filledSha":"65bfb3967dca0f28fcb57cf217fa7f3d33781654","hash":"610ed7e75e4b783970178c66b618b595c10aed180b58d358b1e47875ad23a28c","promptChars":78358,"verdict":"approved"},
       "file:source/cli/src/cli/aspects-log.ts": {"filledAt":"2026-09-25T21:56:00.836Z","filledSha":"65bfb3967dca0f28fcb57cf217fa7f3d33781654","hash":"02f899fc84b7a585ee95a037ffd6cea90a6a3360bfbcd7547a1983e5d1331000","promptChars":19034,"verdict":"approved"},
@@ -926,6 +926,7 @@
       "file:source/cli/tests/unit/bounty4/suppress-syntax.test.ts": {"filledAt":"2026-09-25T21:57:30.749Z","filledSha":"65bfb3967dca0f28fcb57cf217fa7f3d33781654","hash":"cd14831f63136b336e915374537bb8f010c70342db64c220029ae733e773ce57","promptChars":35394,"verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/working-with-architecture.test.ts": {"filledAt":"2026-09-10T09:32:26.753Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"b5c241e2b918c098bd88491b0e3a93d27410a5d23d8fae5b766b0fd6e4b402e3","promptChars":38041,"verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/writing-deterministic-aspects.test.ts": {"hash":"4c9222ae50343016aa280078b1eefcc022cffb2e62b23a19d1b0c09727c3659d","promptChars":42473,"verdict":"approved"},
+      "file:source/cli/tests/unit/cli/adopt-restore.test.ts": {"filledAt":"2026-09-26T20:26:13.550Z","filledSha":"d87da71dfc6cb81e67daecda1f5fce70a47e75ef","hash":"8ba140a7452bff3ce0ca432c85cc327006925ffa5c2ea1e03268b197cd535774","promptChars":10717,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/adopt.test.ts": {"filledAt":"2026-09-10T09:32:17.060Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"ae171dde59944bd500dc3dbd0fc0227a12c6b4f0b195779e1d9912e1010503b9","promptChars":15771,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/advise-type-coverage.test.ts": {"filledAt":"2026-09-23T22:42:29.648Z","filledSha":"41580654235e02d6d2625d8a0c529b0860362516","hash":"b54efb5a911dcdbf5e5330075cd2580e594edf61931bac697a753c9ac863cf44","promptChars":9152,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/advise.test.ts": {"filledAt":"2026-09-26T19:56:56.872Z","filledSha":"ba1cc6df04b797cff5026b976ea72800774bd89f","hash":"86bd34b13197344595a8b43f55d8ae82c003784c9057d48a8ca8a2d223176eab","promptChars":66360,"verdict":"approved"},

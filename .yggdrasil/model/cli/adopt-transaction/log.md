@@ -1,0 +1,2 @@
+## [2026-09-26T20:25:58.550Z]
+When copying an accepted graph into place failed, or an acceptance was undone, a failure to put the previous graph back was swallowed, so the command could report the repository as exactly as it was while its graph directory was empty or partial and the previous graph sat aside under a replaced name. A failed restore is now reported: the copy failure says the restore failed too, an undo that failed is a warning, and both name where the previous graph is and the move to make by hand.
