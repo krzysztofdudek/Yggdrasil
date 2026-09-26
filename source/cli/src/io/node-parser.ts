@@ -24,6 +24,15 @@ export const RETIRED_NODE_KEYS: RetiredKeys = {
   sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
 };
 
+/**
+ * Port keys an earlier release read, and what became of each. The parser refuses
+ * them with its own message below; `yg init --upgrade` removes them.
+ */
+export const RETIRED_NODE_PORT_KEYS: RetiredKeys = {
+  version: "removed in 6.0.0: contract versions are Horde's job now",
+  test: "removed in 6.0.0: contract tests are Horde's job now",
+};
+
 /** Relation keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
 export const RETIRED_NODE_RELATION_KEYS: RetiredKeys = {
   failure: 'removed in 4.0.0',
@@ -387,7 +396,7 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
       );
     }
 
-    refuseUnknownKeys(obj, NODE_PORT_KEYS, filePath, `ports.${name}`);
+    refuseUnknownKeys(obj, NODE_PORT_KEYS, filePath, `ports.${name}`, RETIRED_NODE_PORT_KEYS);
 
     ports[name] = {
       description,

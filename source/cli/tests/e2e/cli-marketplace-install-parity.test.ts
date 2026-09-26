@@ -19,7 +19,7 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, writeFileSync, syml
 import { tmpdir, platform } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { FIXTURE_RM_OPTIONS, runGitFixture } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -55,6 +55,12 @@ interface Variant {
   patch?: Record<string, string | null>;
   /** Anything a text patch cannot express, done to the built marketplace. */
   after?: (dir: string) => void;
+  /**
+   * How git holds the marketplace: not at all (the default), as the root of a
+   * repository with the version tagged — what `pack add` clones — or nested
+   * inside another repository's working tree, which `pack add` copies from disk.
+   */
+  git?: 'root' | 'nested';
   /** Whether the package is sound (both commands pass) or broken (both refuse). */
   sound: boolean;
 }
@@ -87,6 +93,29 @@ const VARIANTS: Variant[] = [
   { name: 'a node_modules directory', patch: { 'packages/demo/node_modules/dep/index.js': 'export {};\n' }, sound: false },
   { name: 'a directory the manifest does not declare', patch: { 'packages/demo/extra/notes.txt': 'x\n' }, sound: false },
   {
+    // Git ignores the directory and the install clones the tag, so the binary
+    // inside it never reaches a consumer.
+    name: 'an ignored node_modules at the root of a git repository',
+    patch: { '.gitignore': 'node_modules/\n' },
+    after: (dir) => {
+      mkdirSync(path.join(dir, 'packages', 'demo', 'node_modules', 'dep'), { recursive: true });
+      writeFileSync(path.join(dir, 'packages', 'demo', 'node_modules', 'dep', 'blob.bin'), Buffer.from([0x50, 0x00]));
+    },
+    git: 'root',
+    sound: true,
+  },
+  {
+    // The same ignored directory, but the marketplace sits INSIDE another
+    // repository: pack add copies it from disk, node_modules and all.
+    name: 'an ignored node_modules in a marketplace nested inside a repository',
+    after: (dir) => {
+      mkdirSync(path.join(dir, 'packages', 'demo', 'node_modules', 'dep'), { recursive: true });
+      writeFileSync(path.join(dir, 'packages', 'demo', 'node_modules', 'dep', 'blob.bin'), Buffer.from([0x50, 0x00]));
+    },
+    git: 'nested',
+    sound: false,
+  },
+  {
     name: 'a name the two manifests disagree on',
     patch: { 'packages/demo/yg-package.yaml': GOOD['packages/demo/yg-package.yaml'].replace('name: demo', 'name: other') },
     sound: false,
@@ -98,8 +127,10 @@ const VARIANTS: Variant[] = [
   },
 ];
 
-function build(variant: Variant): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'yg-mkt-parity-'));
+/** Build the variant's marketplace; returns the directory to remove afterwards and the marketplace inside it. */
+function build(variant: Variant): { cleanup: string; market: string } {
+  const cleanup = mkdtempSync(path.join(tmpdir(), 'yg-mkt-parity-'));
+  const dir = variant.git === 'nested' ? path.join(cleanup, 'market') : cleanup;
   const files: Record<string, string | null> = { ...GOOD, ...(variant.patch ?? {}) };
   for (const [rel, body] of Object.entries(files)) {
     if (body === null) continue;
@@ -108,13 +139,21 @@ function build(variant: Variant): string {
     writeFileSync(abs, body, 'utf-8');
   }
   variant.after?.(dir);
-  return dir;
+  if (variant.git === 'root') {
+    for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-qm', 'publish'], ['tag', 'pack/demo@1.0.0']]) {
+      expect(runGitFixture(dir, args).status).toBe(0);
+    }
+  } else if (variant.git === 'nested') {
+    writeFileSync(path.join(cleanup, '.gitignore'), 'node_modules/\n', 'utf-8');
+    expect(runGitFixture(cleanup, ['init', '-q']).status).toBe(0);
+  }
+  return { cleanup, market: dir };
 }
 
 describe.skipIf(!distExists)('CLI E2E — marketplace check passes ⇒ pack add installs', () => {
   for (const variant of VARIANTS) {
     it(`${variant.sound ? 'installs' : 'refused by both'}: ${variant.name}`, () => {
-      const market = build(variant);
+      const { cleanup, market } = build(variant);
       const consumer = mkdtempSync(path.join(tmpdir(), 'yg-mkt-parity-consumer-'));
       try {
         cpSync(CONSUMER, consumer, { recursive: true });
@@ -128,7 +167,7 @@ describe.skipIf(!distExists)('CLI E2E — marketplace check passes ⇒ pack add 
         expect({ variant: variant.name, check: checked.status, said: checked.all }).toMatchObject({ check: variant.sound ? 0 : 1 });
         expect({ variant: variant.name, add: added.status, said: added.all }).toMatchObject({ add: variant.sound ? 0 : 1 });
       } finally {
-        rmSync(market, FIXTURE_RM_OPTIONS);
+        rmSync(cleanup, FIXTURE_RM_OPTIONS);
         rmSync(consumer, FIXTURE_RM_OPTIONS);
       }
     });

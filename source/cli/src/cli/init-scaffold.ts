@@ -7,7 +7,7 @@ import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import type { RetiredKeys } from '../utils/known-keys.js';
-import { RETIRED_NODE_KEYS, RETIRED_NODE_RELATION_KEYS } from '../io/node-parser.js';
+import { RETIRED_NODE_KEYS, RETIRED_NODE_PORT_KEYS, RETIRED_NODE_RELATION_KEYS } from '../io/node-parser.js';
 import { RETIRED_NODE_TYPE_KEYS } from '../io/architecture-parser.js';
 import { RETIRED_ASPECT_KEYS } from '../io/aspect-parser.js';
 import { RETIRED_QUALITY_KEYS, RETIRED_TIER_CONFIG_KEYS } from '../io/config-parser.js';
@@ -344,35 +344,48 @@ async function filesNamed(dir: string, name: string, skipDir: (abs: string) => b
   return out;
 }
 
+/** One file's planned edit: its new text and the keys it loses, or why it is left untouched. */
+type FilePlan =
+  | { kind: 'edit'; absPath: string; text: string; removals: RetiredKeyRemoval[] }
+  | { kind: 'untouched'; file: string; reason: string };
+
 /**
- * Remove, from one YAML file, every retired key the `targets` callback finds in
- * its parsed document, and write the file back only when something was removed.
+ * Plan the removal, from one YAML file, of every retired key the `targets`
+ * callback finds in its parsed document. Nothing is written here: the caller
+ * writes only once every file has been planned, so a file that cannot be
+ * rewritten never leaves the others half-done.
  *
  * Edits the YAML DOCUMENT, so the comments and the other keys of the file stay
  * as written; a comment attached to a removed key goes with it, and the writer
  * may normalize indentation. A file that does not parse is left alone —
- * `yg check` names it.
+ * `yg check` names it — and so is one the writer cannot render back (an alias
+ * whose anchor went with a removed key, say), which is reported as untouched.
  */
-async function stripFile(
+async function planFile(
   projectRoot: string,
   absPath: string,
   targets: (doc: Document) => Array<{ path: Array<string | number>; key: string; reason: string }>,
-): Promise<RetiredKeyRemoval[]> {
+): Promise<FilePlan | null> {
   let text: string;
   try {
     text = await readFile(absPath, 'utf-8');
   } catch (e: unknown) {
     debugWrite(`[init] retired-key read: ${absPath}: ${e instanceof Error ? e.message : String(e)}`);
-    return [];
+    return null;
   }
   const doc = parseDocument(text);
-  if (doc.errors.length > 0) return [];
+  if (doc.errors.length > 0) return null;
   const found = targets(doc);
-  if (found.length === 0) return [];
-  for (const t of found) doc.deleteIn(t.path);
-  await writeFile(absPath, doc.toString({ lineWidth: 0 }), 'utf-8');
+  if (found.length === 0) return null;
   const file = path.relative(projectRoot, absPath).split(path.sep).join('/');
-  return found.map((t) => ({ file, key: t.key, reason: t.reason }));
+  let rendered: string;
+  try {
+    for (const t of found) doc.deleteIn(t.path);
+    rendered = doc.toString({ lineWidth: 0 });
+  } catch (e: unknown) {
+    return { kind: 'untouched', file, reason: e instanceof Error ? e.message : String(e) };
+  }
+  return { kind: 'edit', absPath, text: rendered, removals: found.map((t) => ({ file, key: t.key, reason: t.reason })) };
 }
 
 /** The keys of the mapping at `at` in `doc` that `retired` names, as removal targets. */
@@ -410,11 +423,18 @@ function mapEntries(doc: Document, at: Array<string | number>): string[] {
  * Rules installed from a package are left alone: their files are the package's,
  * and editing them would break the record of what was installed.
  */
-export async function stripRetiredKeys(projectRoot: string, yggRoot: string): Promise<RetiredKeyRemoval[]> {
-  const removed: RetiredKeyRemoval[] = [];
+export interface RetiredKeysResult {
+  /** Every retired key removed, one per key and file. */
+  removed: RetiredKeyRemoval[];
+  /** Files holding retired keys that were left as they were, and why. */
+  untouched: Array<{ file: string; reason: string }>;
+}
+
+export async function stripRetiredKeys(projectRoot: string, yggRoot: string): Promise<RetiredKeysResult> {
+  const plans: Array<FilePlan | null> = [];
 
   for (const name of ['yg-config.yaml', 'yg-secrets.yaml']) {
-    removed.push(...(await stripFile(projectRoot, path.join(yggRoot, name), (doc) => [
+    plans.push((await planFile(projectRoot, path.join(yggRoot, name), (doc) => [
       ...retiredIn(doc, ['quality'], RETIRED_QUALITY_KEYS, 'quality'),
       ...mapEntries(doc, ['reviewer', 'tiers']).flatMap((tier) =>
         retiredIn(doc, ['reviewer', 'tiers', tier, 'config'], RETIRED_TIER_CONFIG_KEYS, `reviewer.tiers.${tier}.config`),
@@ -422,27 +442,41 @@ export async function stripRetiredKeys(projectRoot: string, yggRoot: string): Pr
     ])));
   }
 
-  removed.push(...(await stripFile(projectRoot, path.join(yggRoot, 'yg-architecture.yaml'), (doc) =>
+  plans.push((await planFile(projectRoot, path.join(yggRoot, 'yg-architecture.yaml'), (doc) =>
     mapEntries(doc, ['node_types']).flatMap((type) =>
       retiredIn(doc, ['node_types', type], RETIRED_NODE_TYPE_KEYS, `node_types.${type}`),
     ),
   )));
 
   for (const nodeFile of await filesNamed(path.join(yggRoot, 'model'), 'yg-node.yaml')) {
-    removed.push(...(await stripFile(projectRoot, nodeFile, (doc) => {
+    plans.push((await planFile(projectRoot, nodeFile, (doc) => {
       const relations = doc.getIn(['relations'], true);
       const relationCount = isSeq(relations) ? relations.items.length : 0;
       return [
         ...retiredIn(doc, [], RETIRED_NODE_KEYS, ''),
         ...Array.from({ length: relationCount }, (_, i) => retiredIn(doc, ['relations', i], RETIRED_NODE_RELATION_KEYS, `relations[${i}]`)).flat(),
+        ...mapEntries(doc, ['ports']).flatMap((port) => retiredIn(doc, ['ports', port], RETIRED_NODE_PORT_KEYS, `ports.${port}`)),
       ];
     })));
   }
 
   const packagesDir = path.join(yggRoot, 'aspects', 'packages');
   for (const aspectFile of await filesNamed(path.join(yggRoot, 'aspects'), 'yg-aspect.yaml', (abs) => abs === packagesDir)) {
-    removed.push(...(await stripFile(projectRoot, aspectFile, (doc) => retiredIn(doc, [], RETIRED_ASPECT_KEYS, ''))));
+    plans.push((await planFile(projectRoot, aspectFile, (doc) => retiredIn(doc, [], RETIRED_ASPECT_KEYS, ''))));
   }
 
-  return removed;
+  // Every file is planned before any is written: a file that cannot be rendered
+  // back is found before anything changes on disk, and is the only one left as
+  // it was.
+  const result: RetiredKeysResult = { removed: [], untouched: [] };
+  for (const plan of plans) {
+    if (plan === null) continue;
+    if (plan.kind === 'untouched') {
+      result.untouched.push({ file: plan.file, reason: plan.reason });
+      continue;
+    }
+    await writeFile(plan.absPath, plan.text, 'utf-8');
+    result.removed.push(...plan.removals);
+  }
+  return result;
 }

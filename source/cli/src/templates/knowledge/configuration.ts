@@ -404,8 +404,10 @@ and names, every field an earlier release read and this one refuses: retired
 \`config.context_length_field\`), a node's or node type's \`sizeExempt:\`, a
 relation's \`failure:\`, and a rule's \`language:\` / \`stability:\` / \`anchors:\` /
 \`id:\` (never in a rule installed from a package). Files are edited in place;
-the writer may normalize indentation, so review the diff. Every block of every graph and config
-file refuses a key it does not accept, and a typo is named with the key it
+the writer may normalize indentation, so review the diff. Every block of
+\`yg-config.yaml\`, \`yg-architecture.yaml\`, every \`yg-node.yaml\` and every
+\`yg-aspect.yaml\` refuses a key it does not accept (flow files are not held to
+this yet), and a typo is named with the key it
 probably meant (\`consesnsus\` → did you mean \`consensus\`?). Run from the
 repository root only. Review the diff before committing.
 

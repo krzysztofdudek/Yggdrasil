@@ -551,11 +551,13 @@ nothing in the package is anchored to your own repository.
 
 Everything `yg pack add` refuses about a package's manifests and files is asked
 here too, through the same readers, so a package the check passes is one that
-installs. What git ignores is left out, because an install clones your tag and
-never sees it: a `node_modules/` you installed locally is fine while `.gitignore`
-covers it, and refused like any undeclared directory once it would be published.
-Outside a git repository nothing is left out — `yg pack add` from a plain
-directory copies whatever is on disk.
+installs. When the marketplace is the root of a git repository, what git ignores
+is left out, because an install clones your tag and never sees it: a
+`node_modules/` you installed locally is fine while `.gitignore` covers it, and
+refused like any undeclared directory once it would be published. Anywhere else —
+a plain directory, or a marketplace nested inside another repository's working
+tree — nothing is left out, because `yg pack add` copies such a source as it is on
+disk, ignored files included.
 
 Every finding names a code — `package-config-undeclared`, `package-drills-missing`,
 `package-scope-literal-root`, `package-version-mismatch` and so on — and the

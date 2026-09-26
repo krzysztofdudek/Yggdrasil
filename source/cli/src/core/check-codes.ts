@@ -270,8 +270,8 @@ export const APPROVE_GATING_CODES = new Set<string>([
  * unnarrowed all the same, exactly as its log-entry gate does — a recorded
  * baseline must not rest on an unsettled log whoever left it. The fill stage
  * computes them from the log files itself (they are not validator findings),
- * and only for a run that can close a cycle: `--only-deterministic` records no
- * baseline and is not stopped by them.
+ * and only for a run that can close a cycle: `--only-deterministic` and a
+ * `--dry-run` preview record no baseline and are not stopped by them.
  */
 export const APPROVE_LOG_STATE_GATING_CODES = new Set<string>(['log-conflict', 'log-integrity', 'log-format']);
 
