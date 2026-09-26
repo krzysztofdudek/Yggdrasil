@@ -25,3 +25,4 @@ mapping:
   - source/cli/tests/unit/utils/paths.test.ts
   - source/cli/tests/unit/utils/validate-check-module.test.ts
   - source/cli/tests/unit/utils/known-keys.test.ts
+  - source/cli/tests/unit/utils/repo-path-escape.test.ts

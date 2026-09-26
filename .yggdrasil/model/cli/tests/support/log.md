@@ -1,0 +1,2 @@
+## [2026-09-26T20:39:48.497Z]
+Tests that made temporary directories and never removed them filled the development container /tmp with tens of thousands of directories in two days, most of the volume being the module cache vitest itself leaves per run. Temporary directories now come from one helper that removes them when their test file finishes, and the run points TMPDIR at one directory of its own that is removed afterwards together with the vitest cache, failing the run with the names of anything a test left behind so a new leak is caught the run it appears.

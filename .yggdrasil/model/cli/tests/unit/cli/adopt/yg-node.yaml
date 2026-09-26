@@ -18,3 +18,4 @@ relations:
     type: uses
 mapping:
   - source/cli/tests/unit/cli/adopt.test.ts
+  - source/cli/tests/unit/cli/adopt-restore.test.ts

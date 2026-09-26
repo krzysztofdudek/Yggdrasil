@@ -22,8 +22,8 @@
 
 import { gt as semverGt, valid as validSemver } from 'semver';
 
-import type { Nomination } from './advise-nominations.js';
-import { CLASS_RANK, asApprovalNext, hashEvidence, quoteData } from './advise-nominations.js';
+import type { Nomination } from './advise-shared.js';
+import { CLASS_RANK, asApprovalNext, hashEvidence, quoteData } from './advise-shared.js';
 
 /**
  * What a reachable source says about one installed package. Assembled at the CLI

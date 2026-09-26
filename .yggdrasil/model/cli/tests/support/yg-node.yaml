@@ -42,7 +42,15 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   deterministically, and a `node --import` preload that counts filesystem
   operations and tree-sitter parses per thread, so a scale test pins how work
   grows with input instead of timing a shared machine. Both import only Node
-  builtins."
+  builtins.
+
+  It also owns the suite's temporary directories: one helper that makes a
+  temp directory and removes it when its test file finishes (the setup file
+  registers the cleanup for every file), and the run-level guard that points
+  TMPDIR at one directory per run, removes it afterwards together with the
+  module cache vitest itself leaves behind, and fails the run naming any entry
+  a test left there. Tests that never removed what they made had filled the
+  development container's /tmp with tens of thousands of directories."
 aspects: []
 relations: []
 mapping:
@@ -52,3 +60,5 @@ mapping:
   - source/cli/tests/support/progressive-fixture.ts
   - source/cli/tests/support/scale-fixture.ts
   - source/cli/tests/support/fs-op-counter.mjs
+  - source/cli/tests/support/tmpdir.ts
+  - source/cli/tests/support/global-tmpdir.ts

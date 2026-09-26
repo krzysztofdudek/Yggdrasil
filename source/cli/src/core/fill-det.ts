@@ -17,61 +17,12 @@ import { ruleHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
 import { runStructureAspect, StructureRunnerError, SUPPRESS_MARKER_MALFORMED_CODE } from '../structure/runner.js';
 import type { StructureUnit } from '../structure/runner.js';
-import { collectArchitectureReach } from '../structure/allowed-reads.js';
+import { reachExtraForType } from '../structure/allowed-reads.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { readBytesOrEmpty, type DetFillOutcome } from './fill-shared.js';
 import type { ParseCache } from '../structure/index.js';
-
-/**
- * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
- * throwaway `subjectFile` argument when computing the type-dependent part of
- * an architecture reach (declared-component and type-covered files the
- * architecture permits `fromType` to depend on) once per type, cacheable
- * across every nodeless file of that type this run. A real repo-relative path
- * is never empty and never contains NUL, so this can never collide with one;
- * the sentinel itself is deleted from the result before caching, so the cached
- * set holds only the type-dependent part — never a specific file's own
- * identity, which the caller re-adds per file (see `reachExtraForType`).
- */
-const REACH_SENTINEL_FILE = '\0';
-
-/**
- * The type-dependent part of `collectArchitectureReach` for `fromType`
- * (declared-component files and other type-covered files the architecture
- * permits `fromType` to depend on) — cached by `fromType` so a run reviewing
- * many files of the same type computes this ONCE per type: recomputing it per
- * pair over a repo with thousands of files would dominate the run. The caller
- * unions in its OWN subject file afterward (cheap, O(1) per file) — never
- * cached here, since a DIFFERENT file's own identity must never leak into
- * another file's allowance when the architecture does not itself permit
- * `fromType` to depend on `fromType`.
- */
-async function reachExtraForType(
-  fromType: string,
-  typeCoverage: TypeCoverageInput | undefined,
-  graph: Graph,
-  projectRoot: string,
-  reachCache: Map<string, Set<string>>,
-): Promise<Set<string>> {
-  const cached = reachCache.get(fromType);
-  if (cached) return cached;
-  const full = await collectArchitectureReach(REACH_SENTINEL_FILE, {
-    fromType,
-    typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
-    architecture: graph.architecture,
-    graph,
-    projectRoot,
-    // Pure, graph-only, no I/O — cheap to (re)build per distinct fromType this
-    // run, and keeps structure/allowed-reads.ts free of its own value-level
-    // dependency on relations/owner-index.ts (see that module's own note).
-    ownerIndex: buildOwnerIndex(graph.nodes),
-  });
-  full.delete(REACH_SENTINEL_FILE);
-  reachCache.set(fromType, full);
-  return full;
-}
 
 /** computeNodeMappedFiles, once per node per run (see fillDetPair's nodeFilesMemo). */
 function nodeMappedFilesMemoised(
@@ -177,7 +128,9 @@ export async function fillDetPair(
     : await (async () => {
         const file = pair.subjectFiles[0];
         const fromType = typeCoverage?.covered.get(file) ?? '';
-        const reachExtra = await reachExtraForType(fromType, typeCoverage, graph, projectRoot, reachCache);
+        const reachExtra = await reachExtraForType(fromType, typeCoverage?.covered, graph, projectRoot, reachCache, () =>
+          buildOwnerIndex(graph.nodes),
+        );
         return { kind: 'file' as const, file, typeId: fromType, allowedReads: [...reachExtra, file] };
       })();
 

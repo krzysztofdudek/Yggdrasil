@@ -1,9 +1,10 @@
 /**
- * Compatibility re-export. allowedRelationTypes/RELATION_TYPES moved to
- * core/allowed-relation-types.ts (a pure engine function with no relations-
- * pass-specific dependencies) so both the relation-conformance pass and the
- * live type-relation gate (relations/type-gate.ts) can share one
- * implementation without the gate needing a relations-adapter-to-
- * relations-adapter edge for something that is really engine-layer logic.
+ * Compatibility re-export. allowedRelationTypes lives in
+ * utils/allowed-relation-types.ts and RELATION_TYPES in model/when.ts, so the
+ * relation-conformance pass, the live type-relation gate
+ * (relations/type-gate.ts) and the architecture read reach (structure/) share
+ * one implementation without depending on the engine layer. Existing callers
+ * keep importing both from here.
  */
-export { allowedRelationTypes, RELATION_TYPES } from '../core/allowed-relation-types.js';
+export { allowedRelationTypes } from '../utils/allowed-relation-types.js';
+export { RELATION_TYPES } from '../model/when.js';

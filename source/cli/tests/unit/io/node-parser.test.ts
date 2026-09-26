@@ -361,6 +361,22 @@ mapping:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  it('throws when mapping escapes the repository root through Windows separators', async () => {
+    // A backslash is a separator on Windows, so these climb out of the repository
+    // there; the mapping is refused on every OS, as aspect references are.
+    for (const [i, entry] of ['..\\outside-secret.txt', 'src\\..\\..\\outside.txt'].entries()) {
+      const tmpDir = path.join(__dirname, `../../fixtures/tmp-node-escape-backslash-${i}`);
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(nodePath, `name: EscapePath\ntype: service\nmapping:\n  - '${entry}'\n`, 'utf-8');
+      try {
+        await expect(parseNodeYaml(nodePath)).rejects.toThrow(/must not escape/);
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it('tolerates in-repo .. that never climbs above the root', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-node-inrepo-dotdot');
     await mkdir(tmpDir, { recursive: true });

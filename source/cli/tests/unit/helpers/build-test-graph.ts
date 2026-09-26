@@ -1,14 +1,14 @@
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { makeTempDir } from '../../support/tmpdir.js';
 import type {
   Graph, GraphNode, AspectDef, FlowDef, YggConfig, ArchitectureDef,
   ArchitectureNodeType, AspectStatus, StatusInherit, AspectReviewerSpec,
 } from '../../../src/model/graph.js';
 
-// Tracks tmpdirs created by buildTestGraph so test suites can clean up via
-// cleanupTestGraphs() in afterEach/afterAll. mkdtempSync without cleanup is a
-// test-determinism violation; tests that omit rootPath MUST call this.
+// Tracks tmpdirs created by buildTestGraph so a test suite can remove them early
+// via cleanupTestGraphs() in afterEach. They are made through makeTempDir, so the
+// ones a suite does not remove itself go when its test file finishes.
 const createdTmpRoots: string[] = [];
 
 export function cleanupTestGraphs(): void {
@@ -109,7 +109,7 @@ export function buildTestGraph(input: {
   // Created tmpdirs are tracked for cleanup via cleanupTestGraphs().
   let rootPath = input.rootPath;
   if (!rootPath) {
-    const projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-test-graph-'));
+    const projectRoot = makeTempDir('yg-test-graph-');
     createdTmpRoots.push(projectRoot);
     rootPath = path.join(projectRoot, '.yggdrasil');
     try { mkdirSync(rootPath); } catch { /* ignore */ }

@@ -19,6 +19,7 @@ import {
   countRulesByStatus,
   describeExistingGraph,
   GRAIN_PROPOSAL_SCHEMA,
+  GraphRestoreError,
   graphDirExists,
   installGraph,
   looksLikeGraph,
@@ -28,8 +29,10 @@ import {
   rootComponentPath,
   type ExistingViolations,
   type ProposalProvenance,
+  type RestoreFailure,
 } from './adopt-transaction.js';
-import { fail, paint, writeErr, writeOut } from './output.js';
+import { fail, paint, warn, writeErr, writeOut } from './output.js';
+import { toPosixPath } from '../utils/posix.js';
 
 /**
  * `yg adopt <proposal-dir>` — the acceptance transaction.
@@ -164,6 +167,33 @@ function acceptanceEntry(graph: Graph, provenance: ProposalProvenance | undefine
   ].join('\n');
 }
 
+/**
+ * The why and next for a restore that failed: which directory is left in what
+ * state, and the move to make by hand. Paths are repository-relative so the
+ * step can be followed from the repository root as written.
+ */
+function restoreFailure(repoRoot: string, left: RestoreFailure): { why: string; next: string } {
+  const rel = (p: string): string => toPosixPath(path.relative(repoRoot, p));
+  const graphDir = `${rel(left.destination)}/`;
+  if (left.preservedAt !== undefined) {
+    const aside = `${rel(left.preservedAt)}/`;
+    return {
+      why: `The graph this repository had is intact at ${aside} but could not be moved back, so ${graphDir} does not hold it: the next check would run against a partial graph or none. Nothing was deleted.`,
+      next: `Delete ${graphDir} if it is there, then rename ${aside} back to ${graphDir}.`,
+    };
+  }
+  return {
+    why: `This repository had no graph before this run, and ${graphDir} could not be removed, so a partly copied graph may be left there and would govern the next check.`,
+    next: `Delete ${graphDir} by hand, then run yg adopt again once the cause is fixed.`,
+  };
+}
+
+/** Say what an undo that failed left behind, before the command reports why it undid. */
+function warnRestoreFailure(repoRoot: string, left: RestoreFailure | undefined): void {
+  if (left === undefined) return;
+  warn({ what: `Undoing the acceptance failed: ${left.reason}`, ...restoreFailure(repoRoot, left) }, 'adopt-restore-failed');
+}
+
 export function registerAdoptCommand(program: Command): void {
   program
     .command('adopt')
@@ -271,7 +301,20 @@ export function registerAdoptCommand(program: Command): void {
         }
 
         // ── Move it into place, as one transaction ─────────────────────────
-        const transaction = await installGraph(repoRoot, proposal, () => new Date());
+        let transaction: Awaited<ReturnType<typeof installGraph>>;
+        try {
+          transaction = await installGraph(repoRoot, proposal, () => new Date());
+        } catch (err) {
+          if (!(err instanceof GraphRestoreError)) throw err;
+          const copyError = err.cause instanceof Error ? err.cause.message : String(err.cause);
+          debugWrite(`[adopt] copy into place failed and the restore failed too: ${err.message}`);
+          fail({
+            what: `Copying the proposed graph into ${GRAPH_DIR}/ failed (${copyError}), and putting the repository back as it was failed too: ${err.restore.reason}`,
+            ...restoreFailure(repoRoot, err.restore),
+          }, 'adopt-restore-failed');
+          await exitAfterFlush(1);
+          return;
+        }
         let graph: Graph;
         try {
           graph = await loadGraph(repoRoot, { tolerateInvalidConfig: true });
@@ -279,7 +322,8 @@ export function registerAdoptCommand(program: Command): void {
           const inPlace = await validate(graph, 'all');
           const stillBlocking = inPlace.issues.filter((i) => i.severity === 'error');
           if (stillBlocking.length > 0) {
-            await transaction.rollback();
+            const left = await transaction.rollback();
+            warnRestoreFailure(repoRoot, left);
             const codes = [...new Set(stillBlocking.map((i) => i.code ?? 'unknown'))].sort();
             const detail = stillBlocking
               .slice(0, 10)
@@ -287,14 +331,14 @@ export function registerAdoptCommand(program: Command): void {
               .join('\n');
             fail({
               what: `In this repository the proposed graph does not hold together — ${count(stillBlocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${stillBlocking.length > 10 ? `\n... and ${stillBlocking.length - 10} more` : ''}`,
-              why: 'The graph reads correctly on its own but does not fit the code it was handed: these problems are about files it names and cannot find, or references it cannot resolve here. A gate in that state refuses every run for a reason no rule owns. Nothing was kept — the repository is exactly as it was.',
+              why: 'The graph reads correctly on its own but does not fit the code it was handed: these problems are about files it names and cannot find, or references it cannot resolve here. A gate in that state refuses every run for a reason no rule owns. ' + (left === undefined ? 'Nothing was kept — the repository is exactly as it was.' : 'Undoing the acceptance failed, so the repository is not as it was: the warning above names what is left and how to put it back.'),
               next: 'Regenerate the proposal against this repository at its current state, then run yg adopt on the new one.',
             });
             await exitAfterFlush(1);
             return;
           }
         } catch (err) {
-          await transaction.rollback();
+          warnRestoreFailure(repoRoot, await transaction.rollback());
           throw err;
         }
 
@@ -364,7 +408,7 @@ export function registerAdoptCommand(program: Command): void {
           recorded = `${count(result.verifiedDet + refused, 'verdict')} recorded locally, at no cost and with no key${tail}`;
         } catch (err) {
           if (!(err instanceof FillGatingError)) {
-            await transaction.rollback();
+            warnRestoreFailure(repoRoot, await transaction.rollback());
             throw err;
           }
           // The graph is sound and stays accepted — it simply asks for something

@@ -1,5 +1,7 @@
 // yg-suppress(silent-missing-files) Reads a declared, expected graph file; a missing one is a real graph error, so throwing is correct. silent-missing-files governs the loader's optional-directory handling (aspects/, flows/), not parser reads of expected files.
 import { readFile } from 'node:fs/promises';
+import { escapesRepo } from '../utils/repo-path-escape.js';
+import { toPosixPath } from '../utils/posix.js';
 import { parse as parseYaml } from 'yaml';
 import type { AspectStatus, NodeMeta, PortDef, Relation, RelationType } from '../model/graph.js';
 
@@ -256,35 +258,14 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
   return result;
 }
 
-/**
- * Returns true if path p would escape the repository root — an absolute path, a
- * Windows drive letter, a home-relative '~', or a '..' sequence that climbs above
- * depth 0. In-repo '..' that never goes negative (e.g. 'a/../b') is tolerated.
- * Mirrors escapesRepo in aspect-parser.ts so mapping entries and aspect
- * references reject the same containment escapes.
- */
-function escapesRepo(p: string): boolean {
-  if (p.startsWith('/')) return true;
-  if (/^[A-Za-z]:/.test(p)) return true;
-  if (p.startsWith('~')) return true;
-  let depth = 0;
-  for (const segment of p.split('/')) {
-    if (segment === '..') {
-      depth--;
-      if (depth < 0) return true;
-    } else if (segment !== '' && segment !== '.') {
-      depth++;
-    }
-  }
-  return false;
-}
-
 function validateRelativePath(pathValue: string, filePath: string, fieldName: string): string {
   const normalized = pathValue.trim();
   if (normalized === '') {
     throw new Error(`yg-node.yaml at ${filePath}: '${fieldName}' must be non-empty`);
   }
-  if (escapesRepo(normalized)) {
+  // Checked in POSIX form: a backslash is a separator on Windows, so '..\\x'
+  // climbs out of the repository there and must be refused on every OS.
+  if (escapesRepo(toPosixPath(normalized))) {
     throw new Error(`yg-node.yaml at ${filePath}: '${fieldName}' must be relative to repository root and must not escape it`);
   }
   return normalized;

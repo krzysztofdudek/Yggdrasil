@@ -1,0 +1,2 @@
+## [2026-09-26T20:17:18.726Z]
+The relation-type allow-list lookup lived in the engine layer, so the relations pass and the architecture read reach both imported the engine for one pure function, a seam that lets a later, unintended engine dependency slip in unnoticed. The lookup now lives in utils, the one layer both may call, and the list of relation types it walks is declared in model beside the RelationType it enumerates. Behaviour is unchanged; the relations module keeps re-exporting both names for its callers.

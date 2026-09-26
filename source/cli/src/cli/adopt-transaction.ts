@@ -270,6 +270,69 @@ export function rootComponentPath(graph: Graph): string | undefined {
 }
 
 /**
+ * What is left behind when putting the previous state back failed: the graph
+ * directory that could not be cleared or restored, where the previous graph
+ * still sits when one was moved aside, and what the file system said. The
+ * command turns it into the message that names the directory and the move to
+ * make by hand; a restore that fails silently would let the command claim the
+ * repository is exactly as it was when it is not.
+ */
+export interface RestoreFailure {
+  /** The graph directory (`<repo>/.yggdrasil`) that could not be cleared or put back. */
+  destination: string;
+  /** Where the previous graph still is, when one was moved aside and not moved back. */
+  preservedAt?: string;
+  /** The file-system error that stopped the restore. */
+  reason: string;
+}
+
+/**
+ * The copy into place failed AND putting the previous state back failed too.
+ * Carries the copy error as `cause` and the restore failure, so the command can
+ * say where the previous graph is instead of reporting only the copy error.
+ */
+export class GraphRestoreError extends Error {
+  constructor(
+    readonly cause: unknown,
+    readonly restore: RestoreFailure,
+  ) {
+    super(`copying the proposed graph failed (${errorText(cause)}), and restoring the previous state failed too (${restore.reason})`);
+    this.name = 'GraphRestoreError';
+  }
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Put back what was there before: clear the destination, then move the previous
+ * graph (if any) back into it. Both steps are attempted even when the first one
+ * fails; the first failure is returned, never thrown, and also written to the
+ * debug log.
+ */
+async function restorePrevious(destination: string, movedAsideTo: string | undefined): Promise<RestoreFailure | undefined> {
+  let reason: string | undefined;
+  try {
+    await rm(destination, { recursive: true, force: true });
+  } catch (err) {
+    reason = errorText(err);
+  }
+  let restored = movedAsideTo === undefined;
+  if (movedAsideTo !== undefined) {
+    try {
+      await rename(movedAsideTo, destination);
+      restored = true;
+    } catch (err) {
+      reason ??= errorText(err);
+    }
+  }
+  if (reason === undefined) return undefined;
+  debugWrite(`[adopt] restore: ${reason}`);
+  return { destination, preservedAt: restored ? undefined : movedAsideTo, reason };
+}
+
+/**
  * The move-into-place step, and everything needed to undo it.
  *
  * A previous graph is never deleted: it is renamed aside, under a name that
@@ -280,8 +343,12 @@ export function rootComponentPath(graph: Graph): string | undefined {
 export interface InstallTransaction {
   /** Where a previous graph was moved to, when one was. */
   movedAsideTo?: string;
-  /** Undo everything this transaction did. Safe to call twice; never throws. */
-  rollback: () => Promise<void>;
+  /**
+   * Undo everything this transaction did. Safe to call twice; never throws.
+   * Resolves to what was left behind when the undo itself failed (the same
+   * answer on a second call), or undefined when the repository is back as it was.
+   */
+  rollback: () => Promise<RestoreFailure | undefined>;
 }
 
 export async function installGraph(
@@ -302,24 +369,19 @@ export async function installGraph(
     await cp(proposal.graphDir, destination, { recursive: true });
   } catch (err) {
     // The copy failed halfway: put back whatever was here before re-throwing, so
-    // a failed acceptance never leaves the repository with neither graph.
-    await rm(destination, { recursive: true, force: true }).catch(() => {});
-    if (movedAsideTo !== undefined) await rename(movedAsideTo, destination).catch(() => {});
+    // a failed acceptance never leaves the repository with neither graph. When
+    // the restore fails too, the error says so and where the previous graph is.
+    const left = await restorePrevious(destination, movedAsideTo);
+    if (left !== undefined) throw new GraphRestoreError(err, left);
     throw err;
   }
 
-  let undone = false;
+  let undone: Promise<RestoreFailure | undefined> | undefined;
   return {
     movedAsideTo,
-    rollback: async (): Promise<void> => {
-      if (undone) return;
-      undone = true;
-      try {
-        await rm(destination, { recursive: true, force: true });
-        if (movedAsideTo !== undefined) await rename(movedAsideTo, destination);
-      } catch (err) {
-        debugWrite(`[adopt] rollback: ${err instanceof Error ? err.message : String(err)}`);
-      }
+    rollback: (): Promise<RestoreFailure | undefined> => {
+      undone ??= restorePrevious(destination, movedAsideTo);
+      return undone;
     },
   };
 }

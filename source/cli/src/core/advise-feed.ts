@@ -22,7 +22,7 @@
  * engine's no-`Date.now` rule.
  */
 
-import type { Nomination } from './advise-nominations.js';
+import type { Nomination } from './advise-shared.js';
 import type { AdviseDecision } from '../io/advise-decisions-store.js';
 
 /** A visible nomination, optionally annotated (e.g. a returned deferral). */

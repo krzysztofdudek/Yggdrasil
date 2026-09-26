@@ -98,10 +98,10 @@ describe('allowedRelationTypes', () => {
     expect(allowedRelationTypes(arch, 'nope', 'service')).toEqual([]);
   });
 
-  it('re-exports the SAME function object the engine module defines (relocation compat shim)', async () => {
+  it('re-exports the SAME function object the utility module defines (relocation compat shim)', async () => {
     const fromRelations = await import('../../../src/relations/allowed-types.js');
-    const fromCore = await import('../../../src/core/allowed-relation-types.js');
-    expect(fromRelations.allowedRelationTypes).toBe(fromCore.allowedRelationTypes);
+    const fromUtils = await import('../../../src/utils/allowed-relation-types.js');
+    expect(fromRelations.allowedRelationTypes).toBe(fromUtils.allowedRelationTypes);
   });
 });
 

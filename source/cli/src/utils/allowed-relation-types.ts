@@ -20,18 +20,16 @@
  *
  * When the `fromType` has no `relations:` table at all and no `relationDefault`,
  * every relation type is unconstrained (allow-all), so all six are returned.
+ *
+ * A pure utility rather than an engine module: the relations pass, the live
+ * type-relation gate (relations/) and the architecture read reach (structure/)
+ * all ask it, and utility is the one type each of them may call without a
+ * dependency on the engine layer. The relation vocabulary it walks,
+ * RELATION_TYPES, is declared with the RelationType it enumerates, in
+ * model/when.ts.
  */
-import type { ArchitectureDef, RelationType } from '../model/graph.js';
-
-/** Canonical relation-type order for stable, deterministic message output. */
-export const RELATION_TYPES: readonly RelationType[] = [
-  'uses',
-  'calls',
-  'extends',
-  'implements',
-  'emits',
-  'listens',
-];
+import type { ArchitectureDef } from '../model/graph.js';
+import { RELATION_TYPES, type RelationType } from '../model/when.js';
 
 /**
  * Allowed relation types from `fromType` to `toType` under the architecture's

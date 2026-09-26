@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    // Points TMPDIR at one directory per run and fails the run naming any
+    // temporary entry a test left behind (tests/support/global-tmpdir.ts).
+    globalSetup: ['./tests/support/global-tmpdir.ts'],
     // Default per-test/hook timeout. The suite is I/O-bound (e2e tests spawn the
     // built bin.js as subprocesses dozens of times per file; some unit tests make
     // real network calls) — under vitest fork-pool contention the 5000ms vitest

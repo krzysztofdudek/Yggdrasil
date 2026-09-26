@@ -634,6 +634,7 @@ describe('yg advise — G6: no YAML-writing helper is reachable from the advise 
   const adviseFiles = [
     path.join(SRC, 'cli', 'advise.ts'),
     path.join(SRC, 'core', 'advise-nominations.ts'),
+    path.join(SRC, 'core', 'advise-shared.ts'),
     path.join(SRC, 'core', 'advise-feed.ts'),
   ];
 
