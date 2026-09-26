@@ -6,6 +6,7 @@ description: "Unit tests for template generation: commands, default-config,
 aspects: []
 relations:
   [
+    { target: cli/knowledge, type: uses },
     { target: cli/knowledge-concepts, type: uses },
     { target: cli/schemas, type: uses },
     { target: cli/templates, type: uses },
@@ -22,3 +23,4 @@ mapping:
   - source/cli/tests/unit/templates/rules.test.ts
   - source/cli/tests/unit/templates/digest.test.ts
   - source/cli/tests/unit/templates/gitignore-list-sync.test.ts
+  - source/cli/tests/unit/templates/agent-surface-truth.test.ts

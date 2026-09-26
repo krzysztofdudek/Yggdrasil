@@ -2,8 +2,8 @@ export const summary = 'Aspect definition — rule kind, scope, status, review_b
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file
-# plus any number of .md content files (for reviewer rules) or a check.mjs
-# (for script rules).
+# plus at most one rule file: content.md (a reviewer rule) or check.mjs (a
+# script rule); a bundle has neither.
 #
 # Aspect identifier = relative path from aspects/ to the directory
 # (e.g. observability/logging). Aspects can be organized in nested
@@ -16,9 +16,15 @@ export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # named as retired. A misspelled key used to be ignored, so a rule meant to be
 # advisory loaded as enforced.
 #
-# The .md content files are what the reviewer checks against source code
-# (for a reviewer rule).
-# They should state WHAT must be satisfied and WHY.
+# content.md is what the reviewer checks against source code (for a reviewer
+# rule) — the ONLY file of the directory the reviewer is shown as the rule. It
+# should state WHAT must be satisfied and WHY. Any other file in the directory
+# (a guidance.md, notes, a helper module check.mjs imports) is never shown to the
+# reviewer, but it is folded into the rule's hash: editing it re-opens every pair
+# of the rule. Left out of the hash: this file, log.md, an adaptation and its
+# log, provenance.json, node_modules, non-code files under a dot-named entry, and
+# drills/ or a nested rule's directory unless the rule's code imports the file.
+# To show the reviewer another file, list it under references:.
 
 name: CrossCuttingRequirementName  # required — display name
 description: "Short description"   # required — shown in yg aspects output and context packages.
@@ -62,8 +68,10 @@ description: "Short description"   # required — shown in yg aspects output and
 status: enforced                   # optional — aspect-level default. enum: draft | advisory | enforced.
                                    # Absent → 'enforced'.
                                    # draft     = rule skipped, no verdict, no baseline, no drift.
-                                   # advisory  = rule runs; refused → warning (no block).
-                                   # enforced  = rule runs; refused → error (blocks check).
+                                   # advisory  = rule runs; refused or unverified → warning (no
+                                   #             block) — except prompt-too-large, an error at
+                                   #             any status (the pair can never be judged).
+                                   # enforced  = rule runs; refused or unverified → error (blocks check).
                                    # This is only the aspect-level default. The effective status on a
                                    # node is max() across cascading channels 1–6; channel 7 (implies)
                                    # carries status_inherit instead. Downgrade attempts are validator

@@ -1,3 +1,5 @@
+import { AUTO_APPROVE_READ_ONLY_CASES } from './shared-text.js';
+
 export const summary =
   'Full yg command reference: check, check --approve, context, node, adopt, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, pack, marketplace, portal';
 
@@ -17,6 +19,8 @@ cost. Exception: if \`auto_approve\` is configured in \`yg-config.yaml\`, bare
 (\`--approve\`, \`--no-approve\`, \`--only-deterministic\`) ALWAYS override
 \`auto_approve\`. CI and pre-commit should always use the explicit flag form to
 stay key-free and deterministic regardless of project config.
+
+${AUTO_APPROVE_READ_ONLY_CASES}
 
 \`\`\`bash
 yg check
@@ -105,7 +109,8 @@ mutually exclusive with each other, and all are incompatible with BOTH
 script-fill flag. (\`--approve\` has its own \`--dry-run\` cost preview;
 \`--only-deterministic\` is refused by name, because a triage view is
 force-read-only and would otherwise silently drop the fill you asked for.)
-Explicit CLI flags override \`auto_approve\` config.
+A view is read-only under \`auto_approve\` too: a bare \`yg check --summary\`
+fills nothing, whatever the configuration.
 
 \`\`\`bash
 yg check --top 5           # print only the first 5 blocks
@@ -315,9 +320,11 @@ yg check --approve --quiet              # fill everything but silence stderr pro
 \`\`\`
 
 When \`auto_approve\` is set to \`full\` in \`yg-config.yaml\`, bare \`yg check\`
-triggers a full fill and the PASS verdict line says \`auto-filled\` to distinguish it
-from a clean read-only pass. A pre-run banner on stderr warns that reviewer
-calls will be made.
+triggers a full fill — outside CI, and never in a triage view — and the PASS
+verdict line says \`auto-filled\` to distinguish it from a clean read-only pass.
+A pre-run banner on stderr warns that reviewer calls will be made. Under CI the
+same bare \`yg check\` stays read-only and says \`auto-approve: full ignored — CI
+is set\` on stderr instead.
 
 Verification is all-or-nothing: a run fills every pair it is answering for, or
 (when the mandatory-log gate stops it) nothing at all. By default it answers for
@@ -709,6 +716,10 @@ silent zero:
   current one (it would need a migration this replay never performs). Reported
   explicitly, so a commit the replay could not reach never reads as a clean pass.
 
+It writes nothing to your repository, but it RUNS the candidate's \`check.mjs\`
+once per replayed commit, with your process's permissions — treat it like
+\`yg aspect-test\` when deciding what may run it on an untrusted branch.
+
 Guarantees that make the replay trustworthy: every checkout and the candidate
 overlay happen in the throwaway clone (never in your tree); a clone-boundary guard
 refuses to let the graph resolver escape the clone, so a pre-init checkout is
@@ -951,8 +962,9 @@ The rule INVENTORY as one \`yg-aspects/1\` document: per rule, its \`id\`,
 \`reviewBy\`, \`errs\`, \`implies\`, the \`usage\` it reaches (nodes, and the
 channel each attachment came through, plus type-covered files) and its
 \`drills\` corpus size (violates / satisfies / total — COUNTED, never run).
-\`--health\` is a different and far more expensive projection and is refused
-together with \`--json\` rather than folded into the same schema. Each rule also
+\`--health\` is a different and far more expensive projection with its own
+document — \`yg aspects --health --json\` prints \`yg-aspects-health/1\` (below),
+never folded into this one. Each rule also
 carries \`log\`: the timestamp of the newest entry in its own history and, when
 that entry recorded one, the \`statusChange\` it recorded — so a reader of the
 document never opens a file to know whether a rule has moved.
@@ -983,6 +995,23 @@ for). Opt-in because it walks every component's mapped files; without it the
 document is unchanged. \`--reach\` without \`--json\` is refused — the enumeration
 is machine input, and the plain listing already answers the same question at a
 reader's resolution.
+
+\`yg aspects --health --json\` prints the health view as one \`yg-aspects-health/1\`
+document: \`rules\`, one per rule sorted by id, each with \`aspect\`, \`kind\`,
+\`status\`, \`nodes\`, \`files\` (\`null\` while \`coverage.type_level\` is off),
+\`pairs\`, \`refused\` (refusals that still hold), \`unverified\` (pairs with no
+valid verdict — never counted as clean), \`suppresses\`, \`errs\`, \`age\`, \`catch\`,
+\`exposure\`, \`signal\` (\`active\`, \`quiet\`, \`decorative?\`), \`reading\` (the
+plain-words sentence the table prints for that rule, or \`null\`), \`falseBlocks\`
+(\`count\`, \`blocks\`, \`thinData\`, \`reading\`, or \`null\` when the rule has blocked
+nothing) and \`wrongRuleIncidents\`; then \`wildcardMarkers\` and \`telemetry\` (the
+window the counts come from, or \`null\`). A rule never judged has \`catch\`,
+\`exposure\` and \`signal\` all \`null\`, never \`0\`. \`--reach\` is refused with
+\`--health\`: reach belongs to the rule inventory, not to the health view.
+
+\`\`\`bash
+yg aspects --health --json
+\`\`\`
 
 ### \`yg aspects log\` — a rule's OWN history
 
@@ -1685,7 +1714,9 @@ written beside its adaptation, as \`yg-aspect.adapt.log.md\`; \`yg drill add\` o
 an installed rule is refused — its cases belong to the package.
 
 **Installing a package runs its author's code.** A rule's script runs in your own
-process on every \`yg check\`. What is sandboxed is what a rule may READ through
+process whenever a check fills verdicts (\`--approve\`, \`--only-deterministic\`, a
+configured \`auto_approve\`) and in \`yg aspect-test\`, \`yg drill\`, \`yg simulate\`
+and \`yg adopt\` — a plain \`yg check\` runs none of it. What is sandboxed is what a rule may READ through
 the context it is handed — never the module itself. Install only from a source
 you trust that far.
 

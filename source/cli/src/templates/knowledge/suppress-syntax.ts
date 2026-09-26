@@ -1,3 +1,5 @@
+import { SUPPRESS_SINGLE_LINE_SCOPE } from './shared-text.js';
+
 export const summary = 'yg-suppress inline waiver syntax: single-line, bracket disable/enable, wildcard, whole-file form';
 
 export const content = `# Suppress syntax
@@ -24,10 +26,7 @@ Inappropriate uses:
 
 ## Single-line
 
-The single-line form suppresses exactly one line: the immediately following
-line — or, when the marker's comment trails code on the same line, that line
-itself (see "Trailing markers" below). \`yg suppressions\` prints the lines each
-marker actually waives.
+${SUPPRESS_SINGLE_LINE_SCOPE} (Details: "Trailing markers" below.)
 
 \`\`\`typescript
 // yg-suppress(security/input-validation) static config, no user input
@@ -52,7 +51,7 @@ reason must follow — it is permanent.
 One marker may name SEVERAL aspects at once, comma-separated:
 \`yg-suppress(a, b) <reason>\` (and \`yg-suppress-disable(a, b)\` /
 \`yg-suppress-enable(a, b)\` for the bracket form). The listed ids share the same
-waived range — the single line below for a single-line marker, or the bracketed
+waived range — the one line a single-line marker waives, or the bracketed
 span for the disable/enable form. This is not the wildcard \`*\`: it waives exactly
 the ids you name, nothing added later.
 
@@ -130,7 +129,8 @@ the closing \`yg-suppress-enable\` was forgotten. Move it to the top for a
 deliberate whole-file waiver, or add the closing marker to bound the range.
 
 Do NOT reach for the single-line \`yg-suppress(<id>)\` to waive a whole file —
-it covers only the one line that follows it. This is true for EVERY aspect kind:
+it covers only one line (the line below it, or its own line when it trails
+code). This is true for EVERY aspect kind:
 suppress scope is resolved once, deterministically, into line ranges, and BOTH
 kinds that produce a verdict honor the exact same ranges. A script rule's \`check.mjs\` reads
 those ranges directly; for a reviewer rule, the reviewer receives them injected into its

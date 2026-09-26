@@ -331,8 +331,9 @@ export function registerPackCommand(program: Command): void {
     .command('pack')
     .description(
       'Install rules published by another repository, keep them exactly as published, and adapt them ' +
-        'in a file beside each copy. Installing a package runs its author\'s code on every check — ' +
-        'install only from a source you trust that far.',
+        'in a file beside each copy. Installing a package runs its author\'s code whenever a check fills ' +
+        'verdicts (--approve, the free --only-deterministic step, a configured auto_approve) and in ' +
+        'aspect-test, drill, simulate and adopt — install only from a source you trust that far.',
     );
 
   pack
@@ -509,7 +510,7 @@ async function runAdd(rawSpec: string, opts: { as?: string }): Promise<number> {
         '\nAttach a rule to a component by its full name above. Do not edit the copied files — ' +
           `change a rule in the ${ADAPT_FILENAME} written beside it.\n` +
           paint.yellow(
-            'These rules run their author\'s code in this process on every check. Only what they read is fenced, not what they run.\n',
+            'These rules run their author\'s code in this process whenever a check fills verdicts, and in aspect-test, drill, simulate and adopt. Only what they read is fenced, not what they run.\n',
           ),
       );
       if (fetched.published !== null) {

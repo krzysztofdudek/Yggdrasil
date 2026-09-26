@@ -1,3 +1,5 @@
+import { RULE_SUPPORT_FILES } from './shared-text.js';
+
 export const summary =
   'What aspects are, when to create, the three rule kinds (reviewer rule, script rule, bundle), scope, cost model per pair, directory organization, positive vs negative aspects';
 
@@ -21,6 +23,16 @@ a subject file, the aspect's rule source, its \`scope\`, or its reviewer tier ma
 unverified, and \`yg check --approve\` re-verifies it. A status flip is not an
 input — it never invalidates a verdict. (Full mechanics:
 \`yg knowledge read verification-and-lock\`.)
+
+${RULE_SUPPORT_FILES}
+
+What the reviewer is shown is narrower than what the hash folds. A reviewer rule
+has exactly ONE rule file, \`content.md\`, and it is the only file of the rule's
+directory that reaches the prompt as the rule. Any other file there — a
+\`guidance.md\`, a notes file — is never shown to the reviewer, yet it is folded
+into the hash, so editing it re-opens every pair (and re-bills them) without
+changing a word the reviewer reads. To show the reviewer another file, list it
+under \`references:\`; to change the rule, edit \`content.md\`.
 
 For HOW aspects reach a node (the 7 propagation channels with concrete
 example), see the SYSTEM section of the agent operating manual (\`yg prime\`)
@@ -170,7 +182,8 @@ Cost is counted per PAIR.
   (and references travel in every per-file prompt).
 - Script pairs run locally at zero LLM cost, however many they touch.
 - Bundles have no reviewer call of their own.
-- A \`scope\` edit, a \`content.md\` edit, a reference-file edit, or a reviewer-tier change
+- A \`scope\` edit, a \`content.md\` edit, an edit to any other file folded into the
+  rule (above), a reference-file edit, or a reviewer-tier change
   invalidates pairs and re-bills them. Run \`yg impact --aspect <id>\` before
   modifying a widely-used aspect to see the re-verification cost.
 - **Editing \`companion.mjs\`** re-verifies ALL pairs of the aspect (like a
