@@ -1,6 +1,6 @@
 name: Knowledge Docs — Modeling & Process
 type: knowledge-doc
-description: In-process knowledge documents served by yg knowledge read — graph-modeling and process topics (flows, ports/relations, architecture, suppress, log management, aspect status, CLI reference, onboarding).
+description: In-process knowledge documents served by yg knowledge read — graph-modeling and process topics (flows, ports/relations, architecture, suppress, log management, aspect status, CLI reference, onboarding), plus the shared sentences several topics interpolate so they read word for word alike.
 mapping:
   - source/cli/src/templates/knowledge/aspect-status.ts
   - source/cli/src/templates/knowledge/cli-reference.ts
@@ -10,3 +10,4 @@ mapping:
   - source/cli/src/templates/knowledge/ports-and-relations.ts
   - source/cli/src/templates/knowledge/suppress-syntax.ts
   - source/cli/src/templates/knowledge/working-with-architecture.ts
+  - source/cli/src/templates/knowledge/shared-text.ts

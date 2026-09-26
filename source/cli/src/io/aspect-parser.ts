@@ -463,16 +463,23 @@ export async function parseAspect(
   const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME]);
   // Everything else the rule's code can reach — a helper module, a shipped table
   // — is a verdict input too. See readSupportFileHashes for what is left out.
-  const supportFiles = await readSupportFileHashes(aspectDir, [
-    'yg-aspect.yaml',
-    ADAPT_FILENAME,
-    ADAPT_LOG_FILENAME,
-    'log.md',
-    'provenance.json',
-    'content.md',
-    'check.mjs',
-    'companion.mjs',
-  ]);
+  const projectRootForRule = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+  const support = await readSupportFileHashes(
+    aspectDir,
+    ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME, 'log.md', 'provenance.json', 'content.md', 'check.mjs', 'companion.mjs'],
+    projectRootForRule,
+  );
+  // A symbolic link the rule's code names — under drills/, in a nested rule's
+  // directory, through a linked dot-named directory — is refused like a linked
+  // file beside the rule: following it would fold bytes from wherever it points.
+  if (support.linked.length > 0) {
+    return {
+      ok: false,
+      aspectId: idTrimmed,
+      errors: [{ code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(idTrimmed, support.linked.map((l) => `${toPosixPath(path.relative(projectRootForRule, path.join(aspectDir, l)))}`)) }],
+    };
+  }
+  const supportFiles = support.files;
 
   let status: AspectStatus | undefined;
   if (raw.status !== undefined) {
