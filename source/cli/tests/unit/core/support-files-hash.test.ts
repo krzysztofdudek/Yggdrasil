@@ -8,6 +8,14 @@
 // describes or tunes the rule rather than runs, and the drills it is measured
 // against. And an aspect with NO such files hashes exactly as it always did, so
 // upgrading re-opens nothing by itself.
+//
+// Three places the directory walk passes over can still hold code the rule
+// runs: a dot-named module, a helper kept under drills/, and a module in a
+// nested rule's directory. Dot-named code files are always folded (other
+// dot-named files are an editor's or an operating system's and stay out); a
+// file under drills/ or a nested rule joins only when the rule's code names it
+// by a relative import, followed from module to module — so a drill case added
+// to the corpus still re-opens nothing.
 // =============================================================================
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -79,5 +87,58 @@ describe('the rule hash and the files beside the rule', () => {
     );
     expect(aspect.supportFiles).toBeUndefined();
     expect(ruleHashFor(aspect, 'check.mjs')).toBe(BARE);
+  });
+
+  it('folds in a dot-named module, but not a dot-named file that is not code', async () => {
+    const plain = await load(rule({ '.DS_Store': 'finder\n', '.cache/notes.txt': 'x\n' }));
+    expect(plain.supportFiles).toBeUndefined();
+    const before = await load(rule({ '.shared.mjs': 'export const a = 1;\n', '.lib/deep.js': 'module.exports = 1;\n' }));
+    const after = await load(rule({ '.shared.mjs': 'export const a = 2;\n', '.lib/deep.js': 'module.exports = 1;\n' }));
+    expect(before.supportFiles?.map(([p]) => p)).toEqual(['.lib/deep.js', '.shared.mjs']);
+    expect(ruleHashFor(before, 'check.mjs')).not.toBe(ruleHashFor(after, 'check.mjs'));
+  });
+
+  it('folds in a drills/ helper the check imports, followed through the modules it imports, and no drill case', async () => {
+    const importing = "import { limit } from './drills/_lib/limit.mjs';\nexport function check() { return limit() > 0 ? [] : []; }\n";
+    const files = (n: number): Record<string, string> => ({
+      'check.mjs': importing,
+      'drills/_lib/limit.mjs': "import { base } from '../_shared/base';\nexport const limit = () => base;\n",
+      'drills/_shared/base.mjs': `export const base = ${n};\n`,
+      'drills/violates-x/src/a.mjs': 'export const a = 1;\n',
+    });
+    const before = await load(rule(files(1)));
+    const after = await load(rule(files(2)));
+    expect(before.supportFiles?.map(([p]) => p)).toEqual(['drills/_lib/limit.mjs', 'drills/_shared/base.mjs']);
+    expect(ruleHashFor(before, 'check.mjs')).not.toBe(ruleHashFor(after, 'check.mjs'));
+
+    const withCase = await load(rule({ ...files(1), 'drills/satisfies-y/src/b.mjs': 'export const b = 1;\n' }));
+    expect(ruleHashFor(withCase, 'check.mjs')).toBe(ruleHashFor(before, 'check.mjs'));
+  });
+
+  it('folds in a module in a nested rule\'s directory only when the enclosing rule imports it', async () => {
+    const nested = {
+      'nested/yg-aspect.yaml': 'name: Nested\n',
+      'nested/check.mjs': 'export function check() { return []; }\n',
+      'nested/shared.mjs': 'export const s = 1;\n',
+    };
+    const untouched = await load(rule(nested));
+    expect(untouched.supportFiles).toBeUndefined();
+
+    const importing = "import { s } from './nested/shared.mjs';\nexport function check() { return s ? [] : []; }\n";
+    const aspect = await load(rule({ ...nested, 'check.mjs': importing }));
+    expect(aspect.supportFiles?.map(([p]) => p)).toEqual(['nested/shared.mjs']);
+  });
+
+  it('ignores a specifier that leaves the rule directory, reaches into node_modules, or names no file', async () => {
+    const importing = [
+      "import a from '../outside.mjs';",
+      "import b from './node_modules/pkg/index.mjs';",
+      "import c from './missing.mjs';",
+      "import d from '@scope/pkg';",
+      'export function check() { return []; }',
+      '',
+    ].join('\n');
+    const aspect = await load(rule({ 'check.mjs': importing, 'node_modules/pkg/index.mjs': 'export default 1;\n' }));
+    expect(aspect.supportFiles).toBeUndefined();
   });
 });

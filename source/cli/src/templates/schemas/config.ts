@@ -32,10 +32,16 @@ auto_approve: false               # optional — controls the behavior of bare \
                                   #     script pairs (free, keyless, local).
                                   #   "full": bare \`yg check\` behaves as \`yg check --approve\` —
                                   #     fills the unverified pairs that run answers for and may call
-                                  #     the reviewer (needs keys).
+                                  #     the reviewer (needs keys). HELD BACK UNDER CI: when the CI
+                                  #     environment variable is set (anything but empty, 0 or false),
+                                  #     bare \`yg check\` fills nothing — no reviewer pair, no script
+                                  #     pair — and says "auto-approve: full ignored — CI is set" on
+                                  #     stderr. "deterministic" is not held back.
                                   #
                                   #   Explicit CLI flags (--approve, --no-approve, --only-deterministic)
                                   #   ALWAYS override this setting regardless of the configured value.
+                                  #   A triage view (--top, --summary, --aspect, --details) never
+                                  #   fills, whatever this setting says.
                                   #   CI / pre-commit: use the explicit flag form
                                   #   (\`yg check --approve --only-deterministic\`) to stay deterministic
                                   #   and key-free regardless of this setting.

@@ -88,6 +88,19 @@ describe.skipIf(process.platform === 'win32')('rule sources that are symbolic li
     expect(res.ok).toBe(true);
   });
 
+  it('a symlinked dot-named module is refused — dot-named code is part of the rule\'s hash, so it must be a regular file', async () => {
+    const { root, aspectDir } = repo('dot-helper');
+    write(path.join(root, 'tools/shared.mjs'), 'export const x = 1;\n');
+    write(path.join(aspectDir, 'yg-aspect.yaml'), 'name: DotHelper\ndescription: "dot"\nstatus: enforced\n');
+    write(path.join(aspectDir, 'check.mjs'), "import { x } from './.lib/shared.mjs';\nexport function check() { return []; }\n");
+    mkdirSync(path.join(aspectDir, '.lib'));
+    symlinkSync('../../../../tools/shared.mjs', path.join(aspectDir, '.lib', 'shared.mjs'));
+
+    expect(ruleDirSymlinks(aspectDir)).toEqual(['.lib/shared.mjs']);
+    const res = await parseAspect(aspectDir, path.join(aspectDir, 'yg-aspect.yaml'), 'dot-helper', { projectRoot: root });
+    expect(res.ok).toBe(false);
+  });
+
   it('an adaptation\'s companion: path that runs through a symlink is refused', async () => {
     const { root, aspectDir } = repo('adapted');
     write(path.join(aspectDir, 'yg-aspect.yaml'), 'name: Adapted\ndescription: "adapted"\nstatus: enforced\ncompanion: tools/linked/companion.mjs\n');

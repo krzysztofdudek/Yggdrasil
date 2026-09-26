@@ -88,3 +88,5 @@ Two release lines met here: one that routes every piece of CLI output through th
 An unexpected failure of the replay now goes through the command contract shared unexpected-error path, and every step of the realpath walk records its failure in the debug log, so no fallback in this command is silent.
 ## [2026-09-25T21:13:51.302Z]
 simulate now refuses a candidate id that names no rule with the shared aspect-not-found error. An unknown rule id used to be refused in about six different wordings under two codes depending on the command, so an agent could not recognise the one situation or learn one remedy.
+## [2026-09-26T04:16:39.865Z]
+The command description called simulate read-only. It writes nothing to the repository, but it runs the candidate rule's script once per replayed commit, with the permissions of whoever runs it. Calling that read-only let an agent or a CI author treat it as safe on an untrusted branch, so the description now says both halves: nothing written, code executed.

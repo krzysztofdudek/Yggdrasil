@@ -15,11 +15,12 @@
 // starts sending source to a reviewer, fails here before the table can lie.
 //
 // HERMETIC: a fresh mkdtemp project per row, the mock on an ephemeral loopback
-// port, the child's environment stripped of CI and every provider key.
+// port, the child's environment stripped of CI and every provider key (a row
+// that is about CI sets it back explicitly).
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -130,9 +131,10 @@ async function makeProject(label: string, opts: { extraConfig?: string; asPropos
   return { root, marker, mock };
 }
 
-function run(args: string[], cwd: string): Promise<{ status: number | null; all: string }> {
+function run(args: string[], cwd: string, extraEnv: Record<string, string> = {}): Promise<{ status: number | null; all: string }> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const k of ['CI', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_COMPATIBLE_API_KEY']) delete env[k];
+  Object.assign(env, extraEnv);
   return new Promise((resolve) => {
     const child = spawn('node', [BIN_PATH, ...args], { cwd, env });
     let all = '';
@@ -171,6 +173,22 @@ interface Row {
   asProposal?: boolean;
   /** A rule to give one satisfies-* drill case, for the `yg drill` rows. */
   drillCase?: string;
+  /** Environment the command runs with, on top of the stripped one (e.g. `CI`). */
+  env?: Record<string, string>;
+  /** Commit the project to a fresh git repository first — `yg simulate` replays history. */
+  git?: boolean;
+}
+
+/** Make the project one commit of a fresh git repository, isolated from any user or system git config. */
+function commitProject(root: string): void {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_INDEX_FILE;
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, env, stdio: 'ignore' });
+  git('init', '-q', '-b', 'main');
+  git('-c', 'user.name=Trust Table', '-c', 'user.email=trust@example.invalid', 'add', '-A', '.yggdrasil', 'src');
+  git('-c', 'user.name=Trust Table', '-c', 'user.email=trust@example.invalid', 'commit', '-q', '-m', 'project');
 }
 
 // One entry per command in the table, in the table's order.
@@ -198,9 +216,16 @@ const ROWS: Row[] = [
   { name: 'yg drill (reviewer rule)', args: ['drill', '--aspect', LLM_PLAIN], expected: { checkMjs: false, companionMjs: false, sourceToReviewer: true }, drillCase: LLM_PLAIN },
   // A reviewer rule that ships companion.mjs is recorded unsupported by drill: nothing of it runs.
   { name: 'yg drill (reviewer rule with companion.mjs)', args: ['drill', '--aspect', LLM], expected: NOTHING, drillCase: LLM },
+  // yg simulate replays the candidate script rule in a throwaway clone: it writes nothing here, but runs check.mjs.
+  { name: 'yg simulate', args: ['simulate', DET, '--node', NODE], expected: SCRIPT_ONLY, git: true },
   // Row 6 — auto_approve turns a bare check into the matching --approve form (outside CI).
   { name: 'bare yg check, auto_approve: deterministic', args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n' },
   { name: 'bare yg check, auto_approve: full', args: ['check'], expected: EVERYTHING, extraConfig: 'auto_approve: full\n' },
+  // Under CI a committed `full` is held back — nothing runs; `deterministic` is not held back.
+  { name: 'bare yg check under CI, auto_approve: full', args: ['check'], expected: NOTHING, extraConfig: 'auto_approve: full\n', env: { CI: 'true' } },
+  { name: 'bare yg check under CI, auto_approve: deterministic', args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n', env: { CI: 'true' } },
+  // A triage view never fills, whatever auto_approve says.
+  { name: 'yg check --summary, auto_approve: full', args: ['check', '--summary'], expected: NOTHING, extraConfig: 'auto_approve: full\n' },
 ];
 
 // The read-only rows are also run over a project whose reviewer verdict is on
@@ -213,7 +238,8 @@ describe.skipIf(!distExists)('the-lock.md trust table — every row, as the CLI 
     const p = await makeProject(row.name.replace(/\W+/g, '-').slice(0, 40), { extraConfig: row.extraConfig, asProposal: row.asProposal });
     try {
       if (row.drillCase) w(p.root, `.yggdrasil/aspects/${row.drillCase}/drills/satisfies-plain/ok.ts`, 'export const ok = 1;\n');
-      const r = await run(row.args, p.root);
+      if (row.git) commitProject(p.root);
+      const r = await run(row.args, p.root, row.env);
       expect(r.all).not.toContain('Unknown command');
       expect(observe(p), `${row.name}\n${r.all}`).toEqual(row.expected);
     } finally {
@@ -229,7 +255,7 @@ describe.skipIf(!distExists)('the-lock.md trust table — every row, as the CLI 
       writeFileSync(path.join(p.root, FILE), 'export const app = 2;\n', 'utf-8');
       rmSync(p.marker, { force: true });
       const before = p.mock.chatCount();
-      const r = await run(row.args, p.root);
+      const r = await run(row.args, p.root, row.env);
       const seen = observe(p);
       expect({ ...seen, sourceToReviewer: p.mock.chatCount() > before }, `${row.name}\n${r.all}`).toEqual(NOTHING);
     } finally {
