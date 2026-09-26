@@ -12,7 +12,7 @@ import {
   duplicateOf,
   parseCaseSpec,
 } from '../core/drill-add.js';
-import { discoverDrillCases, runDrills, type DrillRunSetup } from '../core/drill-runner.js';
+import { discoverDrillCases, isDrillCaseFileName, runDrills, type DrillRunSetup } from '../core/drill-runner.js';
 import {
   readCorpusFiles,
   removeCorpusCase,
@@ -109,6 +109,17 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
           const flag = `--${expect}`;
           const parsed = parseCaseSpec(spec, flag);
           if (!parsed.ok) failAndExit(parsed.error);
+          // A file the corpus runner never runs as a case (documentation, the
+          // rule's own definition) would be written, reported as measured, and
+          // then never measured by anything. Refused before anything is read.
+          const caseFileName = path.posix.basename(toPosixPath(parsed.filePath));
+          if (!isDrillCaseFileName(caseFileName)) {
+            failAndExit({
+              what: `${flag}: '${toPosixPath(parsed.filePath)}' cannot be a drill case — the drill never runs a ${caseFileName === 'yg-aspect.yaml' ? 'file named yg-aspect.yaml' : '.md file'} as one.`,
+              why: 'In a rule\'s case corpus a .md file is documentation beside the cases and yg-aspect.yaml is reserved, so yg drill skips both. A case filed under either name would never be run, and the rule would never be measured against it.',
+              next: 'Add a source file the rule applies to instead. Nothing was added.',
+            });
+          }
 
           const at = await readFileAtCommit(projectRoot, parsed.ref, parsed.filePath);
           if (at.kind === 'no-such-commit') {
@@ -202,6 +213,20 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
         if (!setup.ok) {
           await undo(graph, aspect.def, planned);
           failAndExit(setup.error);
+        }
+
+        // Every case written has to be one the runner measures. One that did not
+        // come back from the corpus walk would be reported as passing on a
+        // measurement nobody made — take everything back out instead.
+        const discovered = new Set(cases.map((c) => c.caseLabel.split('/')[0]));
+        const unrun = planned.filter((p) => !discovered.has(p.caseLabel));
+        if (unrun.length > 0) {
+          await undo(graph, aspect.def, planned);
+          failAndExit({
+            what: `The rule '${aspect.def.id}' could not be run over ${unrun.map((p) => `'${p.caseLabel}'`).join(' and ')}: the drill does not find it as a case.`,
+            why: 'A case the drill never runs is never measured: it would sit in the corpus looking like coverage while nothing checks the rule against it.',
+            next: `Run yg drill --aspect ${aspect.def.id} to see which cases the corpus holds. Nothing was added.`,
+          });
         }
 
         const summary = await runDrills(aspect.def, projectRoot, cases, setup.ctx, setup.deps);

@@ -19,6 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 import { checkMarketplace } from '../../src/core/marketplace-check.js';
 
+/** The Yggdrasil version the check is told it runs under — what requires.yg is held against. */
+const RUNNING_YG = '6.1.0';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, '..', 'fixtures');
 const BAD = path.join(FIXTURES, 'marketplace-bad');
@@ -36,7 +39,7 @@ const FAULTS: ReadonlyArray<readonly [string, string]> = [
 
 describe('the pre-publish check over committed marketplaces', () => {
   it('1: the marketplace yg pack installs from is refused nothing', async () => {
-    const result = await checkMarketplace(path.join(FIXTURES, 'marketplace-demo'));
+    const result = await checkMarketplace(path.join(FIXTURES, 'marketplace-demo'), { cliVersion: RUNNING_YG });
     expect(result.errors).toEqual([]);
     // ONE warning, and it is the fixture saying what it was built to say. That
     // marketplace declares a setting its rule deliberately never reads, to prove
@@ -49,7 +52,7 @@ describe('the pre-publish check over committed marketplaces', () => {
 
   for (const [index, [fixture, code]] of FAULTS.entries()) {
     it(`${index + 2}: ${fixture} is refused with ${code}, and nothing else`, async () => {
-      const result = await checkMarketplace(path.join(BAD, fixture));
+      const result = await checkMarketplace(path.join(BAD, fixture), { cliVersion: RUNNING_YG });
       expect(result.errors.map((e) => e.code)).toEqual([code]);
       expect(result.warnings).toEqual([]);
     });

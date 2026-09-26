@@ -10,6 +10,12 @@ export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # directories — the directory structure is for organization only,
 # there is no automatic parent-child inheritance between aspects.
 #
+# Only the keys below are accepted at the top level. Any other is a blocking
+# aspect-unknown-key error naming the key it is probably a typo of
+# (stauts → status); a key an earlier release read (language, stability) is
+# named as retired. A misspelled key used to be ignored, so a rule meant to be
+# advisory loaded as enforced.
+#
 # The .md content files are what the reviewer checks against source code
 # (for a reviewer rule).
 # They should state WHAT must be satisfied and WHY.

@@ -16,14 +16,12 @@ import { ADAPT_FILENAME } from '../model/packages.js';
  * result. The rule file stays byte-identical to what the package published, which
  * is what makes an update a replacement rather than a merge conflict.
  *
- * THE ASYMMETRY, DELIBERATE: `yg-aspect.yaml` tolerates an unknown top-level key
- * and an adapt does not. They are written under different conditions. A rule's own
- * file is authored once, by the person who wrote the rule, against the schema of
- * the build they had; tolerating a key from a newer build is what lets one aspect
- * directory work across versions. An adapt is written by someone tuning a rule
- * they did not write, and a misspelled key there reads as an adaptation that was
- * applied when it was silently dropped — the failure mode is a rule that looks
- * tuned and is not. So an adapt names every key it does not recognise.
+ * An adapt names every key it does not recognise, as the rule's own
+ * `yg-aspect.yaml` does for its (wider) list: a misspelled key in an adapt reads
+ * as an adaptation that was applied when it was silently dropped — the failure
+ * mode is a rule that looks tuned and is not. A package whose rules need a key a
+ * later release adds says so through its requires.yg, which an install enforces,
+ * rather than relying on an older build to ignore the key.
  */
 
 /** Keys an adapt may set. */

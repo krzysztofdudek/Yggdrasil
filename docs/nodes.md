@@ -75,6 +75,8 @@ The mirror case blocks too: a mapping entry that names a file directly which is 
 
 Nodes nest by directory. A node at `model/orders/handler/` is a child of `model/orders/`. Children inherit their parent's aspects: a rule attached to `orders` applies to `orders/handler` and every other node beneath it. Add a rule once at the top of a subtree and it covers the whole subtree.
 
+Every directory between `model/` and a node must itself be a node: the graph is read through nodes, so a `yg-node.yaml` under a directory that has none — `model/orders/handler/` with no `model/orders/yg-node.yaml` — is never loaded. The same holds beneath a node whose own `yg-node.yaml` does not load. `yg check` reports each such node as `node-unreachable`, naming the directory that cut it off; the fix is a `yg-node.yaml` in that directory (an organizational type with no `when` is enough) or moving the node up.
+
 ## Coverage and minimal nodes
 
 You do not have to enforce rules on a component to put it in the graph. When you adopt Yggdrasil on an existing codebase, most of your code is not under enforcement yet — and that is fine. Create a node with a mapping and no aspects:

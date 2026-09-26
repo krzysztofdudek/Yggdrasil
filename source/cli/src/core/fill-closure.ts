@@ -23,6 +23,7 @@ import { verifyLock } from './verify-lock.js';
 import { computeLogBaselineFromContent, readLogContent } from './log/log-gate.js';
 import { progressivePairKey } from './progressive-scope.js';
 import { validateAppendOnly } from './log-integrity.js';
+import { logHasConflictMarkers } from './log-format.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logGateBlocksNode } from './log/log-gate.js';
 
@@ -133,6 +134,14 @@ export async function applyPositiveClosure(
 
   let mutated = false;
   for (const [nodePath, node] of graph.nodes) {
+    // A log.md still holding git conflict markers is not settled. Nothing is
+    // recorded for its node — no source fingerprint, no log baseline — until the
+    // merge is reconciled (yg log merge-resolve): a fingerprint advanced here
+    // would close the node's cycle over entries nobody has reconciled, and the
+    // next change would be measured against it. The fill stage already refuses
+    // to run over such a log; this holds even for a caller that skipped it.
+    if (logHasConflictMarkers(await readLogContent(projectRoot, nodePath))) continue;
+
     const archType = graph.architecture.node_types[node.meta.type];
     const logRequired = archType?.log_required ?? false;
 

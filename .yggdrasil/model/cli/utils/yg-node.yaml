@@ -34,6 +34,12 @@ description: Shared helper functions — debug logging, git introspection, path
   engine, the formatters and the relations subsystem write a count the way the
   command layer's output module (which re-exports them) does, since they may
   call utility but not the command layer.
+  It also owns the one reading of a key a block does not accept — which keys
+  are unknown, the accepted key each is plausibly a typo of, which are retired,
+  and the sentence naming them — shared by every graph and configuration file
+  parser, so a misspelled key is refused the same way, with the same
+  did-you-mean, in every file rather than rejected in one place and silently
+  ignored in another.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses }, { target: cli/model/file-when, type: uses }, { target: cli/model/validation, type: uses }, { target: cli/model/when, type: uses } ]
@@ -60,3 +66,4 @@ mapping:
   - source/cli/src/utils/validate-check-module.ts
   - source/cli/src/utils/rules-artifact-names.ts
   - source/cli/src/utils/count.ts
+  - source/cli/src/utils/known-keys.ts

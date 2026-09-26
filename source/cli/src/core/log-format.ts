@@ -14,6 +14,20 @@ export interface FormatViolation {
   detail: string;
 }
 
+/**
+ * Whether a log.md still carries git conflict markers — the one reading every
+ * caller shares: the check's `log-conflict`, the fill that refuses to run over
+ * one, closure that refuses to record a baseline over one, and merge-resolve.
+ *
+ * Only the unambiguous open/close markers count (seven `<` or seven `>` at line
+ * start). A bare `=======` line does NOT: log.md is markdown, where a run of `=`
+ * at line start is a legitimate setext underline or horizontal rule, and a real
+ * conflict always writes the open and close markers too.
+ */
+export function logHasConflictMarkers(content: string): boolean {
+  return /^<{7}/m.test(content) || /^>{7}/m.test(content);
+}
+
 const HEADER_LINE = /^## \[([^\]]+)\]\s*$/;
 const DATETIME_STRICT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,3}Z$/;
 const FENCE_LINE = /^(`{3,})(.*)$/;

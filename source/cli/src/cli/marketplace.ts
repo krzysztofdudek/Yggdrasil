@@ -8,6 +8,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { MARKETPLACE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
+import { cliVersion } from './cli-version.js';
 import { checkMarketplace } from '../core/marketplace-check.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { MarketplaceIssue } from '../core/marketplace-check.js';
@@ -167,7 +168,7 @@ async function runMarketplaceCheck(): Promise<void> {
   // is standing in — so the refusal names THAT directory rather than a root they
   // never mentioned.
   const root = findUpwards(cwd, MARKETPLACE_FILENAME) ?? cwd;
-  const result = await checkMarketplace(root);
+  const result = await checkMarketplace(root, { cliVersion: cliVersion() });
 
   for (const issue of result.errors) writeOut(renderIssue(issue, paint.red));
   for (const issue of result.warnings) writeOut(renderIssue(issue, paint.yellow));

@@ -534,14 +534,25 @@ yg marketplace check
 
 Free, deterministic, no key, and non-zero on any refusal — it is what the CI file
 `marketplace init` writes runs for you. It asks five things: that the two
-manifests agree with the directories that exist, that every rule loads under the
+manifests agree — with each other on the name and the version, with the
+directories that exist, and with the Yggdrasil running the check on `requires.yg`
+— and that the package holds nothing an install refuses (a symbolic link, a
+binary file), that every rule loads under the
 same loader a consumer will use, that every `implies` stays inside its package,
 that every setting read is declared and every setting declared is read, and that
 nothing in the package is anchored to your own repository.
 
+Everything `yg pack add` refuses about a package's manifests and files is asked
+here too, through the same readers, so a package the check passes is one that
+installs. What git ignores is left out, because an install clones your tag and
+never sees it: a `node_modules/` you installed locally is fine while `.gitignore`
+covers it, and refused like any undeclared directory once it would be published.
+Outside a git repository nothing is left out — `yg pack add` from a plain
+directory copies whatever is on disk.
+
 Every finding names a code — `package-config-undeclared`, `package-drills-missing`,
-`package-scope-literal-root` and so on — and the knowledge topic lists what each
-one means.
+`package-scope-literal-root`, `package-version-mismatch` and so on — and the
+knowledge topic lists what each one means.
 
 One limit, stated rather than implied: **it does not run your drills.** Running a
 case needs a repository to run it in, and a marketplace has no graph — which is

@@ -156,7 +156,7 @@ function writeAspect(root: string, id: string, body: string): void {
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, 'yg-aspect.yaml'),
-    `name: ${id}\nid: ${id}\ndescription: ${body}\nreviewer:\n  type: llm\n`,
+    `name: ${id}\ndescription: ${body}\nreviewer:\n  type: llm\n`,
     'utf-8',
   );
   writeFileSync(path.join(dir, 'content.md'), `${body}\n`, 'utf-8');
@@ -186,7 +186,7 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     mkdirSync(path.join(projectRoot, '.yggdrasil', 'aspects', 'orphan-x'), { recursive: true });
     writeFileSync(
       path.join(projectRoot, '.yggdrasil', 'aspects', 'orphan-x', 'yg-aspect.yaml'),
-      'name: orphan-x\nid: orphan-x\ndescription: Referenced by nothing.\nimplies:\n  - dead-x\n',
+      'name: orphan-x\ndescription: Referenced by nothing.\nimplies:\n  - dead-x\n',
       'utf-8',
     );
     // an aspect effective nowhere: referenced on a node but via a never-matching when

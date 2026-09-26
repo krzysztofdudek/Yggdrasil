@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   discoverDrillCases,
+  isDrillCaseFileName,
   filterInCorpusDevDrills,
   countCommittedViolatesCases,
   runDrills,
@@ -492,5 +493,15 @@ describe('countCommittedViolatesCases', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('drill-runner — which files can be cases', () => {
+  it('a .md file (any case) and a file named yg-aspect.yaml are never cases; source files are', () => {
+    expect(isDrillCaseFileName('notes.md')).toBe(false);
+    expect(isDrillCaseFileName('README.MD')).toBe(false);
+    expect(isDrillCaseFileName('yg-aspect.yaml')).toBe(false);
+    expect(isDrillCaseFileName('charge.ts')).toBe(true);
+    expect(isDrillCaseFileName('other.yaml')).toBe(true);
   });
 });
