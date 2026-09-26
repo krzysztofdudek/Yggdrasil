@@ -160,7 +160,13 @@ export async function recordAspectStatuses(
   graph: Graph,
   lock: LockFile,
   nowMs: number,
+  opts: { writeLogs?: boolean } = {},
 ): Promise<RecordStatusResult> {
+  // False for a run that may write no committed file (--only-deterministic):
+  // it still remembers a first sighting and a change somebody already
+  // recorded, both local, but leaves an unrecorded change standing — and so
+  // still reported — rather than write the rule's committed log.
+  const writeLogs = opts.writeLogs !== false;
   const remembered = (lock.aspects ??= {});
   const recorded: AspectStatusDrift[] = [];
   let changed = false;
@@ -186,6 +192,7 @@ export async function recordAspectStatuses(
     const alreadyRecorded = log.ok && lastRecordedStatus(log.entries) === to;
 
     if (!alreadyRecorded) {
+      if (!writeLogs) continue;
       const entry = await appendAspectLogEntry({
         yggRootPath: graph.rootPath,
         aspectId: aspect.id,

@@ -1,0 +1,18 @@
+name: E2E Tests — the trust table, row by row
+type: test-suite
+description: >-
+  Subprocess E2E that backs every row of the trust table in the lock
+  documentation, the table an adopter reads to decide which command a CI job on
+  an untrusted branch may run. One project carries a script rule whose
+  check.mjs, and a reviewer rule whose companion.mjs, each leave a mark when
+  they run, and a mock reviewer counts the prompts it is sent. Every command
+  the table names is run against it, and the test asserts the three facts the
+  row states: whether check.mjs ran, whether companion.mjs ran, and whether
+  source went to a reviewer. The read-only rows are also run over a stale
+  reviewer verdict, which is the case a read used to import companion.mjs to
+  size. A command that starts running repository code, or starts sending
+  source out, fails here before the table can claim otherwise.
+aspects: []
+relations: [ { target: cli/tests/e2e/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-trust-table.test.ts

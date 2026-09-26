@@ -249,6 +249,15 @@ API providers also read the provider API key from the standard \`*_API_KEY\`
 environment variable as a fallback. If the env var is set, the key is not needed
 in \`yg-secrets.yaml\`.
 
+PRECEDENCE: a tier's \`config.api_key\` in \`yg-secrets.yaml\` wins over the
+environment variable. So \`yg init\` never writes a key it read from the
+environment there, and whenever it points the tier at another provider or
+endpoint (\`--provider\` or the menu) it REMOVES the key stored for that tier and
+says so — a key given for one provider is never sent to the next. It also removes
+it when the variable is exported or the key prompt is answered; only a re-run for
+the same provider and endpoint with nothing else chosen keeps it (and init says
+the reviewer will send it). Nothing else in the file is touched.
+
 \`yg-config.yaml\` itself must never contain credentials. Commit it to the
 repository — it is safe to share.
 

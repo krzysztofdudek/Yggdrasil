@@ -3,8 +3,10 @@ type: command-support
 description: "Reviewer-provider configuration for yg init — the interactive
   provider/model wizard (provider selection, model fetch via the LLM model
   fetcher, connection test via the reviewer connectivity check) plus the
-  helpers that persist the chosen tier into yg-config.yaml and the API key
-  into the yg-secrets.yaml overlay. Extracted from the init command handler so
+  helpers that persist the chosen tier into yg-config.yaml and a typed API key
+  into the yg-secrets.yaml overlay (never a key read from the environment), and
+  that remove a key stored there when the tier is pointed at another provider
+  or endpoint, since a stored key outranks the environment. Extracted from the init command handler so
   the large command file carries only orchestration; registers no Commander
   subcommand."
 aspects:

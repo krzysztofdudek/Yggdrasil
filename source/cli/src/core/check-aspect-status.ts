@@ -35,7 +35,7 @@ export function classifyAspectStatusDrift(graph: Graph, lock: LockFile, issues: 
       messageData: {
         what: `Rule '${drift.aspectId}' now stands at ${drift.to}; the last status recorded for it was ${drift.from}.`,
         why: "A rule's status is the whole of its authority — draft enforces nothing, advisory reports, enforced refuses — and this one moved without a word about why. The rule's own log is where that belongs, so the reason travels with the rule instead of living in one commit message.",
-        next: `Record why it moved: yg aspects log add --aspect ${drift.aspectId} --status ${drift.to} --evidence '<what justified it>' --reason '<why it moved>'. The next yg check --approve otherwise writes the bare fact into that rule's log for you.`,
+        next: `Record why it moved: yg aspects log add --aspect ${drift.aspectId} --status ${drift.to} --evidence '<what justified it>' --reason '<why it moved>'. The next full yg check --approve otherwise writes the bare fact into that rule's log for you (--only-deterministic writes no committed file, so it leaves this warning standing).`,
       },
       aspectId: drift.aspectId,
     });
