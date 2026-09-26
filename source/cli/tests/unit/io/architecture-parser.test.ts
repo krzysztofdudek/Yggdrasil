@@ -59,9 +59,22 @@ node_types:
   });
 
   it('accepts file with no node_types field as empty', async () => {
-    const file = await writeTmp('yg-architecture.yaml', `name: test`);
+    const file = await writeTmp('yg-architecture.yaml', `# no types yet\n`);
     const arch = await parseArchitecture(file);
     expect(arch.node_types).toEqual({});
+    await cleanup(file);
+  });
+
+  it('refuses a top-level key it does not accept, with the key it is a typo of', async () => {
+    // `node_type:` read as nothing would load an EMPTY type system without a word.
+    const file = await writeTmp('yg-architecture.yaml', `node_type:\n  service:\n    description: s\n`);
+    await expect(parseArchitecture(file)).rejects.toThrow(/unknown key 'node_type' \(did you mean 'node_types'\?\)/);
+    await cleanup(file);
+  });
+
+  it.each(['aspects', 'parents'])('refuses a single value where %s takes a list, rather than dropping it', async (key) => {
+    const file = await writeTmp('yg-architecture.yaml', `node_types:\n  module:\n    description: m\n  service:\n    description: s\n    ${key}: module\n`);
+    await expect(parseArchitecture(file)).rejects.toThrow(new RegExp(`node_types\\.service\\.${key} must be a list`));
     await cleanup(file);
   });
 
@@ -387,7 +400,7 @@ node_types:
     aspect: [requires-auth]
     relation: {}
 `);
-      await expect(parseArchitecture(file)).rejects.toThrow(/unknown keys 'aspect', 'relation'/i);
+      await expect(parseArchitecture(file)).rejects.toThrow(/unknown keys 'aspect' \(did you mean 'aspects'\?\), 'relation' \(did you mean 'relations'\?\)/i);
       await cleanup(file);
     });
   });

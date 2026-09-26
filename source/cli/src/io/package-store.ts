@@ -119,23 +119,47 @@ export type StoreResult<T> =
   | { ok: false; code: string; messageData: IssueMessage };
 
 /** One file inside a package, relative to the package root, POSIX. */
-interface PackageFile {
+export interface PackageFile {
   relPath: string;
   absPath: string;
 }
 
 /**
- * Every file in a package directory, depth-first, sorted, dot-entries skipped.
- *
- * A symlink is REFUSED rather than followed or copied: a link inside a package
- * is authored by whoever published it and could point anywhere on the consuming
- * machine, and a copied link would still resolve against the consumer's own
- * filesystem after installation.
+ * Whether a file's bytes are binary: a NUL byte in its first 8 KiB. A package is
+ * law — YAML, markdown, JavaScript, and the case files a rule is drilled against —
+ * and nothing here can read, check or diff a binary.
  */
-async function collectPackageFiles(rootAbs: string): Promise<StoreResult<PackageFile[]>> {
-  const out: PackageFile[] = [];
+export function isBinaryPackageContent(bytes: Buffer): boolean {
+  return bytes.subarray(0, 8192).includes(0);
+}
 
-  async function walk(dirAbs: string, relPrefix: string): Promise<StoreResult<null>> {
+/** One thing in a package tree that installing it refuses. */
+export interface PackageTreeRefusal {
+  code: 'package-symlink-refused' | 'package-binary-file-refused';
+  /** Relative to the package root, POSIX. */
+  relPath: string;
+}
+
+/**
+ * Walk a package directory the way an install reads it — depth-first, sorted,
+ * dot-entries skipped — and return every file it would copy together with every
+ * entry it refuses: a symbolic link (never followed: a link published by
+ * someone else resolves against the consumer's own filesystem once copied in)
+ * and a binary file.
+ *
+ * ONE walk, shared by the install and by `yg marketplace check`, so the check can
+ * never pass a tree the install then refuses. `skip` leaves out paths the source
+ * will not carry at all (the check passes what git ignores, since an install
+ * clones the tag and never sees them).
+ */
+export async function inspectPackageTree(
+  rootAbs: string,
+  skip: (relPath: string) => boolean = () => false,
+): Promise<{ files: PackageFile[]; refusals: PackageTreeRefusal[] }> {
+  const files: PackageFile[] = [];
+  const refusals: PackageTreeRefusal[] = [];
+
+  async function walk(dirAbs: string, relPrefix: string): Promise<void> {
     const entries = (await readdir(dirAbs, { withFileTypes: true })).sort((a, b) =>
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
@@ -143,31 +167,53 @@ async function collectPackageFiles(rootAbs: string): Promise<StoreResult<Package
       if (isIgnoredPackageEntry(entry.name)) continue;
       const abs = path.join(dirAbs, entry.name);
       const rel = relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
+      if (skip(rel)) continue;
       const stats = await lstat(abs);
       if (stats.isSymbolicLink()) {
-        return {
-          ok: false,
-          code: 'package-symlink-refused',
-          messageData: {
-            what: `The package carries a symbolic link at '${rel}'.`,
-            why: 'A link published by someone else resolves against YOUR filesystem once copied in, so it could reach any file on this machine.',
-            next: `Ask the package author to ship '${rel}' as a real file, or install a version of the package that does.`,
-          },
-        };
-      }
-      if (stats.isDirectory()) {
-        const nested = await walk(abs, rel);
-        if (!nested.ok) return nested;
+        refusals.push({ code: 'package-symlink-refused', relPath: rel });
         continue;
       }
-      if (stats.isFile()) out.push({ relPath: rel, absPath: abs });
+      if (stats.isDirectory()) {
+        await walk(abs, rel);
+        continue;
+      }
+      if (!stats.isFile()) continue;
+      if (isBinaryPackageContent(await readFile(abs))) {
+        refusals.push({ code: 'package-binary-file-refused', relPath: rel });
+        continue;
+      }
+      files.push({ relPath: rel, absPath: abs });
     }
-    return { ok: true, value: null };
   }
 
-  const walked = await walk(rootAbs, '');
-  if (!walked.ok) return walked;
-  return { ok: true, value: out };
+  await walk(rootAbs, '');
+  return { files, refusals };
+}
+
+/** What the consumer is told when installing refuses an entry of the tree. */
+function treeRefusalMessage(refusal: PackageTreeRefusal): IssueMessage {
+  return refusal.code === 'package-symlink-refused'
+    ? {
+        what: `The package carries a symbolic link at '${refusal.relPath}'.`,
+        why: 'A link published by someone else resolves against YOUR filesystem once copied in, so it could reach any file on this machine.',
+        next: `Ask the package author to ship '${refusal.relPath}' as a real file, or install a version of the package that does.`,
+      }
+    : {
+        what: `The package carries a binary file at '${refusal.relPath}'.`,
+        why: 'A package ships rules and their case files — text. Copying a binary in would give you a file nothing here can read, check, or diff.',
+        next: `Ask the package author to drop '${refusal.relPath}', or install a version of the package without it.`,
+      };
+}
+
+/**
+ * Every file in a package directory an install copies, or the first entry it
+ * refuses (see {@link inspectPackageTree}).
+ */
+async function collectPackageFiles(rootAbs: string): Promise<StoreResult<PackageFile[]>> {
+  const tree = await inspectPackageTree(rootAbs);
+  const first = tree.refusals[0];
+  if (first !== undefined) return { ok: false, code: first.code, messageData: treeRefusalMessage(first) };
+  return { ok: true, value: tree.files };
 }
 
 /** The directory names sitting directly inside a package, dot-entries skipped. */
@@ -338,25 +384,6 @@ export async function installPackage(
 
     for (const file of collected.value) {
       const bytes = await readFile(file.absPath);
-      // A package is law — YAML, markdown, JavaScript, and the case files a rule
-      // is drilled against. A binary has no place in one: nothing here can read,
-      // check or diff it. Say so instead of copying it in.
-      if (bytes.subarray(0, 8192).includes(0)) {
-        // Refusing mid-copy still has to leave nothing behind: this return skips
-        // the catch below, so the staging tree is removed here.
-        await rm(stagingAbs, { recursive: true, force: true }).catch((err: unknown) => {
-          debugWrite(`[package-store] removing staging after a binary refusal: ${(err as Error).message}`);
-        });
-        return {
-          ok: false,
-          code: 'package-binary-file-refused',
-          messageData: {
-            what: `The package carries a binary file at '${file.relPath}'.`,
-            why: 'A package ships rules and their case files — text. Copying a binary in would give you a file nothing here can read, check, or diff.',
-            next: `Ask the package author to drop '${file.relPath}', or install a version of the package without it.`,
-          },
-        };
-      }
       const destAbs = path.join(stagingAbs, ...file.relPath.split('/'));
       await mkdir(path.dirname(destAbs), { recursive: true });
       await atomicWriteFile(destAbs, bytes);

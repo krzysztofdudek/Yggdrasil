@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { writeFile, mkdir, rm, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { validate } from '../../../src/core/validator.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
@@ -714,5 +715,70 @@ describe('validator', () => {
       // nodePath, so without this there is nothing to match it against.
       expect(issues[0].flowName).toBe('checkout-flow');
     });
+  });
+});
+
+describe('node-unreachable — a yg-node.yaml the loader never reached', () => {
+  async function tree(files: Record<string, string>): Promise<string> {
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-unreachable-'));
+    const ygg = path.join(root, '.yggdrasil');
+    await mkdir(path.join(ygg, 'model'), { recursive: true });
+    await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "6.0.0"\n');
+    await writeFile(path.join(ygg, 'yg-architecture.yaml'), "node_types:\n  group:\n    description: 'g'\n");
+    for (const [rel, body] of Object.entries(files)) {
+      await mkdir(path.dirname(path.join(ygg, 'model', rel)), { recursive: true });
+      await writeFile(path.join(ygg, 'model', rel), body);
+    }
+    return root;
+  }
+  const node = (name: string): string => `name: ${name}\ntype: group\ndescription: d\n`;
+
+  it('names every node beneath a directory with no yg-node.yaml, by the topmost gap', async () => {
+    const root = await tree({
+      'a/yg-node.yaml': node('A'),
+      'inter/deep/yg-node.yaml': node('Deep'),
+      'inter/deep/deeper/yg-node.yaml': node('Deeper'),
+    });
+    try {
+      const graph = await loadGraph(root);
+      expect([...graph.nodes.keys()]).toEqual(['a']);
+      const all = (await validate(graph)).issues;
+      const issues = all.filter((i) => i.code === 'node-unreachable');
+      expect(issues.map((i) => i.nodePath)).toEqual(['inter/deep', 'inter/deep/deeper']);
+      expect(issues.every((i) => i.severity === 'error')).toBe(true);
+      expect(msgOf(issues[1])).toContain("the directory 'inter' above it has no yg-node.yaml");
+      expect(msgOf(issues[1])).toContain('.yggdrasil/model/inter/yg-node.yaml');
+      // An empty gap directory holds no files, so it is not also node-yaml-missing.
+      expect(all.some((i) => i.code === 'node-yaml-missing')).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('names the children of a node whose yg-node.yaml did not load', async () => {
+    const root = await tree({
+      'parent/yg-node.yaml': 'name: Parent\ndescription: no type\n',
+      'parent/kid/yg-node.yaml': node('Kid'),
+    });
+    try {
+      const graph = await loadGraph(root);
+      const issues = (await validate(graph)).issues;
+      expect(issues.some((i) => i.code === 'yaml-invalid' && i.nodePath === 'parent')).toBe(true);
+      const dropped = issues.filter((i) => i.code === 'node-unreachable');
+      expect(dropped.map((i) => i.nodePath)).toEqual(['parent/kid']);
+      expect(msgOf(dropped[0])).toContain("the node 'parent' above it failed to load");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('raises nothing for a tree where every directory is a node', async () => {
+    const root = await tree({ 'a/yg-node.yaml': node('A'), 'a/b/yg-node.yaml': node('B') });
+    try {
+      const graph = await loadGraph(root);
+      expect((await validate(graph)).issues.some((i) => i.code === 'node-unreachable')).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

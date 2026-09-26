@@ -324,3 +324,5 @@ The check no longer computes a next step of its own. It used to work one out on 
 A file that matches no architecture type hands over its type-suggestion step as arguments rather than a command line, so a path with a space in it stays one argument in the machine document.
 ## [2026-09-26T01:57:44.977Z]
 The warning for a rule whose status was changed by hand said the next approving run would write the fact into the rule's log. The free script-only run no longer does that, because it writes no committed file, so the warning now says a full approving run does it and that the free run leaves the warning standing — otherwise a CI that only runs the free step would wait for a write that never comes.
+## [2026-09-26T02:52:34.158Z]
+The check's reading of a node log now shares its conflict-marker test with the fill, closure and merge-resolve, so the four can never disagree about which log is conflicted. The same reading now also runs inside an approving fill, which is why it had to be one definition rather than a regex repeated in each place.

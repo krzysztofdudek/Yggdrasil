@@ -9,6 +9,12 @@ export const content = `# yg-architecture.yaml — Schema for architecture const
 # graph — every node declares a type, and every type must be defined here.
 #
 # Changes to this file affect the entire graph and should be confirmed with the user.
+#
+# Only node_types is accepted at the top level, and only the keys below inside a
+# type; aspects and parents are lists (a single value is refused, not read as
+# a one-entry list). Any other key fails the file (architecture-invalid) naming
+# the key it is probably a typo of — a misspelled key used to be ignored,
+# dropping the type system or the constraint it stated.
 
 node_types:
   <type-id>:

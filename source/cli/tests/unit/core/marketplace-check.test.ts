@@ -15,7 +15,8 @@
 // =============================================================================
 
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { runGitFixture } from '../../support/git-fixture.js';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -25,6 +26,9 @@ import {
   MARKETPLACE_WARNING_CODES,
 } from '../../../src/core/marketplace-check.js';
 import type { MarketplaceCheckResult } from '../../../src/core/marketplace-check.js';
+
+/** The Yggdrasil version the check is told it runs under — what requires.yg is held against. */
+const RUNNING_YG = '6.1.0';
 
 const created: string[] = [];
 afterAll(() => {
@@ -96,7 +100,7 @@ const codesOf = (r: MarketplaceCheckResult): string[] => [
 
 /** Run the check on a patched base and return the result. */
 async function run(label: string, patch: Record<string, string | null> = {}): Promise<MarketplaceCheckResult> {
-  return checkMarketplace(marketplace(label, patch));
+  return checkMarketplace(marketplace(label, patch), { cliVersion: RUNNING_YG });
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +115,7 @@ describe('(a) the manifests against what is on disk', () => {
 
   it('2: no marketplace manifest is refused by name, and never mentions a missing graph', async () => {
     const dir = write('nomanifest', { 'README.md': '# not a marketplace\n' });
-    const result = await checkMarketplace(dir);
+    const result = await checkMarketplace(dir, { cliVersion: RUNNING_YG });
     expect(result.errors.map((e) => e.code)).toEqual(['marketplace-manifest-missing']);
     const said = JSON.stringify(result.errors[0].messageData);
     expect(said).toContain('yg-marketplace.yaml');
@@ -535,6 +539,79 @@ describe('(e) portability and proof', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Everything `yg pack add` refuses about a package's manifests and tree is asked
+// here too, so a package this check passes is one that installs.
+// ---------------------------------------------------------------------------
+
+describe('what an install would refuse', () => {
+  const pkgManifest = (overrides: { version?: string; requires?: string } = {}): string =>
+    [
+      'schema: yg-package/1',
+      'name: demo',
+      `version: ${overrides.version ?? '1.0.0'}`,
+      'requires:',
+      `  yg: "${overrides.requires ?? '>=6.0.0'}"`,
+      'aspects:',
+      '  - rule',
+      '',
+    ].join('\n');
+
+  it('38: a package whose version differs from its marketplace entry is refused, naming both numbers', async () => {
+    const result = await run('versionmismatch', { 'packages/demo/yg-package.yaml': pkgManifest({ version: '1.0.1' }) });
+    expect(result.errors.map((e) => e.code)).toEqual(['package-version-mismatch']);
+    const said = JSON.stringify(result.errors[0].messageData);
+    expect(said).toContain('1.0.1');
+    expect(said).toContain('1.0.0');
+  });
+
+  it('39: a package the running Yggdrasil does not satisfy is refused, naming the range and the version', async () => {
+    const result = await run('requires', { 'packages/demo/yg-package.yaml': pkgManifest({ requires: '>=99.0.0' }) });
+    expect(result.errors.map((e) => e.code)).toEqual(['package-requires-unsatisfied']);
+    const said = JSON.stringify(result.errors[0].messageData);
+    expect(said).toContain('>=99.0.0');
+    expect(said).toContain(RUNNING_YG);
+  });
+
+  it.skipIf(process.platform === 'win32')('40: a symbolic link anywhere in a package is refused by path', async () => {
+    const dir = marketplace('symlink');
+    symlinkSync('../check.mjs', path.join(dir, 'packages', 'demo', 'rule', 'drills', 'linked.mjs'));
+    const result = await checkMarketplace(dir, { cliVersion: RUNNING_YG });
+    expect(result.errors.map((e) => e.code)).toContain('package-symlink-refused');
+    expect(result.errors.find((e) => e.code === 'package-symlink-refused')?.subject).toBe('packages/demo/rule/drills/linked.mjs');
+  });
+
+  it('41: a binary file anywhere in a package is refused by path', async () => {
+    const dir = marketplace('binary');
+    writeFileSync(path.join(dir, 'packages', 'demo', 'rule', 'drills', 'violates-bad', 'blob.bin'), Buffer.from([0x50, 0x00, 0x4b]));
+    const result = await checkMarketplace(dir, { cliVersion: RUNNING_YG });
+    expect(result.errors.map((e) => e.code)).toEqual(['package-binary-file-refused']);
+    expect(result.errors[0].subject).toBe('packages/demo/rule/drills/violates-bad/blob.bin');
+  });
+
+  it('42: a node_modules directory the source would carry is refused like any undeclared directory', async () => {
+    const result = await run('nodemodules', { 'packages/demo/node_modules/dep/index.js': 'export {};\n' });
+    expect(result.errors.map((e) => e.code)).toEqual(['package-manifest-invalid']);
+    expect(JSON.stringify(result.errors[0].messageData)).toContain('node_modules');
+  });
+
+  it('43: what git ignores never reaches a consumer, so it is not held against the package', async () => {
+    const dir = marketplace('gitignored', {
+      '.gitignore': 'node_modules/\n*.bin\n',
+      'packages/demo/node_modules/dep/index.js': 'export {};\n',
+    });
+    writeFileSync(path.join(dir, 'packages', 'demo', 'rule', 'blob.bin'), Buffer.from([0x00, 0x01]));
+    expect(runGitFixture(dir, ['init', '-q']).status).toBe(0);
+    const result = await checkMarketplace(dir, { cliVersion: RUNNING_YG });
+    expect(codesOf(result)).toEqual([]);
+  });
+
+  it('44: a dot-directory beside the rules is skipped, as the install skips it', async () => {
+    const result = await run('dotdir', { 'packages/demo/.cache/state.json': '{}\n' });
+    expect(codesOf(result)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The code family itself
 // ---------------------------------------------------------------------------
 
@@ -559,7 +636,7 @@ describe('the code family', () => {
         seen.add(w.code);
       }
     };
-    collect(await checkMarketplace(write('codes-empty', { 'README.md': '#\n' })));
+    collect(await checkMarketplace(write('codes-empty', { 'README.md': '#\n' }), { cliVersion: RUNNING_YG }));
     collect(await run('codes-dir', { 'packages/stray/yg-package.yaml': 'schema: yg-package/1\n' }));
     collect(await run('codes-reviewby', {
       'packages/demo/rule/yg-aspect.yaml': withAspectLines('review_by: 2027-01-31'),

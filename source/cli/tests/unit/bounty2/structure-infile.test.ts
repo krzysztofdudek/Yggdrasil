@@ -478,7 +478,7 @@ describe.skipIf(!distExists)('E2E — buildOwnFiles via yg aspect-test --node', 
       mkdirSync(aspectDir, { recursive: true });
       writeFileSync(
         path.join(aspectDir, 'yg-aspect.yaml'),
-        ['name: ListFiles', 'id: list-files', 'description: Lists ctx.files (probe).', 'status: draft', ''].join('\n'),
+        ['name: ListFiles', 'description: Lists ctx.files (probe).', 'status: draft', ''].join('\n'),
         'utf-8',
       );
       writeFileSync(

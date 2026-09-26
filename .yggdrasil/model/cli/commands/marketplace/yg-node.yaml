@@ -27,6 +27,8 @@ relations:
     type: calls
   - target: cli/core/marketplace-check
     type: calls
+  - target: cli/cli-version
+    type: calls
   - target: cli/io/atomic-write
     type: calls
   - target: cli/formatters

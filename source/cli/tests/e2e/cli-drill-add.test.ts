@@ -21,6 +21,8 @@
 //   6. corpus     → what was added is what `yg drill` afterwards runs
 //   7. path       → the case keeps its repository path, so a rule anchored on a
 //                   path prefix sees it where it saw it in the scan
+//   9. never a case → a .md file or a yg-aspect.yaml, which the drill never runs,
+//                   is refused up front instead of reported as measured
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -285,6 +287,27 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       // Taken back out: an unmeasurable case would sit in the corpus forever.
       expect(readdirSync(corpusPath(dir, 'needs-the-graph'))).toHaveLength(0);
       expect(existsSync(logPath(dir, 'needs-the-graph'))).toBe(false);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('9: a file the drill never runs as a case is refused up front, and nothing is written', () => {
+    const dir = repoWithHistory('never-a-case');
+    try {
+      const mdSha = commitFile(dir, 'docs/notes.md', '# Notes\n\nTODO: write these up\n', 'a markdown file');
+      const yamlSha = commitFile(dir, 'config/yg-aspect.yaml', 'name: x\n# TODO\n', 'a file named like a rule');
+
+      for (const spec of [`docs/notes.md@${mdSha}`, `config/yg-aspect.yaml@${yamlSha}`]) {
+        const added = run(['drill', 'add', '--aspect', RULE, '--violates', spec], dir);
+        expect(added.status).toBe(1);
+        expect(added.stderr).toContain('cannot be a drill case');
+        expect(added.stderr).toContain('Nothing was added');
+        expect(added.stdout).not.toContain('behaves as expected');
+      }
+      // Nothing reached the corpus or the rule's log.
+      expect(existsSync(corpusPath(dir))).toBe(false);
+      expect(existsSync(logPath(dir))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

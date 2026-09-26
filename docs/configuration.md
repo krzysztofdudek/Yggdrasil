@@ -50,8 +50,11 @@ directly under `reviewer:` or inside a tier is a hard `config-reviewer-unknown-k
 `progressive:` and `rules_artifacts:` all reject unknown keys too
 (`rules_artifacts` also refuses a non-boolean value, and refuses `claude_md: true`
 alongside `agents_md: false` — `config-rules-artifacts-unknown-key` /
-`config-rules-artifacts-orphan-import`). Unknown keys under a tier's `config:`
-remain the one exception (see below).
+`config-rules-artifacts-orphan-import`), and so do `quality:`
+(`config-quality-unknown-key`) and a tier's `config:` (`config-tier-unknown-key`;
+a value of the wrong type there is `config-tier-config-invalid`). A key an
+earlier release read and this one does not is named as retired rather than
+guessed at.
 
 An unknown top-level key is ignored and everything else in both files stays in effect, so the error is about the key alone: coverage, the reviewer and every other setting still apply. It still blocks `yg check`, because whatever the key was meant to set is not set. A key in `yg-secrets.yaml` fails only on your machine, since CI never reads that file; `yg init --upgrade` lists the unknown keys of both files.
 :::
@@ -197,8 +200,12 @@ reviewer:
 | `config.timeout` | no | Per-call timeout in seconds, honored by every provider. Defaults to `300` for the CLI providers and `ollama`, and to `60` for the hosted APIs (`anthropic`, `openai`, `google`, `openai-compatible`). A call that runs past it is reported as timed out, naming this setting. |
 | `config.api_key` | no | Provider API key. Takes precedence over the provider's environment variable. Do not put it in `yg-config.yaml` — supply it through the gitignored `yg-secrets.yaml` overlay (see the Secrets section below). |
 
-Unknown `config.*` keys are silently ignored (no error, no warning) — only the
-keys listed above are read.
+Any other `config.*` key is refused (`config-tier-unknown-key`, with the key it
+is probably a typo of), and a value of the wrong type — `temperature: hot`,
+`timeout: abc` — is `config-tier-config-invalid` rather than a silent fall back
+to the default. The CLI providers (`claude-code`, `codex`, `gemini-cli`,
+`copilot-cli`) read only `model` and `timeout`; `temperature` and `endpoint` are
+accepted there and have no effect.
 
 ### Supported providers
 
@@ -479,15 +486,14 @@ is **not** migrated — the upgrade leaves the `reviewer:` block untouched, so a
 config still in that shape then fails `yg check` with a `config-reviewer-unknown-key`
 error on `active`. Convert it to `reviewer.tiers` by hand (see the tier fields
 above).
-Retired fields are SILENTLY IGNORED — a `yg-config.yaml` still carrying
-`quality.max_node_chars`, per-tier `config.references:` size caps, or other
-retired `config.*` keys (e.g. `config.context_length_field`) produces no error and
-no warning; the parser simply does not read them. Review the diff after upgrade
-and delete the dead lines by hand. This is distinct from the parser's
-unknown-KEY guard: a typo'd key under `reviewer:` or under a tier still fails
-`yg check` with a clear `config-reviewer-unknown-key` / `config-tier-unknown-key`
-error — a key typo is caught, a retired-field cleanup is not. Run from the
-repository root only. Review the diff before committing.
+The upgrade leaves retired fields in your files, and `yg check` names each one
+as retired so you can delete it: `quality.max_node_chars` and
+`quality.max_mapping_source_files` (`config-quality-unknown-key`), a tier's
+`config.references:` size caps, `config.max_tokens` and
+`config.context_length_field` (`config-tier-unknown-key`), a node's `sizeExempt:`
+(`yaml-invalid`), and a rule's `language:`, `stability:`, `anchors:` or `id:`
+(`aspect-unknown-key`). Until 6.1.0 these were ignored without a word. Run from
+the repository root only. Review the diff before committing.
 
 ---
 
