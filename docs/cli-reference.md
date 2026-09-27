@@ -987,7 +987,7 @@ of a type that no longer exists.
 | `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form). Never reaches outside the repository — a newer package version is reported from what `yg pack list` last recorded |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
-| `yg owner --file <path>` | Quick ownership lookup |
+| `yg owner --file <path>` / `--files <list>` | Quick ownership lookup; `--files` (or stdin) resolves many at once, one graph read |
 | `yg suppressions` | Inventory of active `yg-suppress` markers (`--json` for the machine-readable form) |
 | `yg type-suggest --file <path>` | Suggest architecture type for a file |
 | `yg portal` [`--static`] | Web view of the graph and its verification state; read-only apart from one Approve button (`--no-write` removes it) |
@@ -1505,6 +1505,53 @@ src/handlers/capturePayment.ts -> type:handler
   Enforced by its architecture type, not by a component (1 of 1 rule unverified — no valid verdict is currently on record for it).
 No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
 yg context --file src/handlers/capturePayment.ts
+```
+
+#### `yg owner --files` (batch)
+
+Resolves a whole list of files against ONE loaded graph, instead of a graph load and
+node-index build per file — the form a bulk caller (Horde's territory resolver, which
+groups a mission's files by owner before planning work onto them) uses instead of running
+`yg owner --file` in a loop.
+
+```bash
+yg owner --files a.ts,b.ts,c.ts
+yg owner --files a.ts,b.ts,c.ts --json
+yg owner --files -                          # newline-separated list on standard input
+```
+
+`--files` and `--file` are mutually exclusive. Its value is a comma-separated list, or `-`
+to read one path per line from standard input (the same convention `yg advise import -`
+uses); blank lines and surrounding whitespace are dropped either way. An empty list is a
+usage error.
+
+The plain-text form prints one `file -> answer` line per input file, in input order
+(duplicates in the input produce duplicate lines). `--json` prints a `yg-owner-batch/1`
+document instead: `{ schema, files: [...] }`, one entry per input file, each shaped like a
+single `yg owner --json` answer — `file`, `kind`, `node`, `type`, `direct`, `mappingPath`,
+`excludedBecause`, `candidates` — plus two differences:
+
+- **`unit`** — the field a batch caller is for: the owning node's path for a `node`
+  answer, or `type:<id>@<top-level directory>` for a `type` answer (a file no node maps
+  but an architecture type alone covers), `null` for every other kind. This is the
+  grouping key a territory resolver needs, computed with the SAME type-classification
+  rules `yg owner --file` uses.
+- **`invalid`** — a sixth `kind`, batch-only: a path that could not be resolved at all
+  (outside the project root, for instance) becomes one `invalid` entry with `error` set,
+  rather than aborting every other file's answer the way a bad `--file` aborts the whole
+  command.
+
+The batch form is deliberately lighter than the single-file JSON answer: it never runs the
+whole-project relation pass or verifies pairs against the lock (both a per-invocation,
+whole-graph cost the single-file command already pays once for its one file — paying them
+again per batch entry would defeat the point of batching), so a `type` entry never carries
+`enforced` — call `yg owner --file <path> --json` for that, one file at a time.
+
+```text
+$ yg owner --files src/orders/order.service.ts,src/handlers/capturePayment.ts,src/nope.ts
+src/orders/order.service.ts -> orders/order-service
+src/handlers/capturePayment.ts -> type:handler@src
+src/nope.ts -> (no graph coverage: file not found)
 ```
 
 ### `yg suppressions`

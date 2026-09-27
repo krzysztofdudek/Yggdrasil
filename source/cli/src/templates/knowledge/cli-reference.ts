@@ -1075,6 +1075,18 @@ Find which node owns a source file.
 yg owner --file src/orders/handler.ts
 \`\`\`
 
+\`--files a.ts,b.ts,c.ts\` (or \`--files -\` for a newline-separated list on standard
+input) resolves a whole list in one call — one graph load and node-index build shared
+across every file, instead of one \`yg owner --file\` per file. \`--json\` prints a
+\`yg-owner-batch/1\` document: \`{ schema, files: [...] }\`, one entry per input file, each
+shaped like a single \`yg owner --json\` answer plus \`unit\` — the owning node's path, or
+\`type:<id>@<top-level dir>\` for a file only an architecture type covers (this is Horde's
+territory grouping key) — and a batch-only \`invalid\` kind for a path that could not be
+resolved at all, so one bad entry never aborts the rest of the list. It never runs the
+whole-project relation pass or verifies pairs against the lock, so a \`type\` entry never
+carries \`enforced\`; use \`yg owner --file --json\` for that, one file at a time. \`--file\`
+and \`--files\` are mutually exclusive.
+
 ## yg find
 
 Locate entry-point nodes/aspects/type-covered files by natural-language query.

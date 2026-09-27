@@ -499,3 +499,117 @@ describe('owner — a typed answer for a type-covered file', () => {
     }, FIXTURE_CYCLIC_TYPE);
   });
 });
+
+describe('owner --files (batch form, 447)', () => {
+  it('resolves several files in one call: node-owned, unmapped, missing — a single yg-owner-batch/1 document, one entry per input file', async () => {
+    await withFixtureCopy(async (cwd) => {
+      await writeFile(path.join(cwd, 'src', 'orders', 'extra-unmapped.ts'), 'export const extra = 1;\n');
+      const result = spawnSync(
+        'node',
+        [
+          BIN_PATH, 'owner', '--files',
+          'src/orders/order.service.ts,src/orders/extra-unmapped.ts,src/does/not/exist.ts',
+          '--json',
+        ],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.schema).toBe('yg-owner-batch/1');
+      expect(doc.files).toHaveLength(3);
+      expect(doc.files[0]).toMatchObject({
+        file: 'src/orders/order.service.ts', kind: 'node', node: 'orders/order-service', unit: 'orders/order-service',
+      });
+      expect(doc.files[1]).toMatchObject({ file: 'src/orders/extra-unmapped.ts', kind: 'unmapped', node: null, unit: null });
+      expect(doc.files[2]).toMatchObject({ file: 'src/does/not/exist.ts', kind: 'missing', node: null, unit: null });
+    });
+  });
+
+  it('the plain-text form prints one line per file, in the same order', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', 'src/orders/order.service.ts,src/does/not/exist.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const lines = result.stdout.trim().split('\n');
+      expect(lines).toEqual([
+        'src/orders/order.service.ts -> orders/order-service',
+        'src/does/not/exist.ts -> (no graph coverage: file not found)',
+      ]);
+    });
+  });
+
+  it('--files - reads a newline-separated list from standard input, blank lines dropped', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', '-', '--json'],
+        { cwd, encoding: 'utf-8', input: 'src/orders/order.service.ts\n\nsrc/checkout/checkout.controller.ts\n' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files.map((f: { file: string }) => f.file)).toEqual([
+        'src/orders/order.service.ts',
+        'src/checkout/checkout.controller.ts',
+      ]);
+      expect(doc.files.map((f: { node: string | null }) => f.node)).toEqual(['orders/order-service', 'checkout/controller']);
+    });
+  });
+
+  it('a file outside the project root becomes an "invalid" entry with an error, without aborting the rest of the batch', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', 'src/orders/order.service.ts,../../../../etc/passwd', '--json'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files[0]).toMatchObject({ kind: 'node', node: 'orders/order-service' });
+      expect(doc.files[1]).toMatchObject({ kind: 'invalid', node: null, unit: null });
+      expect(doc.files[1].error).toContain('outside project root');
+    });
+  });
+
+  it('rejects --file and --files together, and an empty --files list, with structured usage errors', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const both = spawnSync('node', [BIN_PATH, 'owner', '--file', 'a', '--files', 'b'], { cwd, encoding: 'utf-8' });
+      expect(both.status).toBe(1);
+      expect(both.stderr).toContain('--file and --files cannot be used together.');
+
+      const empty = spawnSync('node', [BIN_PATH, 'owner', '--files', '  ,  '], { cwd, encoding: 'utf-8' });
+      expect(empty.status).toBe(1);
+      expect(empty.stderr).toContain('--files named no file.');
+    });
+  });
+
+  it('a type-covered file in the batch carries kind "type" and a unit of type:<id>@<top-level dir>, agreeing with --file', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const single = spawnSync('node', [BIN_PATH, 'owner', '--file', 'src/leaf/a.ts', '--json'], { cwd, encoding: 'utf-8' });
+      const singleDoc = JSON.parse(single.stdout);
+
+      const batch = spawnSync('node', [BIN_PATH, 'owner', '--files', 'src/leaf/a.ts', '--json'], { cwd, encoding: 'utf-8' });
+      expect(batch.status).toBe(0);
+      const batchDoc = JSON.parse(batch.stdout);
+      expect(batchDoc.schema).toBe('yg-owner-batch/1');
+      expect(batchDoc.files).toHaveLength(1);
+      expect(batchDoc.files[0]).toMatchObject({ file: 'src/leaf/a.ts', kind: 'type', type: singleDoc.type, unit: `type:${singleDoc.type}@src` });
+    });
+  });
+
+  it('a file excluded from graph coverage by design is reported the same way in the batch as in --file', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', '.yggdrasil/yg-config.yaml', '--json'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files[0]).toMatchObject({ kind: 'excluded', node: null, unit: null });
+      expect(doc.files[0].excludedBecause).toContain("git internals or the graph's own .yggdrasil/ directory");
+    });
+  });
+});
