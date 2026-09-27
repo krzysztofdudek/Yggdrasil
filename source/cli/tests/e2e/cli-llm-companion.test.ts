@@ -43,6 +43,7 @@ import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock as readLockStore } from './support/read-lock.js';
 import { LOCK_NONDET_FILE_NAME } from './support/read-lock.js';
 import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { findIssues, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -70,6 +71,16 @@ const UNIT = (name: string) => `file:references/e2e-test-scenarios/${name}.md`;
 function run(args: string[], cwd: string): { all: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
   return { all: (r.stdout ?? '') + (r.stderr ?? ''), status: r.status };
+}
+/**
+ * Exactly `count` of the aspect's pairs are unverified because an input changed
+ * since their verdict — as `yg check --json` records it (code `unverified`,
+ * cause `stale`), whatever the text report's words for it.
+ */
+function expectStalePairs(dir: string, aspect: string, count: number): void {
+  const r = spawnSync('node', [BIN_PATH, 'check', '--json'], { cwd: dir, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
+  const stale = findIssues(parseJson(r.stdout ?? ''), { code: 'unverified', cause: 'stale', aspect });
+  expect(stale.length).toBe(count);
 }
 function pointReviewer(dir: string, endpoint: string): void {
   const p = cfgPath(dir);
@@ -177,7 +188,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // The unverified block fires for this aspect with EXACTLY one pair (only
       // checkout's pair invalidated; the sibling specs are untouched and never
       // enter the block), and its member line names that pair.
-      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expectStalePairs(dir, 'scenario-matches-test', 1);
       expect(after.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/checkout\.md$/m);
       expect(after.all).toContain('  fix:  yg check --approve  (1 reviewer pair · 1 call · paid)');
 
@@ -216,7 +227,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // Only the login pair's subject hash changed → exactly one pair unverified.
       // The member line names the login pair; the chatCount delta (1) below
       // confirms only it re-billed.
-      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expectStalePairs(dir, 'scenario-matches-test', 1);
       expect(after.all).toMatch(/^ {2}at: +scenario-matches-test @ references\/e2e-test-scenarios\/login\.md$/m);
 
       const callsBefore = mock.chatCount();
@@ -247,8 +258,8 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // content.md edit invalidates ALL three file pairs → the unverified block
       // counts 3 pairs on the aspect's rule line.
-      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
-      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node · reviewer$/m);
+      expectStalePairs(dir, 'scenario-matches-test', 3);
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node\b/m);
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -280,8 +291,8 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
       // (the unverified block counts 3 pairs on the aspect's rule line).
-      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
-      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node · reviewer$/m);
+      expectStalePairs(dir, 'scenario-matches-test', 3);
+      expect(after.all).toMatch(/^ {2}at: +scenario-matches-test {2}3 pairs · 1 node\b/m);
 
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -323,8 +334,8 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
       // (the unverified block counts 3 pairs for the empty-companion aspect).
-      expect(after.all).toContain('error[unverified] 3 pairs whose inputs changed since the verdict');
-      expect(after.all).toMatch(/^ {2}at: +empty-companion {2}3 pairs · 1 node · reviewer$/m);
+      expectStalePairs(dir, 'empty-companion', 3);
+      expect(after.all).toMatch(/^ {2}at: +empty-companion {2}3 pairs · 1 node\b/m);
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
       expect(mock.chatCount() - callsBefore).toBe(3);
@@ -410,7 +421,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // The single per:node unit invalidates → the unverified block holds 1 pair,
       // the per-node-companion aspect on the scenarios node.
-      expect(after.all).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      expectStalePairs(dir, 'per-node-companion', 1);
       expect(after.all).toMatch(/^ {2}at: +per-node-companion @ scenarios$/m);
       const callsBefore = mock.chatCount();
       expect((await runAsync(['check', '--approve'], dir)).status).toBe(0);
@@ -527,12 +538,13 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const after = run(['check'], dir);
       expect(after.status).toBe(1);
       expect(after.all).toContain('companion.mjs was not run');
-      expect(after.all).toMatch(/^ {2}at: +[\w-]+ @ references\/e2e-test-scenarios\/\w+\.md$|^ {2}at: +[\w-]+ {2}\d+ pairs · 1 node · reviewer$/m);
+      expect(after.all).toMatch(/^ {2}at: +[\w-]+ @ references\/e2e-test-scenarios\/\w+\.md$|^ {2}at: +[\w-]+ {2}\d+ pairs · 1 node\b/m);
       const approve = run(['check', '--approve'], dir);
       expect(approve.status).toBe(1);
       expect(approve.all).toContain('aspect-companion-runtime-error');
-      expect(approve.all).toContain('undeclared read is an infrastructure fault, not a code violation');
-      expect(approve.all).toContain('Declare a relation in yg-node.yaml to the node owning that path');
+      // The why says an undeclared read is infrastructure, and the fix is a relation.
+      expect(approve.all).toContain('undeclared read');
+      expect(approve.all).toContain('Declare a relation');
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);

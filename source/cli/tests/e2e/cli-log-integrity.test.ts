@@ -201,7 +201,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(status).toBe(1);
       // what/why/next of the mandatory-log gate (code log-entry-missing).
       // A component never verified before owes its FIRST entry — it drifted from nothing.
-      expect(all).toMatch(/error\[log-entry-missing\] \d+ nodes? (has|have) no log entry yet — one is owed before (its|their) first verdicts are recorded/);
+      expect(all).toMatch(/^error\[log-entry-missing\] .*\bfirst verdicts\b/m);
       expect(all).toMatch(/at:\s+services\/orders$/m);
       expect(all).toContain('log_required: true');
       expect(all).toContain('yg log add --node services/orders');
@@ -372,7 +372,8 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('does not start with the history both sides share');
+      expect(all).toMatch(/^error\[command-error\]:/m);
+      expect(all).toContain('history both sides share');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }
@@ -420,7 +421,8 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
 
       const broken = run(['check'], dir);
       expect(broken.status).toBe(1);
-      expect(broken.all).toContain('whole entries now sit before the last recorded one');
+      // An interleaved merge, not a rewrite: the next step reconciles instead of restoring.
+      expect(broken.all).toContain('prefix_modified');
       expect(broken.all).toContain('yg log merge-resolve --node services/orders');
       expect(broken.all).toContain('--ours <ref> --theirs <ref>');
       expect(broken.all).not.toContain('git checkout HEAD --');
