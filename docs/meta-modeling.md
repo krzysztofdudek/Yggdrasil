@@ -50,17 +50,15 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 - The built-in relation check parses your mapped check code; a check that imports
   another component's code needs that relation declared, or it's refused.
 - Every rule effective on the component now reviews those rule files too — choose the
-  component's type deliberately, and keep a code rule and a Markdown rule file out of
-  the same component, because no predicate will separate them for you (next point).
+  component's type deliberately, and give a code rule a `scope.files` filter if a
+  Markdown rule file is mapped beside the code (next point).
 - The file-classification predicate auto-exempts every `.yggdrasil/` path — it returns
   true without checking — so you can map a rule file to a component of any type without
-  tripping a type/`when` mismatch. The flip side: neither the type's `when` nor a rule's
-  own `scope.files` filters anything here. Both are evaluated by the same function, and
-  it exempts every `.yggdrasil/` path before either predicate is read — so a mapped rule
-  file passes `scope.files` whatever that predicate says. A [conditional rule](/conditional-aspects)'s
-  `when:` can keep a whole component out of a rule, but it matches on components, not on
-  paths, so it cannot tell a Markdown rule file from a `check.mjs` mapped beside it. The
-  one lever left is the mapping: map each meta layer into its own component.
+  tripping a type/`when` mismatch. That exemption is classification's alone: a rule's
+  own `scope.files` filters `.yggdrasil/` files exactly as it filters source, so a meta
+  rule narrowed to `path: "**/check.mjs"` reviews only the mapped `check.mjs` files. A
+  [conditional rule](/conditional-aspects)'s `when:` keeps a whole component out of a
+  rule; `scope.files` picks the files within it.
 - A rule that reviews another rule means editing one re-checks both — keep the meta
   layer small and targeted.
 - **Never map the whole `.yggdrasil/` directory.** A broad glob would sweep in the
@@ -72,7 +70,6 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 Map narrowly; attach the meta rule on the narrowest component that owns the files it
 judges, not a broad parent that would cascade everywhere; and use
 [conditional rules](/conditional-aspects) to pick which components the rule attaches
-to at all. What that last lever cannot do is narrow the rule to some of a component's
-mapped rule files and not others — for a `.yggdrasil/` path, the mapping is the only
-filter. Rule ids can be nested in directories, so a meta layer can live under its own
+to at all, and a rule's `scope.files` to pick which of a component's mapped rule files
+it reviews. Rule ids can be nested in directories, so a meta layer can live under its own
 prefix and stay legible — see [Aspects](/aspects).
