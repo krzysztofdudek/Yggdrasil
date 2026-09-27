@@ -80,12 +80,14 @@ Two design properties make it false-positive-free:
 Two ways to clear a refusal:
 
 1. **Declare the relation** in the depending node's \`yg-node.yaml\`, choosing a
-   relation type the architecture allows between the two node types. The relation
+   STRUCTURAL relation type (\`calls\`, \`uses\`, \`extends\`, \`implements\`) the
+   architecture allows between the two node types. An event relation (\`emits\` /
+   \`listens\`) never counts: it describes a message, not an import. The relation
    may target the depended-on node OR any of its ancestors — a relation to a
    parent node sanctions dependencies on the parent and all of its descendants.
 2. **Remove the dependency** if the code should not depend on the other node.
 
-If NO relation type is allowed between the two node types, that is a dead end you
+If NO structural relation type is allowed between the two node types, that is a dead end you
 cannot resolve at the node level — it is an architecture decision. Either change a
 node's type so an allowed relation exists, or extend the allowed relations in
 \`yg-architecture.yaml\` (requires the user's confirmation — never silent).
@@ -110,8 +112,10 @@ exists, declaring the missing direction is NOT the fix — it trades one blockin
 error for another. Break the cycle instead: extract the shared piece into a third
 node both sides depend on, or move the dependency so it flows one way. The EVENT
 types (\`emits\` / \`listens\`) are outside this rule — they are the sanctioned way
-to model a genuinely bidirectional relationship, and they carry their own pairing
-requirement instead.
+to model a genuinely bidirectional exchange of messages, and they carry their own
+pairing requirement instead. They never sanction an import: code that imports the
+other side still needs a structural relation, so an event pair is no way around a
+cycle.
 
 ## Ports — named entry points with aspects
 

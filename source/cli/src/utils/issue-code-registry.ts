@@ -289,7 +289,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
 
   // ── relations: the built-in relation-conformance check ──────────────
   'relation-undeclared-dependency': { severity: 'error', stage: 'relations', meaning: "A node depends on another node's code without a declared relation. Built in, not an aspect: no status, not suppressible, never cached.", fix: 'Declare the relation in the node\'s yg-node.yaml, or remove the dependency.' },
-  'type-relation-forbidden': { severity: 'error', stage: 'relations', meaning: 'With coverage.type_level on, a statically resolved import between two classified endpoints (a node and/or a type-covered file) has no relation type the architecture allows between their types.', fix: `Allow the type pair in ${ARCH} (the user's decision), give the target an explicit node with a relation, or remove the dependency.` },
+  'type-relation-forbidden': { severity: 'error', stage: 'relations', meaning: 'With coverage.type_level on, a statically resolved import between two classified endpoints (a node and/or a type-covered file) has no structural relation type (uses, calls, extends, implements) the architecture allows between their types; an event type alone sanctions no import.', fix: `Allow the type pair in ${ARCH} (the user's decision), give the target an explicit node with a relation, or remove the dependency.` },
   'relation-parse-failed': { severity: 'error', stage: 'relations', meaning: 'A language parser the relation check needs could not be loaded, so the dependencies of the files it covers cannot be checked.', fix: 'Reinstall the CLI to restore its bundled language support, then run yg check.' },
 
   // ── coverage ────────────────────────────────────────────────────────

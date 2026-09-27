@@ -282,8 +282,7 @@ describe('relationRefusedMessage — architecture with no node types yet', () =>
     g.architecture = { node_types: {} };
     const msg = relationRefusedMessage(g, 'users', [viol('src/users/index.js', 1, 'payments')]);
     expect(msg.next).not.toContain('no relation type is allowed');
-    expect(msg.next).toContain('allowed relation types [uses, calls, extends, implements, emits, listens]');
+    expect(msg.next).toContain('allowed relation types [uses, calls, extends, implements]');
     expect(msg.next).toContain('- { target: payments, type: uses }');
   });
 });
-

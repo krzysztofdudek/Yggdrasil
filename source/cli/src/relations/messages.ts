@@ -12,7 +12,7 @@
 import type { IssueMessage } from '../model/validation.js';
 import type { Graph } from '../model/graph.js';
 import type { Violation } from './verifier.js';
-import { allowedRelationTypes, RELATION_TYPES } from './allowed-types.js';
+import { allowedRelationTypes, RELATION_TYPES, STRUCTURAL_RELATION_TYPES } from './allowed-types.js';
 import type { TypeGateFinding } from './type-gate.js';
 import { plural } from '../utils/count.js';
 
@@ -52,25 +52,35 @@ export function relationRefusedMessage(
     // type is sanctioned — claiming a dead-end there would send the reader to
     // an architecture edit that declaring the relation makes unnecessary.
     const noTypesYet = Object.keys(graph.architecture?.node_types ?? {}).length === 0;
-    const allowed =
+    // Only a structural type sanctions a code dependency, so only those are offered.
+    const allowed = (
       noTypesYet
         ? [...RELATION_TYPES]
         : fromType !== undefined && toType !== undefined
           ? allowedRelationTypes(graph.architecture, fromType, toType)
-          : [];
+          : []
+    ).filter((t) => STRUCTURAL_RELATION_TYPES.has(t));
+    // An event relation already declared to the target reads as if it covered
+    // the import; say that it does not.
+    const eventOnly = (graph.nodes.get(nodeId)?.meta.relations ?? [])
+      .filter((r) => r.target === target && !STRUCTURAL_RELATION_TYPES.has(r.type))
+      .map((r) => r.type);
+    const eventNote = eventOnly.length > 0
+      ? ` The declared ${[...new Set(eventOnly)].join('/')} relation to it does not count: an event relation describes a message, never an import of the other component's code.`
+      : '';
 
     if (allowed.length === 0) {
       // Dead-end: no relation type connects these two node types.
       const fromDesc = fromType ?? '(unknown type)';
       const toDesc = toType ?? '(unknown type)';
       blocks.push(
-        `${target}: no relation type is allowed from ${fromDesc} to ${toDesc}, so none can be declared. ` +
+        `${target}: no relation type is allowed from ${fromDesc} to ${toDesc} that sanctions an import (only uses, calls, extends and implements do), so none can be declared.${eventNote} ` +
           `Remove the dependency, or ask the user to approve an architecture change — a different node type, ` +
           `or a new allowed relation in .yggdrasil/yg-architecture.yaml.`,
       );
     } else {
       blocks.push(
-        `${target}: allowed relation ${plural(allowed.length, 'type')} [${allowed.join(', ')}]. ` +
+        `${target}: allowed relation ${plural(allowed.length, 'type')} [${allowed.join(', ')}].${eventNote} ` +
           `Add - { target: ${target}, type: ${allowed[0]} } under relations: in ${nodeFile}.`,
       );
     }
@@ -106,7 +116,7 @@ export function typeGateForbiddenMessage(finding: TypeGateFinding): IssueMessage
   const rest = finding.edges.length - sample.length;
   const sampleText = sample.map((e) => `${e.fromFile} -> ${e.toFile}`).join('\n');
   return {
-    what: `${finding.edges.length} import${finding.edges.length === 1 ? '' : 's'} from type '${finding.fromType}' to type '${finding.toType}' — no relation type is allowed between them:\n${sampleText}${rest > 0 ? `\n... and ${rest} more` : ''}`,
+    what: `${finding.edges.length} import${finding.edges.length === 1 ? '' : 's'} from type '${finding.fromType}' to type '${finding.toType}' — no relation type is allowed between them that sanctions an import (only uses, calls, extends and implements do):\n${sampleText}${rest > 0 ? `\n... and ${rest} more` : ''}`,
     why: `The architecture's relation allow-list governs every dependency between classified files, not just ones an explicit node declared — an unsanctioned import erodes the same boundary a declared relation protects.`,
     next: `Cheapest first:\n1. Allow it: add a relations entry for '${finding.fromType}' -> '${finding.toType}' in yg-architecture.yaml (clears this whole group).\n2. Graduate the target: create an explicit node for the imported code with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n3. Remove the dependency.`,
   };

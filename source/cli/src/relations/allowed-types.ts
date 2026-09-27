@@ -7,4 +7,4 @@
  * keep importing both from here.
  */
 export { allowedRelationTypes } from '../utils/allowed-relation-types.js';
-export { RELATION_TYPES } from '../model/when.js';
+export { RELATION_TYPES, STRUCTURAL_RELATION_TYPES } from '../model/when.js';
