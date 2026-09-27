@@ -718,7 +718,7 @@ async function runVerify(name: string | undefined): Promise<number> {
         const nextLines = next.map((n) => `  ${nextStep(n)}\n`).join('');
         if (untagged !== null) {
           failed += 1;
-          writeOut(paint.yellow(`${untagged}\n`) + problems.map((p) => `  ${p}\n`).join('') + nextLines);
+          writeOut(paint.red(`${untagged}\n`) + problems.map((p) => `  ${p}\n`).join('') + nextLines);
         } else if (problems.length === 0) {
           writeOut(paint.green(`'${pkgName}' ${entry.version} — the copy is exactly ${against}.\n`));
         } else {

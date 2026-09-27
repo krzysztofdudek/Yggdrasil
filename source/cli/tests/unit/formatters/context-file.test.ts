@@ -353,4 +353,62 @@ describe('formatFileContext', () => {
     expect(output).not.toContain('companion.mjs');
     expect(output).toContain('(not checked; the rule is draft)');
   });
+
+  it('gives a type-covered file its type decisions, indented under the type block', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/handlers/reviewCart.ts',
+      ownerPath: undefined,
+      ownerType: undefined,
+      aspects: [],
+      dependencies: [],
+      dependentCount: 0,
+      typeCoverage: { typeId: 'handler', chainTerminationText: 'no parent type', applied: [], dropped: [] },
+      logs: { typeDecisions: [{ typeId: 'handler', logPath: '.yggdrasil/types/handler/log.md', entries: [{ datetime: 'D1', body: 'Handlers never write the store.\n' }] }] },
+    });
+
+    expect(output).toContain("  Decisions in force for type 'handler' (.yggdrasil/types/handler/log.md):");
+    expect(output.indexOf('Decisions in force')).toBeGreaterThan(output.indexOf('Matched type: handler'));
+  });
+
+  it('gives an owned file its node log before the back-pointer to the whole node context', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/core/validator.ts',
+      ownerPath: 'cli/core/validator',
+      ownerType: 'library',
+      aspects: [],
+      dependencies: [],
+      dependentCount: 0,
+      logs: { typeDecisions: [], nodeLog: { nodePath: 'cli/core/validator', logPath: '.yggdrasil/model/cli/core/validator/log.md', entries: [{ datetime: 'D2', body: 'Why.\n' }], trimmed: false, omitted: 0 } },
+    });
+
+    expect(output).toContain('[D2]');
+    expect(output.indexOf('[D2]')).toBeLessThan(output.indexOf('then: yg context --node cli/core/validator'));
+  });
+
+  it('lists the rules a type applies to a type-covered file, an unverified pair marked, and the ones it does not enforce there', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/handlers/reviewCart.ts',
+      ownerPath: undefined,
+      ownerType: undefined,
+      aspects: [],
+      dependencies: [],
+      dependentCount: 0,
+      typeCoverage: {
+        typeId: 'handler',
+        chainTerminationText: 'no parent type',
+        applied: [
+          { aspectId: 'no-store-writes', aspectDescription: 'Handlers never write the store', verifiedAgainst: '.yggdrasil/aspects/no-store-writes/content.md', unverified: true },
+          { aspectId: 'named-export', aspectDescription: 'One named export', verifiedAgainst: '.yggdrasil/aspects/named-export/check.mjs', status: 'advisory' },
+        ],
+        dropped: [{ aspectId: 'has-tests', reasonText: 'its when: does not match this file' }],
+      },
+    });
+
+    expect(output).toContain('  Must satisfy:');
+    expect(output).toContain('    no-store-writes [enforced, unverified] — Handlers never write the store');
+    expect(output).toContain('    named-export [advisory] — One named export');
+    expect(output).toContain('  Attached to this type but not enforced here:');
+    expect(output).toContain('    has-tests — its when: does not match this file');
+    expect(output).not.toContain('No rules from this type apply');
+  });
 });

@@ -146,6 +146,22 @@ describe('type law — the finding', () => {
     expect(retracted.ok).toBe(true);
     found = (await findUnratifiedTypeLaw(graph)).find((f) => f.aspectId === 'no-todo-comments');
     expect(found?.types).toEqual(['service']);
+
+    // The finding itself names the earlier admission it no longer matches.
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), '\ntype_law:\n  ratification: true\n', 'utf-8');
+    const issue = (await classifyTypeLaw(await loadGraph(dir))).find((i) => i.aspectId === 'no-todo-comments');
+    expect(issue?.messageData?.what).toContain('0000000000000000');
+  });
+
+  it('a rule standing enforced on two types is one finding naming both', async () => {
+    const dir = project();
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), '\ntype_law:\n  ratification: true\n', 'utf-8');
+    const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+    const arch = readFileSync(archPath, 'utf-8');
+    writeFileSync(archPath, arch.replace('    log_required: false\n\n  service:', '    log_required: false\n    aspects:\n      - no-todo-comments\n\n  service:'), 'utf-8');
+    const issues = (await classifyTypeLaw(await loadGraph(dir))).filter((i) => i.aspectId === 'no-todo-comments');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].messageData?.what).toContain("'module', 'service'");
   });
 
   it('a log that cannot be read is said, and counts as no admission', async () => {

@@ -26,7 +26,11 @@ description: "Unit tests for log helper functions — log entry format parsing,
   ratification sentence written and read back, the finding and its severity
   under the setting, an admission of an earlier version named and a retracted
   one not counted, an unreadable log said, and the law a graph already had
-  recorded once, with a log that refuses the entry reported."
+  recorded once, with a log that refuses the entry reported. And the logs a
+  context carries: a type-governed file given its type's decisions with the
+  parent chain and no node log, a component given its whole log in force or,
+  on a log_required type, only its newest ten with the rest counted, and a node
+  log left with conflict markers or not parsing reported instead of given."
 aspects: []
 relations:
   [
@@ -50,5 +54,6 @@ mapping:
   - source/cli/tests/unit/core/log-write-lock.test.ts
   - source/cli/tests/unit/core/type-decision-cascade.test.ts
   - source/cli/tests/unit/core/type-log.test.ts
+  - source/cli/tests/unit/core/context-logs.test.ts
   - source/cli/tests/unit/core/type-law.test.ts
   - source/cli/tests/unit/core/log-standing-scan.test.ts

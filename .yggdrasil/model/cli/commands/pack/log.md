@@ -50,3 +50,5 @@ pack list named --to <version> for every newer version, and running it pinned a 
 A file under the packages area outside every installed package belongs to no package, so the per-package views never showed it while yg check blocked it. pack list now names such files, and pack verify with no package named reports them and exits 1.
 ## [2026-09-27T20:25:14.469Z]
 yg pack list decides whether a package follows the newest version through the shared helper the advise nomination already uses, so the two cannot drift apart on which command takes the newest version.
+## [2026-09-27T20:57:40.477Z]
+yg pack verify now paints the outcome for a package an earlier release installed from an untagged source in red, not yellow. That outcome counts as a copy that could not be shown to be what the publisher released and makes the command exit 1, like the red does-not-verify outcome beside it; yellow is reserved for warnings, which never set the exit code, so the colour told the reader the opposite of what the exit code said.
