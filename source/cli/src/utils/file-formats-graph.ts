@@ -122,7 +122,7 @@ export const ARCHITECTURE_NODE_TYPE: ObjectType = {
     aspects: { type: ATTACHMENTS, description: 'Rules every node of this type carries (channel 3).' },
     parents: { type: stringList(), description: 'Node types a node of this type may sit under; `root` allows the top level. Absent: anywhere.' },
     relations: { type: ARCHITECTURE_RELATIONS, description: 'Which node types each relation type from this type may target.' },
-    log_required: { type: { kind: 'boolean' }, description: 'Whether a node of this type needs a log entry when its files change.' },
+    log_required: { type: { kind: 'boolean' }, description: 'Whether a node of this type needs a log entry when its files change since the last full yg check --approve that closed its cycle (--only-deterministic never closes one; log-cycle-open warns while none has).' },
     when: { type: { kind: 'predicate', grammar: 'file' }, description: 'The files this type classifies (path and content atoms).' },
     enforce: { type: { kind: 'string', values: ['strict'] }, description: 'strict: a file matching when must be mapped to a node of this type, and a node of this type may map only matching files.' },
   },
@@ -232,12 +232,33 @@ export const ASPECT_FORMAT: FileFormatSchema = {
   root: ASPECT_ROOT,
 };
 
+/**
+ * The adaptation's `reviewer:` and `scope:` blocks. They merge key by key over
+ * the rule's own, so neither needs the key the rule's block requires: a missing
+ * `type` stays the package's (the kind its rule files give it when the rule
+ * declares none), a missing `per` stays the rule's (or the default `node`).
+ */
+const ADAPT_REVIEWER: ObjectType = {
+  kind: 'object',
+  fields: {
+    type: { ...ASPECT_REVIEWER.fields.type, required: undefined, description: 'The package\'s kind stays in force when omitted; if set, it must agree with the rule source.' },
+    tier: ASPECT_REVIEWER.fields.tier,
+  },
+};
+const ADAPT_SCOPE: ObjectType = {
+  kind: 'object',
+  fields: {
+    per: { ...ASPECT_SCOPE.fields.per, required: undefined, description: 'One verdict per node, or one per subject file; the rule\'s own per (or node) when omitted.' },
+    files: ASPECT_SCOPE.fields.files,
+  },
+};
+
 /** The top level of a yg-aspect.adapt.yaml: the keys a consumer may set over an installed rule. */
 export const ASPECT_ADAPT_ROOT: ObjectType = {
   kind: 'object',
   fields: {
-    scope: { ...ASPECT_FIELDS.scope, description: 'Replace or narrow the rule\'s scope (merged key by key).' },
-    reviewer: { ...ASPECT_FIELDS.reviewer, description: 'Change the rule\'s reviewer tier (merged key by key; type stays the package\'s).' },
+    scope: { ...ASPECT_FIELDS.scope, type: ADAPT_SCOPE, description: 'Replace or narrow the rule\'s scope (merged key by key).' },
+    reviewer: { ...ASPECT_FIELDS.reviewer, type: ADAPT_REVIEWER, description: 'Change the rule\'s reviewer tier (merged key by key; type stays the package\'s).' },
     review_by: ASPECT_FIELDS.review_by,
     references: { ...ASPECT_FIELDS.references, description: 'Replace the rule\'s reference files with files of this repository.' },
     status: ASPECT_FIELDS.status,

@@ -25,8 +25,9 @@ state line in \`yg context --node\`.
 A fresh log entry is required whenever BOTH hold:
 
 - the node's type has \`log_required: true\`, AND
-- the node's mapped source changed since its last positive closure (or this is the
-  first verification and the node owns source files).
+- the node's mapped source changed since its last positive closure, which only a
+  full \`yg check --approve\` records (or this is the first verification and the
+  node owns source files).
 
 "Fresh" means newer than the entry recorded at that closure — one fresh entry per
 closure cycle. The requirement depends ONLY on the type flag and the source
@@ -75,7 +76,8 @@ Corollaries:
   it records no closure, for any node, on any project. Where that free gate is a
   project's ONLY fill, no cycle ever ends: the node's newest entry keeps
   satisfying the requirement for every later source change, and a second entry is
-  never asked for. Nothing about progressive mode causes this and turning the mode
+  never asked for; \`yg check\` shows each such node as a \`log-cycle-open\`
+  warning. Nothing about progressive mode causes this and turning the mode
   off does not change it — but it is worth knowing when a pipeline leans on the
   free gate. Where each round of work must carry its own reason, a full
   \`yg check --approve\` has to run somewhere.

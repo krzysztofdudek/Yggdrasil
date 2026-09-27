@@ -165,7 +165,9 @@ inside the slot held by the global \`parallel\` limit, so up to
 \`parallel × consensus\` calls are in flight. Only verdicts vote — a call that
 fails on a provider error is left out, and when the verdicts that came back are
 not a majority of the calls asked for, the pair is not judged (infra, nothing
-written). A tie refuses. Consensus is not part of a pair's hash: raising it
+written). A tie among the verdicts is infra as well: consensus is odd, so a tie
+can only come from votes a provider error removed, and it is never recorded as
+a refusal. Consensus is not part of a pair's hash: raising it
 re-judges nothing already recorded; only moving an aspect to a newly named tier
 re-reviews its pairs. The trade-off is per tier, not global.
 

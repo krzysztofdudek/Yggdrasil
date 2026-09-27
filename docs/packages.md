@@ -638,10 +638,10 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | Key | Type | Required | Meaning |
 |-----|------|----------|---------|
 | `scope` | mapping | no | Replace or narrow the rule's scope (merged key by key). Default: `per: node`. |
-| `scope.per` | `node` \| `file` | yes, when scope: is present | One verdict per node, or one per subject file. |
+| `scope.per` | `node` \| `file` | no | One verdict per node, or one per subject file; the rule's own per (or node) when omitted. |
 | `scope.files` | file predicate | no | Which of the unit's files the rule looks at (path and content atoms). |
 | `reviewer` | mapping | no | Change the rule's reviewer tier (merged key by key; type stays the package's). |
-| `reviewer.type` | `llm` \| `deterministic` \| `aggregate` | yes, when reviewer: is present | The rule kind; must agree with the rule source (content.md, check.mjs, or neither). |
+| `reviewer.type` | `llm` \| `deterministic` \| `aggregate` | no | The package's kind stays in force when omitted; if set, it must agree with the rule source. |
 | `reviewer.tier` | string | no | The reviewer tier of yg-config.yaml a reviewer rule is judged by; the default tier when absent. |
 | `review_by` | YYYY-MM-DD | no | A review date; once past, yg check warns without blocking. The user's to set. |
 | `references` | list of string or mapping | no | Replace the rule's reference files with files of this repository. |

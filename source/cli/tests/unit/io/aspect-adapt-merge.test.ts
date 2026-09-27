@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { parseAspect } from '../../../src/io/aspect-parser.js';
 import { mergeAdaptOverAspect } from '../../../src/io/aspect-adapt-parser.js';
 import type { PackageConfigKeyDef } from '../../../src/model/packages.js';
+import { content as ADAPT_SCHEMA_EXAMPLE } from '../../../src/templates/schemas/aspect-adapt.js';
 
 const tempDirs: string[] = [];
 
@@ -128,6 +129,71 @@ describe('what an adaptation does to a rule it sits beside', () => {
       { scope: { files: { path: 'lib/**' } } },
     );
     expect(merged.scope).toEqual({ per: 'node', files: { path: 'lib/**' } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. A partial block over a rule that declares none
+//
+// The merge is key by key, so an adaptation naming only reviewer.tier or only
+// scope.files over a rule with no reviewer: / scope: block of its own would
+// leave the key the validator requires missing. The rule already means one:
+// the kind its rule files give it, and per: node. Both are filled in before
+// validation, so the natural adaptation loads.
+// ---------------------------------------------------------------------------
+
+const BARE = `name: Rule A
+description: What the package says this rule means.
+status: enforced
+`;
+
+describe('a partial reviewer: or scope: over a rule that declares none', () => {
+  it('reviewer: { tier } over an inferred reviewer rule keeps the inferred kind', async () => {
+    const { result } = await parse(BARE, 'reviewer:\n  tier: deep\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.aspect.reviewer).toEqual({ type: 'llm', tier: 'deep' });
+  });
+
+  it('scope: { files } over a rule with no scope: takes per: node', async () => {
+    const { result } = await parse(BARE, 'scope:\n  files:\n    path: src/**\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.aspect.scope?.per).toBe('node');
+    expect(result.aspect.scope?.files).toBeDefined();
+  });
+
+  it('an adaptation that states per: or type: itself is taken as written', async () => {
+    const { result } = await parse(BARE, 'scope:\n  per: file\nreviewer:\n  type: llm\n  tier: deep\n');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.aspect.scope?.per).toBe('file');
+    expect(result.aspect.reviewer).toEqual({ type: 'llm', tier: 'deep' });
+  });
+
+  it('the annotated example of `yg schemas read aspect-adapt` loads over a rule declaring neither block', async () => {
+    const { result } = await parse(BARE, ADAPT_SCHEMA_EXAMPLE);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.aspect.reviewer).toEqual({ type: 'llm', tier: 'deep' });
+    expect(result.aspect.scope?.per).toBe('file');
+    expect(result.aspect.status).toBe('advisory');
+  });
+
+  it('a refusal of the scope: the adaptation set names the adaptation, not the package\'s copy', async () => {
+    const { result, aspectDir } = await parse(BARE, 'scope:\n  per: everywhere\n');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('aspect-scope-invalid');
+    expect(result.errors[0].messageData.what).toContain(join(aspectDir, 'yg-aspect.adapt.yaml'));
+  });
+
+  it('a refusal of the reviewer: the adaptation set names the adaptation', async () => {
+    const { result, aspectDir } = await parse(BARE, 'reviewer:\n  type: robot\n');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('aspect-reviewer-type-invalid');
+    expect(result.errors[0].messageData.what).toContain(join(aspectDir, 'yg-aspect.adapt.yaml'));
   });
 });
 

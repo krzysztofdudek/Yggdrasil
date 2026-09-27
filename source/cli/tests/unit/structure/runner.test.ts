@@ -301,7 +301,7 @@ describe('runStructureAspect', () => {
     })).rejects.toThrow(/STRUCTURE_CHECK_RETURN_SHAPE/);
   });
 
-  it('undeclared graph read → structured violation (succeeded: false)', async () => {
+  it('undeclared graph read → thrown STRUCTURE_UNDECLARED_GRAPH_READ naming the relation to add', async () => {
     await writeAspect('a16', `export function check(ctx) { ctx.graph.node('Other'); return []; }`);
     const g = buildTestGraphForStructure({
       nodes: [
@@ -309,12 +309,34 @@ describe('runStructureAspect', () => {
         { path: 'Other', type: 'module', mapping: [] },
       ],
     });
-    const r = await runStructureAspect({
+    await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a16'),
       aspectId: 'a16', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+    })).rejects.toThrow(/STRUCTURE_UNDECLARED_GRAPH_READ[\s\S]*Add a relation in yg-node\.yaml to 'Other'/);
+  });
+
+  it('undeclared flow read → thrown STRUCTURE_UNDECLARED_GRAPH_READ naming the flow to join, not a relation', async () => {
+    await writeAspect('a16f', `export function check(ctx) { ctx.graph.flowParticipants('checkout'); return []; }`);
+    const g = buildTestGraphForStructure({
+      nodes: [
+        { path: 'N', type: 'module', mapping: ['src/a.ts'] },
+        { path: 'Other', type: 'module', mapping: [] },
+      ],
+      flows: [{ path: 'checkout', nodes: ['Other'] }],
     });
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-graph-read');
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/a16f'),
+        aspectId: 'a16f', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+      });
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    const err = caught as StructureRunnerError;
+    expect(err.code).toBe('STRUCTURE_UNDECLARED_GRAPH_READ');
+    expect(err.messageData.what).toContain("flow 'checkout'");
+    expect(err.messageData.next).toContain("nodes: of flow 'checkout'");
+    expect(err.messageData.next).not.toContain('Add a relation');
   });
 
   it('relation target files prewarmup', async () => {

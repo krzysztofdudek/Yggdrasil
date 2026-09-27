@@ -179,7 +179,11 @@ A node type may also set \`relations.default: deny\` to forbid every relation ty
 
 Each node type may set \`log_required\` (default \`false\`). When \`true\`, a node of
 that type demands a fresh log entry whenever its mapped source changed since the
-node's last positive closure. The requirement is a property of the node TYPE plus
+last full \`yg check --approve\` that closed its cycle (positive closure). Only a
+full fill closes one: \`yg check --approve --only-deterministic\` never does, so
+where it is the only fill, the node's newest entry keeps answering every later
+source change, and \`yg check\` says so with the \`log-cycle-open\` warning. The
+requirement is a property of the node TYPE plus
 a source change — independent of the node's aspects or pairs — and is enforced
 read-only: plain \`yg check\` flags a missing entry as a blocking error, so it
 bites even on a node that produces no pairs (the log gate, see \`yg knowledge read

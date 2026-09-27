@@ -356,8 +356,8 @@ just a wrong tree from then on. Read the tree; never edit it.
 ## Allowed reads set (D9=A)
 
 The runner enforces a strict read boundary. Attempting to read outside it raises
-a runtime fault instead of returning data — a \`Violation\` for a graph read or a
-non-prewarmed parse, or an infra fault for an \`fs\` read (see the table below).
+a runtime fault instead of returning data — an infra fault for an \`fs\` or a
+graph read, or a \`Violation\` for a non-prewarmed parse (see below).
 
 This boundary is a read **discipline**, not a security sandbox. \`check.mjs\` runs
 in-process (on an auto-sized worker-thread pool during \`--approve\`, for speed) with
@@ -378,16 +378,20 @@ on which accessor is involved:
 
 | Violation kind | Trigger |
 |---|---|
-| \`structure-aspect-undeclared-graph-read\` | \`ctx.graph.node(path)\` returning a node outside the allowed read set (\`nodesByType\` never triggers this — it only ever returns nodes already within the set) |
 | \`structure-aspect-parseast-not-prewarmed\` | \`ctx.parseAst\` on a file not in the pre-warmed set |
 
-An undeclared \`ctx.fs.exists/list/read\` is different: it is NOT a \`Violation\`.
-The runner throws before your check ever returns, so no verdict entry is
-written and the pair stays unverified — \`yg check --approve\` reports it as
-\`unverified\` with cause \`check-failed-to-run\`, naming the real remedy (widen the architecture's
-\`relations:\` so the reachable type may depend on whatever owns the path, add a
-relation in \`yg-node.yaml\`, or give the file a node of its own) instead of
-"fix check.mjs" — there is nothing to fix in the check itself.
+An undeclared \`ctx.fs.exists/list/read\` or an undeclared graph read
+(\`ctx.graph.node(path)\` on a node outside the allowed read set, or
+\`ctx.graph.flowParticipants(name)\` on a flow the node does not take part in;
+\`nodesByType\` never triggers it — it only ever returns nodes already within
+the set) is different: it is NOT a \`Violation\`. The runner throws before your
+check ever returns, so no verdict entry is written and the pair stays
+unverified — \`yg check --approve\` reports it as \`unverified\` with cause
+\`check-failed-to-run\`, naming the real remedy (for a file: widen the
+architecture's \`relations:\` so the reachable type may depend on whatever owns
+the path, add a relation in \`yg-node.yaml\`, or give the file a node of its
+own; for a graph node: add a relation to it; for a flow: add the node to the
+flow) instead of "fix check.mjs" — there is nothing to fix in the check itself.
 
 If your check needs to reach a node not currently in scope, add an explicit
 relation in \`yg-node.yaml\` pointing to that node. Relations are the contract
@@ -486,12 +490,11 @@ code must NOT emit violations with this prefix. Use a plain \`kind\` or omit
 
 Common runtime kinds (for reference, not for author use):
 
-- \`structure-aspect-undeclared-graph-read\`
 - \`structure-aspect-parseast-not-prewarmed\`
 
-An undeclared \`ctx.fs\` read is NOT among these — it is never a \`Violation\`
-(see "Allowed reads set" above), so it carries no \`kind\` at all: the runner
-throws before your check returns.
+An undeclared \`ctx.fs\` or graph read is NOT among these — it is never a
+\`Violation\` (see "Allowed reads set" above), so it carries no \`kind\` at all:
+the runner throws before your check returns.
 
 ## Common helpers
 

@@ -114,7 +114,7 @@ Wall time is set by `parallel` — how many reviewer calls run at once (engine d
 Set `consensus: 3` (or any odd integer) on a tier in `yg-config.yaml` to run multiple review passes and take the majority vote. Higher confidence, proportionally higher cost. Useful for high-stakes aspects or noisy borderline rules.
 
 - **The passes run at the same time**, so consensus multiplies cost, not wall time.
-- **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — nothing is written and it stays unverified, like any reviewer failure. A tie refuses.
+- **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — nothing is written and it stays unverified, like any reviewer failure. A tie among the verdicts that came back is treated the same way: `consensus` is odd, so a tie can only come from passes a provider error removed, and it is never recorded as a refusal.
 - **A split shows.** When the passes disagree, the fill prints the pair with its split — `fill  passed by 2 of 3 votes  <aspect> @ <unit>` — and the events file records it.
 - **Raising `consensus` re-judges nothing already recorded.** It is not part of a pair's hash, so existing verdicts stand. To re-review an aspect's pairs under the new count, move the aspect to a newly named tier.
 
