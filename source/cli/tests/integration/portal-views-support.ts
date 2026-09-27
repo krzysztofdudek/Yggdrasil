@@ -26,6 +26,8 @@ const MODULE_DIR = path.resolve(__dirname, '../../src/templates/portal/js');
 const MODULES = [
   'namespace.js',
   'state-model.js',
+  'glossary-entries.js',
+  'glossary-entries-rest.js',
   'glossary.js',
   'router.js',
   'palette.js',

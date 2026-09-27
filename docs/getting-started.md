@@ -123,7 +123,7 @@ blocking error:
 ```text
 $ yg check
 
-yg check: PASS  1 warning   0 nodes · 4/54 files covered (4 excluded)
+yg check: PASS  1 warning   0 nodes · 0/50 files covered · 4 excluded
 
 warning[uncovered] 50 files belong to no node — not under coverage.required, so they never block
   at:   package.json
@@ -185,7 +185,7 @@ Now run `yg check`:
 ```text
 $ yg check
 
-yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
+yg check: FAIL  1 error   1 node · 1/1 file covered · 4 excluded
 
 error[unverified] 1 pair with no verdict yet
   at:   requires-audit @ payments
@@ -201,13 +201,13 @@ $ yg check --approve
 fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
 fill  done in 6s — 1 passed · 0 refused · 0 failed · 1 reviewer call
 
-yg check: PASS  1 node · 5/5 files covered (1 node-owned · 4 excluded) · 1 pair verified (reviewer)
+yg check: PASS  1 node · 1/1 file covered · 4 excluded · 1 pair verified (reviewer)
 ```
 
 If the code didn't satisfy the aspect, the pair is refused and the report shows the refusal block with the reviewer's reason under `at:`:
 
 ```text
-yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
+yg check: FAIL  1 error   1 node · 1/1 file covered · 4 excluded
 
 error[refused] requires-audit — refused on payments
   at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
@@ -303,7 +303,7 @@ error[relation-undeclared-dependency] Node 'users' has undeclared dependencies o
         payments: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: payments, type: uses } under relations: in .yggdrasil/model/users/yg-node.yaml.
 ```
 
-Add the relation it names under `relations:` in the importing node (`- { target: payments, type: uses }`). Declared relations are not an input to any verdict, so declaring them re-opens nothing. Two things can
+Add the relation it names under `relations:` in the importing node (`- { target: payments, type: uses }`). Declaring a relation re-opens no verdict except where a rule looked at the node through the graph: a script rule that read it with `ctx.graph` (`node()`, `relationsFrom()`, `relationsTo()`), or a reviewer rule whose `companion.mjs` did, folded the node's `yg-node.yaml` into its verdict, so editing that file re-opens those pairs — a script pair refills free, a reviewer pair is re-reviewed and paid. Every other verdict stays. Two things can
 make that harder:
 
 - If your architecture restricts which types may relate, the message says that

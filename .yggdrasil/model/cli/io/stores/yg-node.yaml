@@ -18,6 +18,9 @@ description: "Filesystem readers and writers for runtime state — find index,
   read-compose-replace of a log behind a short repository-wide lock file, and
   the local verdict-events sidecar is rotated to one previous generation once it
   reaches its size cap, so an append-only record every run adds to stays bounded.
+  The refused-content store keeps, for each refusal a fill records, the refused
+  subject files and the reason in one file named for the verdict's hash; it is
+  local, write-only and written only where its directory is already gitignored.
   Beside it sits a
   separate, local cache of what each installed package's source was last seen to
   publish — knowledge about somebody else's repository rather than this one, so
@@ -60,5 +63,6 @@ mapping:
   - source/cli/src/io/package-versions-cache.ts
   - source/cli/src/io/paths.ts
   - source/cli/src/io/read-or-default.ts
+  - source/cli/src/io/refused-store.ts
   - source/cli/src/io/repo-scanner.ts
   - source/cli/src/io/run-scope-cache.ts

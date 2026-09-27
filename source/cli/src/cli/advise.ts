@@ -54,6 +54,7 @@ import {
   ancestorAtDepth,
   quotientSccs,
   TOP_TUNNELS,
+  isSiblingEdge,
   type DeclaredRelation,
 } from '../core/graph-metrics.js';
 import { isValidReviewByDate } from '../io/aspect-parser.js';
@@ -592,7 +593,7 @@ async function gatherRelationBoundary(
   try {
     const detected = new Map((boundary.detectedEdgesByNode ?? []).map((d) => [d.from, new Set(d.targets)] as const));
     const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
-    tunnelCount = Math.min(TOP_TUNNELS, tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length);
+    tunnelCount = Math.min(TOP_TUNNELS, tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).filter((e) => !isSiblingEdge(e)).length);
   } catch (error) {
     debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
   }

@@ -37,8 +37,9 @@ function checkWarnings(doc: CheckJsonDoc): number {
 /**
  * The flag-on coverage split's three honest terms — node-owned, type-covered, excluded —
  * out of the total, as `yg check` reports them (`coverage` of its JSON document; the text
- * verdict line prints the same numbers as `N/M files covered (A node-owned · B
- * type-covered · C excluded)`). Throws when the split is absent (a flag-off project).
+ * verdict line prints the same numbers as `A+B/(total−C) files covered (A node-owned · B
+ * type-covered) · C excluded`). Throws when the split is absent (a document from before
+ * 6.1.0 on a flag-off project, where the three were null).
  */
 function checkTypeSplit(doc: CheckJsonDoc): { nodeOwned: number; typeCovered: number; excluded: number; total: number } {
   const c = doc.coverage;

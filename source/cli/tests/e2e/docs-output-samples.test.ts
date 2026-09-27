@@ -50,7 +50,7 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       expect(yg(['init', '--no-reviewer'], dir).status).toBe(0);
       git(['add', '-A'], dir);
       const live = yg(['check'], dir).stdout.trimEnd();
-      const marker = 'yg check: PASS  1 warning   0 nodes · 4/54 files covered';
+      const marker = 'yg check: PASS  1 warning   0 nodes · 0/50 files covered · 4 excluded';
       expect(live).toContain(marker);
       expect(textBlockContaining(doc('README.md'), marker)).toBe(live);
       expect(textBlockContaining(doc('docs/getting-started.md'), marker)).toBe(live);
@@ -87,7 +87,7 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       expect(textBlockContaining(gs, header)).toBe(live);
       // The same one-component project renders the same file counts on every page.
       const counts = header.slice(header.indexOf('1 node · '));
-      expect(counts).toBe('1 node · 5/5 files covered (1 node-owned · 4 excluded)');
+      expect(counts).toBe('1 node · 1/1 file covered · 4 excluded');
       for (const page of ['docs/getting-started.md', 'docs/reviewers.md']) {
         for (const line of doc(page).split('\n').filter((l) => /^yg check: (PASS|FAIL) {2}.*1 node · /.test(l))) {
           expect(line, page).toContain(counts);

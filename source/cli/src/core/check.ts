@@ -418,12 +418,13 @@ export async function runCheck(
   // project's boundary, a `coverage.excluded` root) would read as node-owned
   // although nothing enforces it. Corrected HERE, in the one engine every
   // surface calls, so `yg check`, the fill's report and the portal can never
-  // show different numbers for the same tree. Only when the flag-gated split is
-  // rendered at all (typeLevel) and there is something to count.
+  // show different numbers for the same tree. Whether type-level coverage is on
+  // or off: the header and yg-check/1 name node-owned and excluded files either
+  // way, so a mapped-but-excluded file is excluded under both.
   let nodeOwnedFiles = phaseNodeOwnedFiles;
   let excludedFiles = phaseExcludedFiles;
   let mappedExcludedFiles: string[] | undefined;
-  if (typeLevel && totalFiles > 0 && coverageVisibleFiles !== null) {
+  if (totalFiles > 0 && coverageVisibleFiles !== null) {
     mappedExcludedFiles = (await listMappedButExcludedFiles(graph, coverageVisibleFiles)).map((f) => toPosixPath(f));
     if (mappedExcludedFiles.length > 0) {
       nodeOwnedFiles = (nodeOwnedFiles ?? 0) - mappedExcludedFiles.length;

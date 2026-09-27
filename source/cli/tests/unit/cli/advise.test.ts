@@ -566,6 +566,29 @@ describe.skipIf(!distExists)('yg advise — attention count mirrors yg structure
   });
 });
 
+describe.skipIf(!distExists)('yg advise / yg structure — relations between siblings are no tunnel (issue 242, spawned)', () => {
+  // The checkout-flow example: four top-level components, three of them with a
+  // declared `uses` relation to telemetry. Each edge joins two siblings and
+  // crosses one boundary; both surfaces used to call it a dependency that
+  // "jumps 2 levels … no declared contract" / jumps "across distant parts".
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-siblings-'));
+    copyFixtureTree(path.join(CLI_ROOT, '..', '..', 'examples', 'checkout-flow'), projectRoot);
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('lists no tunnel and raises no tunnel attention line', () => {
+    const structure = run(['structure'], projectRoot);
+    expect(structure.status).toBe(0);
+    expect(structure.stdout).toContain('None — no dependency reaches past a sibling (3 dependencies in all).');
+    expect(structure.stdout).not.toMatch(/ jumps \d+ level/);
+    const advise = run(['advise'], projectRoot);
+    expect(advise.status).toBe(0);
+    expect(advise.stdout).not.toContain('jump across distant parts');
+  });
+});
+
 describe.skipIf(!distExists)('yg advise — G4: exit 0 on every loadable fixture (spawned)', () => {
   const FIXTURES_DIR = path.join(CLI_ROOT, 'tests', 'fixtures');
   const loadable = readdirSync(FIXTURES_DIR, { withFileTypes: true })

@@ -87,7 +87,7 @@ $ yg check --approve
 fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
 fill  done in 6s — 0 passed · 1 refused · 0 failed · 1 reviewer call
 
-yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
+yg check: FAIL  1 error   1 node · 1/1 file covered · 4 excluded
 
 error[refused] requires-audit — refused on payments
   at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
@@ -680,6 +680,15 @@ A team can opt into a **committed, shared** record of LLM verification-fill even
 - **Rationale-stripped.** The reviewer's reason — of a refusal or a pass — is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
+
+### Refused-content store {#refused-content-store}
+
+The lock keeps a refusal's hash and reason, not the code it refused, so once the code is fixed the refused version is gone. Every fill therefore also keeps, for each refusal it records, a JSON file `.yggdrasil/.refused/<hash>.json`, named for the verdict's input hash — the `hash` of its lock entry and of its line in `.yg-events.jsonl` — holding the aspect, the unit, the rule kind, the reason, the commit when there is one, and the unit's subject files as they were (`content`, or `base64` for bytes that are not UTF-8). A refusal and the next pass of the same unit make a labelled pair: what the rule rejected and what satisfied it — material for a new drill case, or for [Grain](https://github.com/krzysztofdudek/Grain) to derive a script check from a reviewer rule's own verdicts.
+
+- **Local only.** The directory is gitignored, never committed, and never read by any check, verification or render path; delete it at will.
+- **Written only where it is ignored.** A fill never edits a tracked `.gitignore`, so on a graph whose `.yggdrasil/.gitignore` lacks the `.refused/` line it writes nothing; `yg init --upgrade` adds the line.
+- **Bounded per refusal.** A unit whose subject files together exceed 2 MiB is not stored. A record already present is left alone — the same hash means the same inputs.
+- **Best-effort.** A failed write loses that record and never changes a fill's outcome.
 
 ---
 

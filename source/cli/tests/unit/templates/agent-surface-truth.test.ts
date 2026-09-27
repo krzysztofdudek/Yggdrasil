@@ -31,11 +31,12 @@ import {
 } from '../../../src/templates/knowledge/shared-text.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const GLOSSARY_PATH = path.resolve(__dirname, '..', '..', '..', 'src', 'templates', 'portal', 'js', 'glossary.js');
+const GLOSSARY_DIR = path.resolve(__dirname, '..', '..', '..', 'src', 'templates', 'portal', 'js');
 
 function glossaryDef(id: string): string {
   const window: Record<string, unknown> = {};
-  vm.runInNewContext(readFileSync(GLOSSARY_PATH, 'utf-8'), { window });
+  const context = vm.createContext({ window });
+  for (const f of ['glossary-entries.js', 'glossary-entries-rest.js', 'glossary.js']) vm.runInContext(readFileSync(path.join(GLOSSARY_DIR, f), 'utf-8'), context);
   const glossary = (window.YgPortal as { glossary: { entries: Array<{ id: string; def: string }> } }).glossary;
   const entry = glossary.entries.find((e) => e.id === id);
   expect(entry, `glossary entry ${id}`).toBeDefined();

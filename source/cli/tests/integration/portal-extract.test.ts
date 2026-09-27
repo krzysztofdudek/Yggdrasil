@@ -764,4 +764,28 @@ describe('portal coverage split equals the check engine on mapped-but-excluded f
       rmSync(dir, { recursive: true, force: true });
     }
   }, 60_000);
+
+  it('splits the same way with type-level coverage off: a swept-in excluded file is excluded, never node-owned', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-split-off-'));
+    try {
+      copyFixtureTree(path.join(__dirname, '..', 'fixtures', 'type-coverage-basic-pass'), dir);
+      mkdirSync(path.join(dir, '.yggdrasil', 'model', 'svcnode'), { recursive: true });
+      writeFileSync(path.join(dir, '.yggdrasil', 'model', 'svcnode', 'yg-node.yaml'), 'name: Svcnode\ndescription: x\ntype: svc\nmapping:\n  - src/svcnode\n');
+      mkdirSync(path.join(dir, 'src', 'svcnode', 'vendor'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'kept.ts'), 'export const kept = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'a.ts'), 'export const a = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'b.ts'), 'export const b = 1;\n');
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf-8').replace('type_level: true', 'type_level: false').replace('excluded:\n    - vendor/', 'excluded:\n    - vendor/\n    - src/svcnode/vendor/'));
+
+      const graph = await loadGraph(dir);
+      const check = await runCheck(graph, await walkRepoFiles(dir));
+      expect(check.typeLevel).toBe(false);
+      expect(check.mappedExcludedFiles?.sort()).toEqual(['src/svcnode/vendor/a.ts', 'src/svcnode/vendor/b.ts']);
+      expect(check.nodeOwnedFiles).toBe(1);
+      expect(check.excludedFiles).toBe(3);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

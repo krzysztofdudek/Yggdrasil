@@ -14,7 +14,7 @@ const EARLIER_EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
 const LOG_EOL_LINE = '/.yggdrasil/**/log.md text eol=lf';
 /** The merge-driver lines: every log.md (a rule adaptation's too) through yg-log, every committed lock through yg-lock. */
 const DRIVER_LINES = '/.yggdrasil/**/log.md merge=yg-log\n/.yggdrasil/**/yg-aspect.adapt.log.md merge=yg-log\n/.yggdrasil/yg-lock.*.json merge=yg-lock';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp', '.yg-*.lock'];
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.refused/', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp', '.yg-*.lock'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');

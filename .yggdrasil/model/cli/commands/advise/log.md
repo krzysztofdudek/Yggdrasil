@@ -104,3 +104,5 @@ Whether a package follows the newest version is now asked of the package-record 
 The boundary join and the suppression-marker classification are read from the engine instead of from the portal's internals, so the attention feed no longer depends on the portal.
 ## [2026-09-27T19:24:00.261Z]
 The feed now reads the logs of the graph for two items about decisions in force, through the log layer. A failure of that read is written to the debug log and leaves both items silent, because the feed must always exit zero on a loadable graph and a bug in one source must not take the others down.
+## [2026-09-27T22:07:59.448Z]
+The attention line counted every structural edge as a dependency that jumps across distant parts of the architecture, so a graph of top-level components joined by declared uses relations read as full of tunnels. An edge between two components under one parent spans the least any edge between unrelated nodes can and crosses a single boundary; the count now leaves such sibling edges out, through the same predicate the structure view and the portal use, so the three surfaces keep reporting the same tunnels.

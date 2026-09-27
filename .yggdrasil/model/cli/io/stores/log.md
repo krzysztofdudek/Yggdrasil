@@ -226,3 +226,5 @@ The package file listing no longer rewrites backslashes: it joins paths with '/'
 The adaptation stub now lists description among the keys that are not adaptable. The adaptation parser has always refused description, and the stub is the file an adopter actually opens, so leaving it out invited an edit that could only fail at load.
 ## [2026-09-27T21:43:29.557Z]
 The adaptation stub a package install writes now lists description among the keys that cannot be adapted, which is what the adaptation parser already refused.
+## [2026-09-27T22:08:05.875Z]
+A new store keeps the refused content of each refusal a fill records: one JSON record per verdict hash, holding the rule, the unit, the reason and the subject files as they were refused, text as text and other bytes as base64. It is content-addressed, so a record already present is never rewritten; a unit whose files exceed two mebibytes is skipped rather than copied; and it is write-only and best-effort like the verdict-events sidecar, because nothing in the engine may read it back or fail on it.

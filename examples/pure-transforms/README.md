@@ -55,7 +55,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output (exit 0):
 
 ```
-yg check: PASS  1 node · 8/8 files covered · 1 pair verified (script)
+yg check: PASS  1 node · 3/3 files covered · 5 excluded · 1 pair verified (script)
 ```
 
 > The script verdict is cached in the **gitignored**
@@ -83,7 +83,7 @@ You will see the refusal (exit 1), pointing at the exact line you added (the
 line number depends on where you inserted the import) — for example:
 
 ```
-yg check: FAIL  1 error   1 node · 8/8 files covered
+yg check: FAIL  1 error   1 node · 3/3 files covered · 5 excluded
 
 error[refused] deterministic-transforms — 1 violation in pipeline
   at:   pipeline  src/transforms/clean.py:20  Transforms must be reproducible: line references datetime.now(). Reading the wall clock or drawing randomness makes the pipeline unreplayable. Pass any needed timestamp or seed in as an argument, or move this concern to the orchestrator (pipeline.py).

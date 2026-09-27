@@ -31,7 +31,7 @@ const CODE_DIRS = ['source/cli/src'];
 const EXTENSIONS = new Set(['.md', '.ts', '.js', '.yaml', '.yml']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.vitepress', '.git', 'coverage', 'vendor']);
 /** The glossary lists the retired words under "Not called" by design. */
-const SKIP_FILES = new Set(['docs/glossary.md', 'source/cli/src/templates/portal/js/glossary.js']);
+const SKIP_FILES = new Set(['docs/glossary.md', 'source/cli/src/templates/portal/js/glossary.js', 'source/cli/src/templates/portal/js/glossary-entries.js', 'source/cli/src/templates/portal/js/glossary-entries-rest.js']);
 
 /** Retired word -> the word the Glossary uses instead. */
 const RETIRED: Array<{ pattern: RegExp; use: string }> = [

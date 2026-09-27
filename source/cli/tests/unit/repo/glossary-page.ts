@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.resolve(__dirname, '..', '..', '..');
 export const REPO_ROOT = path.resolve(CLI_ROOT, '..', '..');
-const MODULE_PATH = path.join(CLI_ROOT, 'src', 'templates', 'portal', 'js', 'glossary.js');
+const MODULE_DIR = path.join(CLI_ROOT, 'src', 'templates', 'portal', 'js');
 export const PAGE_PATH = path.join(REPO_ROOT, 'docs', 'glossary.md');
 
 export interface Entry {
@@ -32,7 +32,8 @@ interface Glossary {
 
 export function loadGlossary(): Glossary {
   const window: Record<string, unknown> = {};
-  vm.runInNewContext(readFileSync(MODULE_PATH, 'utf-8'), { window });
+  const context = vm.createContext({ window });
+  for (const f of ['glossary-entries.js', 'glossary-entries-rest.js', 'glossary.js']) vm.runInContext(readFileSync(path.join(MODULE_DIR, f), 'utf-8'), context);
   return (window.YgPortal as { glossary: Glossary }).glossary;
 }
 
@@ -77,7 +78,7 @@ export function render(entries: Entry[]): string {
   const out: string[] = [
     '# Glossary',
     '',
-    '<!-- Generated from source/cli/src/templates/portal/js/glossary.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->',
+    '<!-- Generated from source/cli/src/templates/portal/js/glossary-entries.js and glossary-entries-rest.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->',
     '',
     'Each word here has one meaning, the same in these docs, in `yg prime`, in `yg knowledge`, in the CLI output and in the portal. Where an older word meant the same thing, it is listed as not used, so you can map it when you meet it in an old note.',
   ];

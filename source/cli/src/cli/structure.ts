@@ -22,6 +22,7 @@ import {
   type StructEdge,
 } from '../core/graph-metrics.js';
 import { writeOut } from './output.js';
+import { count } from '../utils/count.js';
 
 /**
  * `yg structure` — a READ-ONLY structural dashboard over the graph.
@@ -136,9 +137,17 @@ function renderTunnels(edges: StructEdge[], realNodeIds: ReadonlySet<string>): s
   const { depthOf, lcaDepth } = widenedTunnelMetrics(realNodeIds);
   const ranked = rankTunnels(edges, depthOf, lcaDepth);
 
+  if (ranked.length === 0) {
+    // Every edge stays between siblings: none crosses more than one boundary.
+    lines.push(`  None — no dependency reaches past a sibling (${count(edges.length, 'dependency', 'dependencies')} in all).`);
+    return lines;
+  }
+
   for (const e of ranked.slice(0, TOP_TUNNELS)) {
-    const contract = e.viaContract ? 'via declared contract' : 'no declared contract';
-    lines.push(`  ${e.from} → ${e.to} — jumps ${levelsPhrase(e.span)} across the tree, ${contract}`);
+    // What the metric measures: whether a relation between the two names a port
+    // other than the implicit `default` one (graph-metrics.ts edgeUniverse).
+    const port = e.viaContract ? 'through a named port' : 'no named port';
+    lines.push(`  ${e.from} → ${e.to} — jumps ${levelsPhrase(e.span)} across the tree, ${port}`);
   }
   return lines;
 }

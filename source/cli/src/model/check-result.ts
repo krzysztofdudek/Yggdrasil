@@ -96,7 +96,7 @@ export interface CheckResult {
    * rule ever covers them, so runCheck counts them in `excludedFiles`, never in
    * `nodeOwnedFiles`, and every surface reading this result (the CLI header,
    * the fill report, the portal) shows the same split. Set only when the
-   * flag-gated split is computed (`typeLevel`); POSIX, repo-relative.
+   * coverage scan ran (type-level coverage on or off); POSIX, repo-relative.
    */
   mappedExcludedFiles?: string[];
   /** Per-file type-tier enforcement report. Undefined at flag-off. */

@@ -75,7 +75,7 @@ describe('renderStructure', () => {
     expect(out).toContain('All dependencies between groups flow one way (no cycles).');
   });
 
-  it('phrases a ported edge as "via declared contract"', () => {
+  it('phrases a ported edge as "through a named port"', () => {
     const graph = graphOf([
       node('a'),
       node('a/svc', [{ target: 'b/svc', type: 'uses', portNames: ['charge'] } as Relation]),
@@ -83,7 +83,7 @@ describe('renderStructure', () => {
       node('b/svc'),
     ]);
     const out = renderStructure(graph, NO_DETECTED);
-    expect(out).toContain('a/svc → b/svc — jumps 4 levels across the tree, via declared contract');
+    expect(out).toContain('a/svc → b/svc — jumps 4 levels across the tree, through a named port');
   });
 
   it('describes a cycle between groups positively (no jargon)', () => {
@@ -107,7 +107,24 @@ describe('renderStructure', () => {
     const graph = graphOf([node('p'), node('p/a'), node('q'), node('q/b')]);
     const detected = new Map<string, Set<string>>([['p/a', new Set(['q/b'])]]);
     const out = renderStructure(graph, detected);
-    expect(out).toContain('p/a → q/b — jumps 4 levels across the tree, no declared contract');
+    expect(out).toContain('p/a → q/b — jumps 4 levels across the tree, no named port');
+  });
+
+  it('declared relations between siblings — top-level or nested — are no tunnel (issue 242)', () => {
+    // cart and telemetry are top-level siblings, a/x and a/y siblings under a:
+    // each edge crosses one boundary and must not read as "jumps 2 levels".
+    const graph = graphOf([
+      node('cart', [{ portNames: ['default'], target: 'telemetry', type: 'uses' }]),
+      node('telemetry'),
+      node('a'),
+      node('a/x', [{ portNames: ['default'], target: 'a/y', type: 'uses' }]),
+      node('a/y'),
+    ]);
+    const out = renderStructure(graph, NO_DETECTED);
+    const tunnelsSection = out.slice(out.indexOf('Tunnels'), out.indexOf('Modules'));
+    expect(tunnelsSection).toContain('None — no dependency reaches past a sibling (2 dependencies in all).');
+    expect(tunnelsSection).not.toContain('jumps');
+    expect(tunnelsSection).not.toContain('contract');
   });
 
   it('omitting `widened` renders the exact node-only output — byte-identical to a caller who never heard of the type-level augmentation', () => {
@@ -128,7 +145,7 @@ describe('renderStructure', () => {
       hasTypeCovered: true,
     };
     const out = renderStructure(graph, NO_DETECTED, widened);
-    expect(out).toContain('p/a → p/a/typed.ts — jumps 1 level across the tree, no declared contract');
+    expect(out).toContain('p/a → p/a/typed.ts — jumps 1 level across the tree, no named port');
     // The jargon-free-language rule: a type-covered file is never called a "component".
     expect(out).toContain('From an average component or type-covered file,');
     expect(out).not.toMatch(/From an average component,/);

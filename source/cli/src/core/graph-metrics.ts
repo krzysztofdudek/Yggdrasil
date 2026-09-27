@@ -193,6 +193,32 @@ export function edgeUniverse(
 export const TOP_TUNNELS = 10;
 
 /**
+ * The span of an edge between siblings — two components under one parent,
+ * top-level ones included. Every edge between two distinct, unrelated nodes
+ * spans at least this much (lineage pairs are never edges).
+ */
+export const SIBLING_SPAN = 2;
+
+/** The parent path of a `/`-delimited id — `''` for a top-level one. */
+function parentPathOf(id: string): string {
+  const i = id.lastIndexOf('/');
+  return i < 0 ? '' : id.slice(0, i);
+}
+
+/**
+ * True for an edge between siblings: two ids under one parent path, spanning
+ * {@link SIBLING_SPAN}. Such an edge crosses one boundary and is not a tunnel —
+ * counting it made a graph of top-level components with declared relations read
+ * as "N dependencies jump across distant parts of the architecture". The parent
+ * check keeps a type-covered file's edge (a file sits at a fixed depth of 1 in the
+ * widened universe, see widenedTunnelMetrics) a tunnel whenever its path puts it
+ * elsewhere in the tree.
+ */
+export function isSiblingEdge(e: { from: string; to: string; span: number }): boolean {
+  return e.span === SIBLING_SPAN && parentPathOf(e.from) === parentPathOf(e.to);
+}
+
+/**
  * Annotate each edge with its hierarchy `span`:
  *   span = depth(from) + depth(to) − 2·lcaDepth(from, to)
  * i.e. the number of hierarchy hops the edge traverses (0 for siblings' parent,
@@ -242,17 +268,18 @@ export function widenedTunnelMetrics(realNodeIds: ReadonlySet<string>): {
 }
 
 /**
- * Rank edges by hierarchy span, widest first, ties broken by (from, to) —
- * the SAME ranking both `yg structure` and the portal's structure panel apply
- * before slicing to `TOP_TUNNELS`, so the two surfaces can never compute the
- * tunnels ranking two different ways.
+ * The tunnels among `edges` — every edge but one between siblings
+ * ({@link isSiblingEdge}) — ranked by hierarchy span, widest first, ties broken by (from, to): the SAME
+ * selection and ranking both `yg structure` and the portal's structure panel
+ * apply before slicing to `TOP_TUNNELS`, so the two surfaces can never compute
+ * the tunnels two different ways. `yg advise` counts the same selection.
  */
 export function rankTunnels(
   edges: StructEdge[],
   depthOf: (id: string) => number,
   lcaDepth: (a: string, b: string) => number,
 ): Array<StructEdge & { span: number }> {
-  const spanned = tunnelSpans(edges, depthOf, lcaDepth);
+  const spanned = tunnelSpans(edges, depthOf, lcaDepth).filter((e) => !isSiblingEdge(e));
   return [...spanned].sort((a, b) => {
     if (b.span !== a.span) return b.span - a.span;
     if (a.from !== b.from) return a.from < b.from ? -1 : 1;

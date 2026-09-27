@@ -1,6 +1,6 @@
 # Glossary
 
-<!-- Generated from source/cli/src/templates/portal/js/glossary.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->
+<!-- Generated from source/cli/src/templates/portal/js/glossary-entries.js and glossary-entries-rest.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->
 
 Each word here has one meaning, the same in these docs, in `yg prime`, in `yg knowledge`, in the CLI output and in the portal. Where an older word meant the same thing, it is listed as not used, so you can map it when you meet it in an old note.
 
@@ -35,6 +35,12 @@ More: [Relations, Flows & Ports](/relations-flows-ports).
 A business process that spans several nodes — “place an order”. A rule attached to a flow reaches every node in it.
 
 More: [Relations, Flows & Ports](/relations-flows-ports).
+
+### port (graph element) {#named-port}
+
+A named entry to a node, declared under `ports:` with the rules it carries; a relation that names it in `portNames:` enters through it and takes those rules on. Every node also has the implicit `default` port. `yg structure` says a dependency goes through a named port when a relation between the two names one other than `default`.
+
+More: [Relations, Flows & Ports](/relations-flows-ports#ports).
 
 ## Rules
 
@@ -194,6 +200,24 @@ The rule was checked against the current code and it passed. The only green.
 
 No verdict matches the current code yet — it changed, or it was never checked. Not a pass — just “we don’t know”.
 
+### stale {#stale}
+
+An unverified pair that has a verdict, recorded over inputs that have since changed. The report calls it unverified, with cause `stale`; the JSON counts it apart from the pairs never judged, so the unverified pairs are `totals.verdicts.unverified` plus `totals.verdicts.stale`.
+
+Machine token: `stale` — `verdict` in the JSON `pairs[]` and `totals.verdicts`, `cause` on an `unverified` finding.
+
+### finding {#finding}
+
+One thing a check reports — about a node, a pair, a file or a repository fact. The error and warning counts on the verdict line count findings, as `totals` in the JSON does.
+
+More: [CLI Reference](/cli-reference#yg-check).
+
+### block {#block}
+
+Findings the report prints together, under one heading with one `why:` and one `fix:`. Where the two numbers differ, the verdict line says how many blocks hold the findings (`5 errors in 2 blocks`).
+
+More: [CLI Reference](/cli-reference#yg-check).
+
 ### warning {#warning}
 
 An advisory rule flagged this. It does not block — it is signal worth a look, not a failure.
@@ -216,7 +240,7 @@ Not called: drill into (for yg check --aspect). More: [CLI Reference](/cli-refer
 
 ### covered {#covered}
 
-The graph accounts for the file: it is node-owned, type-covered or excluded. Covered says nothing about whether a rule checks it.
+A node or a type answers for the file: it is node-owned or type-covered. `yg check` counts covered files out of the files not excluded, and names the excluded ones beside them (`3/5 files covered · 4 excluded`); the JSON field `coverage.covered` keeps an older, wider count that adds the excluded files. Covered says nothing about whether a rule checks it.
 
 More: [Configuration](/configuration#coverage-config).
 

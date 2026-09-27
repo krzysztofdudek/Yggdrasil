@@ -205,12 +205,14 @@ export interface PortalNode {
    */
   checked: boolean;
   /**
-   * The file-aware loop signal: true when this node's mapped source has changed since its
-   * last positive closure (its current source fingerprint differs from the committed lock
-   * fingerprint), or it owns source and has never reached closure. A touched node is "we
-   * don't know" — its `state` is forced to `unverified` and the whole-repo cached green can
-   * NEVER render it as a pass. This is computed even for a no-rule node that owns source: a
-   * node with no aspects still reads unverified after an edit, never green.
+   * The file-aware loop signal: true when a log_required node's mapped source has changed
+   * since its committed baseline (its current source fingerprint differs from the lock's
+   * fingerprint — see portal/api/freshness.ts for what a baseline attests). A touched node
+   * is "we don't know" — its `state` is forced to `unverified` and the whole-repo cached
+   * green can NEVER render it as a pass. This is computed even for a no-rule node that owns
+   * source: a node with no aspects still reads unverified after an edit, never green. False
+   * claims nothing: a node with no baseline, or of a type that is not log_required, is never
+   * marked, and its `state` comes from its pairs alone.
    */
   fresh: boolean;
   state: PortalState;
@@ -404,8 +406,9 @@ export interface PortalSuppression {
  * Portal-local freshness marker — the producer/consumer seam for the file-aware loop. The
  * facade PRODUCES one per node by comparing each node's current source fingerprint against
  * the committed lock fingerprint; `buildPortalNodes` in the pipeline CONSUMES it to force a
- * touched node's state to unverified. `sourceChanged: true` means the node's mapped bytes
- * differ from what last reached positive closure (or it owns source and has no baseline yet).
+ * touched node's state to unverified. `sourceChanged: true` means a log_required node's mapped
+ * bytes differ from its committed baseline (see portal/api/freshness.ts for what a baseline
+ * attests). A node with no baseline, or of a type that is not log_required, is never marked.
  */
 export interface FreshnessMarkerInput {
   nodePath: string;
@@ -611,8 +614,9 @@ export interface PortalResidue {
 /**
  * One entry in the structure panel's "tunnels" list — a structural dependency ranked by how far
  * it reaches across the component hierarchy. `span` is the number of hierarchy hops the edge
- * traverses (0 for an edge between siblings' shared parent, larger for edges that reach across
- * distant subtrees). `viaContract` is true when a declared port contract backs the edge; `origin`
+ * traverses (an edge between siblings spans 2 and is not listed — it crosses one boundary; larger
+ * spans reach across distant subtrees). `viaContract` is true when a relation between the two names a
+ * port other than the implicit `default` one (the panel says "through a named port"); `origin`
  * records whether the pair is declared-only, statically-detected-only, or both. Plain data only —
  * the frontend renders `span` in words ("spans N levels across the tree"), never as jargon.
  */

@@ -16,6 +16,7 @@ import { RETIRED_ASPECT_KEYS } from '../io/aspect-parser.js';
 import { RETIRED_QUALITY_KEYS, RETIRED_TIER_CONFIG_KEYS } from '../io/config-parser.js';
 import { FILL_DIVERGENCE_GITIGNORE_LINE, RUN_LOCK_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
+import { REFUSED_GITIGNORE_LINE } from '../io/refused-store.js';
 
 // ---------------------------------------------------------------------------
 // .gitattributes — mark the committed lock as generated
@@ -250,6 +251,7 @@ export async function ensureMergeDrivers(projectRoot: string, cliPath?: string):
  *    - `.type-class-cache/` — the type-level classification lattice's path-and-content-keyed cache
  *    - `.debug.log`       — the opt-in command debug log
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
+ *    - `.refused/`        — the fill stage's store of refused content, keyed by verdict hash
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
  *    - `.yg-packages-versions.json` — what each installed package's source was last seen to publish
@@ -277,6 +279,11 @@ export const YGGDRASIL_GITIGNORE_LINES = [
   // looks for, matching both the divergence dump's pattern below and what
   // `yg knowledge read configuration` states is ignored.
   '.yg-events.jsonl*',
+  // Refused-content store: the bytes and reason of every refusal a fill records,
+  // one JSON file per verdict hash (io/refused-store). Local and write-only, never
+  // committed; the writer skips it where this line is missing, since a fill never
+  // edits a tracked .gitignore.
+  REFUSED_GITIGNORE_LINE,
   // Convergence-sentinel evidence dump: local, best-effort forensic log written
   // only when the fill detects a 0-fill divergence; never committed. The trailing
   // `*` also covers the single `.1` rotation. Pattern shared with the writer

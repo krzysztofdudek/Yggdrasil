@@ -90,7 +90,7 @@ siblings), proving the architecture does not pre-satisfy itself. Step 2
 fills all six for free; step 3 reproduces:
 
 ```
-yg check: PASS  2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 6 pairs verified (script)
+yg check: PASS  2 nodes · 8/8 files covered (2 node-owned · 6 type-covered) · 5 excluded · 6 pairs verified (script)
 ```
 
 The per-type listing is off by default; `--coverage` adds it under the same header:
@@ -98,7 +98,7 @@ The per-type listing is off by default; `--coverage` adds it under the same head
 ```
 $ node ../../source/cli/dist/bin.js check --coverage
 
-yg check: PASS  2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 6 pairs verified (script)
+yg check: PASS  2 nodes · 8/8 files covered (2 node-owned · 6 type-covered) · 5 excluded · 6 pairs verified (script)
 
 Type coverage:
   'handler' — 3 files covered: src/handlers/capturePayment.ts, src/handlers/reviewCart.ts, src/handlers/scheduleFulfillment.ts
@@ -169,7 +169,7 @@ node ../../source/cli/dist/bin.js check
 The file is refused anyway:
 
 ```
-yg check: FAIL  1 error   2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 5 pairs verified (script)
+yg check: FAIL  1 error   2 nodes · 8/8 files covered (2 node-owned · 6 type-covered) · 5 excluded · 5 pairs verified (script)
 
 error[refused] validates-input — 1 violation in src/handlers/capturePayment.ts
   at:   src/handlers/capturePayment.ts  src/handlers/capturePayment.ts:1  Handler does not validate its input: call validate(req.body, [...]) before acting on it.

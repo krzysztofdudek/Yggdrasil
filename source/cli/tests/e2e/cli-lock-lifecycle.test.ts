@@ -398,7 +398,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // ...but --quiet suppressed the writer's report of it — the summary text
       // must not leak into stdout or stderr just because something was pruned.
       expect(refill.all).not.toContain('Pruned');
-      expect(refill.all).not.toContain('stale verdict');
+      expect(refill.all).not.toContain('no longer expected');
       expect(refill.all).not.toContain('extra-rule');
     } finally {
       rmSync(dir, { recursive: true, force: true });

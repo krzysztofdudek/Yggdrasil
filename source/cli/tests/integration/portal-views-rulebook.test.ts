@@ -44,6 +44,8 @@ const REPO_ROOT = path.resolve(CLI_ROOT, '../..');
 const MODULES = [
   'namespace.js',
   'state-model.js',
+  'glossary-entries.js',
+  'glossary-entries-rest.js',
   'glossary.js',
   'router.js',
   'palette.js',

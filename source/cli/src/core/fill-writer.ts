@@ -31,6 +31,9 @@ import type { ExpectedPair } from './pairs.js';
 import { acquireApproveLock, LockEnvironmentError, onInterruptFlushLock, writeLock, writeLockSync } from '../io/lock-store.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
+import { REFUSED_DIRNAME, storeRefusedContent } from '../io/refused-store.js';
+import { isFileGitignored } from '../io/repo-scanner.js';
+import path from 'node:path';
 import { PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import { toPosixPath } from '../utils/posix.js';
 import { count } from '../utils/count.js';
@@ -144,6 +147,26 @@ export function createVerdictWriter(params: {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const anyDirty = (): boolean => dirty.nondet || dirty.logs || dirty.det;
+
+  // ── Refused-content store (io/refused-store.ts): local, write-only, keyed by
+  // the verdict's hash. Written only where its directory is already gitignored —
+  // a fill never edits a tracked .gitignore — which is asked once per run.
+  const projectRoot = path.dirname(graph.rootPath);
+  let refusedStoreEnabled: Promise<boolean> | undefined;
+  const storeRefusal = async (pair: ExpectedPair, entry: VerdictEntry): Promise<void> => {
+    if (entry.verdict !== 'refused') return;
+    refusedStoreEnabled ??= isFileGitignored(projectRoot, `${path.basename(graph.rootPath)}/${REFUSED_DIRNAME}/x.json`).catch(() => false);
+    storeRefusedContent(graph.rootPath, projectRoot, {
+      hash: entry.hash,
+      ts: new Date(now()).toISOString(),
+      ...(sha !== undefined ? { sha } : {}),
+      aspectId: pair.aspectId,
+      unitKey: pair.unitKey,
+      kind: pair.kind,
+      reason: entry.reason ?? '',
+      subjectFiles: pair.subjectFiles,
+    }, await refusedStoreEnabled);
+  };
 
   const runFlush = (): Promise<boolean> => {
     const target = gen;
@@ -263,6 +286,7 @@ export function createVerdictWriter(params: {
       votes,
       judge,
     }));
+    await storeRefusal(pair, entry);
     if (pair.kind !== 'deterministic') {
       // A paid verdict: flush now and hold the pool slot until it is on disk,
       // so a kill loses at most the verdicts of the flush in flight. A failed

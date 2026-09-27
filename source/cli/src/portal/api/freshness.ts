@@ -8,10 +8,22 @@ import type { FreshnessMarkerInput } from '../contract.js';
  * honesty heartbeat), behind the portal facade.
  *
  * For every log_required node that carries a COMMITTED source baseline
- * (`lock.nodes[path].source`, written at positive closure), compare its current
- * mapped-source fingerprint — the SAME fold `yg check` uses — against that baseline.
- * `sourceChanged: true` when they differ: the node's bytes changed since the reviewer
- * last saw them, so it reads "we don't know", never a pass.
+ * (`lock.nodes[path].source`), compare its current mapped-source fingerprint — the
+ * SAME fold `yg check` uses — against that baseline. `sourceChanged: true` when they
+ * differ: the node's bytes moved since the baseline the log gate measures against, so
+ * it reads "we don't know", never a pass.
+ *
+ * The baseline of a log_required node is written at positive closure, or it is one
+ * recorded before the node's type turned log_required: every full fill records every
+ * node's bytes whatever its verdicts say, so the first real change after the switch
+ * owes an entry and the switch itself owes none (the owner's ruling). Such a baseline
+ * attests no reading. It is used here anyway, and nothing needs its provenance: the
+ * marker only ever pushes a node DOWN to unverified, never up. `sourceChanged: false`
+ * is not a claim that the node is fresh or verified — the node's state still comes
+ * from its pairs, so a node switched while a pair was refused or unverified reads
+ * refused or unverified, exactly as `yg check` reports it. And when the bytes moved
+ * since that baseline, `yg check`'s log gate asks for an entry over the same
+ * comparison, so the marker and the gate agree.
  *
  * Honesty boundary — never over-fire: a node WITHOUT a committed baseline (`stored`
  * absent) is reported `sourceChanged: false`, and so is every node of a type

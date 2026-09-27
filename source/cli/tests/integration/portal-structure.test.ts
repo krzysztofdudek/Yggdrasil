@@ -90,8 +90,9 @@ describe('deriveStructure — a normal (above-floor) graph with a cross-tree dep
     'a/x/y': [{ target: 'b/p/q', type: 'uses' }], // span 6 — the deepest cross-tree tunnel
     'a/x': [{ target: 'b/p', type: 'calls', portNames: ['port'] }], // span 4, via a declared contract
   });
-  // Detected-only edge (the flattened seam shape): c → d.
-  const detected = [{ from: 'c', targets: ['d'] }];
+  // Detected-only edges (the flattened seam shape): c → b/p/q reaches across the
+  // tree; c → d joins two top-level siblings, which is an edge but no tunnel.
+  const detected = [{ from: 'c', targets: ['d', 'b/p/q'] }];
   const s: PortalStructure = deriveStructure(graph, detected);
 
   it('is not unknown and not small-N', () => {
@@ -101,8 +102,10 @@ describe('deriveStructure — a normal (above-floor) graph with a cross-tree dep
   });
 
   it('ranks tunnels widest-span first, in plain-data form', () => {
-    expect(s.edgeCount).toBe(3);
+    expect(s.edgeCount).toBe(4);
     expect(s.tunnels.length).toBe(3);
+    // Siblings cross one boundary: not a tunnel (issue 242).
+    expect(s.tunnels.find((t) => t.from === 'c' && t.to === 'd')).toBeUndefined();
     expect(s.tunnels[0].from).toBe('a/x/y');
     expect(s.tunnels[0].to).toBe('b/p/q');
     expect(s.tunnels[0].span).toBe(6);
@@ -116,7 +119,7 @@ describe('deriveStructure — a normal (above-floor) graph with a cross-tree dep
     const contractEdge = s.tunnels.find((t) => t.from === 'a/x' && t.to === 'b/p');
     expect(contractEdge?.viaContract).toBe(true);
     // The detected-only edge carries the detected origin.
-    const detectedEdge = s.tunnels.find((t) => t.from === 'c' && t.to === 'd');
+    const detectedEdge = s.tunnels.find((t) => t.from === 'c' && t.to === 'b/p/q');
     expect(detectedEdge?.origin).toBe('detected');
   });
 
