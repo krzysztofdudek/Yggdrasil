@@ -1,14 +1,16 @@
 name: PortalNoLockWriterImport
 description: >-
-  Portal backend files may not import, call, OR reference any lock-writing symbol
-  (writeLock / setEntry / persistEntry / runFill / saveLock / commitLock) by
-  imported name, namespace alias, or member access, and may not import the
-  persisting fill module (core/fill) wholesale. A member READ of a writer off a
-  lock-store namespace alias is itself a violation — binding it to a local
-  (const persist = store.writeLock) then calling the local is still an in-process
-  write, so the read, not just the call, is caught. The lock-store module itself is
-  NOT banned — readLock lives there — only its writer symbols are. The single
-  write in the whole portal is the out-of-process shelled Approve; the
+  Portal backend files may take from the lock-store module (io/lock-store) only
+  its named readers — readLock, readTypeLock, readDetLockAspectIds, readLegacyLock,
+  the lock path helpers, committedLockContentHash, the pure serializeLock, the
+  error classes and the option type — by import or by member read off a namespace
+  alias; any other binding from it (writeLock, writeLockSync, writeTypeLock,
+  acquireApproveLock, and any writer added later) is refused. Binding a writer to
+  a local then calling it is still an in-process write, so the member read, not
+  just the call, is caught. They may not import the persisting fill modules
+  (core/fill, core/fill-writer) at all, nor import or call a writer symbol
+  (writeLock, writeLockSync, setEntry, runFill) by name from any module. The
+  single write in the whole portal is the out-of-process shelled Approve; the
   non-persisting fillDetPair (core/fill-det) is allowed. AST-based.
 errs: under
 status: enforced
