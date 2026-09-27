@@ -38,13 +38,13 @@ deterministic.
 
 ```bash
 cd examples/layered-architecture
-yg check          # PASS — 3 nodes · 8/8 files · 0 aspects
+yg check          # PASS — 3 nodes · 8/8 files covered
 ```
 
 Expected output:
 
 ```
-yg check: PASS  3 nodes · 8/8 files · 0 aspects · 0 flows
+yg check: PASS  3 nodes · 8/8 files covered
 ```
 
 ## The one edit that BREAKS it
@@ -69,17 +69,16 @@ export function getRide(req: HttpRequest): HttpResponse {
 Run `yg check` again and it refuses — live, with no key and no lock:
 
 ```
-yg check: FAIL  3 nodes · 8/8 files · 0 aspects · 0 flows
+yg check: FAIL  1 error   3 nodes · 8/8 files covered
 
-Errors (1):
+error[relation-undeclared-dependency] Node 'web' has undeclared dependencies on other nodes
+  at:   web
+          src/web/rideHandler.ts:5 → data
+  why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
+  fix:  No relation can be declared for this dependency: remove it, or ask the user to approve an architecture change:
+        data: no relation type is allowed from handler to repository that sanctions an import (only uses, calls, extends and implements do), so none can be declared. Remove the dependency, or ask the user to approve an architecture change — a different node type, or a new allowed relation in .yggdrasil/yg-architecture.yaml.
 
-  relation-undeclared-dependency  1 pairs  1 nodes
-            A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
-            Fix: Declare the missing relation(s) in .yggdrasil/model/web/yg-node.yaml (or remove the dependency if it is not legitimate):
-            data: no relation type is allowed from handler to repository; either change a node's type or update the allowed relations in .yggdrasil/yg-architecture.yaml (requires confirming the architecture change).
-            - web  src/web/rideHandler.ts:5 → data
-
-Next: Fix relation-undeclared-dependency in web
+next: edit src/web/rideHandler.ts:5
 ```
 
 The architecture forbids **any** relation from `handler` to `repository`, so

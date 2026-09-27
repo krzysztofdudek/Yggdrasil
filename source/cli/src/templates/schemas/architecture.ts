@@ -14,11 +14,11 @@ export const content = `# yg-architecture.yaml — Schema for architecture const
 # dropping the type system or the constraint it stated.
 
 node_types:
-  <type-id>:
-    description: <string>                    # required — what this type is for, when to use it.
+  service:                                   # the type's name — what a node's type: names
+    description: "A deployable backend service"  # required — what this type is for, when to use it.
                                              # absence is a FATAL architecture-invalid error (the whole type system is rejected).
 
-    when: <file-predicate>                   # optional — per-file classification.
+    when: { path: "services/**" }            # optional — per-file classification (a file predicate).
                                              # Types WITH \`when\` are file-classifying: every file in
                                              # a node's mapping must satisfy the predicate (forward
                                              # check). Types WITHOUT \`when\` are organizational:
@@ -49,7 +49,7 @@ node_types:
                                              # so a strict type's files never coast on automatic
                                              # type coverage the way a non-strict type's files can.
 
-    log_required: <boolean>                  # optional — default false. Enable (true) on types whose
+    log_required: true                       # optional — default false. Enable (true) on types whose
                                              # changes carry business intent worth capturing — domain
                                              # logic, command handlers, persistence adapters. When true,
                                              # a node of this type demands a fresh log entry before
@@ -60,14 +60,14 @@ node_types:
 
     aspects:                                 # optional — aspects automatically applied to every
                                              # node of this type (channel 3). Two forms per entry:
-      - <aspect-id>                          #   bare string — unconditional
-      - id: <aspect-id>                      #   object form — with per-site applicability filter
+      - audit-logging                        #   bare string — unconditional
+      - id: pii-encryption                   #   object form — with per-site applicability filter
         status: enforced                     #   optional — explicit status override (channel 3).
                                              #   Must satisfy bump rule (bump up OK, downgrade is validator error).
-        when: <aspect-predicate>             #   optional — see yg schemas read aspect for grammar
+        when: { node: { has_mapping: true } }  # optional — a node predicate; yg schemas read aspect has the grammar
                                              # These also cascade to children (channel 4).
 
-    parents: [<type-id>, ...]                # optional — allowed parent node types in the hierarchy.
+    parents: [root, service]                 # optional — allowed parent node types in the hierarchy.
                                              # Absent: a node of this type may sit anywhere. Present:
                                              # only under a listed type; the reserved entry 'root'
                                              # allows the top level of model/ as well.
@@ -87,6 +87,6 @@ node_types:
       #   { default: deny }                       → pure sink
       #   { default: deny, listens: ['*'] }       → sink that may listen to anything
       #   { default: allow, uses: [] }            → everything open except \`uses\`
-      uses: [<target-type>, ...]
+      uses: [service]
       default: allow
 `;

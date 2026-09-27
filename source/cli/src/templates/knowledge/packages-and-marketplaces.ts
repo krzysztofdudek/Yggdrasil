@@ -1,3 +1,5 @@
+import { GRAPHLESS_SCRIPT_CTX } from './shared-text.js';
+
 // CANONICAL. This topic is the source of truth for how a package is authored,
 // extracted and maintained. `docs/packages.md` carries the same substance under
 // "Authoring a package" for a reader with a browser and no terminal.
@@ -259,11 +261,8 @@ case and runs as none).
 repository to run it in, and a marketplace has no graph — which is the whole
 reason this command does not load one. It checks that the cases are there and
 shaped the way the runner recognises. To watch them actually pass, install the
-package in a repository that has a graph and run \`yg drill --aspect <id>\`. A
-drill hands your rule the case files as \`ctx.files\` and \`ctx.subject\`, and its
-settings — your defaults, with that repository's adaptation over them — as
-\`ctx.config\`; a rule that reads the rest of the graph context (\`ctx.node\`,
-\`ctx.graph\`, \`ctx.fs\`, the parsers) is reported as unsupported by a drill.
+package in a repository that has a graph and run \`yg drill --aspect <id>\`.
+${GRAPHLESS_SCRIPT_CTX}
 
 ## What packages deliberately are not
 

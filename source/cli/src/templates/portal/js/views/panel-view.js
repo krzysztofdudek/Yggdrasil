@@ -278,7 +278,7 @@
     } else {
       // A no-rule node — link to the Type Model so "nothing here" is never terminal.
       var noRule = section('No effective rule here');
-      var p = dom.el('p', 'pan-norule', 'Nothing is checking this node — unguarded, not approved. ');
+      var p = dom.el('p', 'pan-norule', 'Nothing is checking this node — unguarded, not verified. ');
       var link = dom.el('button', 'pan-norule-link');
       link.type = 'button';
       link.textContent = "see what its type could enforce →";

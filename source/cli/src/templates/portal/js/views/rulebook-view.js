@@ -23,7 +23,7 @@
   var dom = Yg.dom;
   Yg.views = Yg.views || {};
 
-  /** A kind badge (LLM / deterministic / aggregating) — presentation only, never a verdict. */
+  /** A kind badge (reviewer rule / script rule / bundle) — presentation only, never a verdict. */
   function kindBadge(kind) {
     var label = kind === 'llm' ? 'reviewer rule' : kind === 'aggregate' ? 'bundle' : 'script rule';
     return dom.el('span', 'rb-badge rb-badge-' + kind, label);
@@ -142,7 +142,7 @@
     var aspects = (data.aspects || []).slice();
     var selectedId = route && route.aspect ? route.aspect : null;
 
-    stage.appendChild(dom.el('p', 'view-lead', 'Every rule the code must satisfy — the rulebook. A green tally means a reviewer actually checked those units; a bundle judges nothing of its own, and a rule with no expected units verifies nothing. Absence of red is not a pass. Click a rule to see every node it lands on.'));
+    stage.appendChild(dom.el('p', 'view-lead', 'Every rule the code must satisfy — the rulebook. A green tally means those units were actually checked and passed — by the rule\'s own script for a script rule, by the reviewer for a reviewer rule; a bundle judges nothing of its own, and a rule with no expected units verifies nothing. Absence of red is not a pass. Click a rule to see every node it lands on.'));
     stage.appendChild(dom.el('div', 'rb-sub', counts(aspects)));
 
     var table = dom.el('table', 'rb-table');

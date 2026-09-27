@@ -137,3 +137,22 @@ describe('the packages-and-marketplaces topic', () => {
     expect(stdout).toContain('package-config-undeclared');
   });
 });
+
+describe('knowledge topic aliases (the Glossary words)', () => {
+  it('writing-reviewer-rules and writing-script-rules read the same topics as the old ids', () => {
+    const reviewer = captureOutput(() => readKnowledge('writing-reviewer-rules'));
+    const llm = captureOutput(() => readKnowledge('writing-llm-aspects'));
+    expect(reviewer.exitCode).toBeNull();
+    expect(reviewer.stdout).toBe(llm.stdout);
+    const script = captureOutput(() => readKnowledge('writing-script-rules'));
+    const det = captureOutput(() => readKnowledge('writing-deterministic-aspects'));
+    expect(script.exitCode).toBeNull();
+    expect(script.stdout).toBe(det.stdout);
+  });
+
+  it('the list names each alias beside its topic', () => {
+    const { stdout } = captureOutput(() => listKnowledge());
+    expect(stdout).toMatch(/writing-llm-aspects.*\(also: writing-reviewer-rules\)/);
+    expect(stdout).toMatch(/writing-deterministic-aspects.*\(also: writing-script-rules\)/);
+  });
+});

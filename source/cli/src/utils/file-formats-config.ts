@@ -7,14 +7,14 @@
  * schema drives.
  */
 
-import { KNOWN_PROVIDERS } from './known-providers.js';
-import type { Field, FileFormatSchema, ObjectType } from './file-schema.js';
+import { KNOWN_PROVIDERS, PROVIDER_DEFAULT_MODELS, providersWithDefaultModel } from './known-providers.js';
+import type { Field, FieldType, FileFormatSchema, ObjectType } from './file-schema.js';
 
 /** A tier's `config:` — the provider settings. */
 export const TIER_CONFIG: ObjectType = {
   kind: 'object',
   fields: {
-    model: { type: { kind: 'string', nonEmpty: true }, required: 'yes, except for claude-code, codex and gemini-cli', description: 'The provider\'s model identifier.' },
+    model: { type: { kind: 'string', nonEmpty: true }, required: `yes, except for ${providersWithDefaultModel()}`, description: `The provider's model identifier; when it is absent, ${Object.entries(PROVIDER_DEFAULT_MODELS).map(([p, m]) => `${p} uses ${m}`).join(', ')}.` },
     endpoint: { type: { kind: 'string' }, required: 'yes, for openai-compatible', description: 'The API endpoint URL (ollama defaults to `http://localhost:11434`).' },
     temperature: { type: { kind: 'number', min: 0 }, description: 'Sampling temperature; the CLI providers ignore it.', default: '0' },
     timeout: { type: { kind: 'number' }, description: 'Per-call timeout in seconds, a positive number.', default: '300 for the CLI providers and ollama, 60 for the hosted APIs' },
@@ -62,7 +62,7 @@ export const CONFIG_COVERAGE: ObjectType = {
   kind: 'object',
   fields: {
     required: { type: { kind: 'list', of: { kind: 'string' } }, description: 'Repository-relative roots every file under which must be covered.', default: '["/"]' },
-    excluded: { type: { kind: 'list', of: { kind: 'string' } }, description: 'Roots no coverage is asked of.', default: '[]' },
+    excluded: { type: { kind: 'list', of: { kind: 'string' } }, description: 'Roots removed from every check, not only from coverage: an excluded file gets no coverage finding, no review pair, no type classification and no rule read, even when a node\'s mapping names it. A subtree with its own nested .yggdrasil/ or its own .git is excluded the same way.', default: '[]' },
     type_level: { type: { kind: 'boolean' }, description: 'Enforce per: file rules of classifying types on files no node maps. Read from the committed file only.', default: 'false' },
   },
 };
@@ -118,7 +118,7 @@ export const CONFIG_ROOT: ObjectType = {
     reviewer: { type: CONFIG_REVIEWER, required: 'once a reviewer rule is in effect', description: 'The reviewer tiers reviewer rules are judged by.' },
     parallel: { type: { kind: 'integer', min: 1 }, description: 'Reviewer-rule pairs reviewed at once.', default: '1' },
     debug: { type: { kind: 'boolean' }, description: 'Append all CLI output to .yggdrasil/.debug.log.', default: 'false' },
-    auto_approve: { type: { kind: 'oneOf', of: [{ kind: 'boolean' }, { kind: 'string', values: ['deterministic', 'full'] }] }, description: 'What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI).', default: 'false' },
+    auto_approve: { type: { kind: 'oneOf', of: [{ kind: 'boolean', only: false }, { kind: 'string', values: ['deterministic', 'full'] }] }, description: 'What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI).', default: 'false' },
     signals: { type: CONFIG_SIGNALS, description: 'Attention-layer switches.' },
     events: { type: CONFIG_EVENTS, description: 'The committed-events opt-in.' },
     coverage: { type: CONFIG_COVERAGE, description: 'Which files must be mapped to a node.' },
@@ -144,16 +144,38 @@ export const SECRETS_FORMAT: FileFormatSchema = {
   name: 'secrets',
   file: '.yggdrasil/yg-secrets.yaml',
   summary: 'Local overlay of yg-config.yaml (gitignored) — most often a tier\'s api_key, model or endpoint.',
-  root: {
-    ...CONFIG_ROOT,
-    fields: Object.fromEntries(Object.entries(CONFIG_ROOT.fields).map(([key, field]): [string, Field] => [key, optional(field)])),
-  },
+  root: optionalObject(CONFIG_ROOT),
 };
 
-/** The field, with nothing required of it: an overlay sets only what it changes. */
+/**
+ * The object, with nothing required of it at any depth: an overlay sets only
+ * what it changes, so a tier's provider, consensus and config are as optional
+ * in yg-secrets.yaml as the top-level blocks — the deep merge supplies the rest
+ * from yg-config.yaml, and the merged result is what is held to the schema.
+ */
+function optionalObject(type: ObjectType): ObjectType {
+  return { ...type, fields: Object.fromEntries(Object.entries(type.fields).map(([key, field]): [string, Field] => [key, optional(field)])) };
+}
+
+function optionalType(type: FieldType): FieldType {
+  switch (type.kind) {
+    case 'object':
+      return optionalObject(type);
+    case 'list':
+      return { ...type, of: optionalType(type.of) };
+    case 'map':
+      return { ...type, of: optionalType(type.of) };
+    case 'oneOf':
+      return { ...type, of: type.of.map(optionalType) };
+    default:
+      return type;
+  }
+}
+
+/** The field, with nothing required of it or of anything inside it. */
 function optional(field: Field): Field {
   return {
-    type: field.type,
+    type: optionalType(field.type),
     description: field.description,
     ...(field.default !== undefined && { default: field.default }),
     ...(field.tolerated !== undefined && { tolerated: field.tolerated }),

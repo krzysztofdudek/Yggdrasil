@@ -799,7 +799,7 @@ describe.skipIf(!distExists)('CLI E2E — raw-scan mandatory delimiter (F5) + in
       expect(fill.all).toContain('Malformed yg-suppress marker');
       expect(fill.all).toContain('src/services/orders.ts:');
       // NEVER misattributed to the aspect's check.
-      expect(fill.all).not.toContain('aspect-check-runtime-error');
+      expect(fill.all).not.toContain('check-failed-to-run');
       expect(fill.all).not.toContain('check.mjs');
     } finally {
       rmSync(dir, { recursive: true, force: true });

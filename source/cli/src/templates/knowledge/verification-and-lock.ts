@@ -1,4 +1,4 @@
-import { AUTO_APPROVE_READ_ONLY_CASES, RULE_SUPPORT_FILES } from './shared-text.js';
+import { AUTO_APPROVE_READ_ONLY_CASES, LOGS_LOCK_FILE_EXISTS, RULE_SUPPORT_FILES } from './shared-text.js';
 
 export const summary =
   'The verdict lock: format (v1), pairs/units, hash ingredients + exclusions + observation fold, relation conformance computed live (no cached relation verdict), caching policy (refusals final, three exits), merge procedure, garbage-collection, revert recipe, park-with-draft';
@@ -168,8 +168,7 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 - Empty section ⇒ no file. Each of the three split files is written ONLY when the
   sections it OWNS are non-empty; when they are all empty it is not written at all
   (an existing empty husk is removed). So a repo with no reviewer rules has no
-  \`yg-lock.nondeterministic.json\`, and one with no \`log_required\` node and no
-  \`log.md\` has no \`yg-lock.logs.json\`. The script-verdict file owns TWO sections,
+  \`yg-lock.nondeterministic.json\`. ${LOGS_LOCK_FILE_EXISTS} The script-verdict file owns TWO sections,
   so its test is wider — it is omitted only when its \`verdicts\` AND its \`aspects\`
   section are both empty. Since \`aspects\` records the status of EVERY rule in
   the graph, unfiltered by rule kind, a repo with zero script rules

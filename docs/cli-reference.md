@@ -2410,7 +2410,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `config-tier-unknown-key` | error · stops `--approve` | A tier, or a tier's config:, holds a key it does not accept — the setting it was meant to change stays at its default. | Rename the key to the one it is a typo of (the finding names it) or remove it. |
 | `config-tier-provider-missing` | error · stops `--approve` | A tier declares no provider:. | Add provider: with one of the known providers. |
 | `config-tier-provider-unknown` | error · stops `--approve` | A tier names a provider the CLI does not know how to call. | Use one of the providers the finding lists. |
-| `config-tier-config-missing` | error · stops `--approve` | A tier has no config: section. | Add config: { model: &lt;name&gt; } (claude-code alone takes no model). |
+| `config-tier-config-missing` | error · stops `--approve` | A tier has no config: section, or its config: names no model: and its provider has no model of its own to fall back to. | Add config: { model: &lt;name&gt; } (only claude-code, codex and gemini-cli fall back to a model of their own). |
 | `config-tier-config-not-mapping` | error · stops `--approve` | A tier's config: is not a mapping. | Write config: as a mapping of provider settings. |
 | `config-tier-config-invalid` | error · stops `--approve` | A value in a tier's config: has the wrong type (a model that is not a string, a timeout that is not a number). | Set the value the finding names to the type it asks for. |
 | `config-tier-consensus-invalid` | error · stops `--approve` | A tier's consensus is missing, not a positive integer, or even — an even vote cannot break a tie. | Set consensus: 1, or an odd number of 3 or more for a majority vote. |
@@ -2432,7 +2432,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-status-invalid` | error | A declared status: is not one of draft, advisory, enforced. | Set status: to draft, advisory or enforced. |
 | `aspect-review-by-malformed` | error | A rule's review_by: is present but not a calendar-valid bare YYYY-MM-DD date (2027-13-01, 2027-02-30). Fired only on the rule that carries the field. | Write review_by: as a real YYYY-MM-DD date — with the user's approval, since the date is theirs. |
 | `aspect-errs-invalid` | error | errs: is not one of over, under, exact, or is declared on a rule that is not a script rule. | Set errs to over, under or exact on a script rule, or remove it. |
-| `aspect-scope-invalid` | error | scope: is not a mapping, or its per:/files: do not have the accepted form. | Write scope: { per: node\|file, files: [&lt;glob&gt;] }; yg schemas read aspect gives the shape. |
+| `aspect-scope-invalid` | error | scope: is not a mapping, or its per:/files: do not have the accepted form. | Write scope: { per: node\|file, files: &lt;file predicate&gt; } — a file predicate is path:/content: atoms, combined with all_of/any_of/not; yg schemas read aspect gives the shape. |
 | `aspect-scope-on-aggregate` | error | A bundle (no content.md, no check.mjs) declares scope:, which only a rule with a rule source can use. | Remove scope:, or add content.md or check.mjs to make the bundle a rule. |
 | `aspect-when-invalid` | error | A rule's own when:, or the when: of one of its implies entries, does not parse. | Correct the predicate; yg knowledge read conditional-aspects gives the grammar. |
 | `aspect-implies-not-array` | error | implies: is not a list. | Write implies: as a list of rule ids (or { id, when, status_inherit } entries). |
@@ -2474,7 +2474,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-implies-outside-package` | error | A rule of a package implies a rule that package does not carry. | As the package author, imply only the package's own rules. |
 | `aspect-adapt-invalid` | error | An installed rule's adaptation file (yg-aspect.adapt.yaml) is not valid YAML. | Fix the YAML syntax in the adaptation file. |
 | `aspect-adapt-not-mapping` | error | An adaptation file is not a mapping. | Write the adaptation as a YAML mapping, e.g. status: advisory. |
-| `aspect-adapt-key-not-adaptable` | error | An adaptation sets a key a package rule does not let a consumer change (its content, its check, its scope). | Remove the key; the finding lists the adaptable keys. |
+| `aspect-adapt-key-not-adaptable` | error | An adaptation sets a key a package rule does not let a consumer change (name, description, implies, errs, when). | Remove the key; the adaptable keys are scope, reviewer, review_by, references, status, config, companion. |
 | `aspect-adapt-key-unknown` | error | An adaptation sets a key that is no key of an adaptation. | Remove or rename the key; the finding lists the adaptable keys. |
 | `aspect-adapt-config-not-mapping` | error | An adaptation's config: is not a mapping. | Write config: as a mapping of setting to value. |
 | `aspect-adapt-config-key-unknown` | error | An adaptation sets a config key the package does not declare for the rule. | Remove the key; the package's yg-package.yaml lists the settings it reads. |
@@ -2523,8 +2523,8 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-missing-rule-source` | error | A rule's declared reviewer.type has no matching rule source (llm without content.md, deterministic without check.mjs). | Add the rule source its type needs, or change reviewer.type. |
 | `aspect-both-rule-sources` | error | A rule ships both content.md and check.mjs. | Remove the rule source that does not match its kind. |
 | `aspect-empty` | error | A rule has no content.md, no check.mjs and no implies — it does nothing. | Add a rule source or implies:, or remove the rule. |
-| `aspect-companion-without-content` | error | A rule ships companion.mjs without content.md; a companion is an add-on to a reviewer rule. | Add content.md, or remove companion.mjs. |
-| `aspect-companion-with-check` | error | A rule ships companion.mjs beside check.mjs; companions apply to reviewer rules only. | Remove companion.mjs, or make the rule a reviewer rule. |
+| `aspect-companion-without-content` | error | A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) without content.md; a companion is an add-on to a reviewer rule. | Add content.md, or remove companion.mjs. |
+| `aspect-companion-with-check` | error | A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) beside check.mjs; companions apply to reviewer rules only. | Remove the companion, or make the rule a reviewer rule. |
 | `aspect-references-empty-array` | warning | A rule declares references: [] — an empty list that does nothing. | Fill the list, or remove the references: line. |
 | `aspect-reference-broken` | error | A references: entry names a file that does not exist. | Create the file, fix the path, or remove the entry. |
 | `aspect-reference-symlink` | error · stops `--approve` | A references: entry runs through a symbolic link; no fill runs until it is replaced by the file itself. | Reference the file itself instead of the link, or remove the entry. |
@@ -2534,7 +2534,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `implied-aspect-missing` | error | A rule implies a rule id that does not exist. | Create the implied rule, or remove it from implies:. |
 | `aspect-implies-cycle` | error · stops `--approve` | The implies: edges form a cycle, so effective rules cannot be resolved. | Remove one implies edge of the cycle. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade yields (raising is allowed, lowering is not). | Remove the lower status:, or lower the rule's own status (the user's decision). |
-| `aspect-status-changed-outside-cli` | warning | A rule's status changed since this machine's cache last saw it, and its own log records no reason; a full fill writes the bare fact into that log if nobody does. A fresh checkout (CI) has no earlier status to compare, so it never reports this. | yg log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
+| `aspect-status-changed-outside-cli` | warning | A rule's status changed since this machine's cache last saw it, and its own log does not record the change (its newest status entry names another status); a full fill writes the bare fact into that log if nobody does. A fresh checkout (CI) has no earlier status to compare, so it never reports this. | yg log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
 | `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero nodes after the full cascade and every when: — it looks enforced and verifies nothing. | Fix the attach sites or when:, or set status: draft until what it targets exists; for a per: node rule whose type has only type-covered files, give a file a node or make the rule per: file. |
 | `orphaned-aspect` | warning | A bundle, a draft rule, or a rule in a graph with no code yet is attached nowhere. | Attach it to a node, type or flow, or remove it. |
 | `aspect-review-overdue` | warning | A rule's review_by: date has passed — it is running unreviewed. Never blocks and never writes a verdict. | Ask the user to renew or retire the rule; never change the date yourself. |

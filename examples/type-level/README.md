@@ -90,7 +90,15 @@ siblings), proving the architecture does not pre-satisfy itself. Step 2
 fills all six for free; step 3 reproduces:
 
 ```
-yg check: PASS  2 nodes · 13/13 files (2 node-owned, 6 type-covered, 5 excluded) · 3 aspects · 0 flows · 6 verified (6 deterministic, 0 LLM)
+yg check: PASS  2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 6 pairs verified (script)
+```
+
+The per-type listing is off by default; `--coverage` adds it under the same header:
+
+```
+$ node ../../source/cli/dist/bin.js check --coverage
+
+yg check: PASS  2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 6 pairs verified (script)
 
 Type coverage:
   'handler' — 3 files covered: src/handlers/capturePayment.ts, src/handlers/reviewCart.ts, src/handlers/scheduleFulfillment.ts
@@ -119,8 +127,8 @@ plus everything else folded into type-level coverage:
 ```
 $ node ../../source/cli/dist/bin.js tree
 
-order-repository [repository] — Order data access — repository is enforce: strict, so this file needs an explicit component even though its rule would otherwise apply automatically
-refund-handler [admin-handler] — Admin-only refund step — its path also matches the ordinary handler type, so it needs a component of its own to say which one it actually is
+order-repository [repository] — Order data access — repository is enforce: strict, so this file needs an explicit component even though its rule would…
+refund-handler [admin-handler] — Admin-only refund step — its path also matches the ordinary handler type, so it needs a component of its own to say…
 
 6 type-covered files, with no component of their own: 3 checked by at least one rule, 3 with nothing that applies.
 ```
@@ -141,7 +149,10 @@ src/handlers/reviewCart.ts
 
     validates-input [enforced] — Every handler must validate its request body before acting on it
       read: .yggdrasil/aspects/validates-input/check.mjs
-  ...
+
+  Dependency conditions here are worked out from this file's own imports, not a declared relation: one resolved import satisfies uses/calls/extends/implements alike, and can never satisfy emits/listens/consumes_port — those always read false for a type-covered file.
+
+  next: to give this file a component of its own, add a yg-node.yaml mapping it, then run yg check --approve
 ```
 
 ## The value: a rule that reaches code nobody wrote a node for
@@ -158,13 +169,14 @@ node ../../source/cli/dist/bin.js check
 The file is refused anyway:
 
 ```
-Errors (1):
+yg check: FAIL  1 error   2 nodes · 13/13 files covered (2 node-owned · 6 type-covered · 5 excluded) · 5 pairs verified (script)
 
-  enforced  1 pairs  1 files  aspect 'validates-input'
-            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-            - src/handlers/capturePayment.ts  Violations:
-              src/handlers/capturePayment.ts:1: Handler does not validate its input: call validate(req.body, [...]) before acting on it.
+error[refused] validates-input — 1 violation in src/handlers/capturePayment.ts
+  at:   src/handlers/capturePayment.ts  src/handlers/capturePayment.ts:1  Handler does not validate its input: call validate(req.body, [...]) before acting on it.
+  why:  Every handler must validate its request body before acting on it
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
+
+next: edit src/handlers/capturePayment.ts:1
 ```
 
 Nobody had to write a node for `capturePayment.ts` first. The rule was
@@ -185,34 +197,29 @@ git mv .yggdrasil/model/refund-handler/yg-node.yaml .yggdrasil/model/refund-hand
 node ../../source/cli/dist/bin.js check
 ```
 
-Shown in full below, including a `Warnings` block the error text alone does
+Shown in full below, including a `warning` block the error text alone does
 not explain: with `refund-handler` gone, `elevated-audit` — the admin-only
 rule that node used to be the sole carrier of — no longer attaches to
 anything at all, admin or otherwise, so the machine also reports that a rule
 which still ships real code is now enforcing nowhere.
 
 ```
-Errors (1):
+yg check: FAIL  1 error · 1 warning   1 node · 12/13 files covered (1 node-owned · 6 type-covered · 5 excluded) · 4 pairs verified (script)
 
-  ambiguous-node-type
-            File 'src/handlers/admin/refundOrder.ts' matches 2 classifying types: admin-handler, handler.
-            Why: Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.
-            Fix: Two exits:
-              1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner.
-              2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.
-            Either exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.
+error[ambiguous-node-type] File 'src/handlers/admin/refundOrder.ts' matches 2 classifying types: admin-handler, handler
+  at:   src/handlers/admin/refundOrder.ts
+  why:  Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.
+  fix:  Two exits:
+        1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner.
+        2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.
+        Either exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.
 
-Warnings (1):
+warning[aspect-effective-nowhere] Aspect 'elevated-audit' has a rule source but is effective on zero nodes
+  at:   aspects/elevated-audit
+  why:  Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — a dead rule that looks enforced.
+  fix:  Check the attach sites and 'when' predicate (yg impact --aspect elevated-audit). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
 
-  aspect-effective-nowhere  1 pairs  1 nodes
-            Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
-            Fix: Check the attach sites and 'when' predicate (yg impact --aspect elevated-audit). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
-            - aspects/elevated-audit  Aspect 'elevated-audit' has a rule source but is effective on zero nodes.
-
-Next: Two exits:
-  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner.
-  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.
-Either exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.
+next: Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: admin-handler | handler>) — its pairs re-key under the owner
 ```
 
 Restore the node and check again to confirm green:
@@ -236,27 +243,23 @@ node ../../source/cli/dist/bin.js check
 
 Shown in full again: with `order-repository` gone, `parameterized-queries` —
 the rule that node used to be the sole carrier of — drops to enforcing
-nowhere too, the same `Warnings` block the ambiguous-file demo above prints,
+nowhere too, the same `warning` block the ambiguous-file demo above prints,
 this time naming a different aspect.
 
 ```
-Errors (1):
+yg check: FAIL  1 error · 1 warning   1 node · 12/13 files covered (1 node-owned · 6 type-covered · 5 excluded) · 5 pairs verified (script)
 
-  type-strict-orphan
-            File 'src/repositories/orderRepository.ts' satisfies when of type 'repository' (enforce: strict):
-              ✓ path matches "src/repositories/**/*.ts"
-            But file is not in any node's mapping.
-            Why: Type 'repository' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type 'repository'. Otherwise the file looks like a repository but bypasses repository-level enforcement.
-            Fix: Create yg-node.yaml with type: repository and add 'src/repositories/orderRepository.ts' to its mapping.
+error[type-strict-orphan] File 'src/repositories/orderRepository.ts' satisfies when of type 'repository' (enforce: strict)
+  at:   src/repositories/orderRepository.ts
+          ✓ path matches "src/repositories/**/*.ts"
+          But file is not in any node's mapping.
+  why:  Type 'repository' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type 'repository'. Otherwise the file looks like a repository but bypasses repository-level enforcement.
+  fix:  Create yg-node.yaml with type: repository and add 'src/repositories/orderRepository.ts' to its mapping.
 
-Warnings (1):
-
-  aspect-effective-nowhere  1 pairs  1 nodes
-            Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
-            Fix: Check the attach sites and 'when' predicate (yg impact --aspect parameterized-queries). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
-            - aspects/parameterized-queries  Aspect 'parameterized-queries' has a rule source but is effective on zero nodes.
-
-Next: Create yg-node.yaml with type: repository and add 'src/repositories/orderRepository.ts' to its mapping.
+warning[aspect-effective-nowhere] Aspect 'parameterized-queries' has a rule source but is effective on zero nodes
+  at:   aspects/parameterized-queries
+  why:  Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — a dead rule that looks enforced.
+  fix:  Check the attach sites and 'when' predicate (yg impact --aspect parameterized-queries). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.
 ```
 
 Restore it the same way and re-run `check` to confirm green:

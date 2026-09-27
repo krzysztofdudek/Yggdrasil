@@ -103,8 +103,8 @@
     labels.appendChild(key(
       'verified',
       c.verified,
-      'of ' + c.pairsLLM + ' LLM + ' + c.pairsDet + ' deterministic expected'
-        + ' (' + (c.verifiedDet || 0) + ' deterministic, ' + (c.verifiedLlm || 0) + ' LLM verified)',
+      'of ' + c.pairsLLM + ' reviewer-rule + ' + c.pairsDet + ' script-rule pairs expected'
+        + ' (' + (c.verifiedDet || 0) + ' verified by a script, ' + (c.verifiedLlm || 0) + ' by the reviewer)',
     ));
     labels.appendChild(key('refused', c.refused, 'enforced — blocks (== yg check)'));
     if (advisoryRefused > 0) labels.appendChild(key('warning', advisoryRefused, 'advisory refusal — does not block'));
@@ -162,7 +162,7 @@
       dom.el(
         'p',
         'cov-prov',
-        'Lock read at generation. Deterministic checks and the relation / architecture / mapping / strict-coverage validators are re-run live at generation; the deterministic cache is never trusted. Counts equal what yg check enforces.',
+        'Lock read at generation. Script rules and the relation / architecture / mapping / strict-coverage validators are re-run live at generation; the script-rule cache is never trusted. Counts equal what yg check enforces.',
       ),
     );
     stage.appendChild(ledger);

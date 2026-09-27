@@ -30,9 +30,11 @@ import {
   driftLine,
   parseStatusEntry,
   lastRecordedStatus,
-  findStatusDrift,
+  findUnrecordedStatusDrift,
   recordAspectStatuses,
 } from '../../../src/core/log/aspect-status.js';
+import { classifyAspectStatusDrift } from '../../../src/core/check-aspect-status.js';
+import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { AspectDef, Graph } from '../../../src/model/graph.js';
 import type { LockFile } from '../../../src/model/lock.js';
 
@@ -201,25 +203,25 @@ describe('noticing a standing that changed behind the tool’s back', () => {
     return lock;
   }
 
-  it('says nothing about a rule this checkout has never seen', () => {
+  it('says nothing about a rule this checkout has never seen', async () => {
     // There is no "from", so there is nothing to report and nothing to act on.
     const graph = graphOf(yggRoot, [aspect(ASPECT, 'advisory')]);
-    expect(findStatusDrift(graph, emptyLock())).toEqual([]);
+    expect(await findUnrecordedStatusDrift(graph, emptyLock())).toEqual([]);
   });
 
-  it('reports every rule whose standing differs from what it last saw, by name', () => {
+  it('reports every rule whose standing differs from what it last saw, by name', async () => {
     const graph = graphOf(yggRoot, [aspect('billing/refund-logged', 'draft'), aspect(ASPECT, 'enforced')]);
     const lock = lockRemembering({ 'billing/refund-logged': 'enforced', [ASPECT]: 'advisory' });
 
-    expect(findStatusDrift(graph, lock)).toEqual([
+    expect(await findUnrecordedStatusDrift(graph, lock)).toEqual([
       { aspectId: 'billing/charge-audited', from: 'advisory', to: 'enforced' },
       { aspectId: 'billing/refund-logged', from: 'enforced', to: 'draft' },
     ]);
   });
 
-  it('reports nothing when every remembered standing still holds', () => {
+  it('reports nothing when every remembered standing still holds', async () => {
     const graph = graphOf(yggRoot, [aspect(ASPECT, 'advisory')]);
-    expect(findStatusDrift(graph, lockRemembering({ [ASPECT]: 'advisory' }))).toEqual([]);
+    expect(await findUnrecordedStatusDrift(graph, lockRemembering({ [ASPECT]: 'advisory' }))).toEqual([]);
   });
 
   it('remembers a first sighting silently, writing nothing into the rule’s log', async () => {
@@ -268,6 +270,36 @@ describe('noticing a standing that changed behind the tool’s back', () => {
 
     const log = await readAspectLog(yggRoot, ASPECT);
     expect(log.ok && log.entries).toHaveLength(1);
+  });
+
+  it('does not report a change the rule’s log already records, on a checkout that has not filled since', async () => {
+    // The remembered standing lives in this checkout's gitignored cache, while
+    // the recorded change travels in the rule's committed log. A checkout that
+    // pulls both — the change and its entry — must not warn that the change
+    // went unrecorded: the report reads the log exactly as the recording run does.
+    const graph = graphOf(yggRoot, [aspect(ASPECT, 'enforced')]);
+    await appendAspectLogEntry({
+      yggRootPath: yggRoot,
+      aspectId: ASPECT,
+      reasonText: statusLine({ from: 'advisory', to: 'enforced', by: 'the maintainer', evidence: 'two quarters clean' }),
+      nowMs: NOW,
+    });
+    const issues: CheckIssue[] = [];
+    await classifyAspectStatusDrift(graph, lockRemembering({ [ASPECT]: 'advisory' }), issues);
+    expect(issues).toEqual([]);
+  });
+
+  it('still reports a change the rule’s log does not record', async () => {
+    const graph = graphOf(yggRoot, [aspect(ASPECT, 'enforced')]);
+    await appendAspectLogEntry({
+      yggRootPath: yggRoot,
+      aspectId: ASPECT,
+      reasonText: statusLine({ from: 'enforced', to: 'advisory', by: 'the maintainer', evidence: 'too noisy' }),
+      nowMs: NOW,
+    });
+    const issues: CheckIssue[] = [];
+    await classifyAspectStatusDrift(graph, lockRemembering({ [ASPECT]: 'advisory' }), issues);
+    expect(issues.map((i) => i.code)).toEqual(['aspect-status-changed-outside-cli']);
   });
 
   it('leaves the memory untouched when the change could not be written down', async () => {

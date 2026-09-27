@@ -344,7 +344,8 @@ record a refusal.
    files: yes — \`yg knowledge read configuration\`, \`rules_artifacts\`.
 4. Graph by hand per \`yg schemas read node|aspect|architecture\`: two nodes,
    one script rule, one OBVIOUS planted violation. Mapping entries
-   as file globs (see the C2 known-limitation note).
+   may be file globs or bare directories — both classify by the files
+   they own.
 5. \`git add -A && git commit\`. Then: \`yg check\` shows the pair as
    **unverified** — "the rule hasn't run yet; script rules
    run free" — and \`yg check --approve --only-deterministic\` surfaces the

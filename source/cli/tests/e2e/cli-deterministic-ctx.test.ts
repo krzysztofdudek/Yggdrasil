@@ -478,12 +478,12 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(test.all).toContain('Add a relation in yg-node.yaml');
 
       // The same boundary error blocks the fill (exit 1): the check crashed on the
-      // undeclared read, so its pair is classified aspect-check-runtime-error and
+      // undeclared read, so its pair is classified check-failed-to-run and
       // left unverified rather than recording a verdict.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       expect(fill.all).toContain('cross-read');
-      expect(fill.all).toContain('aspect-check-runtime-error');
+      expect(fill.all).toContain('check-failed-to-run');
       expect(fill.all).toContain("Aspect tried to read undeclared graph node 'services/payments'");
       // No verdict was written for the crashing pair.
       expect(lockVerdict(dir, 'cross-read', 'services/orders')).toBeUndefined();
@@ -507,14 +507,14 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(test.all).toContain('Add a relation in yg-node.yaml');
 
       // The same boundary error blocks the fill (exit 1): the check crashed on
-      // the undeclared read, so its pair is classified aspect-check-runtime-error
+      // the undeclared read, so its pair is classified check-failed-to-run
       // and left unverified. The remedy is a GRAPH change (declare the relation)
       // — there is nothing wrong with check.mjs, so the generic "fix check.mjs"
       // fallback must never be the printed NEXT step for this disposition.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       expect(fill.all).toContain('cross-fs-read');
-      expect(fill.all).toContain('aspect-check-runtime-error');
+      expect(fill.all).toContain('check-failed-to-run');
       expect(fill.all).toContain("Aspect tried to read undeclared path 'src/services/payments.ts'");
       expect(fill.all).toContain('Add a relation in yg-node.yaml to the node owning this path.');
       expect(fill.all).not.toContain('Fix the check.mjs, then re-run: yg check --approve');

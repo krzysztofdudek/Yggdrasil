@@ -100,3 +100,7 @@ A first-party provider now withholds its key from an endpoint named only in the 
 The committed-endpoint warning now also names an openai-compatible tier whose api_key from yg-secrets.yaml is withheld from an endpoint named only in the committed file, the case a committed switch of the provider used to leak a stored key through.
 ## [2026-09-27T17:05:44.986Z]
 The reviewer-credential findings are warnings only. The repository owner decided that a key in the committed yg-config.yaml, a tracked yg-secrets.yaml and a key sent to a committed endpoint are the owner's call: config-committed-api-key and secrets-file-tracked were blocking errors and are now warnings (and left the structural set), and reviewer-endpoint-committed no longer says the key is withheld — it says where the key goes. The key is always sent; the warnings only make it visible.
+## [2026-09-27T20:03:57.110Z]
+Messages for a rule whose files do not match its reviewer type said the rule has reviewer llm or deterministic, and told the user to change reviewer to a token. The config key is reviewer.type; the messages now name that key and say which rule kind each token means, as the Glossary maps them.
+## [2026-09-27T20:36:58.434Z]
+A companion named by the companion: key of yg-aspect.yaml was accepted on a script rule, a bundle and a rule without content.md, where it never runs, while a sibling companion.mjs is refused there. The owner ruled that the key is refused in the same places, so the rule-source check now treats the key as a companion and its messages name the key.

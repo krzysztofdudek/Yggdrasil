@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { symlinkOnPath } from '../../io/artifact-reader.js';
-import type { Graph, GraphNode, AspectStatus } from '../../model/graph.js';
+import type { Graph, GraphNode, AspectStatus, AspectDef } from '../../model/graph.js';
 import { STATUS_ORDER } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { statPath, fileExistsSync } from '../../io/graph-fs.js';
@@ -26,11 +26,27 @@ const CYCLE_NEXT = 'Run yg check to see the blocking aspect-implies-cycle error,
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
-function companionWithCheckIssue(aspectId: string): ValidationIssue {
+/**
+ * How a rule names its companion, for the messages: the `companion:` key of its
+ * yg-aspect.yaml (which takes the place of a sibling companion.mjs), else the
+ * sibling companion.mjs. Undefined when it has neither.
+ */
+function companionSource(aspect: AspectDef, hasCompanionMjs: boolean): { label: string; removal: string } | undefined {
+  if (aspect.companionPath !== undefined) {
+    return {
+      label: `companion: '${aspect.companionPath}'`,
+      removal: `the companion: key from .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml (or its yg-aspect.adapt.yaml)`,
+    };
+  }
+  if (hasCompanionMjs) return { label: 'companion.mjs', removal: `companion.mjs from .yggdrasil/aspects/${aspect.id}/` };
+  return undefined;
+}
+
+function companionWithCheckIssue(aspectId: string, companion: { label: string; removal: string }): ValidationIssue {
   const msgData: IssueMessage = {
-    what: `Aspect '${aspectId}' has companion.mjs together with check.mjs.`,
-    why: `companion.mjs is an add-on for reviewer rules only; it is incompatible with a script rule's check.mjs runner.`,
-    next: `Remove companion.mjs from .yggdrasil/aspects/${aspectId}/ or convert the aspect to a reviewer rule (replace check.mjs with content.md).`,
+    what: `Aspect '${aspectId}' has ${companion.label} together with check.mjs.`,
+    why: `A companion is an add-on for reviewer rules only; it is incompatible with a script rule's check.mjs runner.`,
+    next: `Remove ${companion.removal} or convert the aspect to a reviewer rule (replace check.mjs with content.md).`,
   };
   return {
     severity: 'error',
@@ -51,7 +67,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
     const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
     const hasContentMd = fileExistsSync(path.join(aspectDir, 'content.md'));
     const hasCheckMjs = fileExistsSync(path.join(aspectDir, 'check.mjs'));
-    const hasCompanionMjs = fileExistsSync(path.join(aspectDir, 'companion.mjs'));
+    const companion = companionSource(aspect, fileExistsSync(path.join(aspectDir, 'companion.mjs')));
 
     // Aggregating aspect: ships NEITHER content.md NOR check.mjs and only bundles
     // implied aspects. It carries no own reviewer or verdict.
@@ -67,12 +83,13 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
-      // companion.mjs is an LLM-only add-on; it is never valid on an aggregate.
-      if (hasCompanionMjs) {
+      // A companion (companion.mjs or the companion: key) is a reviewer-rule add-on;
+      // it is never valid on an aggregate.
+      if (companion !== undefined) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
-          why: `companion.mjs is an add-on for reviewer rules; it requires content.md as the primary rule source.`,
-          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
+          what: `Aspect '${aspect.id}' has ${companion.label} but no content.md.`,
+          why: `A companion is an add-on for reviewer rules; it requires content.md as the primary rule source.`,
+          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove ${companion.removal}.`,
         };
         issues.push({ severity: 'error', code: 'aspect-companion-without-content', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
@@ -100,19 +117,19 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       // Also flag the wrong file type for the declared reviewer
       const wrongTypeMsgData: IssueMessage = reviewer === 'llm'
         ? {
-            what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
+            what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but check.mjs is present.`,
             why: `A reviewer rule must not ship check.mjs (that's a script rule's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
+            next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs, or set reviewer.type to 'deterministic' to make it a script rule.`,
           }
         : {
-            what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
+            what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but content.md is present.`,
             why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
+            next: `Remove .yggdrasil/aspects/${aspect.id}/content.md, or set reviewer.type to 'llm' to make it a reviewer rule.`,
           };
       issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(wrongTypeMsgData), messageData: wrongTypeMsgData, aspectId: aspect.id });
       // companion+check is the more-specific conflict; emit it here before the continue.
-      if (hasCompanionMjs) {
-        issues.push(companionWithCheckIssue(aspect.id));
+      if (companion !== undefined) {
+        issues.push(companionWithCheckIssue(aspect.id, companion));
       }
       continue;
     }
@@ -120,7 +137,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
     if (reviewer === 'llm') {
       if (!hasContentMd) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer 'llm' but content.md is missing.`,
+          what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but content.md is missing.`,
           why: `A reviewer rule needs content.md as the rule definition the reviewer reads.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/content.md describing the rule.`,
         };
@@ -128,9 +145,9 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       }
       if (hasCheckMjs) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
+          what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but check.mjs is present.`,
           why: `A reviewer rule must not ship check.mjs (that's a script rule's input).`,
-          next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs, or set reviewer.type to 'deterministic' to make it a script rule.`,
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
@@ -138,7 +155,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       // reviewer === 'deterministic'
       if (!hasCheckMjs) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but check.mjs is missing.`,
+          what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but check.mjs is missing.`,
           why: `A script rule needs check.mjs as the rule definition the structure runner executes.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/check.mjs exporting a check function.`,
         };
@@ -146,9 +163,9 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       }
       if (hasContentMd) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
+          what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but content.md is present.`,
           why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
-          next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/content.md, or set reviewer.type to 'llm' to make it a reviewer rule.`,
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
@@ -157,14 +174,14 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
     // companion.mjs validation — checked after the main rule-source checks.
     // Precedence: companion+check is the more-specific code; when both apply,
     // emit ONLY aspect-companion-with-check (NOT also aspect-companion-without-content).
-    if (hasCompanionMjs) {
+    if (companion !== undefined) {
       if (hasCheckMjs) {
-        issues.push(companionWithCheckIssue(aspect.id));
+        issues.push(companionWithCheckIssue(aspect.id, companion));
       } else if (!hasContentMd) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
-          why: `companion.mjs is an add-on for reviewer rules; it requires content.md as the primary rule source.`,
-          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
+          what: `Aspect '${aspect.id}' has ${companion.label} but no content.md.`,
+          why: `A companion is an add-on for reviewer rules; it requires content.md as the primary rule source.`,
+          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove ${companion.removal}.`,
         };
         issues.push({ severity: 'error', code: 'aspect-companion-without-content', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }

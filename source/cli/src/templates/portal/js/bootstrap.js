@@ -125,7 +125,7 @@
             preview.reviewerCalls +
             ' reviewer call(s) (' +
             preview.deterministic +
-            ' free deterministic). Proceed?';
+            ' script-rule check(s), free). Proceed?';
           var ok = true;
           try {
             if (typeof window.confirm === 'function') ok = window.confirm(msg);
@@ -143,7 +143,7 @@
                 live = fresh;
                 rerender();
               }
-              shell.setFreshness('Approved · re-checked', '');
+              shell.setFreshness('Filled · re-checked', '');
             });
           });
         })

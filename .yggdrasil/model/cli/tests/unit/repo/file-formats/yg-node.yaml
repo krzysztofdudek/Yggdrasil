@@ -1,6 +1,6 @@
 name: File-Format and Machine-Document Guards
 type: test-suite
-description: "Guards that hold every surface describing a file format or a machine document to the one definition it is derived from. The file-format conformance test writes a full valid document of each of the ten YAML formats, parses it with the real parser, then for every field the schema declares writes a value of the wrong type — and for every closed block an unknown key — and requires the real parser to refuse it, so a schema cannot promise a check the parser does not make. The field-table test renders each format's table into the docs pages between their markers and fails on any difference. The YAML-examples test parses every yaml block of the docs and the knowledge topics that shows a graph, configuration or package file through that file's real parser, completing an excerpt with what its format requires and skipping grammar sketches. The JSON-contract test derives a JSON Schema for every yg-*/1 document from the TypeScript type its emitter is compiled against (and for the package documents from their file-format schemas), fails when a schema published with the docs differs, checks that its validator refuses what the schemas forbid, and requires every field any schema declares to be named on the family-contracts page or in the CLI reference."
+description: "Guards that hold every surface describing a file format or a machine document to the one definition it is derived from. The file-format conformance test writes a full valid document of each of the ten YAML formats, parses it with the real parser, then for every field the schema declares writes a value of the wrong type — and for every closed block an unknown key — and requires the real parser to refuse it, so a schema cannot promise a check the parser does not make. The field-table test renders each format's table into the docs pages between their markers and fails on any difference. The YAML-examples test parses every yaml block of the docs and the knowledge topics that shows a graph, configuration or package file through that file's real parser, completing an excerpt with what its format requires and skipping grammar sketches; the annotated example `yg schemas read` prints for every format is held to the same parse, and none of them may be skipped as a sketch. The JSON-contract test derives a JSON Schema for every yg-*/1 document from the TypeScript type its emitter is compiled against (and for the package documents from their file-format schemas), fails when a schema published with the docs differs, checks that its validator refuses what the schemas forbid, and requires every field any schema declares to be named on the family-contracts page or in the CLI reference."
 aspects: []
 relations:
   - target: cli/file-formats
@@ -14,6 +14,8 @@ relations:
   - target: cli/io/parsers/packages
     type: uses
   - target: cli/knowledge-concepts
+    type: uses
+  - target: cli/schemas
     type: uses
   - target: cli/tests/support
     type: uses

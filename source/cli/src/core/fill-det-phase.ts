@@ -117,7 +117,7 @@ async function largestBucketSourceBytes(
         total += (await statPath(path.resolve(projectRoot, rel))).size;
       } catch (err) {
         // unreadable or gone — contributes nothing to what a worker can parse
-        debugWrite(`[fill-det] pool sizing: no size for ${rel}: ${err instanceof Error ? err.message : String(err)}`);
+        debugWrite(`[fill-det] pool sizing: no size for ${toPosixPath(rel)}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     return total;
@@ -193,7 +193,7 @@ export async function runDeterministicPhase({
   ): Promise<DetDiag> => {
     if (outcome.kind === 'runtime-error') {
       result.runtimeErrors += 1;
-      // No write — pair stays unverified, reported as aspect-check-runtime-error.
+      // No write — pair stays unverified, reported as check-failed-to-run.
       writer.emitEvent(pair.aspectId, toPosixPath(pair.unitKey), 'deterministic', 'runtime-error');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', emit);
       // A component-free pair is the ONLY case core/type-visibility.ts's report
@@ -209,7 +209,7 @@ export async function runDeterministicPhase({
     if (outcome.kind === 'malformed-suppress') {
       result.malformedSuppressErrors += 1;
       // No write — a fault in the source file's marker, not check.mjs; a DISTINCT
-      // disposition never reported as aspect-check-runtime-error.
+      // disposition never reported as check-failed-to-run.
       writer.emitEvent(pair.aspectId, toPosixPath(pair.unitKey), 'deterministic', 'malformed-suppress');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', emit);
       return { kind: 'suppress', item: { aspectId: pair.aspectId, unitKey: toPosixPath(pair.unitKey), messageData: outcome.messageData } };
@@ -312,6 +312,10 @@ export async function runDeterministicPhase({
         );
       }
       for (const diag of diagSlots) collectDetDiag(diag);
+      // runtimeDispositions were pushed as each task resolved, in worker completion
+      // order; put them in one fixed order so the same inputs give the same list.
+      result.runtimeDispositions.sort((a, b) =>
+        a.file.localeCompare(b.file) || a.aspectId.localeCompare(b.aspectId) || a.code.localeCompare(b.code));
     } finally {
       await pool.destroy();
     }

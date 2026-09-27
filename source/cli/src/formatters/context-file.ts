@@ -140,7 +140,7 @@ export function formatFileContext(data: FileContextData): string {
       const status = aspect.status ?? 'enforced';
       lines.push(`  ${aspect.aspectId} [${status}] — ${aspect.aspectDescription}`);
       if (status === 'draft') {
-        lines.push('    (reviewer skipped; aspect is draft)');
+        lines.push('    (not checked; the rule is draft)');
         if (aspect.source) {
           lines.push(`    Source: ${posixPath(aspect.source)}`);
         }

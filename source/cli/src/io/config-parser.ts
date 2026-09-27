@@ -12,7 +12,7 @@ import type {
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { CheckCode } from '../model/issue-code.js';
-import { KNOWN_PROVIDERS } from '../utils/known-providers.js';
+import { KNOWN_PROVIDERS, PROVIDER_DEFAULT_MODELS } from '../utils/known-providers.js';
 import { loadConfigOverlay, deepMerge } from './secrets-parser.js';
 import { readFileOrDefault } from './read-or-default.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -333,12 +333,6 @@ function parseMaxDirectRelations(raw: unknown, filename: string): number {
   }
   return raw;
 }
-
-const PROVIDER_DEFAULTS: Record<string, Partial<LlmConfig>> = {
-  'claude-code': { model: 'haiku' },
-  'codex': { model: 'o4-mini' },
-  'gemini-cli': { model: 'gemini-2.5-flash' },
-};
 
 /**
  * Parse yg-config.yaml (and, unless skipped, its yg-secrets.yaml overlay).
@@ -1007,8 +1001,7 @@ function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
       next: `Set reviewer.tiers.${name}.config.${configTypeError.key} ${configTypeError.fix}, or remove it.`,
     }, 'config-tier-config-invalid');
   }
-  const defaults = PROVIDER_DEFAULTS[t.provider as string] ?? {};
-  const model = (c.model as string | undefined) ?? (defaults.model as string | undefined);
+  const model = (c.model as string | undefined) ?? (Object.hasOwn(PROVIDER_DEFAULT_MODELS, t.provider as string) ? PROVIDER_DEFAULT_MODELS[t.provider as string] : undefined);
   if (!model || typeof model !== 'string') {
     throw new ConfigParseError({
       what: `${filename}: tier '${name}' config.model is missing or not a string`,

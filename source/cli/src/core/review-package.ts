@@ -78,7 +78,7 @@ export type ReviewPackageOutcome =
  * resolved path missing / resolved path outside allowed-reads.
  *
  * The token `aspect-companion-runtime-error` appears in `what:` so callers and
- * tests can assert on it exactly as they do for `aspect-check-runtime-error`.
+ * tests can assert on it exactly as they do for `check-failed-to-run`.
  * It is a message token, NOT a registered CheckCode — never add it to
  * STRUCTURAL_CODES or APPROVE_GATING_CODES.
  *
@@ -192,7 +192,7 @@ export async function assembleReviewPackage(args: {
     if (resolved.kind === 'infra') {
       // Companion hook/resolution runtime failure — fail closed, NOTHING written,
       // reviewer never called. Counted and summarized as
-      // aspect-companion-runtime-error, the mirror of aspect-check-runtime-error.
+      // aspect-companion-runtime-error, the mirror of check-failed-to-run.
       debugWrite(`[review-package] companion resolution failed for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${resolved.messageData.what}`);
       return {
         kind: 'companion-runtime-error',

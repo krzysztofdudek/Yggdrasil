@@ -253,7 +253,7 @@ export async function runLockPhase(args: {
     // against is in the lock. Reported, never written — a read-only run keeps
     // its promise, and the next approving run is what writes the change into
     // the rule's own history and clears this.
-    classifyAspectStatusDrift(graph, lock, lockIssues);
+    await classifyAspectStatusDrift(graph, lock, lockIssues);
   } catch (err) {
     if (err instanceof LockInvalidError) {
       lockIssues.push({

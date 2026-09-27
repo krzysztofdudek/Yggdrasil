@@ -27,7 +27,7 @@ export class SuppressMarkerError extends Error {
    * Self-describing what/why/next for the malformed marker. A reasonless marker
    * is a fault in the SOURCE file's marker — NOT in the aspect's check.mjs — so
    * the deterministic runners re-surface this as its own diagnostic instead of an
-   * `aspect-check-runtime-error`. (The LLM-sizing paths build their own message
+   * `check-failed-to-run`. (The LLM-sizing paths build their own message
    * from `file`/`line`; only the deterministic consumers read `messageData`.)
    */
   public readonly messageData: IssueMessage;

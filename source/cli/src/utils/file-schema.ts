@@ -47,7 +47,7 @@ export interface Field {
 /** The type of one value in a file. */
 export type FieldType =
   | { kind: 'string'; values?: readonly string[]; nonEmpty?: boolean; format?: string }
-  | { kind: 'boolean' }
+  | { kind: 'boolean'; /** Set when only this one value is accepted (`auto_approve: false`). */ only?: boolean }
   | { kind: 'integer'; min?: number }
   | { kind: 'number'; min?: number }
   | { kind: 'list'; of: FieldType }
@@ -130,7 +130,7 @@ function typeWords(type: FieldType): string {
       if (type.values !== undefined) return `one of: ${type.values.join(', ')}`;
       return type.nonEmpty ? 'a non-empty string' : 'a string';
     case 'boolean':
-      return 'true or false';
+      return type.only !== undefined ? String(type.only) : 'true or false';
     case 'integer':
       return type.min !== undefined ? `an integer >= ${type.min}` : 'an integer';
     case 'number':
@@ -157,7 +157,7 @@ function hasShape(value: unknown, type: FieldType): boolean {
       if (type.values !== undefined) return type.values.includes(value);
       return !type.nonEmpty || value.trim() !== '';
     case 'boolean':
-      return typeof value === 'boolean';
+      return typeof value === 'boolean' && (type.only === undefined || value === type.only);
     case 'integer':
       return typeof value === 'number' && Number.isInteger(value) && (type.min === undefined || value >= type.min);
     case 'number':
@@ -281,7 +281,7 @@ function typeCell(type: FieldType): string {
       if (type.values !== undefined) return type.values.map((v) => `\`${v}\``).join(' \\| ');
       return type.format ?? 'string';
     case 'boolean':
-      return 'boolean';
+      return type.only !== undefined ? `\`${type.only}\`` : 'boolean';
     case 'integer':
       return type.min !== undefined ? `integer ≥ ${type.min}` : 'integer';
     case 'number':

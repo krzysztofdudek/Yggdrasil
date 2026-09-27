@@ -93,7 +93,7 @@
       dom.el(
         'p',
         'st-lead',
-        'This project is guarded by continuous architecture checks. A set of rules describes how the code should be built; a reviewer checks the real code against them and records a verdict. Green means a reviewer actually checked something and it passed — nothing else is green.',
+        'This project is guarded by continuous architecture checks. A set of rules describes how the code should be built; each rule\'s script, or the reviewer for a rule written as prose, checks the real code against it and records a verdict. Green means something was actually checked and it passed — nothing else is green.',
       ),
     );
     var stats = dom.el('div', 'st-areas');
@@ -186,7 +186,7 @@
     card.appendChild(top);
     if (node.description) card.appendChild(dom.el('p', 'st-flow-d', shorten(node.description)));
     var ruleCount = (node.effectiveAspects || []).length;
-    card.appendChild(dom.el('div', 'st-flow-meta', ruleCount > 0 ? ruleCount + ' rule(s) are in force here. Each carries its own honest verdict — verified, refused, or simply not-yet-checked.' : 'No rule is in force here yet — it is unguarded, not approved.'));
+    card.appendChild(dom.el('div', 'st-flow-meta', ruleCount > 0 ? ruleCount + ' rule(s) are in force here. Each carries its own honest verdict — verified, refused, or simply not-yet-checked.' : 'No rule is in force here yet — it is unguarded, not verified.'));
     var open = dom.el('button', 'st-inline-link');
     open.type = 'button';
     open.textContent = 'Open this component →';

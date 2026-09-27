@@ -193,7 +193,7 @@ describe('formatFileContext', () => {
     expect(output).toContain('deterministic [enforced] — Same inputs produce identical outputs');
     expect(output).toContain('read: .yggdrasil/aspects/deterministic/content.md');
     expect(output).toContain('read: .yggdrasil/aspects/deterministic/refs/table.md — lookup table');
-    expect(output).not.toContain('(reviewer skipped');
+    expect(output).not.toContain('(not checked; the rule is draft)');
   });
 
   it('renders [draft] tag with skip line and omits read lines for draft aspect', () => {
@@ -215,7 +215,7 @@ describe('formatFileContext', () => {
     });
 
     expect(output).toContain('experimental-rule [draft] — Not yet enforced');
-    expect(output).toContain('(reviewer skipped; aspect is draft)');
+    expect(output).toContain('(not checked; the rule is draft)');
     expect(output).not.toContain('read: .yggdrasil/aspects/experimental-rule/content.md');
     expect(output).not.toContain('read: .yggdrasil/aspects/experimental-rule/refs/notes.md');
   });
@@ -274,7 +274,7 @@ describe('formatFileContext', () => {
     });
 
     expect(output).toContain('experimental-rule [draft] — Not yet enforced');
-    expect(output).toContain('(reviewer skipped; aspect is draft)');
+    expect(output).toContain('(not checked; the rule is draft)');
     expect(output).toContain('Source: required aspect for type \'library\'');
     expect(output).not.toContain('read: .yggdrasil/aspects/experimental-rule/content.md');
   });
@@ -351,6 +351,6 @@ describe('formatFileContext', () => {
     });
 
     expect(output).not.toContain('companion.mjs');
-    expect(output).toContain('(reviewer skipped; aspect is draft)');
+    expect(output).toContain('(not checked; the rule is draft)');
   });
 });

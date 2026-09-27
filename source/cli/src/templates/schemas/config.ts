@@ -47,9 +47,13 @@ auto_approve: false               # optional — controls the behavior of bare \
 
 coverage:                         # optional — scopes the unmapped-files gate. Absent = whole repo required (today's behavior).
   required: ["/"]                 #   roots where an uncovered tracked file is an ERROR (blocks). "/" = whole repo.
-  excluded: []                    #   roots where an uncovered file is SILENT (no warning).
+  excluded: []                    #   roots removed from EVERY check, not only from coverage: an excluded
+                                  #   file gets no coverage finding, no review pair, no type classification
+                                  #   and no rule read — even when a node's mapping names it exactly.
                                   # Files outside required and excluded are a non-blocking WARNING.
-                                  # Subtrees containing their own nested .yggdrasil/ are auto-skipped by every check.
+                                  # A subtree that is its own project — with its own nested .yggdrasil/,
+                                  # or its own .git (a checkout, submodule or linked worktree) — is
+                                  # excluded the same way, whether or not excluded lists it.
   type_level: false               #   optional — boolean, default false. A fresh \`yg init\` writes true.
                                   # When true: a file matched by exactly one classifying type's \`when\`
                                   # counts as covered by that type, with no node of its own (a type-covered
@@ -141,7 +145,7 @@ reviewer:                         # required only once a reviewer rule is actual
         model: "qwen3.5:9b"       #       model id
         endpoint: "http://localhost:11434"   # custom endpoint (required for openai-compatible; ollama defaults to http://localhost:11434)
         temperature: 0            #       reduces variability — keep at 0
-        # timeout: 300            #       Per-call timeout in SECONDS (default 300). CLI providers and ollama; other API providers ignore it.
+        # timeout: 300            #       Per-call timeout in SECONDS, honored by every provider. Default 300 for the CLI providers and ollama, 60 for the hosted APIs.
       # max_prompt_chars: 200000  # optional — assembled reviewer-prompt character cap (positive integer).
                                   #   Checked deterministically before the reviewer call. Absent defaults to 50000.
                                   #   Exceeding this limit renders a blocking error naming remedies

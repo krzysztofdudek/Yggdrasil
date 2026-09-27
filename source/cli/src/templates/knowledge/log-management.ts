@@ -1,3 +1,5 @@
+import { LOGS_LOCK_FILE_EXISTS } from './shared-text.js';
+
 export const summary =
   'Log purpose (WHY-first), opt-in gate, positive-closure cycle, source-fingerprint gate, lock as baseline home, format constraints, Supersedes, type decision logs, typo recovery, revert recipe, git-merge resolution, large logs';
 
@@ -97,9 +99,7 @@ positive closure, for any other node whatever its verdicts say — so a type tha
 opts in later is measured from its code as it already stood, at the cost of the
 committed logs lock changing whenever a full fill sees moved source. A node that
 owns a \`log.md\` also holds its append-only \`log\` baseline (boundary datetime +
-prefix hash). When the section is empty (no log_required
-node, no \`log.md\`), \`yg-lock.logs.json\` is not written at all — an empty committed
-husk is removed. There is no separate per-node state file.
+prefix hash). ${LOGS_LOCK_FILE_EXISTS} There is no separate per-node state file.
 
 The basic workflow:
 

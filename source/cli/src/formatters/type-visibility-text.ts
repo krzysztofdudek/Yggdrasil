@@ -50,7 +50,7 @@ export function describeCascadeCycle(cycle: TypeCascadeCycle): string {
 export function describeTypeVisibilityReason(reason: TypeVisibilityReason): string {
   switch (reason) {
     case 'when-not-satisfied': return 'its attach condition (when:) was not satisfied on this file';
-    case 'draft': return 'the rule is still draft (reviewer skipped)';
+    case 'draft': return 'the rule is still draft (not checked)';
     case 'whole-unit-rule': return 'it is a per: node rule and this file has no component to run it on';
     case 'scope.files-excluded': return "excluded by the rule's own scope.files filter";
     case 'aspect-undefined': return 'the architecture attaches an aspect id with no matching aspect definition';

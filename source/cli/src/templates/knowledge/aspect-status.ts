@@ -1,3 +1,5 @@
+import { DET_GATE_SKIP } from './shared-text.js';
+
 export const summary =
   'Three-level aspect status (draft / advisory / enforced) — severity by status incl. unverified, the two non-rendering effects of enforced (det gate, positive closure), draft invisibility in check --json, verdict reuse across flips, declaration sites, max() rule, implies propagation';
 
@@ -8,9 +10,8 @@ Rendering is the primary effect, and status never changes a verdict's validity �
 but it is NOT rendering only. Two further operational consequences follow from
 \`enforced\`:
 
-1. An enforced SCRIPT-RULE refusal seeds \`detEnforcedRefusedNodes\` and makes
-   the reviewer phase skip that unit's paid review for the run (fill-det-phase.ts) —
-   an advisory refusal does not. A real spend difference when planning a run.
+1. The script gate. ${DET_GATE_SKIP} A real spend difference when planning a
+   run.
 2. Only ENFORCED pairs gate positive closure (fill-closure.ts): an enforced
    refusal keeps a node's source fingerprint and log baseline from advancing,
    while an advisory refusal never blocks closure.

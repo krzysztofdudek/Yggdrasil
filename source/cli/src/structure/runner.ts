@@ -259,7 +259,7 @@ export async function runStructureAspect(
   // it throws: a fault in the SOURCE file's marker, not in check.mjs. Re-raise
   // it as a runner error with a DISTINCT code so the filler surfaces its own
   // "malformed suppress marker" diagnostic instead of an
-  // aspect-check-runtime-error that blames the (correct) check. A reasonless
+  // check-failed-to-run that blames the (correct) check. A reasonless
   // marker naming another aspect, or away from every violation, fails nothing.
   let visible: typeof violations;
   try {

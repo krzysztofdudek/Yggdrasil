@@ -86,7 +86,7 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # default — enforced blocks everywhere, as above.
 
 # review_by: 2027-01-15            # optional — a review-by date (bare ISO
-                                   # calendar date YYYY-MM-DD). It is the constitution's
+                                   # calendar date YYYY-MM-DD). It is the user's own
                                    # request to re-examine whether this rule still earns
                                    # its place by that day.
                                    # Valid on ANY rule kind (reviewer rule, script rule,
@@ -174,6 +174,7 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #     type: <type-id>
                                    #     has_port: <port-name>
                                    #     has_mapping: true | false
+                                   #     id: <node-path> | [<node-path>, ...]   # exactly this node (or one of these), relative to model/
                                    #
                                    # Example:
                                    #   when:
@@ -278,7 +279,10 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # surface as an infrastructure failure mid-review instead of a
                                    # graph error. Its bytes are folded into the verdict exactly as a
                                    # sibling companion.mjs would be, so editing YOUR module
-                                   # invalidates the verdicts it helped produce.
+                                   # invalidates the verdicts it helped produce. Reviewer rules
+                                   # only: refused, like companion.mjs, on a script rule
+                                   # (aspect-companion-with-check), a bundle or a rule without
+                                   # content.md (aspect-companion-without-content).
                                    #
                                    # Written for a rule you did NOT write: a rule installed from a
                                    # package cannot know your repository's layout, so this key in that
@@ -316,8 +320,8 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # Returned paths:
                                    #   Absolute or relative paths. The runner normalizes each to
                                    #   repo-root-relative POSIX, deduplicates, and sorts.
-                                   #   For scope.per: node, a returned path equal to a unit subject
-                                   #   file is silently skipped and NOT recorded as touched.
+                                   #   A returned path equal to one of the unit's subject files is
+                                   #   silently skipped and NOT recorded as touched, under either scope.
                                    #
                                    # Return [] to indicate no companions for this unit (valid — the
                                    # unit is reviewed with subject files only).

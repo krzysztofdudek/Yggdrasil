@@ -28,8 +28,8 @@ refreshes the agent-rules files.
 
 - **coverage** — Controls which files must be mapped to a node (see [Coverage config](#coverage-config) below).
 - **quality** — Quality thresholds (see [Quality config](#quality-config) below).
-- **parallel** — How many **reviewer-rule pairs** are reviewed concurrently (positive integer, default `1`). `yg init` writes `4` when it sets up a CLI reviewer (claude-code, codex, gemini-cli, copilot-cli) and the file has no `parallel` yet: each call is its own local process under your subscription, and four keep a first fill of a few hundred pairs to minutes while staying inside its rate limit. For an API reviewer, set it to what the key's rate limit allows. A tier with `consensus: N` runs its N passes at once, so up to `parallel × N` calls are in flight. Governs only the reviewer fill phase, where the cost is network latency. Script rules ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed). Each script-rule check runs under a wall-clock budget, 120 seconds by default (`YG_DET_TASK_TIMEOUT_MS` in the environment changes it, in milliseconds; `0` switches it off): a check still running past it is stopped and reported as `aspect-check-runtime-error` naming the rule and the unit, and the rest of the run carries on.
-- **debug** — Set `true` to append all CLI output to `.yggdrasil/.debug.log`.
+- **parallel** — How many **reviewer-rule pairs** are reviewed concurrently (positive integer, default `1`). `yg init` writes `4` when it sets up a CLI reviewer (claude-code, codex, gemini-cli, copilot-cli) and the file has no `parallel` yet: each call is its own local process under your subscription, and four keep a first fill of a few hundred pairs to minutes while staying inside its rate limit. For an API reviewer, set it to what the key's rate limit allows. A tier with `consensus: N` runs its N passes at once, so up to `parallel × N` calls are in flight. Governs only the reviewer fill phase, where the cost is network latency. Script rules ignore it — they are CPU-bound and run across a worker-thread pool sized automatically from your machine's cores (no configuration; never affects verdicts, only speed). Each script-rule check runs under a wall-clock budget, 120 seconds by default (`YG_DET_TASK_TIMEOUT_MS` in the environment changes it, in milliseconds; `0` switches it off): a check still running past it is stopped and reported as `unverified` with cause `check-failed-to-run`, naming the rule and the unit, and the rest of the run carries on.
+- **debug** — Set `true` to append the output of every command that reads the graph (all but `init`, `knowledge`, `schemas`, `prime`, `marketplace` and `--help`) to `.yggdrasil/.debug.log`, with a failed reviewer call's full provider output.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 - **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of reviewer verification events. See [Events](#events) below.
@@ -740,7 +740,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | yes | Which reviewer the tier calls. |
 | `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | yes | 1 for a single call, or an odd number for a majority vote. |
 | `reviewer.tiers.<tier>.config` | mapping | yes | The provider settings. |
-| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier. |
+| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier; when it is absent, claude-code uses haiku, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
 | `reviewer.tiers.<tier>.config.endpoint` | string | yes, for openai-compatible | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
 | `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
 | `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |
@@ -748,14 +748,14 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `reviewer.tiers.<tier>.max_prompt_chars` | integer ≥ 1 | no | The longest prompt a reviewer pair on this tier may send (prompt-too-large above it). Default: `50000`. |
 | `parallel` | integer ≥ 1 | no | Reviewer-rule pairs reviewed at once. Default: `1`. |
 | `debug` | boolean | no | Append all CLI output to .yggdrasil/.debug.log. Default: `false`. |
-| `auto_approve` | boolean or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
+| `auto_approve` | `false` or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
 | `signals` | mapping | no | Attention-layer switches. |
 | `signals.attention` | boolean | no | The advisory "structurally unusual" note in yg context --file. Default: `true`. |
 | `events` | mapping | no | The committed-events opt-in. |
 | `events.committed_llm` | boolean | no | Keep a committed, shared record of reviewer verification events. Default: `false`. |
 | `coverage` | mapping | no | Which files must be mapped to a node. |
 | `coverage.required` | list of string | no | Repository-relative roots every file under which must be covered. Default: `["/"]`. |
-| `coverage.excluded` | list of string | no | Roots no coverage is asked of. Default: `[]`. |
+| `coverage.excluded` | list of string | no | Roots removed from every check, not only from coverage: an excluded file gets no coverage finding, no review pair, no type classification and no rule read, even when a node's mapping names it. A subtree with its own nested .yggdrasil/ or its own .git is excluded the same way. Default: `[]`. |
 | `coverage.type_level` | boolean | no | Enforce per: file rules of classifying types on files no node maps. Read from the committed file only. Default: `false`. |
 | `progressive` | mapping | no | Progressive mode: block only on what a change reaches. Absent means off. |
 | `progressive.reference` | string | yes, when progressive: is present | The branch a change is measured against (e.g. origin/main). Read from the committed file only. |
@@ -783,30 +783,30 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `quality` | mapping | no | Quality thresholds. |
 | `quality.max_direct_relations` | integer ≥ 1 | no | The relation count above which a node gets the high-fan-out warning. Default: `10`. |
 | `reviewer` | mapping | no | The reviewer tiers reviewer rules are judged by. |
-| `reviewer.default` | string | yes, with more than one tier | The tier a reviewer rule without reviewer.tier uses. |
-| `reviewer.tiers` | mapping of &lt;tier&gt; to mapping | yes, at least one | Named reviewer configurations; a tier name starts with a letter and `default` is reserved. |
-| `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | yes | Which reviewer the tier calls. |
-| `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | yes | 1 for a single call, or an odd number for a majority vote. |
-| `reviewer.tiers.<tier>.config` | mapping | yes | The provider settings. |
-| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier. |
-| `reviewer.tiers.<tier>.config.endpoint` | string | yes, for openai-compatible | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
+| `reviewer.default` | string | no | The tier a reviewer rule without reviewer.tier uses. |
+| `reviewer.tiers` | mapping of &lt;tier&gt; to mapping | no | Named reviewer configurations; a tier name starts with a letter and `default` is reserved. |
+| `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | no | Which reviewer the tier calls. |
+| `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | no | 1 for a single call, or an odd number for a majority vote. |
+| `reviewer.tiers.<tier>.config` | mapping | no | The provider settings. |
+| `reviewer.tiers.<tier>.config.model` | string | no | The provider's model identifier; when it is absent, claude-code uses haiku, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
+| `reviewer.tiers.<tier>.config.endpoint` | string | no | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
 | `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
 | `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |
 | `reviewer.tiers.<tier>.config.api_key` | string | no | The provider API key; put it in yg-secrets.yaml, never in the committed file. |
 | `reviewer.tiers.<tier>.max_prompt_chars` | integer ≥ 1 | no | The longest prompt a reviewer pair on this tier may send (prompt-too-large above it). Default: `50000`. |
 | `parallel` | integer ≥ 1 | no | Reviewer-rule pairs reviewed at once. Default: `1`. |
 | `debug` | boolean | no | Append all CLI output to .yggdrasil/.debug.log. Default: `false`. |
-| `auto_approve` | boolean or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
+| `auto_approve` | `false` or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
 | `signals` | mapping | no | Attention-layer switches. |
 | `signals.attention` | boolean | no | The advisory "structurally unusual" note in yg context --file. Default: `true`. |
 | `events` | mapping | no | The committed-events opt-in. |
 | `events.committed_llm` | boolean | no | Keep a committed, shared record of reviewer verification events. Default: `false`. |
 | `coverage` | mapping | no | Which files must be mapped to a node. |
 | `coverage.required` | list of string | no | Repository-relative roots every file under which must be covered. Default: `["/"]`. |
-| `coverage.excluded` | list of string | no | Roots no coverage is asked of. Default: `[]`. |
+| `coverage.excluded` | list of string | no | Roots removed from every check, not only from coverage: an excluded file gets no coverage finding, no review pair, no type classification and no rule read, even when a node's mapping names it. A subtree with its own nested .yggdrasil/ or its own .git is excluded the same way. Default: `[]`. |
 | `coverage.type_level` | boolean | no | Enforce per: file rules of classifying types on files no node maps. Read from the committed file only. Default: `false`. |
 | `progressive` | mapping | no | Progressive mode: block only on what a change reaches. Absent means off. |
-| `progressive.reference` | string | yes, when progressive: is present | The branch a change is measured against (e.g. origin/main). Read from the committed file only. |
+| `progressive.reference` | string | no | The branch a change is measured against (e.g. origin/main). Read from the committed file only. |
 | `rules_artifacts` | mapping | no | Which agent-rules artifacts are written and kept in sync. Read from the committed file only. |
 | `rules_artifacts.agents_md` | boolean | no | Write and check the Yggdrasil block in AGENTS.md. Default: `true`. |
 | `rules_artifacts.claude_md` | boolean | no | Write and check the @AGENTS.md import in CLAUDE.md (refused while agents_md is off). Default: `true`. |

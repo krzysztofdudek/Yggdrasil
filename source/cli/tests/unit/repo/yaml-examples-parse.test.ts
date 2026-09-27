@@ -21,6 +21,9 @@
 // skipped. Any other block that is deliberately not a valid file is listed in
 // NOT_A_FILE with the reason.
 //
+// The annotated example of every file format (`yg schemas read <name>`) is
+// held to the same parse, as one whole example keyed `schema <name>`.
+//
 // Hermetic: temporary directories only; no CLI process, no network.
 // =============================================================================
 
@@ -34,6 +37,7 @@ import { parse, stringify } from 'yaml';
 import { FILE_FORMATS } from '../../../src/utils/file-formats.js';
 import { keysOf } from '../../../src/utils/file-schema.js';
 import { KNOWLEDGE_TOPICS } from '../../../src/templates/knowledge/index.js';
+import { SCHEMA_TOPICS } from '../../../src/templates/schemas/index.js';
 import { parseNodeYaml } from '../../../src/io/node-parser.js';
 import { parseArchitecture } from '../../../src/io/architecture-parser.js';
 import { parseAspect } from '../../../src/io/aspect-parser.js';
@@ -109,6 +113,9 @@ function allExamples(): Example[] {
   const docs = path.join(REPO_ROOT, 'docs');
   for (const f of readdirSync(docs).filter((n) => n.endsWith('.md')).sort()) out.push(...yamlBlocks(`docs/${f}`, readFileSync(path.join(docs, f), 'utf-8')));
   for (const [name, topic] of Object.entries(KNOWLEDGE_TOPICS)) out.push(...yamlBlocks(`knowledge ${name}`, topic.content));
+  // The annotated example `yg schemas read <name>` prints is one whole file of
+  // its format, not a fenced block: its first comment names the file.
+  for (const [name, topic] of Object.entries(SCHEMA_TOPICS)) out.push({ where: `schema ${name}`, text: topic.content });
   return out;
 }
 
@@ -298,6 +305,16 @@ describe('every YAML example in the docs and the knowledge topics parses', () =>
       if (why.length > 0) failures.push(`${ex.where}: ${why.join(' | ')}`);
     }
     expect(failures, 'a YAML example the real parser refuses — fix the example, or list it in NOT_A_FILE with the reason').toEqual([]);
+  });
+
+  it('checks the annotated example of every file format, none skipped as a sketch', () => {
+    const skipped: string[] = [];
+    for (const ex of allExamples().filter((e) => e.where.startsWith('schema '))) {
+      const name = ex.where.slice('schema '.length);
+      const formats = candidates(ex, parse(ex.text));
+      if (NOT_A_FILE[ex.where] !== undefined || isSketch(ex.text) || !formats.includes(name)) skipped.push(ex.where);
+    }
+    expect(skipped).toEqual([]);
   });
 
   it('lists in NOT_A_FILE only blocks that exist', () => {

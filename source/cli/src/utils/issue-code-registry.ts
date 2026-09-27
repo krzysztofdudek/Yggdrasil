@@ -32,6 +32,9 @@
 import type { CheckCode, IssueCode } from '../model/issue-code.js';
 import type { UnverifiedCause } from '../model/check-issue.js';
 import { UNVERIFIED_CAUSE_ORDER } from './check-codes.js';
+import { ASPECT_ADAPT_ROOT, ASPECT_SCOPE } from './file-formats-graph.js';
+import { keysOf, refusedOf } from './file-schema.js';
+import { providersWithDefaultModel } from './known-providers.js';
 
 /**
  * Where a code sorts in a report, most urgent first.
@@ -134,6 +137,11 @@ type Registry = { readonly [K in CheckCode]: IssueCodeEntry<CheckStage> } & {
 const ARCH = 'yg-architecture.yaml';
 const CONFIG = 'yg-config.yaml';
 
+// The lists a meaning or fix names are read from the schemas the parsers
+// enforce, so the text cannot name a key or a provider the parser disagrees on.
+const SCOPE_PER_TYPE = ASPECT_SCOPE.fields.per.type;
+const SCOPE_PER_VALUES: readonly string[] = SCOPE_PER_TYPE.kind === 'string' && SCOPE_PER_TYPE.values !== undefined ? SCOPE_PER_TYPE.values : [];
+
 /**
  * Every code, grouped by stage. Keys are the codes themselves; the order within
  * a group is the order the docs tables list them in.
@@ -155,7 +163,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'config-tier-unknown-key': { severity: 'error', stage: 'load', meaning: "A tier, or a tier's config:, holds a key it does not accept — the setting it was meant to change stays at its default.", fix: 'Rename the key to the one it is a typo of (the finding names it) or remove it.' },
   'config-tier-provider-missing': { severity: 'error', stage: 'load', meaning: 'A tier declares no provider:.', fix: 'Add provider: with one of the known providers.' },
   'config-tier-provider-unknown': { severity: 'error', stage: 'load', meaning: 'A tier names a provider the CLI does not know how to call.', fix: 'Use one of the providers the finding lists.' },
-  'config-tier-config-missing': { severity: 'error', stage: 'load', meaning: 'A tier has no config: section.', fix: 'Add config: { model: <name> } (claude-code alone takes no model).' },
+  'config-tier-config-missing': { severity: 'error', stage: 'load', meaning: "A tier has no config: section, or its config: names no model: and its provider has no model of its own to fall back to.", fix: `Add config: { model: <name> } (only ${providersWithDefaultModel()} fall back to a model of their own).` },
   'config-tier-config-not-mapping': { severity: 'error', stage: 'load', meaning: "A tier's config: is not a mapping.", fix: 'Write config: as a mapping of provider settings.' },
   'config-tier-config-invalid': { severity: 'error', stage: 'load', meaning: "A value in a tier's config: has the wrong type (a model that is not a string, a timeout that is not a number).", fix: 'Set the value the finding names to the type it asks for.' },
   'config-tier-consensus-invalid': { severity: 'error', stage: 'load', meaning: "A tier's consensus is missing, not a positive integer, or even — an even vote cannot break a tie.", fix: 'Set consensus: 1, or an odd number of 3 or more for a majority vote.' },
@@ -177,7 +185,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'aspect-status-invalid': { severity: 'error', stage: 'load', meaning: 'A declared status: is not one of draft, advisory, enforced.', fix: 'Set status: to draft, advisory or enforced.' },
   'aspect-review-by-malformed': { severity: 'error', stage: 'load', meaning: 'A rule\'s review_by: is present but not a calendar-valid bare YYYY-MM-DD date (2027-13-01, 2027-02-30). Fired only on the rule that carries the field.', fix: 'Write review_by: as a real YYYY-MM-DD date — with the user\'s approval, since the date is theirs.' },
   'aspect-errs-invalid': { severity: 'error', stage: 'load', meaning: 'errs: is not one of over, under, exact, or is declared on a rule that is not a script rule.', fix: 'Set errs to over, under or exact on a script rule, or remove it.' },
-  'aspect-scope-invalid': { severity: 'error', stage: 'load', meaning: 'scope: is not a mapping, or its per:/files: do not have the accepted form.', fix: 'Write scope: { per: node|file, files: [<glob>] }; yg schemas read aspect gives the shape.' },
+  'aspect-scope-invalid': { severity: 'error', stage: 'load', meaning: 'scope: is not a mapping, or its per:/files: do not have the accepted form.', fix: `Write scope: { per: ${SCOPE_PER_VALUES.join('|')}, files: <file predicate> } — a file predicate is path:/content: atoms, combined with all_of/any_of/not; yg schemas read aspect gives the shape.` },
   'aspect-scope-on-aggregate': { severity: 'error', stage: 'load', meaning: 'A bundle (no content.md, no check.mjs) declares scope:, which only a rule with a rule source can use.', fix: 'Remove scope:, or add content.md or check.mjs to make the bundle a rule.' },
   'aspect-when-invalid': { severity: 'error', stage: 'load', meaning: "A rule's own when:, or the when: of one of its implies entries, does not parse.", fix: 'Correct the predicate; yg knowledge read conditional-aspects gives the grammar.' },
   'aspect-implies-not-array': { severity: 'error', stage: 'load', meaning: 'implies: is not a list.', fix: 'Write implies: as a list of rule ids (or { id, when, status_inherit } entries).' },
@@ -219,7 +227,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'package-implies-outside-package': { severity: 'error', stage: 'load', meaning: 'A rule of a package implies a rule that package does not carry.', fix: 'As the package author, imply only the package\'s own rules.' },
   'aspect-adapt-invalid': { severity: 'error', stage: 'load', meaning: "An installed rule's adaptation file (yg-aspect.adapt.yaml) is not valid YAML.", fix: 'Fix the YAML syntax in the adaptation file.' },
   'aspect-adapt-not-mapping': { severity: 'error', stage: 'load', meaning: 'An adaptation file is not a mapping.', fix: 'Write the adaptation as a YAML mapping, e.g. status: advisory.' },
-  'aspect-adapt-key-not-adaptable': { severity: 'error', stage: 'load', meaning: 'An adaptation sets a key a package rule does not let a consumer change (its content, its check, its scope).', fix: 'Remove the key; the finding lists the adaptable keys.' },
+  'aspect-adapt-key-not-adaptable': { severity: 'error', stage: 'load', meaning: `An adaptation sets a key a package rule does not let a consumer change (${Object.keys(refusedOf(ASPECT_ADAPT_ROOT)).join(', ')}).`, fix: `Remove the key; the adaptable keys are ${keysOf(ASPECT_ADAPT_ROOT).join(', ')}.` },
   'aspect-adapt-key-unknown': { severity: 'error', stage: 'load', meaning: 'An adaptation sets a key that is no key of an adaptation.', fix: 'Remove or rename the key; the finding lists the adaptable keys.' },
   'aspect-adapt-config-not-mapping': { severity: 'error', stage: 'load', meaning: "An adaptation's config: is not a mapping.", fix: 'Write config: as a mapping of setting to value.' },
   'aspect-adapt-config-key-unknown': { severity: 'error', stage: 'load', meaning: 'An adaptation sets a config key the package does not declare for the rule.', fix: 'Remove the key; the package\'s yg-package.yaml lists the settings it reads.' },
@@ -265,8 +273,8 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'aspect-missing-rule-source': { severity: 'error', stage: 'validate', meaning: 'A rule\'s declared reviewer.type has no matching rule source (llm without content.md, deterministic without check.mjs).', fix: 'Add the rule source its type needs, or change reviewer.type.' },
   'aspect-both-rule-sources': { severity: 'error', stage: 'validate', meaning: 'A rule ships both content.md and check.mjs.', fix: 'Remove the rule source that does not match its kind.' },
   'aspect-empty': { severity: 'error', stage: 'validate', meaning: 'A rule has no content.md, no check.mjs and no implies — it does nothing.', fix: 'Add a rule source or implies:, or remove the rule.' },
-  'aspect-companion-without-content': { severity: 'error', stage: 'validate', meaning: 'A rule ships companion.mjs without content.md; a companion is an add-on to a reviewer rule.', fix: 'Add content.md, or remove companion.mjs.' },
-  'aspect-companion-with-check': { severity: 'error', stage: 'validate', meaning: 'A rule ships companion.mjs beside check.mjs; companions apply to reviewer rules only.', fix: 'Remove companion.mjs, or make the rule a reviewer rule.' },
+  'aspect-companion-without-content': { severity: 'error', stage: 'validate', meaning: 'A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) without content.md; a companion is an add-on to a reviewer rule.', fix: 'Add content.md, or remove companion.mjs.' },
+  'aspect-companion-with-check': { severity: 'error', stage: 'validate', meaning: 'A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) beside check.mjs; companions apply to reviewer rules only.', fix: 'Remove the companion, or make the rule a reviewer rule.' },
   'aspect-references-empty-array': { severity: 'warning', stage: 'validate', meaning: 'A rule declares references: [] — an empty list that does nothing.', fix: 'Fill the list, or remove the references: line.' },
   'aspect-reference-broken': { severity: 'error', stage: 'validate', meaning: 'A references: entry names a file that does not exist.', fix: 'Create the file, fix the path, or remove the entry.' },
   'aspect-reference-symlink': { severity: 'error', stage: 'validate', meaning: 'A references: entry runs through a symbolic link; no fill runs until it is replaced by the file itself.', fix: 'Reference the file itself instead of the link, or remove the entry.' },
@@ -276,7 +284,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'implied-aspect-missing': { severity: 'error', stage: 'validate', meaning: 'A rule implies a rule id that does not exist.', fix: 'Create the implied rule, or remove it from implies:.' },
   'aspect-implies-cycle': { severity: 'error', stage: 'validate', meaning: 'The implies: edges form a cycle, so effective rules cannot be resolved.', fix: 'Remove one implies edge of the cycle.' },
   'aspect-status-downgrade': { severity: 'error', stage: 'validate', meaning: 'An attach site declares a status lower than the cascade yields (raising is allowed, lowering is not).', fix: 'Remove the lower status:, or lower the rule\'s own status (the user\'s decision).' },
-  'aspect-status-changed-outside-cli': { severity: 'warning', stage: 'validate', meaning: "A rule's status changed since this machine's cache last saw it, and its own log records no reason; a full fill writes the bare fact into that log if nobody does. A fresh checkout (CI) has no earlier status to compare, so it never reports this.", fix: "yg log add --aspect <rule> --status <status> --evidence '<what justified it>' --reason '<why>'." },
+  'aspect-status-changed-outside-cli': { severity: 'warning', stage: 'validate', meaning: "A rule's status changed since this machine's cache last saw it, and its own log does not record the change (its newest status entry names another status); a full fill writes the bare fact into that log if nobody does. A fresh checkout (CI) has no earlier status to compare, so it never reports this.", fix: "yg log add --aspect <rule> --status <status> --evidence '<what justified it>' --reason '<why>'." },
   'aspect-effective-nowhere': { severity: 'warning', stage: 'validate', meaning: 'A rule that ships a rule source and is not draft is effective on zero nodes after the full cascade and every when: — it looks enforced and verifies nothing.', fix: 'Fix the attach sites or when:, or set status: draft until what it targets exists; for a per: node rule whose type has only type-covered files, give a file a node or make the rule per: file.' },
   'orphaned-aspect': { severity: 'warning', stage: 'validate', meaning: 'A bundle, a draft rule, or a rule in a graph with no code yet is attached nowhere.', fix: 'Attach it to a node, type or flow, or remove it.' },
   'aspect-review-overdue': { severity: 'warning', stage: 'validate', meaning: "A rule's review_by: date has passed — it is running unreviewed. Never blocks and never writes a verdict.", fix: 'Ask the user to renew or retire the rule; never change the date yourself.' },

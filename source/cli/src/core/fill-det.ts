@@ -149,7 +149,7 @@ export async function fillDetPair(
       debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath ?? pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
       // A malformed suppress marker is a fault in the SOURCE file's marker, not in
       // check.mjs — surface it as its OWN disposition (its self-describing
-      // messageData), never as aspect-check-runtime-error.
+      // messageData), never as check-failed-to-run.
       if (e instanceof StructureRunnerError && e.code === SUPPRESS_MARKER_MALFORMED_CODE) {
         return { ok: false as const, failure: { kind: 'malformed-suppress' as const, messageData: e.messageData } };
       }
@@ -231,7 +231,7 @@ export async function fillDetPair(
 }
 
 /**
- * Build the printed aspect-check-runtime-error notice. `originalMessageData`,
+ * Build the printed check-failed-to-run notice. `originalMessageData`,
  * when present, is the specific StructureRunnerError that caused this run to
  * fail — its own `next` is threaded through so actionable guidance (e.g. "give
  * the file a component of its own", "pass an existing node path") reaches the
@@ -254,7 +254,7 @@ function detRuntimeNotice(aspectId: string, unitKey: string, reason: string, ori
   const file = `.yggdrasil/aspects/${aspectId}/check.mjs`;
   const step = originalMessageData !== undefined ? originalMessageData.step : { file };
   return {
-    what: `Script rule '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
+    what: `Script rule '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (check-failed-to-run).`,
     why: `The check.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`,
     next: originalMessageData?.next ?? `Fix ${file}, then re-run the check that ran it.`,
     ...(step !== undefined ? { step } : {}),

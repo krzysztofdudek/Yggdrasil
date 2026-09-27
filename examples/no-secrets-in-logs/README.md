@@ -33,7 +33,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  2 nodes · 8/8 files · 1 aspects · 0 flows · 2 verified (2 deterministic, 0 LLM)
+yg check: PASS  2 nodes · 8/8 files covered · 2 pairs verified (script)
 ```
 
 ## The ONE edit that BREAKS the rule
@@ -54,15 +54,19 @@ Re-fill the script verdict and check:
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
 ```
 
-The check refuses the node with (line number is where the leaking log call sits):
+The fill records the refusal and its report refuses the node, exit 1 (the line number is where the leaking log call sits; the two `fill` progress lines go to stderr):
 
 ```
-Errors (1):
+fill  1 pair · 1 script (free) · 0 reviewer calls
+fill  done in 0s — 0 passed · 1 refused · 0 failed · 0 reviewer calls
+yg check: FAIL  1 error   2 nodes · 8/8 files covered · 1 pair verified (script)
 
-  enforced  1 pairs  1 nodes  aspect 'no-secret-in-logs'
-            A deterministic check recorded these violations...
-            - payments  Violations:
-              src/charge.ts:53: Logging call references forbidden secret/PII field "pan". Log a redacted value (e.g. a masked PAN or an id) instead — raw cardholder data and credentials must never be written to logs (PCI-DSS).
+error[refused] no-secret-in-logs — 1 violation in payments
+  at:   payments  src/charge.ts:53  Logging call references forbidden secret/PII field "pan". Log a redacted value (e.g. a masked PAN or an id) instead — raw cardholder data and credentials must never be written to logs (PCI-DSS).
+  why:  A logging statement must never reference a raw secret or PII field (PCI-DSS).
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
+
+next: edit src/charge.ts:53
 ```
 
 Restore the original line and re-run steps 2–3 to return to green.

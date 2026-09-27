@@ -20,6 +20,18 @@ export type KnowledgeTopic = {
   content: string;
 };
 
+/**
+ * Second names for topics whose ids predate the Glossary's words. The ids stay as
+ * they are (prime, the rules file and other topics point at them), and the
+ * Glossary's words resolve to the same topic: a reviewer rule is what
+ * `writing-llm-aspects` covers, a script rule is what `writing-deterministic-aspects`
+ * covers. Alias -> topic id.
+ */
+export const KNOWLEDGE_TOPIC_ALIASES: Record<string, string> = {
+  'writing-reviewer-rules': 'writing-llm-aspects',
+  'writing-script-rules': 'writing-deterministic-aspects',
+};
+
 export const KNOWLEDGE_TOPICS: Record<string, KnowledgeTopic> = {
   'working-with-architecture': {
     summary: workingWithArchitecture.summary,

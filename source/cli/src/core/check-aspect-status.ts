@@ -16,18 +16,21 @@
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import type { CheckIssue } from './check-contract.js';
-import { findStatusDrift } from './log/aspect-status.js';
+import { findUnrecordedStatusDrift } from './log/aspect-status.js';
 
 /**
- * Report every rule standing somewhere other than where the tool last saw it.
+ * Report every rule standing somewhere other than where the tool last saw it,
+ * unless the rule's own log already records that standing.
  *
  * A rule with no remembered standing is silent by construction (see
  * findStatusDrift): the first approving run remembers it, and only a LATER move
  * can be reported — which is exactly right, since nobody can say what an unseen
- * rule moved from.
+ * rule moved from. The remembered standing is local to this checkout, while the
+ * log is committed: a change another checkout already recorded arrives with its
+ * entry, so the log is read here exactly as the recording run reads it.
  */
-export function classifyAspectStatusDrift(graph: Graph, lock: LockFile, issues: CheckIssue[]): void {
-  for (const drift of findStatusDrift(graph, lock)) {
+export async function classifyAspectStatusDrift(graph: Graph, lock: LockFile, issues: CheckIssue[]): Promise<void> {
+  for (const drift of await findUnrecordedStatusDrift(graph, lock)) {
     issues.push({
       severity: 'warning',
       code: 'aspect-status-changed-outside-cli',

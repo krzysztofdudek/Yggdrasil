@@ -333,8 +333,8 @@ written, the pair stays unverified, and \`yg check --approve\` reports the
 per-pair what/why/next message with the token
 \`aspect-companion-runtime-error\`. A summary line is also emitted at the end
 of the fill run: "N companion resolutions failed to run at fill time —
-left unverified (aspect-companion-runtime-error)." This mirrors the
-script rule's \`aspect-check-runtime-error\` pattern exactly. The hook never
+left unverified (aspect-companion-runtime-error)." A script rule whose check
+fails to run is reported the same way, as \`unverified\` with cause \`check-failed-to-run\`. The hook never
 judges code — any judgment logic belongs in the reviewer via \`content.md\`.
 
 ### yg-suppress in companion files
@@ -361,6 +361,13 @@ export async function companion(ctx) {
 }
 \`\`\`
 
+The probe is inside the allowed reads only when \`docs/scenarios/\` is: map it to a
+node (for instance \`docs/scenarios\`), and give every node this rule reaches a
+declared relation to that node (or put the scenarios under the unit's own mapping).
+Without that, \`ctx.fs.exists\` on the path is an allowed-reads violation and every
+pair fails as infrastructure — nothing written, the pair unverified — rather than
+reviewing without a scenario.
+
 ### Frontmatter parsing
 
 There is no dedicated frontmatter helper. To extract YAML frontmatter
@@ -385,10 +392,11 @@ const data = ctx.parseYaml('docs/config.yaml');
 
 ### Validator errors
 
-- \`aspect-companion-without-content\` — \`companion.mjs\` is present but
-  \`content.md\` is absent. Companion files require a reviewer rule.
-- \`aspect-companion-with-check\` — \`companion.mjs\` is present alongside
-  \`check.mjs\`. Companion files are a reviewer-rule add-on only.
+- \`aspect-companion-without-content\` — a companion (\`companion.mjs\`, or the
+  \`companion:\` key of \`yg-aspect.yaml\`) is present but \`content.md\` is
+  absent — a bundle included. Companions require a reviewer rule.
+- \`aspect-companion-with-check\` — a companion (the file or the key) is present
+  alongside \`check.mjs\`. Companions are a reviewer-rule add-on only.
 
 ### Testing companion hooks
 

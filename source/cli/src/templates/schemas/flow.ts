@@ -30,5 +30,5 @@ aspects:                      # optional — aspects propagate to all flow parti
   - id: conditional-aspect    #   object form with per-site applicability filter
     status: enforced          #   optional — explicit status override (channel 5).
                               #   Must satisfy bump rule (bump up OK, downgrade is validator error).
-    when: <predicate>         #   optional — see yg schemas read aspect for grammar
+    when: { node: { has_mapping: true } }  # optional — a node predicate; yg schemas read aspect has the grammar
 `;

@@ -2,7 +2,7 @@ name: CLI Preamble
 type: command-support
 description: "Command-layer support helpers shared by every command handler:
   loadGraphOrAbort (load the graph or print a uniform what/why/next error and
-  exit) and abortOnUnexpectedError (the canonical funnel for unclassified
+  exit, starting the opt-in debug log once the graph is loaded) and abortOnUnexpectedError (the canonical funnel for unclassified
   errors). Both report through the CLI output layer's fail, so these errors
   read, and reach a JSON reader, exactly like every other command error. Lives
   in the command layer so it may import both the engine (loadGraph) and the
@@ -18,5 +18,9 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/cli/preamble.ts

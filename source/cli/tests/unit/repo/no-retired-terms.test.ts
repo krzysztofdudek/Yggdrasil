@@ -57,6 +57,12 @@ const RETIRED: Array<{ pattern: RegExp; use: string }> = [
   { pattern: /\benforcement levels?\b/i, use: 'status' },
   { pattern: /\bchange of standing\b/i, use: 'change of status' },
   { pattern: /\bstandings\b/i, use: 'statuses' },
+  // The config token is `reviewer.type`; a message that says a rule "has reviewer 'llm'"
+  // reads as if the rule had a reviewer called llm.
+  { pattern: /\bhas reviewer '(llm|deterministic|\$\{[^}]+\})'/i, use: "declares reviewer type '<token>'" },
+  { pattern: /\bchange reviewer to\b/i, use: 'set reviewer.type to' },
+  { pattern: /\bdeterministic local checks?\b/i, use: 'script rule' },
+  { pattern: /\breviewer skipped; aspect is draft\b/i, use: 'not checked; the rule is draft' },
 ];
 
 function walk(dir: string, out: string[]): void {
@@ -85,7 +91,46 @@ function scan(files: string[], codeOnly: boolean, hits: string[]): void {
   }
 }
 
+/**
+ * The portal speaks the Glossary's words in every string it shows. The frozen machine
+ * tokens (`llm`, `deterministic`, `aggregate`, `approved`) are mapped in the Glossary;
+ * inside the portal they may appear only as a whole literal — a key, an enum value, a CSS
+ * class — never inside a sentence a reader sees.
+ */
+const PORTAL_JS = 'source/cli/src/templates/portal/js';
+const PORTAL_TOKENS: Array<{ pattern: RegExp; use: string }> = [
+  { pattern: /\bLLM\b/, use: 'reviewer rule / the reviewer' },
+  { pattern: /\bdeterministic\b/i, use: 'script rule' },
+  { pattern: /\bapproved\b/i, use: 'passed / verified' },
+];
+const STRING_LITERAL = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
+
 describe('retired terms are not used', () => {
+  it('no portal sentence uses a machine token for a Glossary word', () => {
+    const files: string[] = [];
+    walk(path.join(REPO_ROOT, PORTAL_JS), files);
+    const js = files.filter((f) => f.endsWith('.js'));
+    expect(js.length).toBeGreaterThan(10);
+    const hits: string[] = [];
+    for (const file of js) {
+      const rel = path.relative(REPO_ROOT, file).split(path.sep).join('/');
+      if (SKIP_FILES.has(rel)) continue;
+      readFileSync(file, 'utf-8').split('\n').forEach((line, i) => {
+        if (COMMENT.test(line)) return;
+        for (const m of line.matchAll(STRING_LITERAL)) {
+          const text = m[1] ?? m[2] ?? m[3] ?? '';
+          // A literal with no space is a key, an enum value or a class name, not a sentence.
+          if (!/\s/.test(text)) continue;
+          for (const { pattern, use } of PORTAL_TOKENS) {
+            const hit = pattern.exec(text);
+            if (hit) hits.push(`${rel}:${i + 1} says "${hit[0]}" in "${text.slice(0, 80)}" — the Glossary word is "${use}"`);
+          }
+        }
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
   it('no adopter-facing prose uses a retired synonym', () => {
     const files: string[] = [];
     for (const d of PROSE_DIRS) walk(path.join(REPO_ROOT, d), files);

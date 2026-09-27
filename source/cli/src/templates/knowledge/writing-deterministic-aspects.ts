@@ -1,3 +1,5 @@
+import { GRAPHLESS_SCRIPT_CTX } from './shared-text.js';
+
 export const summary =
   'How to write check.mjs: the one check(ctx) contract, the ctx surface, tree-sitter API, allowed reads, observation = invalidation surface, machine-independence, cached-at-fill model, cookbook.';
 
@@ -23,14 +25,9 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
   \`node\` are ALSO present, but only when the unit has an owning node. A
   type-covered file (\`coverage.type_level\`, no node of its own) gets
   everything except \`graph\`/\`node\` — see "Rules on a type-covered file" below.
-- The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
-  check one and the same \`ctx\` in both: \`ctx.files\` and \`ctx.subject\` (the given
-  files) and \`ctx.config\` (the rule's settings). A check that reads any other
-  graph-context accessor — \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`,
-  \`ctx.parseYaml\`, \`ctx.parseJson\`, or \`ctx.parseToml\` — cannot run there, and is
-  reported as needing a graph-attached run, never as a bug in the check: \`yg drill\`
-  records the case as an unsupported-capability gap (exit 0), and
-  \`yg aspect-test --files\` names \`yg aspect-test --node\` instead.
+- ${GRAPHLESS_SCRIPT_CTX} \`yg drill\` records the case as an
+  unsupported-capability gap (exit 0), and \`yg aspect-test --files\` names
+  \`yg aspect-test --node\` instead.
 
 **Plain \`yg check\` never executes a script rule** — it validates the entry
 by hashing, exactly like a reviewer entry; its cost is hashing only. It executes no
@@ -110,8 +107,10 @@ path uses the AST runner, whose codes are the \`AST_CHECK_*\` equivalents:
 
 A runtime failure at fill time (import error, thrown exception, broken contract)
 is an infra disposition: NO entry is written, the pair stays unverified, and the
-\`yg check --approve\` summary reports it under \`aspect-check-runtime-error\`. Plain
-\`yg check\` sees such a pair simply as \`unverified\`.
+\`yg check --approve\` summary names the rule and the unit. The finding is
+\`unverified\` with cause \`check-failed-to-run\` (there is no separate issue code),
+and its severity follows the rule's status. Plain \`yg check\` sees such a pair
+simply as \`unverified\`.
 
 ## Iterating over the files
 
@@ -384,8 +383,8 @@ on which accessor is involved:
 
 An undeclared \`ctx.fs.exists/list/read\` is different: it is NOT a \`Violation\`.
 The runner throws before your check ever returns, so no verdict entry is
-written and the pair stays unverified — \`yg check --approve\` reports it under
-\`aspect-check-runtime-error\`, naming the real remedy (widen the architecture's
+written and the pair stays unverified — \`yg check --approve\` reports it as
+\`unverified\` with cause \`check-failed-to-run\`, naming the real remedy (widen the architecture's
 \`relations:\` so the reachable type may depend on whatever owns the path, add a
 relation in \`yg-node.yaml\`, or give the file a node of its own) instead of
 "fix check.mjs" — there is nothing to fix in the check itself.
