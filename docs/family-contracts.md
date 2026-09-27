@@ -24,6 +24,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Command error (any command run with `--json` that fails): `code`, `what`, `why` (`null` when there is none), `next: { command, text }` — `command` an argument vector or `null`, the same form `yg-check/1`'s `next.command` takes | `yg-error/1` | Yggdrasil | Horde — every document read (`node.mjs` `ygJson`; it reads `code`, `what`, `why` and `next.text`, never `next.command`) | 6.1.0 | [CLI Reference](/cli-reference) |
 | Node list (`yg tree --json`) | `yg-tree/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | File owner (`yg owner --json`) | `yg-owner/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| File owner batch (`yg owner --files --json`) | `yg-owner-batch/1` | Yggdrasil | no external consumer today — built for Horde's territory resolver, one node or `type:<id>@<top-level dir>` unit per file (447) | 6.1.0 | [CLI Reference](/cli-reference) |
 | Search results (`yg find --json`) | `yg-find/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | Component log (`yg log read --node --json`) | `yg-log/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | Type decisions (`yg log read --type --json`) — a node type's decision log | `yg-type-log/1` | Yggdrasil | no external consumer (Horde writes decisions with `yg log add --type`; it reads none back) | 6.1.0 | [CLI Reference](/cli-reference) |

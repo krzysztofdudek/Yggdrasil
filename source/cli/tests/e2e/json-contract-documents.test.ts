@@ -140,6 +140,7 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     emitted(dir, ['drill', '--aspect', 'no-todo-comments', '--json']);
     emitted(dir, ['tree', '--json']);
     emitted(dir, ['owner', '--file', 'src/services/orders.ts', '--json']);
+    emitted(dir, ['owner', '--files', 'src/services/orders.ts,README.md,src/no/such/file.ts', '--json']);
     emitted(dir, ['find', 'order', '--json']);
     emitted(dir, ['log', 'read', '--node', 'services/orders', '--json']);
     emitted(dir, ['log', 'read', '--type', 'service', '--json']);

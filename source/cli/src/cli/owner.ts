@@ -9,6 +9,7 @@ import type { Graph, OwnerResult } from '../model/graph.js';
 import { normalizeProjectRelativePath, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+import type { OwnerIndex } from '../relations/owner-index.js';
 import {
   resolveGraphExclusionSet,
   isExcludedFromGraph,
@@ -18,6 +19,7 @@ import {
   NO_COVERAGE_EXCLUDED,
   walkRepoFiles,
 } from '../io/repo-scanner.js';
+import type { GraphExclusionSet } from '../io/repo-scanner.js';
 import { classifySingleFileCached, computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
@@ -36,7 +38,13 @@ function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
 }
 
-export function findOwner(graph: Graph, projectRoot: string, rawPath: string): OwnerResult {
+/**
+ * `index`, when given, is used as-is instead of a fresh `buildOwnerIndex` —
+ * `resolveOwnersBatch` below builds it once and passes it to every file in a
+ * `yg owner --files` run, instead of rebuilding the same node → mapping index
+ * per file. Every existing caller omits it and gets the original behavior.
+ */
+export function findOwner(graph: Graph, projectRoot: string, rawPath: string, index?: OwnerIndex): OwnerResult {
   const file = normalizeForMatch(normalizeProjectRelativePath(projectRoot, rawPath));
 
   // Node selection comes from the canonical hierarchy-first resolver so `yg
@@ -45,7 +53,7 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
   // shorter/broader pattern than its ancestor). The presentation fields are
   // derived from the winning entry's kind: 'exact' and 'glob' both render as a
   // direct mapping; 'directory' renders as coverage via an ancestor directory.
-  const entry = buildOwnerIndex(graph.nodes).ownerEntryOf(file);
+  const entry = (index ?? buildOwnerIndex(graph.nodes)).ownerEntryOf(file);
   if (!entry) return { file, nodePath: null };
 
   return { file, nodePath: entry.nodePath, mappingPath: entry.mapping, direct: entry.kind !== 'directory' };
@@ -78,11 +86,22 @@ export function findOwner(graph: Graph, projectRoot: string, rawPath: string): O
  * tie-break behavior (which node wins when two mappings match equally) is
  * unit-tested directly against it, not because any other production caller
  * needs the unguarded answer.
+ *
+ * `opts.index` and `opts.exclusion`, when given, replace the fresh
+ * `buildOwnerIndex` / `resolveGraphExclusionSet` this function would
+ * otherwise compute — `resolveOwnersBatch` shares one of each across a whole
+ * `yg owner --files` run instead of paying for them per file. Every existing
+ * caller omits `opts` and gets the original per-call behavior.
  */
-export async function findOwnerWithinOwnGraph(graph: Graph, projectRoot: string, rawPath: string): Promise<OwnerResult> {
-  const result = findOwner(graph, projectRoot, rawPath);
+export async function findOwnerWithinOwnGraph(
+  graph: Graph,
+  projectRoot: string,
+  rawPath: string,
+  opts?: { index?: OwnerIndex; exclusion?: GraphExclusionSet },
+): Promise<OwnerResult> {
+  const result = findOwner(graph, projectRoot, rawPath, opts?.index);
   if (!result.nodePath) return result;
-  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  const exclusion = opts?.exclusion ?? await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
   if (isExcludedFromGraph(result.file, exclusion)) {
     return { file: result.file, nodePath: null };
   }
@@ -143,14 +162,225 @@ const EMPTY_OWNER: Omit<OwnerJsonDocument, 'schema' | 'file' | 'kind'> = {
   node: null, type: null, direct: null, mappingPath: null, enforced: null, excludedBecause: null, candidates: [], next: null,
 };
 
+/** Schema id of `yg owner --files --json`. */
+const OWNER_BATCH_JSON_SCHEMA = 'yg-owner-batch/1';
+
+/**
+ * One file's answer within `yg owner --files --json` — the same facts as a
+ * single `yg-owner/1` document, minus the two that cost a whole-repo relation
+ * pass to compute (`enforced`) or exist only to steer a human reader to a
+ * next command (`next`): a batch answers many files at once and is meant for
+ * a program, not a terminal. `unit` is the one field a single-file answer
+ * never carries — the grouping key a territory resolver (Horde, 447) needs: a
+ * node's own path, or `type:<id>@<top-level directory>` for a file no node
+ * maps but an architecture type alone covers (§8 of the family vision
+ * design). Everything else answers null — there is nothing to group an
+ * unmapped, missing, excluded or invalid file under.
+ */
+export interface OwnerBatchEntry {
+  file: string;
+  /** Same five kinds as `yg-owner/1`, plus `invalid` for a path this batch could not resolve at all (e.g. it names something outside the project root) — a batch never aborts on one bad entry the way `yg owner --file` aborts the whole run. */
+  kind: 'node' | 'type' | 'unmapped' | 'missing' | 'excluded' | 'invalid';
+  node: string | null;
+  type: string | null;
+  unit: string | null;
+  direct: boolean | null;
+  mappingPath: string | null;
+  excludedBecause: string | null;
+  candidates: Array<{ node: string; sameDirEntries: number }>;
+  /** Set only for kind 'invalid': why the path could not be resolved. */
+  error: string | null;
+}
+
+/** The whole `yg owner --files --json` document: one entry per input file, in input order — duplicates in the input produce duplicate entries. */
+export interface OwnerBatchJsonDocument {
+  schema: typeof OWNER_BATCH_JSON_SCHEMA;
+  files: OwnerBatchEntry[];
+}
+
+const EMPTY_BATCH_ENTRY: Omit<OwnerBatchEntry, 'file' | 'kind'> = {
+  node: null, type: null, unit: null, direct: null, mappingPath: null, excludedBecause: null, candidates: [], error: null,
+};
+
+/** The first path segment of a repo-relative file, or `.` for a file directly at the repository root — the "top-level directory" half of a type unit (`type:<id>@<top-level dir>`). */
+function topLevelDirOf(file: string): string {
+  const slash = file.indexOf('/');
+  return slash === -1 ? '.' : file.slice(0, slash);
+}
+
+/** Shared, per-batch state `resolveOwnersBatch` computes once and every file in the batch reuses — the whole point of the batch form over N separate `yg owner --file` runs. */
+interface OwnerBatchContext {
+  index: OwnerIndex;
+  exclusion: GraphExclusionSet;
+  typeLevel: boolean;
+  contentCache: FileContentCache;
+}
+
+/**
+ * Resolve one already-repo-relative file against the shared batch context —
+ * the same disjunction `yg owner --file` applies in the same order
+ * (structurally-exempt path, then a configured exclusion, then type-level
+ * coverage, then plain existence), but answering the leaner batch shape:
+ * never the whole-repo relation pass, never a lock read, so a type-covered
+ * entry's `type` and `unit` are always populated but its enforcement is not
+ * — `yg owner --file --json` is where a caller pays that cost, for one file.
+ */
+async function resolveOneOwnerForBatch(graph: Graph, repoRoot: string, file: string, ctx: OwnerBatchContext): Promise<OwnerBatchEntry> {
+  const raw = findOwner(graph, repoRoot, file, ctx.index);
+  const nodeExcluded = raw.nodePath !== null && isExcludedFromGraph(raw.file, ctx.exclusion);
+
+  if (raw.nodePath && !nodeExcluded) {
+    return {
+      file: raw.file, kind: 'node', ...EMPTY_BATCH_ENTRY,
+      node: raw.nodePath, unit: raw.nodePath,
+      direct: raw.direct !== false, mappingPath: raw.mappingPath ?? null,
+    };
+  }
+
+  const absPath = path.resolve(repoRoot, raw.file);
+  let exists = true;
+  try { await access(absPath); } catch (e: unknown) { debugWrite(`[owner --files] access check failed for ${raw.file}: ${e instanceof Error ? e.message : String(e)}`); exists = false; }
+
+  if (isCoverageExcludedPath(raw.file)) {
+    return { file: raw.file, kind: 'excluded', ...EMPTY_BATCH_ENTRY, excludedBecause: "it sits inside git internals or the graph's own .yggdrasil/ directory" };
+  }
+  if (isExcludedFromGraph(raw.file, ctx.exclusion)) {
+    const cause = describeExclusionCause(describeExclusionSource(raw.file, ctx.exclusion)!);
+    return { file: raw.file, kind: 'excluded', ...EMPTY_BATCH_ENTRY, excludedBecause: cause };
+  }
+  if (exists && ctx.typeLevel) {
+    const classification = await classifySingleFileCached(graph, raw.file, ctx.contentCache);
+    if (classification.bucket === 'covered') {
+      return {
+        file: raw.file, kind: 'type', ...EMPTY_BATCH_ENTRY,
+        type: classification.typeId, unit: `type:${classification.typeId}@${topLevelDirOf(raw.file)}`,
+      };
+    }
+  }
+  if (exists) {
+    const candidates = findCandidateOwners(graph, raw.file);
+    return {
+      file: raw.file, kind: 'unmapped', ...EMPTY_BATCH_ENTRY,
+      candidates: candidates.map((c) => ({ node: c.nodePath, sameDirEntries: c.fileCount })),
+    };
+  }
+  return { file: raw.file, kind: 'missing', ...EMPTY_BATCH_ENTRY };
+}
+
+/**
+ * `yg owner --files`'s engine: resolve ownership for a whole list of files
+ * against ONE loaded graph — one `buildOwnerIndex`, one
+ * `resolveGraphExclusionSet`, one `FileContentCache`, all built here and
+ * shared across every file, instead of the graph load and index build that N
+ * separate `yg owner --file` invocations would each pay for again. This is
+ * the resolver a territory computation (Horde, issue 447 / the family vision
+ * design §8) calls in bulk: the `unit` on each entry is what it groups files
+ * by.
+ *
+ * Deliberately lighter than the single-file JSON answer — see
+ * `resolveOneOwnerForBatch`'s doc for exactly what it does not compute and
+ * why. A file whose path cannot be resolved at all (outside the project
+ * root, or empty) becomes an `invalid` entry with `error` set, rather than
+ * aborting every other file's answer.
+ */
+async function resolveOwnersBatch(graph: Graph, repoRoot: string, rawFiles: readonly string[]): Promise<OwnerBatchEntry[]> {
+  const ctx: OwnerBatchContext = {
+    index: buildOwnerIndex(graph.nodes),
+    exclusion: await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED),
+    typeLevel: graph.config.coverage?.typeLevel === true,
+    contentCache: new FileContentCache(),
+  };
+
+  const entries: OwnerBatchEntry[] = [];
+  for (const rawFile of rawFiles) {
+    try {
+      const repoRelative = resolveFileArg(repoRoot, rawFile);
+      entries.push(await resolveOneOwnerForBatch(graph, repoRoot, repoRelative, ctx));
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      debugWrite(`[owner --files] ${rawFile}: ${msg}`);
+      entries.push({
+        file: toPosixPath(rawFile.trim()), kind: 'invalid', ...EMPTY_BATCH_ENTRY,
+        error: msg,
+      });
+    }
+  }
+  return entries;
+}
+
+/**
+ * `--files`'s value: a comma-separated list, or standard input — one path per
+ * line — when the value is `-` (the same convention `yg advise import -`
+ * already uses for "read the document from stdin"). Blank lines and
+ * surrounding whitespace are dropped either way.
+ */
+async function readBatchFileList(filesOption: string): Promise<string[]> {
+  if (filesOption === '-') {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks).toString('utf-8').split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+  return filesOption.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/** The plain-text line for one batch entry — `yg owner --files` without `--json`. */
+function batchEntryLine(entry: OwnerBatchEntry): string {
+  switch (entry.kind) {
+    case 'node': return `${entry.file} -> ${entry.node}`;
+    case 'type': return `${entry.file} -> ${entry.unit}`;
+    case 'excluded': return `${entry.file} -> (excluded from graph coverage: ${entry.excludedBecause})`;
+    case 'invalid': return `${entry.file} -> (could not be resolved: ${entry.error})`;
+    case 'missing': return `${entry.file} -> (no graph coverage: file not found)`;
+    case 'unmapped': return `${entry.file} -> (no graph coverage)`;
+  }
+}
+
+async function runOwnerBatch(filesOption: string, json: boolean): Promise<void> {
+  const rawFiles = await readBatchFileList(filesOption);
+  if (rawFiles.length === 0) {
+    failAndExit({
+      what: '--files named no file.',
+      why: 'yg owner --files resolves ownership for a list of files, and the list — or standard input, with --files - — was empty.',
+      next: 'Pass a comma-separated list (yg owner --files a.ts,b.ts) or pipe newline-separated paths in with --files -.',
+    }, 'usage');
+  }
+  const graph = await loadGraphOrAbort(process.cwd());
+  initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
+  const repoRoot = projectRootFromGraph(graph.rootPath);
+  const entries = await resolveOwnersBatch(graph, repoRoot, rawFiles);
+  if (json) {
+    writeOut(`${JSON.stringify({ schema: OWNER_BATCH_JSON_SCHEMA, files: entries }, null, 2)}\n`);
+    return;
+  }
+  writeOut(`${entries.map(batchEntryLine).join('\n')}\n`);
+}
+
 export function registerOwnerCommand(program: Command): void {
   program
     .command('owner')
     .description('Find which graph node owns a source file')
     .option('--file <path>', 'File path (relative to repository root)')
-    .option('--json', 'Print the answer as a yg-owner/1 JSON document')
-    .action(async (options: { file?: string; json?: boolean }) => {
+    .option(
+      '--files <list>',
+      'Batch form: a comma-separated list of file paths, or "-" to read them one per line from standard input. ' +
+        'Resolves the whole list against one loaded graph and prints a yg-owner-batch/1 document under --json ' +
+        "(plain text otherwise) — for a caller like Horde's territory resolver that needs many files at once, " +
+        'never --file in a loop.',
+    )
+    .option('--json', 'Print the answer as a yg-owner/1 JSON document (yg-owner-batch/1 with --files)')
+    .action(async (options: { file?: string; files?: string; json?: boolean }) => {
       try {
+        if (options.file && options.files) {
+          failAndExit({
+            what: '--file and --files cannot be used together.',
+            why: 'yg owner answers about one file with --file, or a whole list at once with --files — never both in the same run.',
+            next: 'Re-run with only one of --file or --files.',
+          }, 'usage');
+        }
+        if (options.files !== undefined) {
+          await runOwnerBatch(options.files, options.json === true);
+          return;
+        }
         // One answer, two forms: the text a person reads, or the yg-owner/1
         // document — the same facts, so a consumer never parses the sentence.
         const answer = (doc: Omit<OwnerJsonDocument, 'schema'>, text: string): void => {

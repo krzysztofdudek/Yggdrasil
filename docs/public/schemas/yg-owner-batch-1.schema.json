@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-owner-batch-1.schema.json",
+  "title": "File owner batch (yg owner --files --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-owner-batch/1"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OwnerBatchEntry"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "files"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "OwnerBatchEntry": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "Same five kinds as `yg-owner/1`, plus `invalid` for a path this batch could not resolve at all (e.g. it names something outside the project root) — a batch never aborts on one bad entry the way `yg owner --file` aborts the whole run.",
+          "enum": [
+            "excluded",
+            "invalid",
+            "missing",
+            "node",
+            "type",
+            "unmapped"
+          ]
+        },
+        "node": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "type": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "unit": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "direct": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "mappingPath": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "excludedBecause": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "node": {
+                "type": "string"
+              },
+              "sameDirEntries": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "node",
+              "sameDirEntries"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "error": {
+          "description": "Set only for kind 'invalid': why the path could not be resolved.",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "file",
+        "kind",
+        "node",
+        "type",
+        "unit",
+        "direct",
+        "mappingPath",
+        "excludedBecause",
+        "candidates",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

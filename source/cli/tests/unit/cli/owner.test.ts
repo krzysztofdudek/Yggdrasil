@@ -499,3 +499,163 @@ describe('owner — a typed answer for a type-covered file', () => {
     }, FIXTURE_CYCLIC_TYPE);
   });
 });
+
+describe('owner --files (batch form, 447)', () => {
+  it('resolves several files in one call: node-owned, unmapped, missing — a single yg-owner-batch/1 document, one entry per input file', async () => {
+    await withFixtureCopy(async (cwd) => {
+      await writeFile(path.join(cwd, 'src', 'orders', 'extra-unmapped.ts'), 'export const extra = 1;\n');
+      const result = spawnSync(
+        'node',
+        [
+          BIN_PATH, 'owner', '--files',
+          'src/orders/order.service.ts,src/orders/extra-unmapped.ts,src/does/not/exist.ts',
+          '--json',
+        ],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.schema).toBe('yg-owner-batch/1');
+      expect(doc.files).toHaveLength(3);
+      expect(doc.files[0]).toMatchObject({
+        file: 'src/orders/order.service.ts', kind: 'node', node: 'orders/order-service', unit: 'orders/order-service',
+      });
+      expect(doc.files[1]).toMatchObject({ file: 'src/orders/extra-unmapped.ts', kind: 'unmapped', node: null, unit: null });
+      expect(doc.files[2]).toMatchObject({ file: 'src/does/not/exist.ts', kind: 'missing', node: null, unit: null });
+    });
+  });
+
+  it('the plain-text form prints one line per file, in the same order', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', 'src/orders/order.service.ts,src/does/not/exist.ts'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const lines = result.stdout.trim().split('\n');
+      expect(lines).toEqual([
+        'src/orders/order.service.ts -> orders/order-service',
+        'src/does/not/exist.ts -> (no graph coverage: file not found)',
+      ]);
+    });
+  });
+
+  it('--files - reads a newline-separated list from standard input, blank lines dropped', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', '-', '--json'],
+        { cwd, encoding: 'utf-8', input: 'src/orders/order.service.ts\n\nsrc/checkout/checkout.controller.ts\n' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files.map((f: { file: string }) => f.file)).toEqual([
+        'src/orders/order.service.ts',
+        'src/checkout/checkout.controller.ts',
+      ]);
+      expect(doc.files.map((f: { node: string | null }) => f.node)).toEqual(['orders/order-service', 'checkout/controller']);
+    });
+  });
+
+  it('a file outside the project root becomes an "invalid" entry with an error, without aborting the rest of the batch', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', 'src/orders/order.service.ts,../../../../etc/passwd', '--json'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files[0]).toMatchObject({ kind: 'node', node: 'orders/order-service' });
+      expect(doc.files[1]).toMatchObject({ kind: 'invalid', node: null, unit: null });
+      expect(doc.files[1].error).toContain('outside project root');
+    });
+  });
+
+  it('rejects --file and --files together, and an empty --files list, with structured usage errors', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const both = spawnSync('node', [BIN_PATH, 'owner', '--file', 'a', '--files', 'b'], { cwd, encoding: 'utf-8' });
+      expect(both.status).toBe(1);
+      expect(both.stderr).toContain('--file and --files cannot be used together.');
+
+      const empty = spawnSync('node', [BIN_PATH, 'owner', '--files', '  ,  '], { cwd, encoding: 'utf-8' });
+      expect(empty.status).toBe(1);
+      expect(empty.stderr).toContain('--files named no file.');
+    });
+  });
+
+  it('a type-covered file in the batch carries kind "type" and a unit of type:<id>@<top-level dir>, agreeing with --file', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const single = spawnSync('node', [BIN_PATH, 'owner', '--file', 'src/leaf/a.ts', '--json'], { cwd, encoding: 'utf-8' });
+      const singleDoc = JSON.parse(single.stdout);
+
+      const batch = spawnSync('node', [BIN_PATH, 'owner', '--files', 'src/leaf/a.ts', '--json'], { cwd, encoding: 'utf-8' });
+      expect(batch.status).toBe(0);
+      const batchDoc = JSON.parse(batch.stdout);
+      expect(batchDoc.schema).toBe('yg-owner-batch/1');
+      expect(batchDoc.files).toHaveLength(1);
+      expect(batchDoc.files[0]).toMatchObject({ file: 'src/leaf/a.ts', kind: 'type', type: singleDoc.type, unit: `type:${singleDoc.type}@src` });
+    });
+  });
+
+  it('a file excluded from graph coverage by design is reported the same way in the batch as in --file', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', '.yggdrasil/yg-config.yaml', '--json'],
+        { cwd, encoding: 'utf-8' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files[0]).toMatchObject({ kind: 'excluded', node: null, unit: null });
+      expect(doc.files[0].excludedBecause).toContain("git internals or the graph's own .yggdrasil/ directory");
+    });
+  });
+});
+
+describe('owner --files agrees with owner --file, file by file (447 review)', () => {
+  const PORTAL_TYPE_COVERAGE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-type-coverage');
+
+  it('every batch entry carries the same facts as the single-file yg-owner/1 answer, and a unit derived from them; a path --file refuses is an invalid entry', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-parity-'));
+    await copyFixtureTreeAsync(PORTAL_TYPE_COVERAGE_FIXTURE, root);
+    try {
+      // An unmapped file next to a node-owned one, so the candidates list is non-empty.
+      await writeFile(path.join(root, 'src', 'gateway', 'extra.ts'), 'export const extra = 1;\n');
+      const inputs = [
+        'src/gateway/gateway.ts', 'src/gateway/extra.ts', 'src/lib/util.ts', 'src/svc/handler.ts', 'vendor/tool.ts',
+        '.yggdrasil/yg-config.yaml', 'src/nope/missing.ts', './src/svc/handler.ts', ' src/lib/util.ts ', 'src', '../outside.ts',
+      ];
+      // CRLF line ends, as a Windows pipe delivers them.
+      const batch = spawnSync('node', [BIN_PATH, 'owner', '--files', '-', '--json'], { cwd: root, encoding: 'utf-8', input: `${inputs.join('\r\n')}\r\n` });
+      expect(batch.status).toBe(0);
+      const doc = JSON.parse(batch.stdout);
+      expect(doc.files).toHaveLength(inputs.length);
+
+      const kinds = new Set<string>();
+      inputs.forEach((input, i) => {
+        const entry = doc.files[i];
+        kinds.add(entry.kind);
+        const single = spawnSync('node', [BIN_PATH, 'owner', '--file', input, '--json'], { cwd: root, encoding: 'utf-8' });
+        if (single.status !== 0) {
+          expect(entry.kind, input).toBe('invalid');
+          expect(entry.error, input).toEqual(expect.any(String));
+          return;
+        }
+        const one = JSON.parse(single.stdout);
+        for (const key of ['file', 'kind', 'node', 'type', 'direct', 'mappingPath', 'excludedBecause', 'candidates']) {
+          expect(entry[key], `${input}: ${key}`).toEqual(one[key]);
+        }
+        const top = one.file.includes('/') ? one.file.slice(0, one.file.indexOf('/')) : '.';
+        const unit = one.kind === 'node' ? one.node : one.kind === 'type' ? `type:${one.type}@${top}` : null;
+        expect(entry.unit, input).toBe(unit);
+        expect(entry.error, input).toBeNull();
+      });
+      // The fixture exercises every kind, so the parity above is not vacuous.
+      expect([...kinds].sort()).toEqual(['excluded', 'invalid', 'missing', 'node', 'type', 'unmapped']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
