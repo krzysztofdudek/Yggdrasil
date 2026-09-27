@@ -217,7 +217,7 @@ describe('bounty3: empty-reason rejection covers BOTH single-line and disable fo
     await withParsedFile('x.ts', code, (tree) => {
       let thrown: unknown;
       try {
-        collectSuppressions(tree, 'x.ts', 2);
+        isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'async-fs', 2);
       } catch (e) {
         thrown = e;
       }
@@ -232,7 +232,7 @@ describe('bounty3: empty-reason rejection covers BOTH single-line and disable fo
   it('disable with no reason throws; enable with no reason is VALID (never throws)', async () => {
     const bad = '// yg-suppress-disable(async-fs)\ncode();';
     await withParsedFile('bad.ts', bad, (badTree) => {
-      expect(() => collectSuppressions(badTree, 'bad.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(badTree, 'bad.ts', 2), 'async-fs', 2)).toThrow(SuppressMarkerError);
     });
 
     // A reasoned disable closed by a bare (reasonless) enable must NOT throw —

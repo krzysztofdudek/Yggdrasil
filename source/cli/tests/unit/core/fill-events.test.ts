@@ -34,11 +34,11 @@ const DET_THROW = 'export function check(ctx) { void ctx; throw new Error("boom 
 
 const SVC_SOURCE_DEFAULT = 'export const x = 1;\n';
 // A source file carrying a MALFORMED yg-suppress marker (no reason). When a check
-// returns a violation against this file, the runner collects its suppress ranges
-// while filtering and throws — surfacing the fault as its own `malformed-suppress`
+// returns a violation of the aspect it names on the line it would waive, the runner
+// throws while filtering — surfacing the fault as its own `malformed-suppress`
 // disposition (NOT an aspect-check-runtime-error), which the fill emits as an event.
 const SVC_SOURCE_MALFORMED_SUPPRESS =
-  'export const x = 1;\n// yg-suppress(some-rule)\nexport const y = 2;\n';
+  'export const x = 1; // yg-suppress(det-flag)\nexport const y = 2;\n';
 
 /**
  * Build a minimal, self-contained project with one `svc` node mapping `src/svc.ts`

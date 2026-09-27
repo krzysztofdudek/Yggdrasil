@@ -241,37 +241,40 @@ export async function runStructureAspect(
     if (existing !== undefined) return existing;
     const cached = astCache.get(filePath);
     let ranges: SuppressedRange[] | null;
-    try {
-      if (cached) {
-        recordGrammarObservation(recorder, filePath);
-        ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
-      } else {
-        const content = sourceFor(filePath);
-        const tree = content !== undefined ? parseIntoCache(astCache, filePath, content) : undefined;
-        if (tree !== undefined) recordGrammarObservation(recorder, filePath);
-        ranges = content !== undefined
-          ? collectSuppressions(tree, filePath, content.split('\n').length, content)
-          : null;
-      }
-    } catch (err) {
-      // A malformed suppress marker is a fault in the SOURCE file's marker, not in
-      // check.mjs. Re-raise it as a runner error with a DISTINCT code so the
-      // filler surfaces its own "malformed suppress marker" diagnostic instead of
-      // an aspect-check-runtime-error that blames the (correct) check.
-      if (err instanceof SuppressMarkerError) {
-        throw new StructureRunnerError(SUPPRESS_MARKER_MALFORMED_CODE, err.messageData);
-      }
-      throw err;
+    if (cached) {
+      recordGrammarObservation(recorder, filePath);
+      ranges = collectSuppressions(cached.ast, filePath, cached.content.split('\n').length, cached.content);
+    } else {
+      const content = sourceFor(filePath);
+      const tree = content !== undefined ? parseIntoCache(astCache, filePath, content) : undefined;
+      if (tree !== undefined) recordGrammarObservation(recorder, filePath);
+      ranges = content !== undefined
+        ? collectSuppressions(tree, filePath, content.split('\n').length, content)
+        : null;
     }
     rangesByFile.set(filePath, ranges);
     return ranges;
   }
-  const visible = violations.filter(v => {
-    if (typeof v.file !== 'string' || typeof v.line !== 'number') return true;
-    const ranges = rangesFor(normalizeMappingPath(v.file));
-    if (!ranges) return true;
-    return !isLineSuppressed(ranges, aspectId, v.line);
-  });
+  // A violation of this aspect inside the range of a reasonless marker naming
+  // it throws: a fault in the SOURCE file's marker, not in check.mjs. Re-raise
+  // it as a runner error with a DISTINCT code so the filler surfaces its own
+  // "malformed suppress marker" diagnostic instead of an
+  // aspect-check-runtime-error that blames the (correct) check. A reasonless
+  // marker naming another aspect, or away from every violation, fails nothing.
+  let visible: typeof violations;
+  try {
+    visible = violations.filter(v => {
+      if (typeof v.file !== 'string' || typeof v.line !== 'number') return true;
+      const ranges = rangesFor(normalizeMappingPath(v.file));
+      if (!ranges) return true;
+      return !isLineSuppressed(ranges, aspectId, v.line);
+    });
+  } catch (err) {
+    if (err instanceof SuppressMarkerError) {
+      throw new StructureRunnerError(SUPPRESS_MARKER_MALFORMED_CODE, err.messageData);
+    }
+    throw err;
+  }
 
     return {
       violations: visible,

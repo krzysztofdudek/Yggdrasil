@@ -114,14 +114,20 @@ export function check(ctx) {
     const { mkdtempSync, writeFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-test-')); tmpDirs.push(dir);
-    writeFileSync(path.join(dir, 'check.mjs'), 'export function check(ctx) { void ctx; return []; }');
     const srcFile = path.join(dir, 'x.ts');
+    writeFileSync(path.join(dir, 'check.mjs'), `export function check(ctx) { void ctx; return [{ message: 'flagged', file: ${JSON.stringify(srcFile)}, line: 2 }]; }`);
     // A single-line yg-suppress marker with NO reason text after the aspect list
     // is malformed — the fault is in the subject file's marker, not check.mjs.
+    // It fails the run only where it would have waived: a violation of the
+    // aspect it names, on the line it covers.
     writeFileSync(srcFile, '// yg-suppress(test)\nfoo();\n');
     await expect(
       runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: srcFile }], projectRoot: '/' }),
     ).rejects.toMatchObject({ code: 'AST_SUPPRESS_MARKER_MALFORMED' });
+    // A reasonless marker naming another aspect waives nothing and fails nothing.
+    writeFileSync(srcFile, '// yg-suppress(other)\nfoo();\n');
+    const other = await runAstAspect({ aspectDir: dir, aspectId: 'test', files: [{ path: srcFile }], projectRoot: '/' });
+    expect(other.violations).toHaveLength(1);
   });
 
   it('AST_CHECK_THROWN falls back to String(e) when check.mjs throws a non-Error value', async () => {

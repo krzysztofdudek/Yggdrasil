@@ -170,20 +170,12 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   // Collect suppressions BEFORE invoking check. Parseable files use their AST
   // comments; non-parseable files (ast undefined) fall back to a raw-line scan
   // of their content, so a yg-suppress marker is honored in any language.
+  // A reasonless marker is collected with its fault and fails only a violation
+  // it would have waived (see the filter below).
   const rangesPerFile = new Map<string, ReturnType<typeof collectSuppressions>>();
-  try {
-    for (const f of sourceFiles) {
-      const totalLines = f.content.split('\n').length;
-      rangesPerFile.set(f.path, collectSuppressions(f.ast, f.path, totalLines, f.content));
-    }
-  } catch (e: unknown) {
-    // A malformed suppress marker is a fault in the subject file's marker, not in
-    // check.mjs — surface it as its own diagnostic so the failure is never
-    // misattributed to the aspect's check.
-    if (e instanceof SuppressMarkerError) {
-      throw new AstRunnerError('AST_SUPPRESS_MARKER_MALFORMED', e.messageData);
-    }
-    throw e;
+  for (const f of sourceFiles) {
+    const totalLines = f.content.split('\n').length;
+    rangesPerFile.set(f.path, collectSuppressions(f.ast, f.path, totalLines, f.content));
   }
 
   // Production paths pass `graphAccessTrap` false/unset, so `ctx` is EXACTLY
@@ -273,12 +265,23 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     }
   }
 
-  // Filter suppressed violations
-  const filtered = (raw as Violation[]).filter(v => {
-    const ranges = rangesPerFile.get(v.file);
-    if (!ranges) return true;
-    return !isLineSuppressed(ranges, params.aspectId, v.line);
-  });
+  // Filter suppressed violations. A violation of this aspect inside the range of
+  // a reasonless marker naming it throws: a fault in the subject file's marker,
+  // not in check.mjs — surfaced as its own diagnostic so the failure is never
+  // misattributed to the aspect's check.
+  let filtered: Violation[];
+  try {
+    filtered = (raw as Violation[]).filter(v => {
+      const ranges = rangesPerFile.get(v.file);
+      if (!ranges) return true;
+      return !isLineSuppressed(ranges, params.aspectId, v.line);
+    });
+  } catch (e: unknown) {
+    if (e instanceof SuppressMarkerError) {
+      throw new AstRunnerError('AST_SUPPRESS_MARKER_MALFORMED', e.messageData);
+    }
+    throw e;
+  }
 
   return { violations: filtered };
   } finally {

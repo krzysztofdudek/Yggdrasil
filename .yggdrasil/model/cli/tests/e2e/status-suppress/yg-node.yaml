@@ -1,7 +1,10 @@
 name: E2E Tests — Status & Suppress
 type: test-suite
-description: Subprocess E2E proving status-flip drift/render semantics (draft/advisory/enforced, status-downgrade validator error) and yg-suppress edge cases (single-line, bracket wildcard range, draft no-op).
+description: Subprocess E2E proving status-flip drift/render semantics (draft/advisory/enforced, status-downgrade validator error), yg-suppress edge cases (single-line, bracket wildcard range, draft no-op), and that a reasonless marker fails only what it would have waived — never another rule of its file, nor another rule's reviewer prompt.
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-status-suppress.test.ts
+  - source/cli/tests/e2e/cli-suppress-reasonless-scope.test.ts
