@@ -18,4 +18,8 @@ reviewer:
       config:
         api_key: "sk-..."       # outranks the provider's environment variable
         model: "claude-sonnet-4-5"
+        # endpoint: "https://gateway.example.com/v1"
+        #   An anthropic/openai/google key goes to an endpoint other than the
+        #   provider's own only when the endpoint is named here; one named only
+        #   in yg-config.yaml gets no key.
 `;

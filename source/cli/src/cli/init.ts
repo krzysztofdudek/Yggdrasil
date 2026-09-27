@@ -303,8 +303,8 @@ async function writeReviewerWithKey(yggRoot: string, choice: ReviewerChoice): Pr
     apiKey: choice.apiKey,
     keyAnswered: choice.keyAnswered === true,
   });
-  const notice = storedKeyNotice(outcome, prev, undefined);
-  if (notice) p.log.info(buildIssueMessage(notice));
+  const notice = storedKeyNotice(outcome, prev, undefined, await readReviewerTarget(yggRoot));
+  if (notice) (outcome === 'withheld' ? p.log.warning : p.log.info)(buildIssueMessage(notice));
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ async function persistReviewerConfig(
   // The environment's key is never written: the reviewer reads the variable
   // itself at run time. Only a stale stored key is settled here.
   const outcome = await settleStoredKey(yggRoot, prev, { provider, endpoint, keyAnswered: keyEnvVar !== undefined });
-  const notice = storedKeyNotice(outcome, prev, keyEnvVar);
+  const notice = storedKeyNotice(outcome, prev, keyEnvVar, await readReviewerTarget(yggRoot));
   if (notice) writeOut(paint.yellow(`${buildIssueMessage(notice)}\n`));
   // The environment-only warning is true only when no stored key will be sent.
   if (outcome !== 'kept' && resolved.keyWarning) {

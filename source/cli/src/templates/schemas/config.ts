@@ -154,6 +154,9 @@ reviewer:                         # required only once a reviewer rule is actual
     # tier's api_key, or pointing a named tier at a different provider/model.
     # A tier's api_key there outranks the provider's environment variable;
     # yg init removes it when it points the tier at another provider/endpoint.
+    # An anthropic/openai/google tier sends no key to a config.endpoint set only
+    # here that is not the provider's own: name that endpoint in yg-secrets.yaml
+    # to send the key there.
     # Only the tier NAME is folded into a verdict hash, so a local override never
     # invalidates recorded baselines. Keep credentials out of this committed file.
 `;

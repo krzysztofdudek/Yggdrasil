@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import type { CheckCode } from '../../model/issue-code.js';
-import { FIRST_PARTY_PROVIDERS } from '../../utils/known-providers.js';
+import { firstPartyProvider, withheldCommittedEndpoint } from '../../utils/known-providers.js';
 import { parse as parseYaml } from 'yaml';
 import { isTrackedByGit, readHeadFile } from '../../utils/git.js';
 import { issueMsg } from './shared.js';
@@ -19,15 +19,15 @@ import { issueMsg } from './shared.js';
  *     carries `config.api_key`.
  *   - secrets-file-tracked (error): .yggdrasil/yg-secrets.yaml is tracked by git
  *     (force-added past its .gitignore entry).
- *   - reviewer-endpoint-committed (warning): a first-party provider's tier would
- *     send the key from its environment variable to an endpoint the committed
- *     file names that is not the provider's own, or is plain http. Whoever can
- *     change the committed file can point that key — and the reviewed source —
- *     at any host; the warning makes the redirection visible on every check,
- *     before any run sends it. A local override in yg-secrets.yaml, or a key
- *     set in the overlay, is the developer's own choice and is not flagged.
- *     Whether the variable happens to be set on this machine is not asked: the
- *     finding is about the committed file, so it reads the same everywhere.
+ *   - reviewer-endpoint-committed (warning): a first-party provider's tier
+ *     names, in the committed file only, an endpoint that is not the
+ *     provider's own. The provider withholds its key from such an endpoint
+ *     (utils/known-providers.ts), so the tier cannot review until the developer names
+ *     the endpoint locally in yg-secrets.yaml; the warning says so on every
+ *     check instead of leaving it to a fill's unavailable reviewer. An
+ *     endpoint set in yg-secrets.yaml is the developer's own choice and is not
+ *     flagged. Whether a key happens to be set on this machine is not asked:
+ *     the finding is about the committed file, so it reads the same everywhere.
  *
  * Neither message ever repeats the key itself.
  */
@@ -64,24 +64,15 @@ export function checkReviewerCredentials(graph: Graph): ValidationIssue[] {
     });
   }
 
-  const committedEndpoints = graph.config.committedReviewer?.endpoints ?? {};
   for (const [tierName, tier] of Object.entries(graph.config.reviewer?.tiers ?? {})) {
-    const firstParty = Object.hasOwn(FIRST_PARTY_PROVIDERS, tier.provider)
-      ? FIRST_PARTY_PROVIDERS[tier.provider as keyof typeof FIRST_PARTY_PROVIDERS]
-      : undefined;
-    const committed = committedEndpoints[tierName];
-    if (!firstParty || committed === undefined) continue;
-    // Overridden locally (the effective endpoint is not the committed one), or a
-    // key configured explicitly rather than taken from the environment: not the
-    // committed file's doing.
-    if (tier.endpoint?.trim() !== committed || tier.api_key) continue;
-    const plainHttp = /^http:\/\//i.test(committed);
-    const nonDefault = committed.replace(/\/+$/, '') !== firstParty.endpoint;
-    if (!plainHttp && !nonDefault) continue;
+    const withheld = withheldCommittedEndpoint(tier);
+    const firstParty = firstPartyProvider(tier.provider);
+    if (withheld === undefined || !firstParty) continue;
+    const plainHttp = /^http:\/\//i.test(withheld);
     push('warning', 'reviewer-endpoint-committed', {
-      what: `Tier '${tierName}' (${tier.provider}) would send $${firstParty.envVar} and the reviewed source to ${committed}, an endpoint named in the committed yg-config.yaml${plainHttp ? ' over plain http' : ''} — not ${firstParty.endpoint}.`,
-      why: `A committed endpoint is set by whoever last changed the committed file, while the key comes from the environment of whoever runs yg check --approve; the two meet on that run${plainHttp ? ', and over http the key crosses the network unencrypted' : ''}.`,
-      next: `If this endpoint is yours (a proxy or gateway you run), move config.endpoint into .yggdrasil/yg-secrets.yaml so it is a local choice; otherwise remove it from yg-config.yaml and unset ${firstParty.envVar} before running yg check --approve on this branch.`,
+      what: `Tier '${tierName}' (${tier.provider}) names ${withheld}${plainHttp ? ', over plain http,' : ''} as its endpoint in the committed yg-config.yaml — not ${firstParty.endpoint} — so no API key is sent to it and the tier's reviewer pairs stay unverified.`,
+      why: `A committed endpoint is set by whoever last changed the shared file, while the key ($${firstParty.envVar}, or config.api_key in yg-secrets.yaml) belongs to whoever runs yg check --approve; the key goes to an endpoint other than ${tier.provider}'s own only when that person names it locally.`,
+      next: `If this endpoint is yours (a proxy or gateway you run), name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint) and the key goes there; otherwise remove config.endpoint from yg-config.yaml.`,
     });
   }
   return issues;

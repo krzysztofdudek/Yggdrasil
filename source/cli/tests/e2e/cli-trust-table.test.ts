@@ -165,8 +165,10 @@ const SCRIPT_ONLY: Observed = { checkMjs: true, companionMjs: false, sourceToRev
 const EVERYTHING: Observed = { checkMjs: true, companionMjs: true, sourceToReviewer: true };
 
 interface Row {
-  /** The command as the table names it. */
+  /** The command and the case it is run in, as the test reports it. */
   name: string;
+  /** The table row (1-based) that answers for this case, and the command exactly as that row names it. */
+  table: [number, string];
   args: string[];
   expected: Observed;
   extraConfig?: string;
@@ -194,44 +196,86 @@ function commitProject(root: string): void {
 // One entry per command in the table, in the table's order.
 const ROWS: Row[] = [
   // Row 1 — read-only commands.
-  { name: 'yg check (no auto_approve)', args: ['check'], expected: NOTHING },
-  { name: 'yg check --no-approve', args: ['check', '--no-approve'], expected: NOTHING },
-  { name: 'yg check --approve --dry-run', args: ['check', '--approve', '--dry-run'], expected: NOTHING },
-  { name: 'yg context', args: ['context', '--node', NODE], expected: NOTHING },
-  { name: 'yg owner', args: ['owner', '--file', FILE], expected: NOTHING },
-  { name: 'yg tree', args: ['tree'], expected: NOTHING },
-  { name: 'yg impact', args: ['impact', '--file', FILE], expected: NOTHING },
-  { name: 'yg aspects', args: ['aspects'], expected: NOTHING },
-  { name: 'yg portal --static', args: ['portal', '--static', '--out', 'portal.html'], expected: NOTHING },
+  { name: 'yg check (no auto_approve)', table: [1, 'yg check'], args: ['check'], expected: NOTHING },
+  { name: 'yg check --no-approve', table: [1, 'yg check --no-approve'], args: ['check', '--no-approve'], expected: NOTHING },
+  { name: 'yg check --approve --dry-run', table: [1, 'yg check --approve --dry-run'], args: ['check', '--approve', '--dry-run'], expected: NOTHING },
+  { name: 'yg context', table: [1, 'yg context'], args: ['context', '--node', NODE], expected: NOTHING },
+  { name: 'yg owner', table: [1, 'yg owner'], args: ['owner', '--file', FILE], expected: NOTHING },
+  { name: 'yg tree', table: [1, 'yg tree'], args: ['tree'], expected: NOTHING },
+  { name: 'yg impact', table: [1, 'yg impact'], args: ['impact', '--file', FILE], expected: NOTHING },
+  { name: 'yg aspects', table: [1, 'yg aspects'], args: ['aspects'], expected: NOTHING },
+  { name: 'yg portal --static', table: [1, 'yg portal'], args: ['portal', '--static', '--out', 'portal.html'], expected: NOTHING },
   // Row 2 — the free CI step: every check.mjs, nothing else.
-  { name: 'yg check --approve --only-deterministic', args: ['check', '--approve', '--only-deterministic'], expected: SCRIPT_ONLY },
+  { name: 'yg check --approve --only-deterministic', table: [2, 'yg check --approve --only-deterministic'], args: ['check', '--approve', '--only-deterministic'], expected: SCRIPT_ONLY },
   // Row 3 — the full fill.
-  { name: 'yg check --approve', args: ['check', '--approve'], expected: EVERYTHING },
+  { name: 'yg check --approve', table: [3, 'yg check --approve'], args: ['check', '--approve'], expected: EVERYTHING },
   // Row 4 — adopt baselines the free verdicts only.
-  { name: 'yg adopt', args: ['adopt', 'proposal'], expected: SCRIPT_ONLY, asProposal: true },
+  { name: 'yg adopt', table: [2, 'yg adopt'], args: ['adopt', 'proposal'], expected: SCRIPT_ONLY, asProposal: true },
   // Row 5 — the rule under test.
-  { name: 'yg aspect-test (script rule)', args: ['aspect-test', '--aspect', DET, '--node', NODE], expected: SCRIPT_ONLY },
-  { name: 'yg aspect-test (reviewer rule)', args: ['aspect-test', '--aspect', LLM, '--node', NODE], expected: { checkMjs: false, companionMjs: true, sourceToReviewer: true } },
-  { name: 'yg drill (script rule)', args: ['drill', '--aspect', DET], expected: SCRIPT_ONLY, drillCase: DET },
-  { name: 'yg drill (reviewer rule)', args: ['drill', '--aspect', LLM_PLAIN], expected: { checkMjs: false, companionMjs: false, sourceToReviewer: true }, drillCase: LLM_PLAIN },
+  { name: 'yg aspect-test (script rule)', table: [4, 'yg aspect-test'], args: ['aspect-test', '--aspect', DET, '--node', NODE], expected: SCRIPT_ONLY },
+  { name: 'yg aspect-test (reviewer rule)', table: [4, 'yg aspect-test'], args: ['aspect-test', '--aspect', LLM, '--node', NODE], expected: { checkMjs: false, companionMjs: true, sourceToReviewer: true } },
+  { name: 'yg drill (script rule)', table: [4, 'yg drill'], args: ['drill', '--aspect', DET], expected: SCRIPT_ONLY, drillCase: DET },
+  { name: 'yg drill (reviewer rule)', table: [4, 'yg drill'], args: ['drill', '--aspect', LLM_PLAIN], expected: { checkMjs: false, companionMjs: false, sourceToReviewer: true }, drillCase: LLM_PLAIN },
   // A reviewer rule that ships companion.mjs is recorded unsupported by drill: nothing of it runs.
-  { name: 'yg drill (reviewer rule with companion.mjs)', args: ['drill', '--aspect', LLM], expected: NOTHING, drillCase: LLM },
+  { name: 'yg drill (reviewer rule with companion.mjs)', table: [4, 'yg drill'], args: ['drill', '--aspect', LLM], expected: NOTHING, drillCase: LLM },
   // yg simulate replays the candidate script rule in a throwaway clone: it writes nothing here, but runs check.mjs.
-  { name: 'yg simulate', args: ['simulate', DET, '--node', NODE], expected: SCRIPT_ONLY, git: true },
+  { name: 'yg simulate', table: [4, 'yg simulate'], args: ['simulate', DET, '--node', NODE], expected: SCRIPT_ONLY, git: true },
   // Row 6 — auto_approve turns a bare check into the matching --approve form (outside CI).
-  { name: 'bare yg check, auto_approve: deterministic', args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n' },
-  { name: 'bare yg check, auto_approve: full', args: ['check'], expected: EVERYTHING, extraConfig: 'auto_approve: full\n' },
+  { name: 'bare yg check, auto_approve: deterministic', table: [5, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n' },
+  { name: 'bare yg check, auto_approve: full', table: [5, 'yg check'], args: ['check'], expected: EVERYTHING, extraConfig: 'auto_approve: full\n' },
   // Under CI a committed `full` is held back — nothing runs; `deterministic` is not held back.
-  { name: 'bare yg check under CI, auto_approve: full', args: ['check'], expected: NOTHING, extraConfig: 'auto_approve: full\n', env: { CI: 'true' } },
-  { name: 'bare yg check under CI, auto_approve: deterministic', args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n', env: { CI: 'true' } },
+  { name: 'bare yg check under CI, auto_approve: full', table: [5, 'yg check'], args: ['check'], expected: NOTHING, extraConfig: 'auto_approve: full\n', env: { CI: 'true' } },
+  { name: 'bare yg check under CI, auto_approve: deterministic', table: [5, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n', env: { CI: 'true' } },
   // A triage view never fills, whatever auto_approve says.
-  { name: 'yg check --summary, auto_approve: full', args: ['check', '--summary'], expected: NOTHING, extraConfig: 'auto_approve: full\n' },
+  { name: 'yg check --summary, auto_approve: full', table: [5, 'yg check'], args: ['check', '--summary'], expected: NOTHING, extraConfig: 'auto_approve: full\n' },
 ];
 
 // The read-only rows are also run over a project whose reviewer verdict is on
 // record and then went stale: that is the case in which a read used to import
 // companion.mjs to measure the prompt.
 const STALE_READS = ROWS.filter((r) => r.expected === NOTHING && ['check', 'context', 'impact', 'aspects', 'portal'].includes(r.args[0]));
+
+const THE_LOCK = path.join(__dirname, '..', '..', '..', '..', 'docs', 'the-lock.md');
+
+/** The trust table as docs/the-lock.md prints it: per row, the `yg` commands it names and whether it says they run repository code. */
+function tableFromDocs(): Array<{ commands: string[]; runsCode: boolean }> {
+  const text = readFileSync(THE_LOCK, 'utf-8');
+  const start = text.indexOf('| Command | Executes repository code? |');
+  expect(start, 'the trust table heading in docs/the-lock.md').toBeGreaterThanOrEqual(0);
+  const rows: Array<{ commands: string[]; runsCode: boolean }> = [];
+  for (const line of text.slice(start).split('\n').slice(2)) {
+    if (!line.startsWith('|')) break;
+    const [, command, answer] = line.split('|');
+    const commands = [...command.matchAll(/`(yg [^`]+)`/g)].map((m) => m[1]);
+    const verdict = /^\s*\*\*(Yes|No)\b/.exec(answer)?.[1];
+    expect(verdict, `a table row that opens with neither **Yes** nor **No**: ${line}`).toBeDefined();
+    rows.push({ commands: [...new Set(commands)], runsCode: verdict === 'Yes' });
+  }
+  return rows;
+}
+
+// The table and the rows above must name the same commands, row for row: a
+// command added to the docs without a case here, or a case whose command the
+// table no longer lists, fails before anyone reads the table as a promise.
+describe('the-lock.md trust table and this suite name the same commands', () => {
+  it('every command of every table row has a case here, and every case belongs to a row that names its command', () => {
+    const table = tableFromDocs();
+    const fromDocs = table.map((r) => r.commands.slice().sort());
+    const fromCases = table.map((_, i) => [...new Set(ROWS.filter((r) => r.table[0] === i + 1).map((r) => r.table[1]))].sort());
+    expect(fromCases).toEqual(fromDocs);
+    expect(ROWS.every((r) => r.table[0] >= 1 && r.table[0] <= table.length)).toBe(true);
+  });
+
+  it('a row the table answers "No" runs nothing in any case; a row it answers "Yes" runs something in at least one', () => {
+    const table = tableFromDocs();
+    table.forEach((row, i) => {
+      const cases = ROWS.filter((r) => r.table[0] === i + 1);
+      const ranSomething = (r: Row) => r.expected.checkMjs || r.expected.companionMjs || r.expected.sourceToReviewer;
+      if (row.runsCode) expect(cases.some(ranSomething), `table row ${i + 1}`).toBe(true);
+      else expect(cases.filter(ranSomething).map((r) => r.name), `table row ${i + 1}`).toEqual([]);
+    });
+  });
+});
 
 describe.skipIf(!distExists)('the-lock.md trust table — every row, as the CLI really behaves', () => {
   it.each(ROWS)('$name', async (row) => {

@@ -1229,6 +1229,11 @@ because moving a rule is not a violation of anything — and the next
 full `yg check --approve` writes the bare fact into that rule's log and stops
 mentioning it (`--approve --only-deterministic` writes no committed file, so it
 leaves the warning standing). A change you recorded yourself is never written a second time.
+The status the tool last saw lives in the local, gitignored cache, so only a
+machine that saw the rule before the change reports it: a fresh checkout — a CI
+job — has nothing to compare against, remembers the current status silently and
+records nothing. The warning is the author's local signal; the rule's log is the
+shared record.
 
 ### `yg advise`
 
@@ -1999,7 +2004,8 @@ reads the same variable at run time. A key already stored for the tier in
 when `--provider` points the tier at another provider or endpoint, and when the
 variable is set (it would otherwise shadow the key you exported). Re-running init
 for the same provider and endpoint with nothing exported keeps it and says the
-reviewer will send it. A missing key is non-fatal and can be set later before
+reviewer will send it (or, for a reviewer that sends no key, that it is not
+used). A missing key is non-fatal and can be set later before
 `yg check --approve`. For a CLI provider, init checks that the CLI
 runs on this machine (the same check the interactive menu makes) and prints a
 warning naming the cause when it does not; the configuration is still written
@@ -2363,7 +2369,7 @@ severity says so — see [Aspect Status](/aspect-status).
 |------|----------|---------|-----|
 | `config-committed-api-key` | error | The committed yg-config.yaml holds a reviewer api_key — a credential every clone and fork receives. | Move the key to the gitignored .yggdrasil/yg-secrets.yaml (or the provider's environment variable), then revoke and replace it. |
 | `secrets-file-tracked` | error | .yggdrasil/yg-secrets.yaml, the local credentials overlay, is tracked by git. | git rm --cached .yggdrasil/yg-secrets.yaml, keep it gitignored, and revoke any key it held. |
-| `reviewer-endpoint-committed` | warning | A tier of a hosted provider sends the environment's API key to an endpoint named in the committed yg-config.yaml — over plain http, or to a host other than the provider's own. | If the endpoint is yours, move config.endpoint into yg-secrets.yaml; otherwise remove it and unset the key before a fill on this branch. |
+| `reviewer-endpoint-committed` | warning | A tier of anthropic, openai or google names an endpoint other than the provider's own in the committed yg-config.yaml only; no API key is sent there, so its reviewer pairs stay unverified. | If the endpoint is yours, name it for the tier in yg-secrets.yaml (config.endpoint) and the key goes there; otherwise remove it from yg-config.yaml. |
 | `config-reviewer-missing` | error (enforced) / warning (advisory) · stops `--approve` | An effective reviewer rule and no reviewer: section in yg-config.yaml. Follows the strictest status among the reviewer pairs left without a reviewer. Stops a full yg check --approve; never stops --only-deterministic or --dry-run. | yg init --provider &lt;name&gt; [--model &lt;m&gt;] (the user's decision), or set the reviewer rules to status: draft. |
 | `architecture-cycle` | error | The parents: declarations of some node types form a cycle with no rootable type (one with no parents:, or with root among them), so nodes of those types can never be placed. | Add root to one of the types' parents: so it may sit at the top level, add a rootable parent, or remove one parents: entry. |
 | `type-undefined` | error | A node's type: is not defined in yg-architecture.yaml. | Define the type in yg-architecture.yaml (the user's decision) or change the node's type. |
@@ -2411,7 +2417,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `implied-aspect-missing` | error | A rule implies a rule id that does not exist. | Create the implied rule, or remove it from implies:. |
 | `aspect-implies-cycle` | error · stops `--approve` | The implies: edges form a cycle, so effective rules cannot be resolved. | Remove one implies edge of the cycle. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade yields (raising is allowed, lowering is not). | Remove the lower status:, or lower the rule's own status (the user's decision). |
-| `aspect-status-changed-outside-cli` | warning | A rule's status changed and its own log records no reason; a full fill writes the bare fact into that log if nobody does. | yg aspects log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
+| `aspect-status-changed-outside-cli` | warning | A rule's status changed since this machine's cache last saw it, and its own log records no reason; a full fill writes the bare fact into that log if nobody does. A fresh checkout (CI) has no earlier status to compare, so it never reports this. | yg aspects log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
 | `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero nodes after the full cascade and every when: — it looks enforced and verifies nothing. | Fix the attach sites or when:, or set status: draft until what it targets exists; for a per: node rule whose type has only type-covered files, give a file a node or make the rule per: file. |
 | `orphaned-aspect` | warning | A bundle, a draft rule, or a rule in a graph with no code yet is attached nowhere. | Attach it to a node, type or flow, or remove it. |
 | `aspect-review-overdue` | warning | A rule's review_by: date has passed — it is running unreviewed. Never blocks and never writes a verdict. | Ask the user to renew or retire the rule; never change the date yourself. |

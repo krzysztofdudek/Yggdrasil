@@ -1048,6 +1048,11 @@ A status changed BY HAND (the only way a status changes today) is noticed:
 next full \`yg check --approve\` writes the bare fact into that rule's log and stops
 mentioning it (\`--only-deterministic\` writes no committed file, so it leaves the
 warning standing). A change already recorded by the caller is never written twice.
+The status the tool last saw lives in the local, gitignored cache, so only a
+machine that saw the rule BEFORE the change reports it: a fresh checkout — a CI
+job — has nothing to compare against, remembers the current status silently and
+records nothing. The warning is the author's local signal; the rule's log is the
+shared record.
 This is why a rule's promotion belongs here rather than in \`yg log add --node\`
 on every component the rule reaches: one rule, one history.
 
@@ -1586,7 +1591,8 @@ is never copied to disk — the reviewer reads the variable at run time. A key i
 \`yg-secrets.yaml\` outranks the variable, so init REMOVES the tier's stored key
 (and says so) when \`--provider\` points the tier at another provider or endpoint,
 or when the variable is set; a re-run for the same provider and endpoint with
-nothing exported keeps it and says the reviewer will send it. A missing key is
+nothing exported keeps it and says the reviewer will send it (or, for a reviewer
+that sends no key, that it is not used). A missing key is
 non-fatal: the config is written anyway and can be fixed later by exporting the
 variable (or editing \`yg-secrets.yaml\`) before \`yg check --approve\`. This keeps API keys out of shell history — there is no
 flag-based alternative to set a credential, by design.

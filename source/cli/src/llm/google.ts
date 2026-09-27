@@ -1,6 +1,6 @@
 import type { LlmProvider, AspectResponse } from './types.js';
 import type { LlmConfig } from '../model/graph.js';
-import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, missingKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
+import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, unavailableKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
 import { parseAspectResponse } from './cli-base.js';
 import { registerProvider } from './provider.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -14,6 +14,7 @@ export class GoogleProvider implements LlmProvider {
   private apiKey: string;
   private timeout: number;
   private providerName: string;
+  private config: LlmConfig;
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'https://generativelanguage.googleapis.com/v1beta';
@@ -22,6 +23,7 @@ export class GoogleProvider implements LlmProvider {
     this.apiKey = resolveApiKey(config) ?? '';
     this.timeout = config.timeout ?? DEFAULT_API_TIMEOUT_MS;
     this.providerName = config.provider;
+    this.config = config;
   }
 
   private buildUrl(): string {
@@ -71,7 +73,7 @@ export class GoogleProvider implements LlmProvider {
 
   async isAvailable(): Promise<boolean> { return !!this.apiKey; }
 
-  async unavailableReason(): Promise<string> { return missingKeyReason(this.providerName); }
+  async unavailableReason(): Promise<string> { return unavailableKeyReason(this.config); }
 }
 
 registerProvider('google', (c) => new GoogleProvider(c));

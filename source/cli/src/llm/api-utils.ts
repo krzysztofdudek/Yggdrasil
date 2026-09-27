@@ -1,6 +1,7 @@
 import type { LlmConfig } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { redactedTail } from '../utils/redact.js';
+import { withheldCommittedEndpoint } from '../utils/known-providers.js';
 
 const ENV_VAR_MAP: Record<string, string> = {
   openai: 'OPENAI_API_KEY',
@@ -20,12 +21,25 @@ export const DEFAULT_API_TIMEOUT_MS = 60_000;
  * provider's environment variable. That is why `yg init` never writes an
  * environment key to the overlay, and removes a stored key whenever the tier
  * it belongs to is pointed at another provider or endpoint: a key left there
- * would win over the variable and travel to the new target.
+ * would win over the variable and travel to the new target. No key at all when
+ * the tier's endpoint is a committed one the key is withheld from (see
+ * withheldCommittedEndpoint).
  */
 export function resolveApiKey(config: LlmConfig): string | undefined {
+  if (withheldCommittedEndpoint(config) !== undefined) return undefined;
   if (config.api_key) return config.api_key;
   const envVar = ENV_VAR_MAP[config.provider];
   return envVar ? process.env[envVar] : undefined;
+}
+
+/**
+ * Why a hosted provider is unavailable: its key is withheld from a committed
+ * endpoint, or there is no key at all.
+ */
+export function unavailableKeyReason(config: LlmConfig): string {
+  const withheld = withheldCommittedEndpoint(config);
+  if (withheld === undefined) return missingKeyReason(config.provider);
+  return `key withheld: config.endpoint (${withheld}) comes from the committed yg-config.yaml and is not ${config.provider}'s own endpoint, so no API key is sent there — if the endpoint is yours, name it for this tier in .yggdrasil/yg-secrets.yaml (config.endpoint) to send the key; nothing was sent`;
 }
 
 /** Where the key goes, for a message that says it is missing or refused. */
@@ -35,7 +49,7 @@ function keySource(provider: string): string {
 }
 
 /** The reason an API provider without a key gives for being unavailable. */
-export function missingKeyReason(provider: string): string {
+function missingKeyReason(provider: string): string {
   return `no API key: set ${keySource(provider)} — nothing was sent`;
 }
 

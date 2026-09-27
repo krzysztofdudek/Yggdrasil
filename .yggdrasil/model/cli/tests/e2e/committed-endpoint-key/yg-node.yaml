@@ -1,0 +1,17 @@
+name: E2E Tests — a committed endpoint gets no developer key
+type: test-suite
+description: >-
+  Subprocess E2E for the rule that a first-party reviewer (anthropic, openai,
+  google) sends its key to an endpoint other than the provider's own only when
+  the developer names that endpoint locally. The committed yg-config.yaml
+  points an anthropic tier at a capture server; with the developer's key in
+  the environment, a real fill must send that server nothing and leave the
+  pair unverified, while a plain check warns. Naming the same endpoint in
+  yg-secrets.yaml is the opt-in: the next fill reaches the server with the key
+  and the warning is gone.
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-committed-endpoint-key.test.ts

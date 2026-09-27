@@ -92,4 +92,11 @@ describe('checkReviewerCredentials', () => {
     expect(await issuesFor(project(tier('        endpoint: https://api.anthropic.com/v1/\n')))).toEqual([]);
     expect(await issuesFor(project(tier(''), 'reviewer:\n  tiers:\n    standard:\n      config:\n        endpoint: http://127.0.0.1:9911\n'))).toEqual([]);
   });
+
+  it('a key stored in the local overlay does not exempt a committed endpoint: that key is withheld from it too', async () => {
+    const root = project(tier('        endpoint: https://proxy.example.test/v1\n'), 'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: sk-local\n');
+    const issues = await issuesFor(root);
+    expect(issues.map((i) => [i.severity, i.code])).toEqual([['warning', 'reviewer-endpoint-committed']]);
+    expect(JSON.stringify(issues)).not.toContain('sk-local');
+  });
 });

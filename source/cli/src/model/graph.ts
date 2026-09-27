@@ -147,12 +147,11 @@ export interface YggConfig {
   /**
    * The reviewer settings the COMMITTED yg-config.yaml itself states, read
    * before the gitignored yg-secrets.yaml overlay is merged: which tiers carry
-   * a `config.api_key` there, and each tier's committed `config.endpoint`.
-   * `yg check` judges the committed file by these (a credential must never be
-   * committed; a committed endpoint must not quietly receive a key from the
-   * environment). Never a verdict input — no hash reads them.
+   * a `config.api_key` there. `yg check` refuses a committed credential by it
+   * (where each tier's endpoint was set is on the tier itself:
+   * LlmConfig.endpointSource). Never a verdict input — no hash reads it.
    */
-  committedReviewer?: { apiKeyTiers: string[]; endpoints: Record<string, string> };
+  committedReviewer?: { apiKeyTiers: string[] };
 }
 
 // ============================================================
@@ -261,6 +260,15 @@ export interface LlmConfig {
    * from canonicalTierJson like api_key and timeout).
    */
   max_prompt_chars?: number;
+  /**
+   * Which file set the effective `endpoint`: 'local' when the gitignored
+   * yg-secrets.yaml overlay sets it for this tier, 'committed' when only the
+   * committed yg-config.yaml does; absent when no endpoint is set. A
+   * first-party provider sends no key to a committed endpoint other than its
+   * own (see withheldCommittedEndpoint): whoever changes the committed file must not be
+   * able to point a developer's key somewhere new. Never a verdict input.
+   */
+  endpointSource?: 'committed' | 'local';
 }
 
 export interface NodeMeta {

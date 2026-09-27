@@ -549,7 +549,17 @@ export async function settleStoredKey(
   prev: ReviewerTarget | undefined,
   choice: { provider: ReviewerProvider; endpoint?: string; apiKey?: string; keyAnswered: boolean },
 ): Promise<StoredKeyOutcome> {
-  const next = await targetAfterWrite(yggRoot, { provider: choice.provider, ...(choice.endpoint ? { endpoint: choice.endpoint } : {}) });
+  const chosen: ReviewerTarget = { provider: choice.provider, ...(choice.endpoint ? { endpoint: choice.endpoint } : {}) };
+  const next = await targetAfterWrite(yggRoot, chosen);
+  // A key typed for the reviewer just chosen is stored only where it would go
+  // to that reviewer. When yg-secrets.yaml overrides the tier's provider or
+  // endpoint, the stored key would travel to the override instead — somewhere
+  // the person never typed it for — so it is not written, and any key already
+  // there is removed with it (it would outrank the answer just given).
+  if (choice.apiKey && !sameTarget(chosen, next)) {
+    await reconcileSecretsKey(yggRoot, { keepStored: false });
+    return 'withheld';
+  }
   const keepStored = !choice.keyAnswered && sameTarget(prev, next);
   return reconcileSecretsKey(yggRoot, { apiKey: choice.apiKey, keepStored });
 }
@@ -563,7 +573,16 @@ export function storedKeyNotice(
   outcome: StoredKeyOutcome,
   prev: ReviewerTarget | undefined,
   keyEnvVar: string | undefined,
+  after?: ReviewerTarget,
 ): IssueMessage | undefined {
+  const where = (t: ReviewerTarget | undefined) => (t ? `${t.provider}${t.endpoint ? ` at ${t.endpoint}` : ''}` : 'another reviewer');
+  if (outcome === 'withheld') {
+    return {
+      what: `Did not store the API key you typed: .yggdrasil/yg-secrets.yaml overrides this tier, so the reviewer calls ${where(after)} and the key would go there.`,
+      why: 'yg-secrets.yaml is merged over yg-config.yaml, so its provider or endpoint for the tier wins over what init just wrote, and a key stored for the tier is sent to that target.',
+      next: 'If the override is stale, delete the provider and config.endpoint overrides of this tier from .yggdrasil/yg-secrets.yaml and run yg init again; if it is what you want, add config.api_key for that reviewer there yourself.',
+    };
+  }
   if (outcome === 'removed') {
     const was = prev ? ` (stored while the tier used ${prev.provider}${prev.endpoint ? ` at ${prev.endpoint}` : ''})` : '';
     return {
@@ -574,6 +593,13 @@ export function storedKeyNotice(
       next: keyEnvVar
         ? `Nothing to do: the reviewer reads $${keyEnvVar} at run time.`
         : 'If the new reviewer needs a key, export its environment variable or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml.',
+    };
+  }
+  if (outcome === 'kept' && after !== undefined && !needsApiKey(after.provider as ReviewerProvider)) {
+    return {
+      what: `Left the api_key .yggdrasil/yg-secrets.yaml holds for this tier in place; ${after.provider} sends no API key, so it is not used.`,
+      why: 'The tier still names the same provider and endpoint the key was stored under, and this reviewer authenticates on its own (a signed-in CLI, or a local server).',
+      next: 'Nothing to do. Delete config.api_key from this tier in .yggdrasil/yg-secrets.yaml if you do not need it; init removes it anyway if the tier later points at another provider or endpoint.',
     };
   }
   if (outcome === 'kept') {
@@ -595,7 +621,9 @@ export type StoredKeyOutcome =
   /** The stored key was deleted: it was given for another reviewer, or it would outrank the one chosen now. */
   | 'removed'
   /** No key is stored and none was typed. */
-  | 'none';
+  | 'none'
+  /** A typed key was not written: yg-secrets.yaml sends the tier elsewhere (any stored key was removed too). */
+  | 'withheld';
 
 /**
  * Bring `reviewer.tiers.<bootstrap>.config.api_key` in yg-secrets.yaml in line

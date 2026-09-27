@@ -268,10 +268,26 @@ endpoint (\`--provider\` or the menu) it REMOVES the key stored for that tier an
 says so — a key given for one provider is never sent to the next. It also removes
 it when the variable is exported or the key prompt is answered; only a re-run for
 the same provider and endpoint with nothing else chosen keeps it (and init says
-the reviewer will send it). Nothing else in the file is touched.
+the reviewer will send it — or, for a reviewer that sends no key, such as
+\`claude-code\` or \`ollama\`, that it is not used). A key typed in the menu is
+not stored when \`yg-secrets.yaml\` itself overrides the tier's provider or
+endpoint: the key would go to that override, not to the reviewer it was typed
+for, and init says so. Nothing else in the file is touched.
 
 \`yg-config.yaml\` itself must never contain credentials. Commit it to the
 repository — it is safe to share.
+
+A COMMITTED ENDPOINT GETS NO KEY. A first-party tier (\`anthropic\`, \`openai\`,
+\`google\`) whose \`config.endpoint\` comes only from the committed
+\`yg-config.yaml\` and is not the provider's own sends NO key there — not the
+environment variable, not \`config.api_key\` from \`yg-secrets.yaml\`. The
+reviewer reports itself unavailable (the pairs stay unverified) and \`yg check\`
+warns with \`reviewer-endpoint-committed\`. Whoever changes the shared file must
+not decide where your key goes. To use such an endpoint (a proxy or gateway you
+run), name it for the tier in \`yg-secrets.yaml\` (\`config.endpoint\`, the same
+URL is fine); in CI, write that file in the job. \`openai-compatible\` is not
+affected: its endpoint is always the one the tier names, and its key variable
+exists for it.
 
 ## Coverage config
 
