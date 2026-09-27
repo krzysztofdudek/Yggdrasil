@@ -230,3 +230,5 @@ The agent manual, the knowledge topics and the glossary are aligned with two own
 The operating manual names yg-flow.yaml among the files that accept only the keys their schemas list, says a value of the wrong type is refused as well, and lists every format yg schemas covers, because both became true: flows are held to their schema and every file is checked against the types its schema declares.
 ## [2026-09-27T05:50:25.693Z]
 The manual and the knowledge topics now say when a merge owes a log entry: a merge that combined both sides changes in a component changed its source and owes the reason for the merge, which only the person who merged knows, while a merge that changed only the log owes nothing. The documented merge order now includes that entry, since without it the recipe ended on a missing-entry error.
+## [2026-09-27T08:39:48.845Z]
+The agent-facing manual, the log-management knowledge and the CLI reference knowledge now teach yg log add --supersedes as the way to retract a decision, instead of asking the agent to hand-write a Supersedes heading that nothing validated; the hand-written shape is still described because it reads the same way.

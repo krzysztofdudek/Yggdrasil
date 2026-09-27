@@ -843,6 +843,7 @@ is written the way it is.
 ```bash
 yg log add --node <path> --reason "<text>"
 yg log add --node <path> --reason-file <file>
+yg log add --node <path> --reason "<text>" --supersedes <datetime>
 yg log read --node <path> [--top N]
 yg log read --node <path> --all
 yg log read --node <path> --with-verdicts
@@ -855,10 +856,21 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
   Requires `--node`. When a node's type opts in with `log_required: true`, `yg check
   --approve` requires a fresh log entry before it records a verdict for a source change
   on that node.
+  - `--supersedes <datetime>` — the new entry replaces an earlier entry of the same log
+    (repeatable, one per replaced entry). A log is append-only, so nothing is edited
+    or removed: the new entry opens with a `### Supersedes: <datetime>` line per
+    replaced entry, both stay in the file, and a reader of what is in force skips the
+    replaced one. The datetime must be an entry of that log (`log-supersedes-unknown`
+    otherwise) that no later entry has replaced yet (`log-supersedes-superseded`
+    otherwise — supersede the entry that replaced it). An entry written by hand in
+    the same `### Supersedes:` shape reads the same way, when the entry it names exists.
 - `read` — Print entries newest-first. Default: top 10. `--top N` shows N entries.
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
-  before editing a node to understand past decisions. `--json` prints the `yg-log/1`
-  document instead: `node` and `entries` (each `datetime` and `body`); with
+  before editing a node to understand past decisions. An entry a later one replaced is
+  marked `— superseded by <datetime>` after its header. `--json` prints the `yg-log/1`
+  document instead: `node` and `entries` (each `datetime` and `body`, plus
+  `supersedes` — the datetimes it replaces — and `supersededBy` — the entry that
+  replaced it — where they apply); with
   `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`, each
   event the verification-event line the fill wrote (`aspectId`, `unitKey`,
   `kind`, `disposition` — what the fill did with the pair — and, where they
@@ -2493,6 +2505,8 @@ severity says so — see [Aspect Status](/aspect-status).
 | `log-merge-entries-lost` | error | The merged log.md drops or alters entries one of the sides added. | Restore the entries the error lists, byte for byte. |
 | `log-merge-entries-unknown` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
 | `log-merge-out-of-order` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
+| `log-supersedes-unknown` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
+| `log-supersedes-superseded` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |
 | `aspect-status-value-invalid` | error | yg aspects log add --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
 | `aspect-status-not-standing` | error | yg aspects log add --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
 | `aspect-status-evidence-missing` | error | yg aspects log add --status was given no --evidence for the change. | Re-run with --evidence "&lt;what justified it&gt;". |

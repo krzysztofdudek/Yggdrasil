@@ -11,6 +11,8 @@ export interface LogAddInput {
   nodePath: string;
   reasonText: string;
   nowMs: number;
+  /** Earlier entries of this node's log the new entry replaces, by datetime. */
+  supersedes?: readonly string[];
 }
 
 export type LogAddResult =
@@ -81,8 +83,8 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     const existing = await readLogSafe(logPath);
     // One composer for every log this tool keeps: entry shape, the guards against a
     // body that would destroy the entry boundary, and the forward-only timestamp.
-    const composed = composeLogEntry(existing, reasonText, nowMs);
-    if (!composed.ok) return { ok: false, error: { ...composed.error, code: 'command-error' } };
+    const composed = composeLogEntry(existing, reasonText, nowMs, { supersedes: input.supersedes });
+    if (!composed.ok) return { ok: false, error: { ...composed.error, code: composed.error.code ?? 'command-error' } };
     await writeLogFile(logPath, composed.content);
     return { ok: true, datetime: composed.datetime, nodePath };
   });

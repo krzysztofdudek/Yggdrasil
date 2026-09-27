@@ -1,0 +1,19 @@
+name: E2E Tests — an entry that replaces an earlier one
+type: test-suite
+description: >-
+  Subprocess E2E for yg log add --supersedes. A log is append-only, so a
+  decision that no longer holds cannot be edited out; an entry names the earlier
+  entry it replaces instead. These pin that both entries stay in the file, that
+  the new one names the old and the old reads as replaced in the JSON document
+  and the text view, that a reference to an entry the log does not hold — or to
+  one a later entry already replaced — is refused with its own code and writes
+  nothing, and that an entry written by hand in the documented Supersedes shape
+  reads exactly like one the flag wrote.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-log-supersedes.test.ts

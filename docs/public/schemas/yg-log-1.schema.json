@@ -16,20 +16,7 @@
       "description": "Its log entries, newest first.",
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "datetime": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "datetime",
-          "body"
-        ],
-        "additionalProperties": false
+        "$ref": "#/$defs/LogJsonEntry"
       }
     },
     "verdictEvents": {
@@ -69,6 +56,35 @@
   ],
   "additionalProperties": false,
   "$defs": {
+    "LogJsonEntry": {
+      "type": "object",
+      "properties": {
+        "datetime": {
+          "description": "ISO 8601 UTC timestamp — the entry header, verbatim.",
+          "type": "string"
+        },
+        "body": {
+          "description": "Everything under that header, verbatim.",
+          "type": "string"
+        },
+        "supersedes": {
+          "description": "Present when the entry replaces earlier entries of the log: their datetimes.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supersededBy": {
+          "description": "Present when a later entry replaced this one: that entry's datetime.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "datetime",
+        "body"
+      ],
+      "additionalProperties": false
+    },
     "VerdictEvent": {
       "type": "object",
       "properties": {

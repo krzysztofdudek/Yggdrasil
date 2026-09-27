@@ -5,7 +5,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logAdd } from '../core/log/log-add.js';
-import { logRead } from '../core/log/log-read.js';
+import { logRead, type LogEntry } from '../core/log/log-read.js';
 import { logMergeResolve, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
 import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
@@ -44,13 +44,41 @@ function handleError(error: unknown): never {
 /** Schema id of `yg log read --json`. */
 const LOG_JSON_SCHEMA = 'yg-log/1';
 
+/** One entry of a `yg-log/1` document. */
+interface LogJsonEntry {
+  /** ISO 8601 UTC timestamp — the entry header, verbatim. */
+  datetime: string;
+  /** Everything under that header, verbatim. */
+  body: string;
+  /** Present when the entry replaces earlier entries of the log: their datetimes. */
+  supersedes?: string[];
+  /** Present when a later entry replaced this one: that entry's datetime. */
+  supersededBy?: string;
+}
+
+/** The document form of one entry: the two standing fields only where they say something. */
+function toJsonEntry(e: LogEntry): LogJsonEntry {
+  return {
+    datetime: e.datetime,
+    body: e.body,
+    ...(e.supersedes.length > 0 ? { supersedes: e.supersedes } : {}),
+    ...(e.supersededBy !== undefined ? { supersededBy: e.supersededBy } : {}),
+  };
+}
+
+/** The entry as text: its header, marked when a later entry replaced it, then its body. */
+function renderEntry(e: LogEntry): string {
+  const mark = e.supersededBy !== undefined ? ` — superseded by ${e.supersededBy}` : '';
+  return `## [${e.datetime}]${mark}\n${e.body}`;
+}
+
 /** `yg log read --json` (yg-log/1). */
 export interface LogJsonDocument {
   schema: typeof LOG_JSON_SCHEMA;
   /** The node, as its path under model/. */
   node: string;
   /** Its log entries, newest first. */
-  entries: Array<{ datetime: string; body: string }>;
+  entries: LogJsonEntry[];
   /** Present with --with-verdicts: the fill events attributed to the node. */
   verdictEvents?: {
     /** The earliest event considered, or null for the whole history. */
@@ -68,13 +96,13 @@ export interface LogJsonDocument {
  */
 function writeLogJson(
   node: string,
-  entries: Array<{ datetime: string; body: string }>,
+  entries: LogEntry[],
   verdicts?: { events: VerdictEvent[]; gitTracked: boolean; since: string | null },
 ): void {
   const doc: LogJsonDocument = {
     schema: LOG_JSON_SCHEMA,
     node,
-    entries: entries.map((e) => ({ datetime: e.datetime, body: e.body })),
+    entries: entries.map(toJsonEntry),
     ...(verdicts !== undefined
       ? { verdictEvents: { since: verdicts.since, sharedHistory: verdicts.gitTracked, events: verdicts.events } }
       : {}),
@@ -93,7 +121,12 @@ export function registerLogCommand(program: Command): void {
     .requiredOption('--node <path>', 'Node path (relative to .yggdrasil/model/, no model/ prefix)')
     .option('--reason <text>', 'Justification text (one of --reason or --reason-file required)')
     .option('--reason-file <path>', 'Read justification from a file (alternative to --reason)')
-    .action(async (opts: { node: string; reason?: string; reasonFile?: string }) => {
+    .option(
+      '--supersedes <datetime>',
+      'the datetime of an earlier entry of the same log this one replaces (repeatable); both stay in the file',
+      (v: string, prev: string[] = []) => [...prev, v.trim()],
+    )
+    .action(async (opts: { node: string; reason?: string; reasonFile?: string; supersedes?: string[] }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
 
@@ -134,7 +167,7 @@ export function registerLogCommand(program: Command): void {
         }
 
         const nodePath = opts.node.trim().replace(/\/$/, '');
-        const result = await logAdd({ graph, nodePath, reasonText, nowMs: Date.now() });
+        const result = await logAdd({ graph, nodePath, reasonText, nowMs: Date.now(), supersedes: opts.supersedes });
         if (!result.ok) {
           failAndExit(result.error);
         }
@@ -236,7 +269,7 @@ export function registerLogCommand(program: Command): void {
 
           const items: Array<{ ts: string; text: string }> = [];
           for (const entry of result.entries) {
-            items.push({ ts: entry.datetime, text: `## [${entry.datetime}]\n${entry.body}` });
+            items.push({ ts: entry.datetime, text: renderEntry(entry) });
           }
           for (const e of matched) {
             items.push({ ts: e.ts, text: renderVerdictEvent(e) });
@@ -263,7 +296,7 @@ export function registerLogCommand(program: Command): void {
           return;
         }
         for (const entry of result.entries) {
-          writeOut(`## [${entry.datetime}]\n${entry.body}`);
+          writeOut(renderEntry(entry));
         }
       } catch (error) {
         handleError(error);

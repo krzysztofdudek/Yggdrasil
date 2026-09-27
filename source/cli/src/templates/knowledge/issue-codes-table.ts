@@ -227,6 +227,8 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`log-merge-entries-lost\` | error | The merged log.md drops or alters entries one of the sides added. | Restore the entries the error lists, byte for byte. |
 | \`log-merge-entries-unknown\` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
 | \`log-merge-out-of-order\` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
+| \`log-supersedes-unknown\` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
+| \`log-supersedes-superseded\` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |
 | \`aspect-status-value-invalid\` | error | yg aspects log add --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
 | \`aspect-status-not-standing\` | error | yg aspects log add --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
 | \`aspect-status-evidence-missing\` | error | yg aspects log add --status was given no --evidence for the change. | Re-run with --evidence "<what justified it>". |

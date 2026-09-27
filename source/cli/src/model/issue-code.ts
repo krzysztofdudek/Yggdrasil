@@ -233,6 +233,9 @@ export type CommandErrorCode =
   | 'log-merge-entries-lost'
   | 'log-merge-entries-unknown'
   | 'log-merge-out-of-order'
+  // yg log add --supersedes naming an entry it cannot replace.
+  | 'log-supersedes-unknown'
+  | 'log-supersedes-superseded'
   // yg aspects log add refusing a status record.
   | 'aspect-status-value-invalid'
   | 'aspect-status-not-standing'

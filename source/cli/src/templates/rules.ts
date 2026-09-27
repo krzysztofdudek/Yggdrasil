@@ -145,7 +145,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg impact --node\\|--file\\|--aspect\\|--flow\\|--type <x>\` | Blast radius — which pairs an edit would invalidate, before a change |
 | \`yg tree [--root <path>] [--depth <n>]\` | Browse graph structure |
 | \`yg find "<query>"\` | Locate entry-point nodes/aspects by natural-language query |
-| \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`) |
+| \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`; \`--supersedes <datetime>\` replaces an earlier entry, which stays in the file) |
 | \`yg aspects log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a status change — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
 | \`yg aspects log read --aspect <id>\` [\`--top <n>\` \\| \`--all\`] [\`--json\`] | Read that history, newest first (whole history by default; \`--limit\` is an alias of \`--top\`). |
 | \`yg log read --node <path> [--top N \\| --all]\` | Read log entries (default top 10, newest first) |

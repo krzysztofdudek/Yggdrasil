@@ -184,14 +184,19 @@ datetime ordering).
 ## Correcting a previous entry that turned out wrong
 
 Append-only blocks editing historical entries. To supersede an earlier
-entry, append a new entry whose body opens with:
+entry, append a new entry that names it:
 
-\`\`\`
-### Supersedes: <prior ISO datetime>
+\`\`\`bash
+yg log add --node <path> --reason "<what holds now, and why>" --supersedes <prior ISO datetime>
 \`\`\`
 
-Future agents reading the log see the structured supersedes and know which
-entries no longer hold.
+The entry opens with one \`### Supersedes: <prior ISO datetime>\` line per
+replaced entry (repeat the flag to replace several). The flag refuses a datetime
+that is not an entry of this log, and one a later entry already replaced — name
+that later entry instead. Both entries stay in the file; \`yg log read\` marks
+the replaced one, so future agents know which entries no longer hold. An entry
+written by hand in the same \`### Supersedes:\` shape reads the same way when the
+entry it names exists.
 
 ## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
 

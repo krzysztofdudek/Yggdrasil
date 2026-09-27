@@ -1103,6 +1103,7 @@ Append and read per-node business-context log entries.
 \`\`\`bash
 yg log add --node orders/handler --reason "Added cancellation at billing cycle end"
 yg log add --node orders/handler --reason-file entry.md   # multi-line reason from a file
+yg log add --node orders/handler --reason "<new decision>" --supersedes <datetime of the entry it replaces>
 yg log read --node orders/handler              # top 10 entries, newest first
 yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
@@ -1113,6 +1114,15 @@ yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stop
 Use \`--reason-file <path>\` instead of \`--reason\` to supply multi-line entry
 content from a file. On \`yg log read\`, \`--top\` and \`--all\` are mutually
 exclusive — you cannot combine them.
+
+\`--supersedes <datetime>\` (repeatable) makes the new entry replace an earlier
+entry of the SAME log. Nothing is edited or removed: the new entry opens with a
+\`### Supersedes: <datetime>\` line per replaced entry, both stay in the file, and
+\`yg log read\` marks the replaced one \`— superseded by <datetime>\` (in
+\`--json\`: \`supersedes\` on the new entry, \`supersededBy\` on the old). The
+datetime must name an entry of that log (\`log-supersedes-unknown\`) that no later
+entry has replaced yet (\`log-supersedes-superseded\` — supersede its successor
+instead).
 
 \`--with-verdicts\` interleaves the node's recent verification outcomes with its
 log entries into one newest-first timeline. The outcomes come from the local,
