@@ -194,9 +194,9 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
     message: 'Which provider should verify your code?',
     initialValue: 'claude-code' as ReviewerProvider,
     options: [
-      { value: 'claude-code' as ReviewerProvider, label: 'Claude Code', hint: 'CLI — free, no API key; uses installed claude' },
-      { value: 'codex' as ReviewerProvider, label: 'Codex', hint: 'CLI — free, no API key; uses installed codex' },
-      { value: 'gemini-cli' as ReviewerProvider, label: 'Gemini CLI', hint: 'CLI — free, no API key; uses installed gemini' },
+      { value: 'claude-code' as ReviewerProvider, label: 'Claude Code', hint: 'CLI — no API key or separate bill; runs on your claude plan' },
+      { value: 'codex' as ReviewerProvider, label: 'Codex', hint: 'CLI — no API key or separate bill; runs on your codex plan' },
+      { value: 'gemini-cli' as ReviewerProvider, label: 'Gemini CLI', hint: 'CLI — no API key or separate bill; runs on your gemini plan' },
       { value: 'copilot-cli' as ReviewerProvider, label: 'GitHub Copilot CLI', hint: 'CLI — no API key; uses installed copilot and your Copilot plan' },
       { value: 'ollama' as ReviewerProvider, label: 'Ollama', hint: 'Local — no API costs; needs a local install' },
       { value: 'anthropic' as ReviewerProvider, label: 'Anthropic', hint: 'API key — Claude models' },
@@ -731,7 +731,7 @@ export function resolveReviewerConfigFromFlags(opts: {
   }
   if (provider === 'copilot-cli' && !COPILOT_MODEL_NAME.test(model)) {
     return { ok: false, issue: {
-      code: 'command-error',
+      code: 'usage',
       what: `--model '${model}' is not a model name copilot-cli can pass on.`,
       why: "The copilot-cli reviewer refuses a model name with characters other than letters, digits, '.', '_', ':' and '-', because on Windows the name reaches a shell.",
       next: 'Re-run naming a model your Copilot plan allows, e.g. yg init --provider copilot-cli --model auto (auto lets Copilot pick).',
@@ -762,7 +762,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       keyWarning = {
         what: `No API key found in $${envVar}; the reviewer will call ${endpoint} without one.`,
         why: 'An OpenAI-compatible server may need no key (a local vLLM, LM Studio or llama.cpp), so the key is optional for this provider.',
-        next: `If the server wants a key, set ${envVar} or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml. Note that ${envVar} is also the key the openai provider reads.`,
+        next: `If the server wants a key, set ${envVar} or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml. Only openai-compatible reads ${envVar}; it never reads OPENAI_API_KEY, so an OpenAI key is not sent to this server.`,
       };
     } else if (!envKey) {
       keyWarning = {

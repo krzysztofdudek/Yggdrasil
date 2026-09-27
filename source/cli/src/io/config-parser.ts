@@ -379,6 +379,28 @@ export async function parseConfigDetailed(
   }
 }
 
+const SECRETS_FILENAME = 'yg-secrets.yaml';
+
+/**
+ * The yg-secrets.yaml overlay, or a config error that names IT. A syntax error
+ * in the gitignored overlay reported as one in the committed yg-config.yaml
+ * sends a reader to a file with nothing wrong in it, and a teammate who shares
+ * the committed file can never reproduce it.
+ */
+async function readOverlay(yggRoot: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    return await loadConfigOverlay(yggRoot);
+  } catch (err) {
+    const detail = (err instanceof Error ? err.message : String(err)).replace(/^yg-secrets\.yaml: /, '');
+    throw new ConfigParseError({
+      what: `${SECRETS_FILENAME} does not parse: ${detail}`,
+      why: `${SECRETS_FILENAME} is the gitignored overlay merged over yg-config.yaml; until it parses, the configuration does not load and every setting falls back to its default.`,
+      next: `Correct .yggdrasil/${SECRETS_FILENAME} as the message says; the committed yg-config.yaml is not at fault.`,
+      step: { file: `.yggdrasil/${SECRETS_FILENAME}` },
+    }, 'config-invalid');
+  }
+}
+
 async function parseConfigInner(
   filePath: string,
   opts: { skipSecretsOverlay?: boolean } | undefined,
@@ -399,13 +421,14 @@ async function parseConfigInner(
   // yg-secrets.yaml is a deep-merge overlay over yg-config.yaml (local, gitignored).
   // It can override any field — most often a tier's provider/model/endpoint/api_key —
   // without touching the committed config. The tier NAME is the only verdict input,
-  // so an overlay never invalidates recorded baselines.
+  // so overriding a tier's provider or config never invalidates recorded baselines
+  // (an overlay that changes reviewer.default, the tier names or coverage does).
   //
   // `skipSecretsOverlay` reads the COMMITTED yg-config.yaml only: the overlay file is
   // never opened and never merged. This is the committed-only path a read-only consumer
   // (e.g. a surface that must provably never touch local secrets) uses. The DEFAULT path
   // is unchanged — the overlay is loaded and merged exactly as before.
-  const overlay = opts?.skipSecretsOverlay ? undefined : await loadConfigOverlay(path.dirname(filePath));
+  const overlay = opts?.skipSecretsOverlay ? undefined : await readOverlay(path.dirname(filePath));
   // Each file is checked under its own name, so a typo in the gitignored overlay
   // is reported where it actually is. Collected, not thrown: an unknown key sets
   // nothing, so parsing the rest goes on (see parseConfigDetailed).
@@ -428,6 +451,11 @@ async function parseConfigInner(
   refuseUnknownNestedKeys(baseRaw, filename);
   if (overlay) refuseUnknownNestedKeys(overlay, 'yg-secrets.yaml');
   const raw = overlay ? deepMerge(baseRaw, overlay) : baseRaw;
+  // A value checked after the merge may come from either file. When the overlay
+  // sets the section it sits in, the message names both, so nobody searches the
+  // committed file for a value only the gitignored one holds.
+  const sourceOf = (key: string): string =>
+    overlay !== undefined && Object.hasOwn(overlay, key) ? `${filename} (as merged with ${SECRETS_FILENAME})` : filename;
 
   const versionField = readSchemaVersionField(raw);
   const version = versionField.kind === 'string' ? versionField.value : undefined;
@@ -435,16 +463,16 @@ async function parseConfigInner(
   const qualityRaw = raw.quality;
   if (qualityRaw !== undefined && (typeof qualityRaw !== 'object' || Array.isArray(qualityRaw))) {
     throw new ConfigParseError({
-      what: `${filename}: quality must be a mapping`,
+      what: `${sourceOf('quality')}: quality must be a mapping`,
       why: 'quality holds named thresholds (max_direct_relations)',
       next: 'replace with `quality: { max_direct_relations: 10 }`',
     }, 'config-invalid');
   }
   const qualityMap = qualityRaw as Record<string, unknown> | undefined;
-  if (qualityMap) refuseUnknownQualityKeys(qualityMap, filename);
+  if (qualityMap) refuseUnknownQualityKeys(qualityMap, sourceOf('quality'));
   const quality: QualityConfig = qualityMap
     ? {
-        max_direct_relations: parseMaxDirectRelations(qualityMap.max_direct_relations, filename),
+        max_direct_relations: parseMaxDirectRelations(qualityMap.max_direct_relations, sourceOf('quality')),
       }
     : DEFAULT_QUALITY;
 
@@ -456,11 +484,11 @@ async function parseConfigInner(
     ) {
       // reviewer: is a mapping — let parseReviewer validate the tiers structure
       // and emit specific errors (config-tiers-missing, config-tiers-empty, etc.)
-      reviewer = parseReviewer(raw.reviewer as Record<string, unknown>, filename);
+      reviewer = parseReviewer(raw.reviewer as Record<string, unknown>, sourceOf('reviewer'));
       markEndpointSources(reviewer, overlay);
     } else {
       throw new ConfigParseError({
-        what: `${filename} has unrecognized reviewer: shape`,
+        what: `${sourceOf('reviewer')} has unrecognized reviewer: shape`,
         why: 'reviewer: must be a mapping with a `tiers:` block',
         next: 'run yg schemas read config for the expected shape',
       }, 'config-invalid');
@@ -471,14 +499,14 @@ async function parseConfigInner(
   if (raw.parallel !== undefined) {
     if (typeof raw.parallel !== 'number') {
       throw new ConfigParseError({
-        what: `${filename}: parallel must be a number, got ${typeof raw.parallel}`,
+        what: `${sourceOf('parallel')}: parallel must be a number, got ${typeof raw.parallel}`,
         why: 'parallel controls the concurrent-aspect-verification cap',
         next: 'set `parallel: <positive integer>` (e.g. parallel: 10) or remove the key',
       }, 'config-invalid');
     }
     if (!Number.isInteger(raw.parallel) || raw.parallel < 1) {
       throw new ConfigParseError({
-        what: `${filename}: parallel must be a positive integer >= 1, got ${raw.parallel}`,
+        what: `${sourceOf('parallel')}: parallel must be a positive integer >= 1, got ${raw.parallel}`,
         why: 'parallel controls the concurrent-aspect-verification cap; values < 1 cannot make progress',
         next: 'set `parallel: <positive integer>` (e.g. parallel: 10) or remove the key',
       }, 'config-invalid');
@@ -492,7 +520,7 @@ async function parseConfigInner(
   if (raw.auto_approve !== undefined && raw.auto_approve !== false) {
     if (raw.auto_approve !== 'deterministic' && raw.auto_approve !== 'full') {
       throw new ConfigParseError({
-        what: `${filename}: auto_approve must be false, 'deterministic', or 'full' (got ${JSON.stringify(raw.auto_approve)}).`,
+        what: `${sourceOf('auto_approve')}: auto_approve must be false, 'deterministic', or 'full' (got ${JSON.stringify(raw.auto_approve)}).`,
         why: "auto_approve controls what bare `yg check` does: false = read-only; 'deterministic' = free local fill; 'full' = full reviewer fill.",
         next: "Set auto_approve to false, deterministic, or full, or remove the key.",
       }, 'config-invalid');
@@ -515,7 +543,7 @@ async function parseConfigInner(
   if (raw.signals !== undefined) {
     if (typeof raw.signals !== 'object' || Array.isArray(raw.signals) || raw.signals === null) {
       throw new ConfigParseError({
-        what: `${filename}: signals must be a mapping (got ${JSON.stringify(raw.signals)}).`,
+        what: `${sourceOf('signals')}: signals must be a mapping (got ${JSON.stringify(raw.signals)}).`,
         why: 'signals holds attention-layer switches (currently `attention`); a non-mapping value cannot carry them.',
         next: 'Set signals to a mapping, e.g. `signals: { attention: false }`, or remove the signals key.',
       }, 'config-invalid');
@@ -525,7 +553,7 @@ async function parseConfigInner(
     for (const k of Object.keys(sig)) {
       if (!allowedSignalKeys.has(k)) {
         throw new ConfigParseError({
-          what: `${filename}: unknown key '${k}' under signals:`,
+          what: `${sourceOf('signals')}: unknown key '${k}' under signals:`,
           why: 'the signals section accepts only `attention`; a misspelled key would silently leave the advisory "structurally unusual" note enabled, defeating an intended off-switch.',
           next: "Remove the key, or set signals.attention to true or false.",
         }, 'config-signals-unknown-key');
@@ -533,7 +561,7 @@ async function parseConfigInner(
     }
     if (sig.attention !== undefined && typeof sig.attention !== 'boolean') {
       throw new ConfigParseError({
-        what: `${filename}: signals.attention must be a boolean (got ${JSON.stringify(sig.attention)}).`,
+        what: `${sourceOf('signals')}: signals.attention must be a boolean (got ${JSON.stringify(sig.attention)}).`,
         why: 'signals.attention toggles the advisory "structurally unusual" note in `yg context --file`; it is on by default, and only a boolean can switch it.',
         next: "Set signals.attention to true or false, or remove the signals key.",
       }, 'config-invalid');
@@ -554,7 +582,7 @@ async function parseConfigInner(
   if (raw.events !== undefined) {
     if (typeof raw.events !== 'object' || Array.isArray(raw.events) || raw.events === null) {
       throw new ConfigParseError({
-        what: `${filename}: events must be a mapping (got ${JSON.stringify(raw.events)}).`,
+        what: `${sourceOf('events')}: events must be a mapping (got ${JSON.stringify(raw.events)}).`,
         why: 'events holds the committed-events opt-in (currently `committed_llm`); a non-mapping value cannot carry it.',
         next: 'Set events to a mapping, e.g. `events: { committed_llm: true }`, or remove the events key.',
       }, 'config-invalid');
@@ -564,7 +592,7 @@ async function parseConfigInner(
     for (const k of Object.keys(ev)) {
       if (!allowedEventKeys.has(k)) {
         throw new ConfigParseError({
-          what: `${filename}: unknown key '${k}' under events:`,
+          what: `${sourceOf('events')}: unknown key '${k}' under events:`,
           why: 'the events section accepts only `committed_llm`; a misspelled key would silently leave the committed reviewer-fill event stream disabled.',
           next: 'Remove the key, or set events.committed_llm to true or false.',
         }, 'config-events-unknown-key');
@@ -572,7 +600,7 @@ async function parseConfigInner(
     }
     if (ev.committed_llm !== undefined && typeof ev.committed_llm !== 'boolean') {
       throw new ConfigParseError({
-        what: `${filename}: events.committed_llm must be a boolean (got ${JSON.stringify(ev.committed_llm)}).`,
+        what: `${sourceOf('events')}: events.committed_llm must be a boolean (got ${JSON.stringify(ev.committed_llm)}).`,
         why: 'events.committed_llm opts the repo into a committed, shared record of reviewer-rule fill events; only a boolean can switch it.',
         next: 'Set events.committed_llm to true or false, or remove the events key.',
       }, 'config-invalid');
@@ -653,7 +681,7 @@ async function parseConfigInner(
   // same export), so writing onto it here would corrupt a module-level
   // singleton every other caller relies on. Spreading into a new object forces
   // the committed value back without touching whatever was returned.
-  const coverage = { ...parseCoverage(raw.coverage, filename), typeLevel: committedTypeLevel === true };
+  const coverage = { ...parseCoverage(raw.coverage, sourceOf('coverage')), typeLevel: committedTypeLevel === true };
 
   // Read from `baseRaw`, NOT from the merged `raw`, for the same reason
   // progressive and coverage.type_level are: which agent-rules artifacts the

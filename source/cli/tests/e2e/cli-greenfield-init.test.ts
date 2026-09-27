@@ -460,6 +460,7 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       const { status, stderr } = run(['init', '--platform', 'claude-code', '--provider', 'bogus-xyz', '--model', 'x'], dir);
       expect(status).toBe(1);
       expect(stderr).toContain("Unknown provider 'bogus-xyz'");
+      expect(stderr).toContain('error[usage]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

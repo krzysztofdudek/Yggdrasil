@@ -352,6 +352,6 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #
                                    # Lock version remains 1 — no schema/format bump.
                                    # yg impact --file <file> previews the precise companion
-                                   # blast radius, including cold companion-bearing reviewer pairs (it runs
-                                   # the resolver, no reviewer call).
+                                   # blast radius once the lock records what each pair touched; a cold
+                                   # companion pair is an upper bound (impact never runs companion.mjs).
 `;

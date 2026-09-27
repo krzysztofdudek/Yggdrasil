@@ -399,6 +399,7 @@ describe('resolveReviewerConfigFromFlags — model and key messages', () => {
     const r = resolveReviewerConfigFromFlags({ provider: 'copilot-cli', model: 'bad!model' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.issue.what).toContain("is not a model name copilot-cli can pass on");
+    if (!r.ok) expect(r.issue.code).toBe('usage');
   });
 
   it('openai-compatible without a key is told the key is optional, not that it is required', () => {

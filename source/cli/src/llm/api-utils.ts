@@ -75,7 +75,13 @@ export function describeFetchFailure(err: unknown, url: string, timeoutMs: numbe
   return `could not reach ${where}: ${redactedTail(String(cause), 200)} — check config.endpoint and the network`;
 }
 
-/** Retry-aware fetch. Retries once on 429 with 2s backoff. */
+/**
+ * Retry-aware fetch. Retries once on 429 (after 2s) and once on a network error
+ * that got no answer (connection refused, reset, unknown host). Never on a
+ * timeout: the request may already be running, and billed, on the provider's
+ * side, and a second one would double both the wait and the bill while the
+ * failure still read as one timeout.
+ */
 export async function apiFetch(url: string, init: RequestInit, providerName: string, timeoutMs = DEFAULT_API_TIMEOUT_MS): Promise<Response> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -91,7 +97,8 @@ export async function apiFetch(url: string, init: RequestInit, providerName: str
       return res;
     } catch (err) {
       debugWrite(`[${providerName}] fetch error attempt=${attempt}: ${(err as Error).message}`);
-      if (attempt === 1) throw err;
+      const name = (err as Error | undefined)?.name;
+      if (attempt === 1 || name === 'TimeoutError' || name === 'AbortError') throw err;
     }
   }
   throw new Error('unreachable');

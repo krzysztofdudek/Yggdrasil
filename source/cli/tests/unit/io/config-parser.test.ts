@@ -150,6 +150,42 @@ version: "4.0.0"
     await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
+  it.each([
+    ['a YAML syntax error', 'reviewer: [\n'],
+    ['a top level that is not a mapping', '- one\n- two\n'],
+  ])('names yg-secrets.yaml, and points at it, for %s in the overlay', async (_label, overlay) => {
+    const tmpDir = await mkdtemp(path.join(tmpdir(), 'yg-cfg-overlay-syntax-'));
+    try {
+      await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\n', 'utf-8');
+      await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), overlay, 'utf-8');
+      const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ConfigParseError);
+      expect((err as ConfigParseError).code).toBe('config-invalid');
+      expect((err as ConfigParseError).messageData.what.startsWith('yg-secrets.yaml does not parse:')).toBe(true);
+      expect((err as ConfigParseError).messageData.step).toEqual({ file: '.yggdrasil/yg-secrets.yaml' });
+    } finally {
+      await rm(tmpDir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('names both files for an invalid value the overlay merged in, and only the committed file when it merged nothing there', async () => {
+    const tmpDir = await mkdtemp(path.join(tmpdir(), 'yg-cfg-overlay-value-'));
+    try {
+      await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: m\n', 'utf-8');
+      await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), 'reviewer:\n  tiers:\n    standard:\n      provider: nope\n', 'utf-8');
+      const merged = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+      expect((merged as ConfigParseError).code).toBe('config-tier-provider-unknown');
+      expect((merged as ConfigParseError).messageData.what.startsWith('yg-config.yaml (as merged with yg-secrets.yaml):')).toBe(true);
+
+      await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), 'parallel: 2\n', 'utf-8');
+      await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: nope\n      consensus: 1\n      config:\n        model: m\n', 'utf-8');
+      const committed = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+      expect((committed as ConfigParseError).messageData.what.startsWith('yg-config.yaml:')).toBe(true);
+    } finally {
+      await rm(tmpDir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
   it('names yg-secrets.yaml when the unknown top-level key comes from the overlay', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay');
     await mkdir(tmpDir, { recursive: true });

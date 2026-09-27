@@ -2046,12 +2046,7 @@ alongside a stronger one for hard aspects), running `yg init --provider …`
 discards it. Edit `yg-config.yaml`'s `reviewer.tiers` by hand instead when you
 want to keep more than one tier.
 
-Configuring a reviewer at all — by flag or through the interactive menu —
-also round-trips `yg-config.yaml` through a YAML parse and re-serialize, which
-**drops every comment in the file**, including the explanatory ones a fresh
-`yg init` scaffolds around `coverage`, `type_level` and `rules_artifacts`. The
-three `--no-*` rules-artifact flags do not: they edit the YAML document in
-place. Review the diff after configuring a reviewer.
+Configuring a reviewer — by flag or through the interactive menu — edits `yg-config.yaml` in place: the `reviewer:` section is replaced, a CLI provider also gets a `parallel: 4` key when the file has none, and everything else, comments included, stays as it was. `yg-secrets.yaml` is different: when init writes or removes a key there, the file is re-serialized and loses its comments.
 :::
 
 **Choosing which rules files to carry:**
@@ -2103,7 +2098,7 @@ reviewer will send it. A missing key is non-fatal and can be set later before
 `yg check --approve`. For a CLI provider, init checks that the CLI
 runs on this machine (the same check the interactive menu makes) and prints a
 warning naming the cause when it does not; the configuration is still written
-and the exit code is 0. No network call is made. An existing `yg-config.yaml`
+and the exit code is 0. For `codex` and `gemini-cli` it also asks the CLI for one probe verdict through the exact command a review uses — one tiny prompt, sent to the model on your plan; no other provider is called. An existing `yg-config.yaml`
 keeps its comments and formatting: only the `reviewer:` section is written.
 
 `yg init` also maintains a `.gitattributes` entry marking the committed lock files

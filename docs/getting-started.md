@@ -30,8 +30,7 @@ identical for every agent — and walks
 you through one topic: which reviewer should judge your code (it asks for a
 provider, then a model, and — for an API provider — checks for a key). If you
 already run an agent CLI — **Claude Code, Codex, Gemini CLI, or GitHub Copilot CLI** — pick it: it
-needs **no API key** and adds no separate API bill, only a check that the
-tool is on your PATH. Ollama runs locally with no API cost either. The API
+needs **no API key** and adds no separate API bill: init checks that the tool runs, and for Codex and Gemini CLI asks it for one tiny probe verdict on your plan. Ollama runs locally with no API cost either. The API
 providers (Anthropic, OpenAI, Google) need a key. Export it first
 (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`) and init uses it
 when you press Enter at the key prompt, without copying it to disk; the reviewer

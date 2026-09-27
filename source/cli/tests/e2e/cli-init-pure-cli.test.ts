@@ -166,6 +166,8 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
       const upgrade = run(['init', '--upgrade', '--platform', 'claude-code', '--provider', 'anthropic'], dir);
       expect(upgrade.status).toBe(1);
       expect(upgrade.stderr).toContain('--upgrade was combined with reviewer flags');
+      // A flag used wrongly is `usage`, as the error-code reference says.
+      expect(upgrade.stderr).toContain('error[usage]');
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
