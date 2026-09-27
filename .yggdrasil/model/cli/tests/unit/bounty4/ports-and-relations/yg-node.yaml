@@ -4,7 +4,7 @@ description: "Bug-bounty suites: ports-and-relations (~30425 chars)."
 aspects: []
 relations:
   [
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/core/checks/architecture, type: uses },
     { target: cli/core/checks/aspects, type: uses },
     { target: cli/core/checks/relations, type: uses },

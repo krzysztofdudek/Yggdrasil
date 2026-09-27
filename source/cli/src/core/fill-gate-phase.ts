@@ -21,7 +21,7 @@ import type { CheckIssue } from './check.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { readLock } from '../io/lock-store.js';
 import { validate } from './validator.js';
-import { APPROVE_GATING_CODES, APPROVE_LOG_STATE_GATING_CODES } from './check-codes.js';
+import { APPROVE_GATING_CODES, APPROVE_LOG_STATE_GATING_CODES } from '../utils/check-codes.js';
 import { classifyLogStateFromLock } from './check-log-state.js';
 import { FillGatingError } from './fill-contract.js';
 

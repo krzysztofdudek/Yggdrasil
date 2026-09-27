@@ -27,7 +27,7 @@ import type { CheckIssue } from './check-contract.js';
 import type { VerifiedPair } from './verify-lock.js';
 import type { BurnSet } from './progressive-scope.js';
 import { progressivePairKey } from './progressive-scope.js';
-import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from './check-codes.js';
+import { SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from '../utils/check-codes.js';
 import { splitCoverageIssueByTouched } from './check-coverage-tiers.js';
 // BaselineNoise lives in the model layer (model/check-result.ts) beside the result
 // that carries it; re-exported for this module's callers.
@@ -257,27 +257,6 @@ export function applyChangeScope(
     classified.push(issueIsInScope(issue, scope, known) ? issue : toOutsideTwin(issue));
   }
   return classified;
-}
-
-/**
- * How many enforced obligations this run reports as outside the change.
- *
- * Counted from the CLASSIFIED list so there is exactly one definition of the
- * number, shared by the result the command renders and the single next step it
- * points at — two places that must never be able to disagree.
- *
- * One twin is one obligation, EXCEPT the aggregate coverage twin, which stands
- * for the uncovered files it names and contributes that count instead: it is
- * one finding about N obligations, and reporting it as 1 would understate the
- * inherited debt by however many files it lists.
- */
-export function countOutside(issues: CheckIssue[]): number {
-  let count = 0;
-  for (const issue of issues) {
-    if (!OUTSIDE_CODES.has(issue.code)) continue;
-    count += issue.uncoveredCount ?? 1;
-  }
-  return count;
 }
 
 /**

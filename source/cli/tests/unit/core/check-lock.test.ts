@@ -19,7 +19,7 @@ import { nodeUnit, LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import { runCheck } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 import type { BurnSet } from '../../../src/core/progressive-scope.js';
-import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/core/check-codes.js';
+import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/utils/check-codes.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
 import { enrichCheckJson } from '../../../src/cli/check-render-views.js';

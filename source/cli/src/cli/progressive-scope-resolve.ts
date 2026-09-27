@@ -37,9 +37,8 @@ import type { IssueMessage } from '../model/validation.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from '../utils/graph-file-names.js';
 import {
-  ARCHITECTURE_FILE,
-  CONFIG_FILE,
   computeBurnSet,
   configVocabularyChanged,
   progressivePairKey,
@@ -69,8 +68,8 @@ import { resolveProgressiveState, type PreflightProbes } from './progressive-pre
 /**
  * Repo-relative POSIX location of the committed lock this module reads at the
  * reference. The two committed GRAPH files it also reads (`ARCHITECTURE_FILE`,
- * `CONFIG_FILE`) are imported from the burn table that spells them rather than
- * re-typed here: the same paths decide what makes a run global, and two
+ * `CONFIG_FILE`) are imported from the one module that spells them for the burn
+ * table too, rather than re-typed here: the same paths decide what makes a run global, and two
  * spellings of one path is exactly how a probe silently stops matching.
  */
 const YGG_DIR = '.yggdrasil';

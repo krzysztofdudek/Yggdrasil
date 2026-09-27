@@ -11,7 +11,7 @@ import { DEFAULT_COVERAGE, readRulesArtifactsConfig, parseConfigDetailed, unknow
 import type { IssueMessage } from '../model/validation.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../formatters/check-notices.js';
 import { cliVersion } from './cli-version.js';
 import type { ReviewerProvider } from '../model/graph.js';
 import { detectVersion, readSchemaVersion } from '../core/migrator.js';

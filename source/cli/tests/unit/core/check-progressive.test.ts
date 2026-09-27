@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   applyChangeScope,
   countBaselineNoise,
-  countOutside,
   issueIsInScope,
   pairIsInScope,
 } from '../../../src/core/check-progressive.js';
 import type { BurnSet } from '../../../src/core/progressive-scope.js';
 import { computeBurnSet, progressivePairKey } from '../../../src/core/progressive-scope.js';
-import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from '../../../src/core/check-codes.js';
+import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin, countOutside } from '../../../src/utils/check-codes.js';
 import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { VerifiedPair } from '../../../src/core/verify-lock.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';

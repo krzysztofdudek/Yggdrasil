@@ -120,7 +120,7 @@ describe.skipIf(!distExists)('docs port vocabulary — 6.0.0 default/portNames r
     // meaningful instead of failing on a code that was never meant to be in check-codes.ts.
     const DOCUMENTED_NON_CHECK_CODE_EXCEPTIONS = new Set(['port-names-empty']);
 
-    const checkCodesSource = read('source/cli/src/core/check-codes.ts');
+    const checkCodesSource = read('source/cli/src/utils/check-codes.ts');
     const codesInSource = new Set<string>();
     for (const m of checkCodesSource.matchAll(/'(port-[a-z-]+)'/g)) codesInSource.add(m[1]);
 

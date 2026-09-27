@@ -19,7 +19,7 @@
 
 import type { LockFile } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import { outsideTwin } from './check-codes.js';
+import { outsideTwin } from '../utils/check-codes.js';
 import { toPosixPath } from '../utils/posix.js';
 import { count } from '../utils/count.js';
 

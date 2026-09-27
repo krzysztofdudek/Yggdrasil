@@ -16,7 +16,7 @@ import {
   checkPortAspectsDefined,
 } from '../../../src/core/checks/architecture.js';
 import { checkDanglingAspectRefs } from '../../../src/core/checks/aspects.js';
-import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
+import { STRUCTURAL_CODES } from '../../../src/utils/check-codes.js';
 import { computeEffectiveAspects, getAspectSource } from '../../../src/core/graph/aspects.js';
 import { parseNodeYaml } from '../../../src/io/node-parser.js';
 import { mkdirSync } from 'node:fs';

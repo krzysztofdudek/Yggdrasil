@@ -22,7 +22,8 @@
  * members only by the member's own node is stated once, with `<node>` in it.
  */
 import type { CheckIssue } from '../core/check.js';
-import { baseCodeOfOutsideTwin, type UnverifiedCause } from '../core/check-codes.js';
+import { baseCodeOfOutsideTwin } from '../utils/check-codes.js';
+import type { UnverifiedCause } from '../model/check-issue.js';
 import { issueViolations } from '../core/check-json.js';
 import { groupIssues, getIssueLabel, issuePriorityRank, issueTierRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, FULL_WHAT_CODES } from './group-issues.js';
 import { codeInfo, type Tier } from './output-diagnostic.js';

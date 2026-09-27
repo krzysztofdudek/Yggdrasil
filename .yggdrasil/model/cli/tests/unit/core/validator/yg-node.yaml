@@ -14,7 +14,7 @@ relations:
     { target: cli/io/parsers/config, type: uses },
     { target: cli/core/checks/aspects, type: uses },
     { target: cli/core/graph, type: uses },
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
     { target: cli/core/advise, type: uses },

@@ -78,7 +78,7 @@ relations:
     { target: cli/tests/fixtures, type: uses },
     { target: cli/progressive-preflight, type: uses },
     { target: cli/progressive-scope-resolve, type: uses },
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/core/progressive-scope, type: uses },
     { target: cli/tests/support, type: uses },
     { target: cli/core/type-visibility, type: uses },

@@ -8,7 +8,7 @@ import {
   getIssueLabel,
   issuePriorityRank,
 } from '../../../src/cli/group-issues.js';
-import { OUTSIDE_CODES } from '../../../src/core/check-codes.js';
+import { OUTSIDE_CODES } from '../../../src/utils/check-codes.js';
 import type { CheckIssue, CheckResult } from '../../../src/core/check.js';
 import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';

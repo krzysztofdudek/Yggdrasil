@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseConfig } from '../../../src/io/config-parser.js';
 import { checkReviewerCredentials } from '../../../src/core/checks/credentials.js';
-import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
+import { STRUCTURAL_CODES } from '../../../src/utils/check-codes.js';
 import type { Graph } from '../../../src/model/graph.js';
 
 const dirs: string[] = [];

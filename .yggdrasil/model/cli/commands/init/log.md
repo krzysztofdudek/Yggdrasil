@@ -140,3 +140,5 @@ The command layer had two ways of ending the process side by side: the shared he
 An upgrade that could not rewrite a file holding retired keys said so in one hand-built sentence, next to warnings that all follow the what, why and next form. It now answers in that same form: what was left, why the upgrade could not rewrite it, and the step to take, so every finding the upgrade reports reads the same way.
 ## [2026-09-26T21:33:24.421Z]
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
+## [2026-09-27T00:10:18.160Z]
+The notice about type-level coverage being on with no classifying type is now read from the formatter layer, where the check report that prints the same sentence lives. It used to sit in the check code taxonomy in the engine, which the report renderers may no longer depend on once they are formatters. The wording is unchanged.

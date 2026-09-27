@@ -1,6 +1,6 @@
 import { walk, report, inFile } from '@chrisdudek/yg/ast';
 
-// This aspect exists purely to guard core/check-codes.ts — the module that
+// This aspect exists purely to guard utils/check-codes.ts — the module that
 // declares SCOPED_CODES, the set progressive mode is ever allowed to consider
 // downgrading from a blocking error to a non-blocking warning. Its own doc
 // comment states the doctrine: "membership is doctrine, not convenience...
@@ -34,7 +34,7 @@ import { walk, report, inFile } from '@chrisdudek/yg/ast';
 // by its known shape is SKIPPED, never guessed at: a false silence is
 // acceptable (errs: under, see yg-aspect.yaml), a false refusal is not.
 
-const TARGET_GLOB = '**/core/check-codes.ts';
+const TARGET_GLOB = '**/utils/check-codes.ts';
 
 // --- locating declarations by name -----------------------------------------
 

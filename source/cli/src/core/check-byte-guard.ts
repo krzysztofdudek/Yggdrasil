@@ -45,7 +45,7 @@ import type { CheckIssue } from './check-contract.js';
 import type { VerifiedPair } from './verify-lock.js';
 import { emitPairIssue } from './check-pair-issues.js';
 import { issueIsInScope, knownPairKeys } from './check-progressive.js';
-import { SCOPED_CODES, SINGLETON_INPUTS } from './check-codes.js';
+import { SCOPED_CODES, SINGLETON_INPUTS } from '../utils/check-codes.js';
 import type {
   BurnSet,
   ByteGuardCandidate,
@@ -345,7 +345,11 @@ export function filesOfIssue(
   // 6. The aggregate coverage finding, which is SPLIT rather than downgraded:
   //    only the half about to be reported as inherited is worth asking about.
   for (const file of outsideFiles(issue)) files.add(file);
-  return [...files];
+  // Every rung already holds repo-relative POSIX paths (fixed literals, unit
+  // keys, enumeration subjects, relation edges, coverage lists); normalizing
+  // here makes that a property of this function's result rather than of each
+  // producer, since the paths leave this module inside the returned subjects.
+  return [...new Set([...files].map(toPosixPath))];
 }
 
 /**

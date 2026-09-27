@@ -14,7 +14,7 @@ import path from 'node:path';
 import { parseAspect } from '../../../src/io/aspect-parser.js';
 import { symlinkOnPath, ruleDirSymlinks } from '../../../src/io/artifact-reader.js';
 import { checkAspectReferences } from '../../../src/core/checks/aspect-contracts.js';
-import { STRUCTURAL_CODES, APPROVE_GATING_CODES } from '../../../src/core/check-codes.js';
+import { STRUCTURAL_CODES, APPROVE_GATING_CODES } from '../../../src/utils/check-codes.js';
 import type { Graph } from '../../../src/model/graph.js';
 
 const roots: string[] = [];

@@ -35,7 +35,10 @@ description: >-
   counts, a pair's outcome, a periodic tally, the in-place status line with the
   width it must fit, the closing totals) and the fill-text renderer turns one
   event into the exact text a person reads, so the engine owns none of those
-  sentences.
+  sentences. It also holds the check's two standing notices (type-level
+  coverage switched on with no classifying type, and the attention index
+  skipped because git does not ignore it), shared verbatim by the check
+  report and yg init.
 relations:
   - target: cli/model/graph
     type: uses
@@ -54,6 +57,7 @@ mapping:
   - source/cli/src/formatters/aspects-health-json.ts
   - source/cli/src/formatters/aspects-json.ts
   - source/cli/src/formatters/check-json.ts
+  - source/cli/src/formatters/check-notices.ts
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts

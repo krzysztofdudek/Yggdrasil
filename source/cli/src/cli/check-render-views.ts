@@ -15,8 +15,8 @@
  * the same step is the JSON document's `suggestedNext` and `next`.
  */
 import type { CheckIssue, CheckResult } from '../core/check.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES, isConfigLoadFailure } from '../core/check-codes.js';
-import { countOutside } from '../core/check-progressive.js';
+import { OUTSIDE_CODES, isConfigLoadFailure, countOutside } from '../utils/check-codes.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE } from '../formatters/check-notices.js';
 import { issueViolations } from '../core/check-json.js';
 import { COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, getIssueLabel } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderByteGuardNotice, renderBaselineNoiseNotice, renderExternalJudgesNotice } from './check-render-header.js';

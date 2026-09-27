@@ -14,7 +14,7 @@
 import type { IssueMessage } from '../model/validation.js';
 import type { FillEvent, FillEventSink, FillUsageTotals, FillProgressCounts, FillDispatchCounts } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
-import type { UnverifiedCause } from './check-codes.js';
+import type { UnverifiedCause } from '../utils/check-codes.js';
 import { toPosixPath } from '../utils/posix.js';
 import { count } from '../utils/count.js';
 

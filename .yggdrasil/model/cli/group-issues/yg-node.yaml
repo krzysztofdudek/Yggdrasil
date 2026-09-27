@@ -6,7 +6,7 @@ mapping:
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/check-codes
+  - target: cli/check-codes
     type: calls
   - target: cli/core/check
     type: calls
