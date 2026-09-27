@@ -390,7 +390,7 @@ async function planUpdate(
   assertVersionsAgree(fetched, marketEntry, manifest);
 
   const newHashes = await hashPackageTree(packageRootAbs, entry.package);
-  if (!newHashes.ok) failWith(newHashes.messageData);
+  if (!newHashes.ok) failWith(newHashes.messageData, newHashes.code);
 
   if (opts.reinstall === true) {
     const accept = opts.acceptRepublished === true;

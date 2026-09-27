@@ -726,6 +726,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(removed.status).toBe(1);
         expect(removed.all).toContain(`'${id}'`);
         expect(removed.all).toContain('<owner>/<repo>/helper');
+        // The record parser's own code, not the generic command-error.
+        expect(removed.all).toContain('error[packages-lock-package-invalid]');
         expect(removed.all).not.toContain('Removed');
         expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
         expect(existsSync(path.join(dir, '.yggdrasil', 'model', 'app', 'yg-node.yaml'))).toBe(true);
@@ -776,6 +778,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.status).toBe(1);
       expect(added.all).toContain('>=99.0.0');
       expect(added.all).toMatch(/this one is \d+\.\d+\.\d+/);
+      expect(added.all).toContain('error[package-requires-unsatisfied]');
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -893,6 +896,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.status).toBe(1);
       expect(added.all).toContain("'demo'");
       expect(added.all).toContain("'something-else'");
+      expect(added.all).toContain('error[package-name-mismatch]');
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -907,6 +911,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       const added = run(['pack', 'add', `${empty}#demo`, '--as', 'acme/law'], dir);
       expect(added.status).toBe(1);
       expect(added.all).toContain('yg-marketplace.yaml');
+      expect(added.all).toContain('error[marketplace-manifest-missing]');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
       rmSync(empty, FIXTURE_RM_OPTIONS);

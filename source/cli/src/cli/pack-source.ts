@@ -241,7 +241,7 @@ export async function sourceKindOf(resolved: ResolvedSource, recordedFor?: strin
     what: `There is no ${MARKETPLACE_FILENAME} in '${toPosixPath(resolved.location)}', and it is not a git repository either.`,
     why: 'A marketplace is a directory — or a repository — carrying that file at its root; without it there is nothing naming the packages published there.',
     next: `Point at a directory whose root holds ${MARKETPLACE_FILENAME}, or at the URL of a repository that does. Nothing was installed or changed.`,
-  });
+  }, 'marketplace-manifest-missing');
 }
 
 // ============================================================
@@ -395,7 +395,7 @@ export class FetchSession {
 export async function readMarketplaceEntry(rootAbs: string, packageName: string): Promise<MarketplaceEntry> {
   const manifestPath = path.join(rootAbs, MARKETPLACE_FILENAME);
   const manifest = await parseMarketplaceManifest(manifestPath);
-  if (!manifest.ok) failWith(manifest.errors[0].messageData);
+  if (!manifest.ok) failWith(manifest.errors[0].messageData, manifest.errors[0].code);
 
   const entry = manifest.value.packages.find((p) => p.name === packageName);
   if (entry === undefined) {
@@ -427,7 +427,7 @@ export async function readPackage(rootAbs: string, entry: MarketplaceEntry): Pro
   }
 
   const manifest = await parsePackageManifest(path.join(packageRootAbs, PACKAGE_FILENAME), presentDirs);
-  if (!manifest.ok) failWith(manifest.errors[0].messageData);
+  if (!manifest.ok) failWith(manifest.errors[0].messageData, manifest.errors[0].code);
 
   // The marketplace says this package is called one thing and the package itself
   // says another. Installing anyway would file it under a name neither document
@@ -437,11 +437,11 @@ export async function readPackage(rootAbs: string, entry: MarketplaceEntry): Pro
       what: `The marketplace publishes '${entry.name}', but the package at '${entry.path}' calls itself '${manifest.value.name}'.`,
       why: 'A package is installed, updated and removed by name, so the two have to agree on what that name is.',
       next: `Ask the marketplace author to make the name in ${MARKETPLACE_FILENAME} and the one in ${PACKAGE_FILENAME} match.`,
-    });
+    }, 'package-name-mismatch');
   }
 
   const requires = checkPackageRequires(manifest.value, cliVersion());
-  if (!requires.ok) failWith(requires.errors[0].messageData);
+  if (!requires.ok) failWith(requires.errors[0].messageData, requires.errors[0].code);
 
   return { manifest: manifest.value, packageRootAbs };
 }
@@ -464,7 +464,7 @@ export function assertVersionsAgree(fetched: Fetched, entry: MarketplaceEntry, m
     what: `The version of '${manifest.name}' is written down three ways that disagree: ${claims.join(', ')}.`,
     why: 'A version names exactly one published tree. Recording one of the numbers while the others say something else would let two repositories claim the same version and run different code. Nothing was installed or changed.',
     next: `Ask the author to make the tag, version: in ${PACKAGE_FILENAME} and the entry in ${MARKETPLACE_FILENAME} agree, and publish again.`,
-  });
+  }, 'package-version-mismatch');
 }
 
 // ============================================================
@@ -473,7 +473,7 @@ export function assertVersionsAgree(fetched: Fetched, entry: MarketplaceEntry, m
 
 export async function readLock(projectRoot: string): Promise<PackagesLock> {
   const lock = await parsePackagesLock(packagesLockPath(projectRoot));
-  if (!lock.ok) failWith(lock.errors[0].messageData);
+  if (!lock.ok) failWith(lock.errors[0].messageData, lock.errors[0].code);
   return lock.value;
 }
 

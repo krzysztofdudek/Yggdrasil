@@ -264,7 +264,7 @@ async function runNew(rawName: string): Promise<number> {
       what: `There is no ${MARKETPLACE_FILENAME} at ${toPosixPath(cwd)} or above it.`,
       why: 'A package is published BY a marketplace — the manifest at the repository root is what names it and what a consumer reads to find it. Without one there is nothing for a new package to belong to.',
       next: 'Run `yg marketplace init` in the repository that should publish this package, then run this again.',
-    });
+    }, 'marketplace-manifest-missing');
   }
 
   const packageDir = path.join(root, PACKAGES_DIR, name);
@@ -281,7 +281,7 @@ async function runNew(rawName: string): Promise<number> {
   // is what keeps a failure from leaving a package directory nothing publishes.
   const manifestPath = path.join(root, MARKETPLACE_FILENAME);
   const existing = await parseMarketplaceManifest(manifestPath);
-  if (!existing.ok) failWith(existing.errors[0].messageData);
+  if (!existing.ok) failWith(existing.errors[0].messageData, existing.errors[0].code);
   if (existing.value.packages.some((entry) => entry.name === name)) {
     failWith({
       what: `${MARKETPLACE_FILENAME} already publishes a package called '${name}'.`,
@@ -476,7 +476,7 @@ async function runAdd(rawSpec: string, opts: { as?: string }): Promise<number> {
           ...(opts.as !== undefined && { identity: 'given' as const }),
         },
       });
-      if (!result.ok) failWith(result.messageData);
+      if (!result.ok) failWith(result.messageData, result.code);
 
       const fileCount = Object.keys(result.value.files).length;
       const from = fetched.tag === undefined ? '' : ` from ${fetched.tag} (commit ${shortCommit(fetched.commit)})`;
@@ -681,7 +681,7 @@ async function runVerify(name: string | undefined): Promise<number> {
             const marketEntry = await readMarketplaceEntry(fetched.rootAbs, pkgName);
             const { packageRootAbs } = await readPackage(fetched.rootAbs, marketEntry);
             const now = await hashPackageTree(packageRootAbs, entry.package);
-            if (!now.ok) failWith(now.messageData);
+            if (!now.ok) failWith(now.messageData, now.code);
             const moved = entry.commit !== undefined && fetched.commit !== entry.commit;
             if (moved) {
               problems.push(`${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}`);
