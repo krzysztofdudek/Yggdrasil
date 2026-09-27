@@ -16,7 +16,7 @@ import { firstParentAncestors,
 import { readTextFile, writeTextFile, statKind } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
-import { readLock, writeLock, readTypeLock, writeTypeLock, LockInvalidError } from '../../io/lock-store.js';
+import { readLock, writeLock, readTypeLock, writeTypeLock, LockInvalidError, acquireApproveLock, LockEnvironmentError } from '../../io/lock-store.js';
 import { withLogWriteLock } from '../../io/log-store.js';
 import { computeLogBaselineFromContent, computeLogGateState, logGateStateBlocks } from './log-gate.js';
 import { validateAppendOnly } from '../log-integrity.js';
@@ -44,6 +44,12 @@ export interface LogMergeResolveInput {
    * the common prefix of the two sides' logs.
    */
   sides?: { ours: string; theirs: string; base?: string };
+  /**
+   * The wall clock at the start of the run, recorded as the start time of the
+   * approval lock a node's baseline write takes (see holdBaselineWriters). The
+   * CLI passes it; engine code reads no clock of its own.
+   */
+  nowMs?: number;
 }
 
 /** The git operation found stopped mid-way, whose two sides merge-resolve read. */
@@ -449,6 +455,42 @@ interface LogTarget {
   gitLogPath: string;
 }
 
+/**
+ * Hold what the write phase of a resolution needs before it writes anything:
+ * the committed baseline file must read cleanly — a damaged one (conflict
+ * markers left by the same merge) fails the run before log.md is touched, so
+ * `yg check` still names this log for the re-run — and a node's baseline, which
+ * sits in yg-lock.logs.json beside every other node's, is written under the
+ * approval lock a fill holds while it rewrites that file from its own snapshot.
+ * A type's baseline file is written under the log-write lock instead (see
+ * recordBaseline). Returns the refusal, or the release to call when done.
+ */
+function holdBaselineWriters(yggRoot: string, target: LogTarget, nowMs: number): CodedIssueMessage | { release: () => void } {
+  try {
+    if (target.typeId !== undefined) readTypeLock(yggRoot);
+    else readLock(yggRoot);
+  } catch (err) {
+    if (err instanceof LockInvalidError) {
+      debugWrite(`[log-merge-resolve] the baseline file is invalid for ${target.flag}: ${err.message}`);
+      return { ...err.messageData, code: 'lock-invalid' };
+    }
+    throw err;
+  }
+  if (target.typeId !== undefined) return { release: () => {} };
+  try {
+    return { release: acquireApproveLock(yggRoot, nowMs, `yg log merge-resolve ${target.flag}`) };
+  } catch (err) {
+    if (err instanceof LockEnvironmentError) return { ...err.messageData, code: 'lock-environment' };
+    throw err;
+  }
+}
+
+/** Write the union into log.md under the log-write lock every log writer takes. */
+async function writeUnion(yggRoot: string, logPath: string, union: string): Promise<CodedIssueMessage | null> {
+  const written = await withLogWriteLock(yggRoot, () => writeTextFile(logPath, union));
+  return written.ok ? null : { ...written.error, code: 'lock-environment' };
+}
+
 /** Resolve the input to the one log it names, or the refusal for a name that is not one. */
 function resolveTarget(input: LogMergeResolveInput): LogTarget | CodedIssueMessage {
   const { graph } = input;
@@ -578,7 +620,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  if (replay !== null) return resolveReplay({ graph, repoRoot, target, currentLog, conflicted, replay });
+  if (replay !== null) return resolveReplay({ graph, repoRoot, target, currentLog, conflicted, replay, nowMs: input.nowMs ?? 0 });
 
   let baseLog: string | null;
   let parent1Log: string;
@@ -645,25 +687,32 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     }
   }
 
-  // Mid-merge with the log conflicted: write the union of both sides, then
-  // verify it like any other resolution.
-  let wroteUnion = false;
-  if (conflicted) {
-    const union = unionOf(shared);
-    await writeTextFile(logPath, union);
-    currentLog = union;
-    wroteUnion = true;
+  const held = holdBaselineWriters(graph.rootPath, target, input.nowMs ?? 0);
+  if ('code' in held) return { ok: false, error: held };
+  try {
+    // Mid-merge with the log conflicted: write the union of both sides, then
+    // verify it like any other resolution.
+    let wroteUnion = false;
+    if (conflicted) {
+      const union = unionOf(shared);
+      const unwritten = await writeUnion(graph.rootPath, logPath, union);
+      if (unwritten !== null) return { ok: false, error: unwritten };
+      currentLog = union;
+      wroteUnion = true;
+    }
+
+    const bad = verifyUnion(currentLog, shared);
+    if (bad !== null) return { ok: false, error: bad };
+
+    const recorded = await recordBaseline(graph, target, currentLog);
+    if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+    const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, inProgress);
+    if (competing !== null) return { ok: false, error: competing };
+
+    return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+  } finally {
+    held.release();
   }
-
-  const bad = verifyUnion(currentLog, shared);
-  if (bad !== null) return { ok: false, error: bad };
-
-  const recorded = await recordBaseline(graph, target, currentLog);
-  if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
-  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, inProgress);
-  if (competing !== null) return { ok: false, error: competing };
-
-  return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
 
 /**
@@ -678,6 +727,7 @@ async function resolveReplay(args: {
   currentLog: string;
   conflicted: boolean;
   replay: { kind: 'rebase' | 'cherry-pick'; commit: string };
+  nowMs: number;
 }): Promise<LogMergeResolveResult> {
   const { graph, repoRoot, target, conflicted, replay } = args;
   const { logPath, gitLogPath } = target;
@@ -717,22 +767,29 @@ async function resolveReplay(args: {
     };
   }
 
-  let wroteUnion = false;
-  if (conflicted) {
-    const union = replayUnion(oursLog, added, replayedLog);
-    await writeTextFile(logPath, union);
-    currentLog = union;
-    wroteUnion = true;
+  const held = holdBaselineWriters(graph.rootPath, target, args.nowMs);
+  if ('code' in held) return { ok: false, error: held };
+  try {
+    let wroteUnion = false;
+    if (conflicted) {
+      const union = replayUnion(oursLog, added, replayedLog);
+      const unwritten = await writeUnion(graph.rootPath, logPath, union);
+      if (unwritten !== null) return { ok: false, error: unwritten };
+      currentLog = union;
+      wroteUnion = true;
+    }
+
+    const bad = verifyReplayResolution(currentLog, oursLog, added, replay);
+    if (bad !== null) return { ok: false, error: bad };
+
+    const recorded = await recordBaseline(graph, target, currentLog);
+    if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+    const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, replay.kind);
+    if (competing !== null) return { ok: false, error: competing };
+    return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+  } finally {
+    held.release();
   }
-
-  const bad = verifyReplayResolution(currentLog, oursLog, added, replay);
-  if (bad !== null) return { ok: false, error: bad };
-
-  const recorded = await recordBaseline(graph, target, currentLog);
-  if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
-  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, replay.kind);
-  if (competing !== null) return { ok: false, error: competing };
-  return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
 
 /**

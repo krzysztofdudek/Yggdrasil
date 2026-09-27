@@ -9,10 +9,10 @@
  * form on request.
  */
 import { describe, it, expect } from 'vitest';
-import { formatOutput, enrichCheckJson, previewCheckJson, formatAbort, THREE_WORD_GROUPS } from '../../../src/formatters/check-render-views.js';
+import { formatOutput, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, THREE_WORD_GROUPS } from '../../../src/formatters/check-render-views.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import { unverifiedCauseMessage, unverifiedMessage } from '../../../src/formatters/lock-issue-messages.js';
-import { buildCheckJson } from '../../../src/core/check-json.js';
+import { buildCheckJson, checkJsonIssueOf } from '../../../src/core/check-json.js';
 import { formatCheckJson, formatCompactCheckJson } from '../../../src/formatters/check-json.js';
 import { renderHeader } from '../../../src/formatters/check-render-header.js';
 
@@ -84,6 +84,10 @@ describe('M6: a fill step states what the whole command costs', () => {
     expect(next.requiresUser).toBe(false);
     expect(doc(paid).suggestedNext).toBe('yg check --approve  (unverified — 1 script pair · free + 2 reviewer pairs · 2 calls · paid)');
   });
+
+  it('JSON: a fill names no single subject — it acts on every pending pair', () => {
+    expect(doc(r).next!.target).toEqual({});
+  });
 });
 
 describe('C1: a three-word command is never cut to two', () => {
@@ -125,6 +129,12 @@ describe('C2/F6/C4: configuring a reviewer is asked for, and the counts say what
     expect(next.command).toBeNull();
     expect(next.requiresUser).toBe(true);
     expect(next.remaining).toEqual({ needsFix: 0, fillable: 0, needsUser: 1, waitingOnReviewer: 2 });
+  });
+
+  it('the aborted document counts every error of the tree in remaining, not only the gate', () => {
+    const aborted = abortCheckJson(doc(r), { stage: 'structural', issues: [reviewerMissing()], retry: 'yg check --approve' }, checkJsonIssueOf);
+    expect(aborted.next!.remaining).toEqual({ needsFix: 0, fillable: 0, needsUser: 1, waitingOnReviewer: 2 });
+    expect(aborted.next!.cost).toEqual({ free: 0, reviewerPairs: 0, reviewerCalls: 0 });
   });
 
   it('the gate abort names the same asked-for step', () => {

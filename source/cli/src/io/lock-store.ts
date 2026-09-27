@@ -74,7 +74,7 @@ export const APPROVE_LOCK_FILE_NAME = '.yg-approve.lock';
 
 /** An approval older than this is taken to be abandoned even when its process
  *  cannot be checked (it ran on another machine sharing the directory). */
-const APPROVE_LOCK_STALE_MS = 12 * 60 * 60 * 1000;
+export const APPROVE_LOCK_STALE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Take the repository's approval lock for the whole read → fill → write cycle,

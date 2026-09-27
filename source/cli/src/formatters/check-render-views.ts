@@ -401,7 +401,9 @@ function computeNext(
   let then: string | undefined;
   if (isFill(first)) {
     const step = fillStep(pending, first);
-    action = { text: step.command, command: step.command, argv: step.argv, target: action.target };
+    // A fill acts on every pending pair of the run, not on the lead block's
+    // first member, so it names no one subject — as `yg check --full` does not.
+    action = { text: step.command, command: step.command, argv: step.argv, target: {} };
     cost = step.cost;
     // A free script-only step leaves the reviewer's pairs: name that paid run next.
     const left = fillStep(pending, undefined);
@@ -678,6 +680,9 @@ export function formatAbort(abort: FillAbort, emoji = useEmoji): string {
 export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf: (i: CheckIssue) => CheckJsonIssue): CheckJsonDocument {
   doc.exit = { code: 1, status: 'aborted', reason: `yg check --approve stopped: ${abortReason(abort)}.` };
   doc.aborted = { stage: abort.stage, issues: abort.issues.map(issueOf) };
+  // `remaining` counts every error of the tree the document reports (the
+  // read-only report enrichCheckJson already summed), not only the gate's.
+  const wholeRemaining = doc.next?.remaining;
   const blocks = buildBlocks(abort.issues);
   const first = blocks.map((b) => ({ b, a: blockAction(b) })).find((x) => x.a !== undefined);
   if (first !== undefined) {
@@ -687,7 +692,7 @@ export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf
       text: first.a!.text,
       target: first.a!.target,
       cost: { ...NO_COST },
-      remaining: remainingOf(blocks),
+      remaining: wholeRemaining ?? remainingOf(blocks),
       requiresUser: first.a!.requiresUser === true,
       then: abort.retry ?? null,
     };

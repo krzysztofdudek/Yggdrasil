@@ -89,7 +89,9 @@ describe('check-flags — the yg check flag parse', () => {
 
     it('refuses a --summary argument other than nodes, and a --top that is not a positive whole number', () => {
       const summary = resolveCheckView({ summary: 'files' });
-      expect('refusal' in summary && summary.refusal.what).toBe(`--summary takes 'nodes' or nothing; got "files".`);
+      expect('refusal' in summary && summary.refusal.what).toBe(`--summary takes 'nodes', 'codes' or nothing; got "files".`);
+      // `codes` is the default roll-up named explicitly, and is accepted as such.
+      expect(resolveCheckView({ summary: 'codes' })).toEqual(resolveCheckView({ summary: true }));
       for (const top of ['0', '-1', '2.5', 'many']) {
         const view = resolveCheckView({ top });
         expect('refusal' in view && view.refusal.what).toBe(`--top expects a positive whole number (1 or more); got "${top}".`);
@@ -112,5 +114,13 @@ describe('check-flags — the yg check flag parse', () => {
     const auto = dryRunWithoutApproveRefusal('full');
     expect(auto.next).toBe('Run: yg check --approve --dry-run (cost preview), or yg check --no-approve (plain read).');
     expect(auto.why).toContain('This project sets auto_approve: full');
+  });
+
+  it('dryRunWithoutApproveRefusal does not claim a bare check fills when CI holds auto_approve: full back', () => {
+    const held = dryRunWithoutApproveRefusal('full', true);
+    expect(held.why).not.toContain('a bare `yg check` fills');
+    expect(held.next).toBe('Run: yg check --approve --dry-run (cost preview), or yg check (plain read).');
+    // `deterministic` still fills under CI, so its plain read stays --no-approve.
+    expect(dryRunWithoutApproveRefusal('deterministic', true).next).toBe('Run: yg check --approve --dry-run (cost preview), or yg check --no-approve (plain read).');
   });
 });

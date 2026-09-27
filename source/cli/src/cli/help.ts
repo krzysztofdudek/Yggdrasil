@@ -30,7 +30,7 @@ const COMMANDS: Record<string, CommandHelp> = {
     group: 'Daily',
     summary: 'Run the gate: rules, coverage, relations',
     examples: [
-      ['yg check', 'read-only gate'],
+      ['yg check', 'the gate — read-only unless auto_approve is set'],
       ['yg check --approve --only-deterministic', 'record every free verdict'],
       ['yg check --summary', 'one line per finding label'],
     ],
@@ -194,7 +194,7 @@ function rootHelp(program: Command, description: string): string {
   }
   lines.push(
     examplesBlock([
-      ['yg check', 'read-only gate'],
+      ['yg check', 'the gate — read-only unless auto_approve is set'],
       ['yg check --approve --only-deterministic', 'record every free verdict'],
       ['yg context --file src/a.ts', 'before editing a file'],
     ]),

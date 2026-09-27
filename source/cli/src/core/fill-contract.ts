@@ -54,7 +54,7 @@ export interface RunFillOptions {
    *  Keyless and free; powers `yg check --approve --only-deterministic` and the CI pipeline. */
   onlyDeterministic?: boolean;
   /** Cost preview only: run the structural gate + pair classification + budget
-   *  computation, emit a per-node/per-aspect breakdown, then return WITHOUT
+   *  computation, emit the budget (one line per reviewer pair, script pairs counted), then return WITHOUT
    *  filling anything. No reviewer calls, no deterministic checks, no lock writes
    *  — the early-return precedes the serialized writer's construction, so the
    *  no-write guarantee is structural. Powers `yg check --approve --dry-run`. */

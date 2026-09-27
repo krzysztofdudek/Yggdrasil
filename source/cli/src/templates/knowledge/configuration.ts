@@ -479,7 +479,7 @@ re-verified. \`deterministic\` is not held back — it is free, keyless, and the
 recommended CI cache rebuild, so it cannot make a stale change green.
 
 **When a fill is triggered by \`auto_approve\`:** a pre-run banner on stderr warns
-that reviewer calls will be made, and the PASS header shows \`(auto-filled)\` to
+that reviewer calls will be made, and the PASS header shows \`auto-filled\` (the bare word, after \`PASS\`) to
 distinguish it from a clean read-only pass. The \`parallel\` and \`reviewer\` tier
 settings from \`yg-config.yaml\` apply to the fill just as they would for an
 explicit \`--approve\`.

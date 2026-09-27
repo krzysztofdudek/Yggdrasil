@@ -89,7 +89,7 @@ async function refund(req) {
 }
 ```
 
-`yg check --approve` refuses it: **refund changes a charge with no audit event.** The agent adds the call, re-runs, passes. (A bare `yg check` never calls the model; on this change it fails because the new code has no verdict yet, and names `--approve` as the next step.)
+`yg check --approve` refuses it: **refund changes a charge with no audit event.** The agent adds the call, re-runs, passes. (A bare `yg check` calls no model unless the project set `auto_approve: full`; on this change it fails because the new code has no verdict yet, and names `--approve` as the next step.)
 
 ```ts
 async function refund(req) {
@@ -174,7 +174,7 @@ I built it while shipping things alone, fast, which is where the wall above come
 
 Pin the version, and raise the pin in a commit of its own. A bare `npx @chrisdudek/yg` runs whatever release is newest on the day the job runs, so a new release, a major one included, would change your gate without a commit, and a CI on one version and developers on another re-open each other's verdicts.
 
-The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
+The first line rebuilds the free local cache that a fresh checkout never has, and reports on the tree after it — so it already fails the job on any blocking finding (an unverified reviewer pair, an unmapped file, a refusal) before the second line runs. The second is the read-only gate, and the step to keep if you want the job to fail in one place (mark the first `continue-on-error: true`): it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
 
 On a large repository, keep the local cache between runs so the first line only fills what changed:
 

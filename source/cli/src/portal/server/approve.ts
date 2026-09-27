@@ -79,25 +79,35 @@ function spawnCli(args: string[], cwd: string): Promise<ApproveResult> {
  */
 export const APPROVE_LOCK_PATH = path.join('.yggdrasil', '.yg-approve.lock');
 
+/**
+ * How long the CLI lets a holder on another machine keep the approval lock before it
+ * counts as abandoned — spelled here for the same reason, and pinned by the same test.
+ */
+export const APPROVE_LOCK_STALE_MS = 12 * 60 * 60 * 1000;
+
 /** Approvals this server has spawned and not yet seen finish, per project root. */
 const approvesInFlight = new Set<string>();
 
 /**
  * Whether an approval is running in `projectRoot` right now: one this server spawned, or
  * one started anywhere else (a terminal, an agent) that holds the CLI's approval lock.
- * A lock whose holder process is gone on this machine does not count — the CLI replaces
- * such a lock itself. This is the early answer for the button; the spawned CLI's own
- * lock remains the guard that cannot race.
+ * A lock the CLI would replace does not count: one whose holder process is gone on this
+ * machine, or one a holder on another machine has kept longer than any run could take.
+ * This is the early answer for the button; the spawned CLI's own lock remains the guard
+ * that cannot race.
  */
-export function approveInProgress(projectRoot: string): boolean {
+export function approveInProgress(projectRoot: string, nowMs: number = Date.now()): boolean {
   if (approvesInFlight.has(projectRoot)) return true;
-  let holder: { pid?: unknown; host?: unknown };
+  let holder: { pid?: unknown; host?: unknown; startedAt?: unknown };
   try {
-    holder = JSON.parse(readFileSync(path.join(projectRoot, APPROVE_LOCK_PATH), 'utf-8')) as { pid?: unknown; host?: unknown };
+    holder = JSON.parse(readFileSync(path.join(projectRoot, APPROVE_LOCK_PATH), 'utf-8')) as { pid?: unknown; host?: unknown; startedAt?: unknown };
   } catch {
     return false;
   }
-  if (typeof holder.pid !== 'number' || holder.host !== hostname()) return true;
+  if (typeof holder.pid !== 'number' || holder.host !== hostname()) {
+    const started = typeof holder.startedAt === 'string' ? Date.parse(holder.startedAt) : Number.NaN;
+    return Number.isNaN(started) || nowMs - started <= APPROVE_LOCK_STALE_MS;
+  }
   try {
     process.kill(holder.pid, 0);
     return true;

@@ -360,7 +360,7 @@ parse out of it (every field additive, present only where it applies):
 
 The document also carries the report's standing `notes` (the text's `note:` lines, in order; `[]` when there are none), and its `groups` — one per text block, in report order (`code`, `label`, `aspect`, `severity`, `subject` (the block heading), `cause` (on an unverified block), the shared `why` and `next` — `null` where members differ — and `members` as indexes into `issues`), so a consumer can read each rationale once — and `banner`: the `partial:` line when a configuration, architecture, component or lock file did not load as written (every other number then describes a fallback), else `null`.
 
-The step to take first comes twice. `suggestedNext` is the text of the report's own `next:` line (one line), or `null` when the report prints none. `next` is the same step as an object, or `null`:
+The step to take first comes twice. `suggestedNext` is the text of the report's own `next:` line (one line), or `null` when there is no step at all. When the text leaves `next:` out because the only block's `fix:` already is that step, `suggestedNext` still carries it — as the bare step (`next.text`), without the cost annotation the `next:` line would add. `next` is the same step as an object, or `null`:
 
 ```json
 "next": {
@@ -374,7 +374,7 @@ The step to take first comes twice. `suggestedNext` is the text of the report's 
 }
 ```
 
-`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on; `cost` is the cost of running `command` — the whole command, never one block's share of it: every pending pair it fills, advisory ones included (script pairs free, reviewer pairs paid; zero for a step that is not a fill). `reviewerCalls` is what the reviewer pairs bill — each pair its tier's consensus — so `free`, `reviewerPairs` and `reviewerCalls` equal the `dryRunBudget` (`deterministic`, `pairs` minus `deterministic`, `reviewerCalls`) of running `command` with `--dry-run --json` on the same tree, and the text states the reviewer's share the same way: `3 reviewer pairs · 9 calls · paid`. A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost (`3 reviewer pairs · 9 calls · paid`), which is stated, not asked about — an agent runs the paid fill itself once its change is final. `requiresUser` is true when the step needs the user's approval before it runs: a decision only the user makes — configuring a reviewer (`ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft`, whose `command` is `null`). A paid fill is not one: its `requiresUser` is `false` and its price is in `cost`. `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a fill, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
+`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`, a decision that is the user's); `target` names what it acts on — `{}` for a step that acts on the whole run rather than one subject (a fill, which settles every pending pair, or `yg check --full`); `cost` is the cost of running `command` — the whole command, never one block's share of it: every pending pair it fills, advisory ones included (script pairs free, reviewer pairs paid; zero for a step that is not a fill). `reviewerCalls` is what the reviewer pairs bill — each pair its tier's consensus — so `free`, `reviewerPairs` and `reviewerCalls` equal the `dryRunBudget` (`deterministic`, `pairs` minus `deterministic`, `reviewerCalls`) of running `command` with `--dry-run --json` on the same tree, and the text states the reviewer's share the same way: `3 reviewer pairs · 9 calls · paid`. A fill whose first block is script pairs alone is named `yg check --approve --only-deterministic`, which cannot call the reviewer, and the paid run that remains is the `then:` step; `yg check --approve` is named only with its full cost (`3 reviewer pairs · 9 calls · paid`), which is stated, not asked about — an agent runs the paid fill itself once its change is final. `requiresUser` is true when the step needs the user's approval before it runs: a decision only the user makes — configuring a reviewer (`ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft`, whose `command` is `null`). A paid fill is not one: its `requiresUser` is `false` and its price is in `cost`. `remaining` puts every error in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` a fill, `needsUser` a decision of the user's, `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. `then` is the text of the report's `then:` line, or `null`.
 
 `yg check --json --compact` writes the same document without what a reader can recompute — for a reader that pays per token, since the full document runs to 15–40 times the text report: `pairs` lists only the pairs that are not approved (`totals.verdicts.approved` still counts them all), an issue leaves out its `why` and `next` when its group states them, and its `label` and `unitRef` (its group's label, its `unit` parsed), the JSON is not indented, and `compact: true` marks the form. Every other field keeps its shape. `--compact` without `--json` is refused.
 
@@ -384,14 +384,12 @@ When a fill stops at a gate before recording anything — the
 mandatory-log gate, or the structural gate — the document is still written:
 `exit.status` is `aborted` (exit code 1), `exit.reason` says which gate and how
 much it is waiting on, `aborted: { stage: 'log-gate' | 'structural', issues }`
-carries the findings that stopped it, and the rest of the document is the
-read-only report of the same tree.
+carries the findings that stopped it, and the rest of the document is the read-only report of the same tree. Its `next` is the first gating finding's step, with `cost` zero (it is not a fill) and `then` the command re-run as it was invoked; `remaining` counts every error of that tree, as it does in any report.
 
 The infrastructure causes are ones re-running the same command cannot clear, so
 their `next` names the real fix, and once no pair a fill can settle is left,
 `suggestedNext` and `next` point there rather than back at the command that just failed. The four fill-time causes appear on the report of the
-run that witnessed them; a later plain read, which only has the lock, shows such
-a pair as `never-reviewed` or `stale` again.
+run that witnessed them; a later plain read, which only has the lock, shows such a pair as `never-reviewed`, `stale` or — a script pair, which gets no cache entry when its check failed to run — `deterministic-not-run` again.
 
 That floor is `progressive`, and it is `null` on a project that measures nothing.
 When present it names the branch or ref measured against (`reference`), how many
@@ -472,8 +470,7 @@ new schema number.
 ### `yg check`
 
 Unified gate combining structural integrity, the prompt-size gate, lock
-verification, coverage, and completeness. It **writes nothing** *unless the
-project configured it to* — `auto_approve` in `yg-config.yaml` (see below) makes
+verification, coverage, and completeness. It **writes no verdicts** *unless the project configured it to* (it does maintain its own gitignored caches and attention index under `.yggdrasil/`) — `auto_approve` in `yg-config.yaml` (see below) makes
 a bare `yg check` a fill, so "just run `yg check`, it is read-only" is only true
 for a project that never set it; `yg check --no-approve` is the read that is
 always a read. Otherwise it recomputes
@@ -536,7 +533,7 @@ next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fi
 then: yg check --approve  (24 reviewer pairs · 24 calls · paid)
 ```
 
-**The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors in 4 blocks · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A count is of **findings** — one per node, pair, file group or repository fact a check reports, the same unit as the JSON document's `totals` — while the report below groups findings into **blocks**; whenever the two numbers differ the count says how many blocks hold them (`34 errors in 4 blocks`: 24 unverified pairs, 8 refusals, one broken relation and one unmapped-file finding, in four blocks), so a count never reads as the number of blocks under it. The JSON document carries the blocks as `groups`. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
+**The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors in 4 blocks · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft rules skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A count is of **findings** — one per node, pair, file group or repository fact a check reports, the same unit as the JSON document's `totals` — while the report below groups findings into **blocks**; whenever the two numbers differ the count says how many blocks hold them (`34 errors in 4 blocks`: 24 unverified pairs, 8 refusals, one broken relation and one unmapped-file finding, in four blocks), so a count never reads as the number of blocks under it. The JSON document carries the blocks as `groups`. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: summary by node` (`--summary nodes`), `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
 
 **Blocks** follow, one per finding group. The heading is `error[<label>] <subject>` or `warning[<label>] <subject>`; below it come lowercase, labelled fields — a line with no label continues the field above it:
 
@@ -600,7 +597,7 @@ a harmless no-op on a plain read.
 ```bash
 yg check --top 5        # only the first 5 blocks
 yg check --top          # only the block next: points at (flag with no value)
-yg check --summary      # one rollup line per severity — each label with its count
+yg check --summary      # one rollup line per severity — each label with its count (--summary codes: the same)
 yg check --summary nodes  # one row per node instead
 yg check --details      # every block, every member listed
 yg check --aspect <id>  # focus on one rule — its blocks, every member listed
@@ -647,7 +644,7 @@ yg check --approve --only-deterministic --coverage  # the CI gate, with the list
 yg check --summary --coverage                       # per-type counts only
 ```
 
-`--quiet` / `-q` silences the `--approve` fill progress on stderr (the `fill  …` lines), leaving only the final report on stdout; it is not a view and changes nothing on a plain read. With `--dry-run` the budget preview is the command's deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds under `--json` too, where stdout carries the document alone and the budget preview moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the preview, on stderr, beside the document on stdout. The document itself carries the budget as numbers in its `dryRunBudget` field (`pairs`, `nodes`, `files`, `deterministic`, `reviewerCalls`), which is what a program should read instead of the preview text.
+`--quiet` / `-q` silences the `--approve` fill progress on stderr (the `fill  …` lines), leaving the final report on stdout; warnings and errors still print on stderr (an unreachable reviewer, pairs that failed on a provider error); it is not a view and changes nothing on a plain read. With `--dry-run` the budget preview is the command's deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds under `--json` too, where stdout carries the document alone and the budget preview moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the preview, on stderr, beside the document on stdout. The document itself carries the budget as numbers in its `dryRunBudget` field (`pairs`, `nodes`, `files`, `deterministic`, `reviewerCalls`), which is what a program should read instead of the preview text.
 
 #### `--full` — answer for the whole project
 
@@ -753,7 +750,7 @@ fill  done in 3s — 16 passed · 8 refused · 0 failed · 0 reviewer calls · 2
 
 The fill prints no `next:` of its own: the report on stdout after it names the one step (its `then:` line names the paid run that reviews the pairs left alone). A problem the fill works around — a reviewer it could not reach — is a `warning:` whose remedy is a `fix:` field, and the report's unverified block states the same cause, so a reader of stdout alone has it.
 
-A pair gets a line of its own only when it did not simply pass or fail — it could not be judged (`fill  not judged  <aspect> @ <unit>`) or a consensus split on it (`fill  passed by 2 of 3 votes  <aspect> @ <unit>`); a refusal is in the report. On a terminal a single status line updates in place (`fill  37/50 · 3 refused · 12s  <pair>`); elsewhere a `fill  still working — 6/24, waiting on <pair>` line appears when nothing has finished for a while. The closing `fill  done in …` line counts what the fill approved, refused and could not judge, the reviewer calls it made and, where the provider reports them, the tokens and the cost at list price — then what it left alone. It never says the result is valid; the report below it says what stands. A fill with nothing to do prints nothing. When the fill prunes lock entries no longer expected, it says so: `fill  pruned 3 stale verdicts (1 reviewer · 2 script)`, then one indented `<aspect> @ <unit> — <reason>` line per entry. For a full preview before committing to the cost, use `--dry-run` (below); use `yg impact` to predict cost before an edit, and `yg aspect-test --dry-run` to preview a single reviewer prompt.
+A pair gets a line of its own only when it did not simply pass or fail — it could not be judged (`fill  not judged  <aspect> @ <unit>`) or a consensus split on it (`fill  passed by 2 of 3 votes  <aspect> @ <unit>`); a refusal is in the report. A reviewer tier that fails its availability check before any pair is sent (a provider that is not reachable, a CLI that is not installed) is reported once instead, as a `warning: Reviewer provider '<provider>' (tier '<tier>') cannot run: <cause>. N pairs left unverified.` — its pairs get no line of their own. On a terminal a single status line updates in place (`fill  37/50 · 3 refused · 12s  <pair>`); elsewhere a `fill  still working — 6/24, waiting on <pair>` line appears when nothing has finished for a while. The closing `fill  done in …` line counts what the fill approved, refused and could not judge, the reviewer calls it made and, where the provider reports them, the tokens and the cost at list price — then what it left alone. It never says the result is valid; the report below it says what stands. A fill with nothing to do prints nothing. When the fill prunes lock entries no longer expected, it says so: `fill  pruned 3 stale verdicts (1 reviewer · 2 script)`, then one indented `<aspect> @ <unit> — <reason>` line per entry. For a full preview before committing to the cost, use `--dry-run` (below); use `yg impact` to predict cost before an edit, and `yg aspect-test --dry-run` to preview a single reviewer prompt.
 
 #### Silent structural-deviation index
 
@@ -766,9 +763,7 @@ never fails a check. It is written only where git already ignores it: a check
 never edits the tracked `.yggdrasil/.gitignore`, so on a repository whose
 `.gitignore` lacks the line the check skips the index and prints a notice naming
 `yg init --upgrade`, which adds it. It is what makes the advisory line in `yg context --file`
-possible; see [Structural attention](/feature-field). Only the reporting read path
-maintains it — `--approve`, `--dry-run`, and the internal fill re-checks leave it
-alone.
+possible; see [Structural attention](/feature-field). The reporting paths maintain it — plain `yg check` and `yg check --approve` (its post-fill report, `--only-deterministic` and an `auto_approve` fill included); only `--dry-run` and the internal fill re-checks leave it alone.
 
 A hidden `yg check --attention-dump` prints the raw per-file measurements grouped
 by node and language, marks the outliers, and exits 0. It is a calibration
@@ -800,9 +795,7 @@ aborting.
 A cost estimate never demands a fresh log entry, so the preview also **bypasses the
 per-node log gate** — it previews even on `log_required` nodes whose source changed
 since their last closure, where the real `--approve` would require the log entry
-first. `--dry-run` requires `--approve`; used on its own it is a usage error (plain
-`yg check` is already a free, no-write read — or `yg check --no-approve`, when
-`auto_approve` makes a bare `yg check` fill).
+first. `--dry-run` requires a fill: `--approve`, or a configured `auto_approve` that makes the bare `yg check` a fill (`deterministic`, or `full` outside CI) — there `yg check --dry-run` alone is the preview. When the run would be read-only it is a usage error (plain `yg check` is already a free, no-write read — or `yg check --no-approve`, when `auto_approve` makes a bare `yg check` fill).
 
 #### `--only-deterministic` — fill the script-rule cache only
 
@@ -857,9 +850,9 @@ yg log add --node <path> --reason "<text>"
 yg log add --node <path> --reason-file <file>
 yg log add --node <path> --reason "<text>" --supersedes <datetime>
 yg log add --type <type> --reason "<the decision>" [--supersedes <datetime> | --adds]
-yg log read --node <path> [--top N]
+yg log read --node <path> [--top N] [--json]
 yg log read --node <path> --all
-yg log read --node <path> --with-verdicts
+yg log read --node <path> --with-verdicts [--json]
 yg log read --type <type> [--all] [--top N] [--json]
 yg log merge-resolve --node <path>
 yg log merge-resolve --type <type>
@@ -885,9 +878,7 @@ of a type that no longer exists.
 
 - `add` — Append an entry. `--reason "<text>"` for inline text; `--reason-file <path>` for
   multi-line content from a file. The entry gets a timestamp header automatically.
-  Requires `--node`. When a node's type opts in with `log_required: true`, `yg check
-  --approve` requires a fresh log entry before it records a verdict for a source change
-  on that node.
+  Requires `--node`. When a node's type opts in with `log_required: true`, a source change on that node owes a fresh log entry: plain `yg check` reports a missing one as a blocking `log-entry-missing` error, and `yg check --approve` records no verdict for that node until it exists.
   - `--supersedes <datetime>` — the new entry replaces an earlier entry of the same log
     (repeatable, one per replaced entry). A log is append-only, so nothing is edited
     or removed: the new entry opens with a `### Supersedes: <datetime>` line per
@@ -900,13 +891,10 @@ of a type that no longer exists.
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
   before editing a node to understand past decisions. An entry a later one replaced is
   marked `— superseded by <datetime>` after its header. `--json` prints the `yg-log/1`
-  document instead: `node` and `entries` (each `datetime` and `body`, plus
+  document instead: `schema` (`"yg-log/1"`), `node` and `entries` (each `datetime` and `body`, plus
   `supersedes` — the datetimes it replaces — and `supersededBy` — the entry that
   replaced it — where they apply); with
-  `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`, each
-  event the verification-event line the fill wrote (`aspectId`, `unitKey`,
-  `kind`, `disposition` — what the fill did with the pair — and, where they
-  apply, `promptRev`, `promptHash`, `votes` and the rest of the line).
+  `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }` — `since` the timestamp of the first event of the whole event stream read (the same instant the text header's `local telemetry since` names), `sharedHistory` whether that stream is the committed one — each event the verification-event line the fill wrote, as it stands in the [verdict-events sidecar](/reviewers#verdict-events-sidecar): `v` (line version), `ts`, `source` (`fill`), `aspectId`, `unitKey`, `kind`, `disposition` — what the fill did with the pair — and, where they apply, `sha` (the commit the fill ran at), `hash` (the pair's input hash, on approved and refused lines), `reason`, `tier`, `promptRev`, `promptHash`, `votes` and the rest of the line.
   - `--with-verdicts` — Interleave the node's own recent verification events with its
     log entries, newest first, under a `local telemetry since <timestamp>` header. The
     events come from a local, gitignored telemetry sidecar written during
@@ -928,7 +916,7 @@ of a type that no longer exists.
   node's alone (`usage`). `--json` prints the `yg-type-log/1` document: `type`,
   `inForceOnly` (`false` with `--all`) and `entries`, each as in `yg-log/1`.
 - `merge-resolve` — Reconcile `log.md` after a git merge, rebase or cherry-pick — a
-  node's (`--node`) or a type's (`--type`; it never owes an entry for merged code). Two modes:
+  node's (`--node`) or a type's (`--type`; it never owes an entry for merged code). Three modes, and every successful run of each records the log's baseline in the committed lock file (`yg-lock.logs.json` for a node, `yg-lock.types.json` for a type):
   - **During a merge stopped on a conflicted `log.md`** (the usual case: `git merge`
     left conflict markers in it), run it right there. It reads the two sides from
     `HEAD` and `MERGE_HEAD`, **writes the union** — the shared history byte-for-byte,
@@ -957,10 +945,9 @@ of a type that no longer exists.
   - **On a log that is already whole** — on the merge commit, or, for a merge that left
     no merge commit (a merge script, a squash, a rebase already finished), naming the two sides with
     `--ours <ref> --theirs <ref>` (`--base <ref>` names the commit checked for lost
-    entries instead of their merge base) — it only
-    **verifies**: the shared history byte-exact (at a rebase or cherry-pick stop: HEAD's
+    entries instead of their merge base) — it **verifies** without rewriting the log, then records its baseline: the shared history byte-exact (at a rebase or cherry-pick stop: HEAD's
     entries and the replayed commit's added ones, nothing more), every entry from both sides present
-    and unaltered, none invented, all in date order. It never rewrites that log.
+    and unaltered, none invented, all in date order. It never rewrites that log, but it does rewrite the log's baseline in the lock file, so stage that file too.
     `git merge-file --union` and `merge=union` join the sides without sorting, so put
     interleaved entries in date order first.
 
@@ -2130,8 +2117,7 @@ warning naming the cause when it does not; the configuration is still written
 and the exit code is 0. No network call is made. An existing `yg-config.yaml`
 keeps its comments and formatting: only the `reviewer:` section is written.
 
-`yg init` also maintains a `.gitattributes` entry marking the committed lock files
-as generated (`linguist-generated=true`), adds the gitignored script-rule cache
+`yg init` also maintains the repository-root `.gitattributes` lines Yggdrasil manages: `/.yggdrasil/yg-lock.*.json linguist-generated=true` (the committed lock files collapse in review diffs); `merge=union` for the committed registers `/.yggdrasil/advise-decisions.jsonl` and `/.yggdrasil/advise-imported.jsonl` and for the shared reviewer-event record `/.yggdrasil/yg-events.llm*.jsonl` (which is also `linguist-generated`), so a merge keeps every branch's lines; and `/.yggdrasil/**/log.md text eol=lf`, which keeps every log in LF on every checkout (Git for Windows converts to CRLF by default): the append-only hash normalises line endings, but `yg log merge-resolve` compares the working-tree log byte for byte with git's copies of both sides, and a checkout that differs from what was baselined and appended breaks that comparison. It adds the gitignored script-rule cache
 (`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 

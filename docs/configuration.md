@@ -531,7 +531,7 @@ fills. `auto_approve: deterministic` is not held back: that fill is free,
 keyless, and the same as the recommended cache-rebuild step.
 
 When a fill triggered by `auto_approve` produces a PASS, the result line shows
-`(auto-filled)` to indicate that verdicts were written during this run.
+`auto-filled` (the bare word, after `PASS`) to indicate that verdicts were written during this run.
 
 ```yaml
 # .yggdrasil/yg-config.yaml

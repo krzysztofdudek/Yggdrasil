@@ -314,10 +314,10 @@ async function readAction(opts: ReadOpts): Promise<void> {
  */
 async function readTypeAction(graph: Graph, typeId: string, opts: ReadOpts): Promise<void> {
   if (opts.top !== undefined && opts.all === true) {
-    failAndExit({ what: 'Cannot combine --top with --all', why: '--all overrides --top; provide one or the other.', next: `yg log read --type ${typeId} --all` }, 'command-error');
+    failAndExit({ what: 'Cannot combine --top with --all', why: '--all overrides --top; provide one or the other.', next: `yg log read --type ${typeId} --all` }, 'usage');
   }
   if (opts.top !== undefined && (!Number.isInteger(opts.top) || opts.top <= 0)) {
-    failAndExit({ what: `Invalid --top value: ${opts.top}`, why: '--top must be a positive integer.', next: `yg log read --type ${typeId} --top 10` }, 'command-error');
+    failAndExit({ what: `Invalid --top value: ${opts.top}`, why: '--top must be a positive integer.', next: `yg log read --type ${typeId} --top 10` }, 'usage');
   }
   const result = await readTypeLog(graph, typeId);
   if (!result.ok) failAndExit(result.error);
@@ -455,6 +455,7 @@ async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
     repoRoot,
     ...(target.kind === 'node' ? { nodePath: target.id } : { typeId: target.id }),
     ...(sides !== undefined ? { sides } : {}),
+    nowMs: Date.now(),
   });
   if (!result.ok) failAndExit(result.error);
   writeOut(

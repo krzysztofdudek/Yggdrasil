@@ -290,7 +290,7 @@ findings are never eligible for it at all:
 
 - **The graph's own integrity** — a component naming a rule that does not exist,
   a cycle, a port contract that is not honoured, a malformed file, a lock that
-  cannot be read. These block wherever you run them. The test is whether the
+  cannot be read. These block wherever you run them. A component's `log.md` is the exception: its findings (`log-conflict`, `log-integrity`, `log-format`, `log-entry-missing`) belong to that component, so on one your change did not touch the plain report shows them as `-outside` warnings — though an unsettled log there still stops a fill (see below). The test is whether the
   graph *contradicts itself*: that is something whoever wrote it can always fix
   on the spot, and there is no version of it that belongs to somebody else.
 - **Anything that stops a fill before it writes.**

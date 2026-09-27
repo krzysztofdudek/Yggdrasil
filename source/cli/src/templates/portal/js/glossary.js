@@ -1,21 +1,15 @@
 /*
- * The glossary — the one place Yggdrasil's words are defined.
- *
- * The portal must be legible to a human who does not speak the engine's vocabulary, so
- * every internal term carries a plain definition that appears as a tooltip wherever the
- * term is shown, and the honest-state legend (state-model.js) reads its explanations from
- * here too. The same entries are the docs site's Glossary page: docs/glossary.md is
- * generated from ENTRIES (a repo test regenerates it and fails on any difference), so the
- * in-app tooltip, the legend and the docs never drift apart.
- *
- * Each entry: `id` (the stable lowercase key the portal looks up, and the docs anchor),
- * `term` (the display name), `group` (the docs section), `def` (the plain definition),
- * optional `token` (the frozen machine token for the term in config, flags and JSON),
- * optional `not` (words that are NOT used for this — retired synonyms or look-alikes) and
- * optional `see` (the docs page that covers it in depth).
- *
- * Browser globals only — the tooltip is a hover/focus popover built from page DOM; no
- * network, no Node.
+ * The glossary — the one place Yggdrasil's words are defined. The portal must be legible to a
+ * human who does not speak the engine's vocabulary, so every internal term carries a plain
+ * definition that appears as a tooltip wherever the term is shown, and the honest-state legend
+ * (state-model.js) reads its explanations from here too. The same entries are the docs site's
+ * Glossary page: docs/glossary.md is generated from ENTRIES (a repo test regenerates it and
+ * fails on any difference), so the in-app tooltip, the legend and the docs never drift apart.
+ * Each entry: `id` (the stable lowercase key the portal looks up, and the docs anchor), `term`
+ * (the display name), `group` (the docs section), `def` (the plain definition), optional `token`
+ * (the frozen machine token for the term in config, flags and JSON), optional `not` (words NOT
+ * used for this — retired synonyms or look-alikes) and optional `see` (the docs page). Browser
+ * globals only — the tooltip is a hover/focus popover built from page DOM; no network, no Node.
  */
 (function () {
   'use strict';
@@ -316,14 +310,21 @@
       id: 'lock',
       term: 'lock',
       group: 'The lock and waivers',
-      def: 'The committed record of reviewer verdicts, beside a local cache of script verdicts. CI re-proves it without a key.',
-      see: '/the-lock',
+      def: 'The committed record of reviewer verdicts (`yg-lock.nondeterministic.json`) and of each component’s log baseline and source fingerprint (`yg-lock.logs.json`; a node type’s decision-log baselines sit in `yg-lock.types.json`), beside a local, gitignored cache of script verdicts. CI re-proves it without a key.',
+      see: '/the-lock#the-three-lock-files',
     },
     {
       id: 'log-entry',
       term: 'log entry',
       group: 'The lock and waivers',
       def: 'Why a component’s own code changed, written with `yg log add`. A component whose type sets `log_required` owes one for each change to its own source — never for a rule, relation, lock or verdict change — and a fill stops before recording anything over a component it would fill that owes one.',
+      see: '/the-lock#the-log-gate',
+    },
+    {
+      id: 'closure',
+      term: 'positive closure',
+      group: 'The lock and waivers',
+      def: 'The moment a full `yg check --approve` ends with every enforced pair of a component settled: the fill records the component’s source fingerprint and its log baseline, and the next change to its own source owes a new log entry. `--only-deterministic` never records it.',
       see: '/the-lock#the-log-gate',
     },
     {
@@ -368,8 +369,7 @@
     },
   ];
 
-  // term id -> plain definition. Keyed by a stable lowercase id, not display text.
-  // Backticks mark code in the docs page; a tooltip shows the plain text without them.
+  // term id (stable, lowercase) -> plain definition; the docs' code backticks are dropped for a tooltip.
   var TERMS = {};
   for (var i = 0; i < ENTRIES.length; i += 1) TERMS[ENTRIES[i].id] = ENTRIES[i].def.replace(/`/g, '');
 

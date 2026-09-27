@@ -34,3 +34,5 @@ Issue codes are public names: adopters, CI scripts and sibling tools branch on t
 The shared fill primitives gained the one rewrite that makes a message name the command the fill was invoked as, and the verdict writer names that command when a lock write fails. Code shared with non-fill commands keeps wording the plain approve command, since it cannot know the invocation; the fill applies the rewrite at its own boundary so a free run is never pointed at a paid one.
 ## [2026-09-27T20:04:01.051Z]
 Comments named the retired pseudo-code aspect-check-runtime-error for a script check that failed to run; they now name the real cause, check-failed-to-run, which the fill notices print.
+## [2026-09-27T21:08:38.639Z]
+The fill contract described the dry-run preview as a per-node and per-aspect breakdown; the preview prints one line per reviewer pair and counts the script pairs, and the description now says so.

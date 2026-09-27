@@ -52,3 +52,5 @@ The same idea went by several names across the docs, the agent manual and the CL
 Two release lines met here: one that routes every piece of CLI output through the shared output layer with count() for grammatical numbers, and one that gives each meaning a single word across the CLI text (reviewer rule, script rule, bundle, passed, look-alike group, type-covered file, status) with retired synonyms guarded against. Both are kept whole in this node: its messages use the glossary's words and still go through the output layer, so neither change undoes the other.
 ## [2026-09-27T20:04:06.946Z]
 The Approve preview's fallback line called script-rule pairs deterministic; it says script rules now, the Glossary's word, like the rest of the portal.
+## [2026-09-27T21:08:44.224Z]
+The Approve button kept answering 409 for an approval lock held from another machine however old it was, while the CLI replaces such a lock after twelve hours; the button now applies the same age test, so a lock the CLI would take over no longer blocks it forever.

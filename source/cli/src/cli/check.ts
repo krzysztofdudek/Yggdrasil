@@ -109,9 +109,9 @@ export function registerCheckCommand(program: Command): void {
     .option('--approve', 'Fill every unverified pair (script rules first, then reviewer rules), then report')
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
     .option('--only-deterministic', 'Fill ONLY script-rule pairs (implies --approve; keyless, free — runs even with no reviewer configured); runs no companion.mjs and writes no committed file. For CI and pre-commit.')
-    .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
+    .option('--dry-run', 'With --approve: free cost preview — print the budget, one line per reviewer pair (the first 12) and a count of script pairs, then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
-    .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count; --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
+    .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count (--summary codes names that default); --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
     .option('--details', 'Read-only: every block with every member listed — the default grouped view with nothing cut. Verdict counts and exit code stay true.')
     .option('--aspect <id>', "Read-only: focus on one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     // The coverage axis — independent of the four view flags above and legal
@@ -121,7 +121,7 @@ export function registerCheckCommand(program: Command): void {
     // verdict and what it found; this is the type map's own accounting, asked
     // for when the type map is written or changed.
     .option('--coverage', "Add the per-type coverage listing: which files each type covers, which rules enforce, which are attached but do not, and which files nothing runs on. Off by default; combines with any view and with --approve.")
-    .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
+    .option('-q, --quiet', 'Suppress the --approve fill progress lines on stderr (warnings and errors still print). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
     // Asks for the whole project to be answered for, regardless of what it
     // measures a change against — the explicit "prove everything" invocation a
     // CI integration leg and a maintainer audit both want. It is the ONE flag
@@ -222,11 +222,11 @@ async function runCheckCommand(opts: CheckFlags, cmd: Command): Promise<void> {
   if ('refusal' in resolvedView) { await refuse(resolvedView.refusal); return; }
 
   const mode = resolveCheckMode(opts, graph);
-  if (opts.dryRun && !mode.approve) { await refuse(dryRunWithoutApproveRefusal(graph.config.auto_approve)); return; }
+  if (opts.dryRun && !mode.approve) { await refuse(dryRunWithoutApproveRefusal(graph.config.auto_approve, isCiEnvironment(process.env))); return; }
 
   // autoFilled is true when the fill was driven by config (auto_approve),
   // NOT by an explicit --approve / --only-deterministic flag. Used to mark
-  // the PASS header as (auto-filled) so agents can distinguish config-driven
+  // the PASS header `auto-filled` so agents can distinguish config-driven
   // fills from user-requested ones.
   const isConfigDrivenFill =
     mode.approve &&

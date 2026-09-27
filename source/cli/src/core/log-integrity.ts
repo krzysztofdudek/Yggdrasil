@@ -55,3 +55,12 @@ export function validateAppendOnly(
 
   return { ok: true };
 }
+
+/**
+ * How to undo a rewritten log: restore the log itself. The baseline file holds
+ * every log's baseline of its kind, so restoring it rolls back every other one
+ * recorded since the last commit too — the second resort, named as such.
+ */
+export function restoreLogStep(logRel: string, baselineFile: string): string {
+  return `Restore the log from git: git checkout HEAD -- ${logRel}. If the error stays (its baseline was recorded after the last commit), restore ${baselineFile} too — that also rolls back every other baseline recorded in it since that commit, which a later full yg check --approve records again.`;
+}

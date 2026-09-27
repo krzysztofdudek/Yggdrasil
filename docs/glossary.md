@@ -258,13 +258,19 @@ Nothing is checking this part. Not broken — just unguarded. Absence of red is 
 
 ### lock {#lock}
 
-The committed record of reviewer verdicts, beside a local cache of script verdicts. CI re-proves it without a key.
+The committed record of reviewer verdicts (`yg-lock.nondeterministic.json`) and of each component’s log baseline and source fingerprint (`yg-lock.logs.json`; a node type’s decision-log baselines sit in `yg-lock.types.json`), beside a local, gitignored cache of script verdicts. CI re-proves it without a key.
 
-More: [The Lock](/the-lock).
+More: [The Lock](/the-lock#the-three-lock-files).
 
 ### log entry {#log-entry}
 
 Why a component’s own code changed, written with `yg log add`. A component whose type sets `log_required` owes one for each change to its own source — never for a rule, relation, lock or verdict change — and a fill stops before recording anything over a component it would fill that owes one.
+
+More: [The Lock](/the-lock#the-log-gate).
+
+### positive closure {#closure}
+
+The moment a full `yg check --approve` ends with every enforced pair of a component settled: the fill records the component’s source fingerprint and its log baseline, and the next change to its own source owes a new log entry. `--only-deterministic` never records it.
 
 More: [The Lock](/the-lock#the-log-gate).
 
