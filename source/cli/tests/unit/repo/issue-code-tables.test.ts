@@ -208,7 +208,7 @@ describe('the issue-code tables are rendered from the registry', () => {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) walk(full);
         else if (entry.name.endsWith('.ts')) {
-          for (const m of readFileSync(full, 'utf-8').matchAll(/\bcode: '([a-z][a-z0-9]*(?:-[a-z0-9]+)+)'/g)) {
+          for (const m of readFileSync(full, 'utf-8').matchAll(/\bcode: '([a-z][a-z0-9]*(?:-[a-z0-9]+)*)'/g)) {
             if (!registered.has(m[1]) && !internal.has(m[1])) unregistered.push(`${path.relative(CLI_ROOT, full)}: ${m[1]}`);
           }
         }

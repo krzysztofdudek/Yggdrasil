@@ -14,6 +14,7 @@ import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 /** The code a check issue carries. */
 type CheckIssueCode = CheckIssue['code'];
+type CheckCode = Parameters<typeof outsideTwin>[0];
 
 /**
  * The classification step: for each finding a check produced, decide whether the
@@ -146,7 +147,7 @@ describe('applyChangeScope — pair-keyed findings', () => {
   });
 
   it('downgrades every pair-derived code the same way', () => {
-    const codes: CheckIssueCode[] = ['unverified', 'aspect-violation-enforced', 'prompt-too-large', 'aspect-companion-runtime-error'];
+    const codes: CheckCode[] = ['unverified', 'aspect-violation-enforced', 'prompt-too-large', 'aspect-companion-runtime-error'];
     const issues = codes.map((code) => pairIssue('audit', 'node:svc', { code, rule: code }));
     const out = applyChangeScope(issues, burn(), [knownPair('audit', 'node:svc')]);
     expect(out.map((i) => i.code)).toEqual(codes.map(outsideTwin));

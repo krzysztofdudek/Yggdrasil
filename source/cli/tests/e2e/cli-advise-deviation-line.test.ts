@@ -24,6 +24,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -73,7 +74,7 @@ function makeFixture(label: string): string {
 }
 
 function gitInit(dir: string): void {
-  const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+  const git = (args: string[]) => runGitFixture(dir, args);
   git(['init', '-q']);
   git(['config', 'user.email', 't@t.t']);
   git(['config', 'user.name', 't']);

@@ -190,6 +190,25 @@ describe('a type', () => {
     expect(gap.conflicts).toEqual([]);
   });
 
+  it('names a file the type\'s when could not be evaluated on, instead of leaving it out', async () => {
+    // Its own project: a content predicate over a file past the scan limit is
+    // unevaluable, and yg check reports it for a strict type; the preview must too.
+    const own = makeTempDir('ygg-impact-unreadable-');
+    const put = (rel: string, content: string): void => {
+      mkdirSync(path.dirname(path.join(own, rel)), { recursive: true });
+      writeFileSync(path.join(own, rel), content);
+    };
+    put('.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
+    put('.yggdrasil/yg-architecture.yaml', 'node_types:\n  gen:\n    description: generated\n    when:\n      content: "@generated"\n');
+    put('.yggdrasil/model/g/yg-node.yaml', 'name: G\ndescription: x\ntype: gen\nmapping:\n  - src/g.ts\n');
+    put('src/g.ts', '// @generated\nexport const g = 1;\n');
+    put('src/huge.ts', 'x'.repeat(6 * 1024 * 1024));
+    const gap = await strictCoverageGapOf(await loadGraph(own), 'gen');
+    expect(gap.preview).toBe(true);
+    expect(gap.orphans).toEqual([]);
+    expect(gap.unreadable.map((u) => u.file)).toEqual(['src/huge.ts']);
+  });
+
   it('previews the gap of a type that is not strict yet', async () => {
     const gap = await strictCoverageGapOf(graph, 'lib');
     expect(gap.preview).toBe(true);

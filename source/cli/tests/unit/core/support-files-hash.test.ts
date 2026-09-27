@@ -151,6 +151,17 @@ describe('the rule hash and the files beside the rule', () => {
     expect(exact.supportFiles?.map(([p]) => p)).toEqual(['drills/_lib/helper.mjs']);
   });
 
+  it('leaves out any file the repository ignores, so a local build output cannot give a hash CI cannot reproduce', async () => {
+    const files = { 'lib/limit.mjs': 'export const limit = () => 1;\n', 'dist/bundle.mjs': 'export const b = 1;\n' };
+    const unignored = await load(rule(files));
+    expect(unignored.supportFiles?.map(([p]) => p)).toEqual(['dist/bundle.mjs', 'lib/limit.mjs']);
+    const ignored = await load(rule({ ...files, '.gitignore': 'dist/\n' }));
+    expect(ignored.supportFiles?.map(([p]) => p)).toEqual(['lib/limit.mjs']);
+    // The same rule without the ignored output hashes the same: what CI sees.
+    const clean = await load(rule({ 'lib/limit.mjs': 'export const limit = () => 1;\n', '.gitignore': 'dist/\n' }));
+    expect(ruleHashFor(ignored, 'check.mjs')).toBe(ruleHashFor(clean, 'check.mjs'));
+  });
+
   it('leaves out dot-named code the repository ignores (.venv, .cache, .turbo)', async () => {
     const files = { '.cache/tool.mjs': 'export const t = 1;\n', '.lib/helper.mjs': 'export const h = 1;\n' };
     const unignored = await load(rule(files));

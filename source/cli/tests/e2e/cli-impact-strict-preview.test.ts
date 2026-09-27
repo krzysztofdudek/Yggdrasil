@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -57,7 +58,7 @@ function project(): string {
   write(dir, 'src/svc/a.service.ts', 'export const a = 1;\n');
   write(dir, 'src/lib/b.service.ts', 'export const b = 1;\n');
   write(dir, 'src/d.service.ts', 'export const d = 1;\n');
-  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
+  runGitFixture(dir, ['init', '-q', '-b', 'main']);
   return dir;
 }
 

@@ -573,6 +573,7 @@ describe('computeBurnSet — lock files', () => {
       '.yggdrasil/yg-lock.json',
       '.yggdrasil/yg-lock.nondeterministic.json',
       '.yggdrasil/yg-lock.logs.json',
+      '.yggdrasil/yg-lock.types.json',
       '.yggdrasil/.yg-lock.deterministic.json',
     ]);
     expect(result.files).toEqual(new Set());

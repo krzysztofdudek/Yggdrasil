@@ -167,16 +167,24 @@ export async function appendTypeLogEntry(input: {
     // two contradicting decisions both end up "in force". So whenever any is —
     // on this type or a type above it — the writer has to say what the new one
     // does to them: replace some (--supersedes) or add beside them (--adds).
-    const inForce = (await typeDecisionCascade(graph, typeId)).filter((d) => d.entries.length > 0);
+    // A log that cannot be read may hold decisions in force: it counts as some,
+    // so the writer still has to choose, and is shown which log it was.
+    const inForce = (await typeDecisionCascade(graph, typeId)).filter((d) => d.entries.length > 0 || d.unreadable !== undefined);
     const choseSupersedes = (input.supersedes ?? []).length > 0;
     if (inForce.length > 0 && !choseSupersedes && input.adds !== true) {
       const count = inForce.reduce((n, d) => n + d.entries.length, 0);
+      const unreadable = inForce.filter((d) => d.unreadable !== undefined).map((d) => `'${d.typeId}'`);
+      const parts = [
+        ...(count > 0 ? [`${count} decision${count === 1 ? ' is' : 's are'} already in force for type '${typeId}' and the types above it`] : []),
+        ...(unreadable.length > 0 ? [`the decision log of type ${unreadable.join(', ')} could not be read, so what is in force there is unknown`] : []),
+      ];
+      const what = parts.join(', and ');
       return {
         ok: false,
         inForce,
         error: {
           code: 'type-log-choice-missing',
-          what: `${count} decision${count === 1 ? ' is' : 's are'} already in force for type '${typeId}' and the types above it, and the new entry says nothing about ${count === 1 ? 'it' : 'them'}`,
+          what: `${what.charAt(0).toUpperCase()}${what.slice(1)}, and the new entry says nothing about ${count === 1 && unreadable.length === 0 ? 'it' : 'them'}`,
           why: 'A decision written without regard to the ones in force can contradict one of them while both keep reading as in force; the writer, who has just seen them listed, is the one who knows whether the new decision replaces one or adds to them.',
           next: `yg log add --type ${typeId} --reason '<the decision>' --supersedes <datetime of the entry it replaces>  (or --adds when it replaces none)`,
         },

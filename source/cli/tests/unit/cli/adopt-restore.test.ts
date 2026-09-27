@@ -18,10 +18,10 @@ import path from 'node:path';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return { ...actual, cp: vi.fn(actual.cp), rename: vi.fn(actual.rename) };
+  return { ...actual, cp: vi.fn(actual.cp), rename: vi.fn(actual.rename), rm: vi.fn(actual.rm) };
 });
 
-const { GraphRestoreError, installGraph, resolveProposal } = await import('../../../src/cli/adopt-transaction.js');
+const { GraphRestoreError, describeRestoreFailure, installGraph, resolveProposal } = await import('../../../src/cli/adopt-transaction.js');
 const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
 
 let root: string;
@@ -54,6 +54,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.mocked(fsp.cp).mockImplementation(actual.cp);
   vi.mocked(fsp.rename).mockImplementation(actual.rename);
+  vi.mocked(fsp.rm).mockImplementation(actual.rm);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -109,5 +110,42 @@ describe('InstallTransaction.rollback — an undo that fails', () => {
     expect(left!.preservedAt).toBe(tx.movedAsideTo);
     expect(existsSync(path.join(tx.movedAsideTo!, 'yg-config.yaml'))).toBe(true);
     expect(await tx.rollback()).toEqual(left);
+  });
+
+  it('counts the repository as restored when clearing reported an error but the previous graph moved back', async () => {
+    // The clear removed the directory and still reported a failure; the move back
+    // then succeeded, so the previous graph is in place. Before, this came back as
+    // a failure with no preserved path, which the command worded as "this
+    // repository had no graph before this run" about a repository that had one.
+    const p = await proposal();
+    w('repo/.yggdrasil/yg-config.yaml', '# the one that was already here\n');
+    const tx = await installGraph(path.join(root, 'repo'), p, stamp);
+    vi.mocked(fsp.rm).mockImplementationOnce(async (target, opts) => {
+      await actual.rm(target, opts);
+      throw new Error('EPERM: operation not permitted');
+    });
+    expect(await tx.rollback()).toBeUndefined();
+    expect(readdirSync(path.join(root, 'repo'))).toEqual(['.yggdrasil']);
+    expect(existsSync(path.join(root, 'repo', '.yggdrasil', 'yg-config.yaml'))).toBe(true);
+  });
+});
+
+describe('describeRestoreFailure — the text adopt-restore-failed carries', () => {
+  it('names where the previous graph is and the move back, when one was kept aside', () => {
+    const repo = path.join(root, 'repo');
+    const text = describeRestoreFailure(repo, {
+      destination: path.join(repo, '.yggdrasil'),
+      preservedAt: path.join(repo, '.yggdrasil.replaced-2026-01-02T03-04-05-678Z'),
+      reason: 'EBUSY: resource busy',
+    });
+    expect(text.why).toBe('The graph this repository had is intact at .yggdrasil.replaced-2026-01-02T03-04-05-678Z/ but could not be moved back, so .yggdrasil/ does not hold it: the next check would run against a partial graph or none. Nothing was deleted.');
+    expect(text.next).toBe('Delete .yggdrasil/ if it is there, then rename .yggdrasil.replaced-2026-01-02T03-04-05-678Z/ back to .yggdrasil/.');
+  });
+
+  it('says the repository had no graph and names the directory to delete, when none was kept aside', () => {
+    const repo = path.join(root, 'repo');
+    const text = describeRestoreFailure(repo, { destination: path.join(repo, '.yggdrasil'), reason: 'EPERM: operation not permitted' });
+    expect(text.why).toBe('This repository had no graph before this run, and .yggdrasil/ could not be removed, so a partly copied graph may be left there and would govern the next check.');
+    expect(text.next).toBe('Delete .yggdrasil/ by hand, then run yg adopt again once the cause is fixed.');
   });
 });

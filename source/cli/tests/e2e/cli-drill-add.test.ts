@@ -40,7 +40,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -63,7 +63,7 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 }
 
 function git(args: string[], cwd: string): string {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf-8' });
+  const r = runGitFixture(cwd, args);
   return (r.stdout ?? '').trim();
 }
 

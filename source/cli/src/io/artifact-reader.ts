@@ -80,6 +80,9 @@ async function isRegularFile(abs: string): Promise<boolean> {
   }
 }
 
+/** Directory entries by absolute path, read once per walk of a rule; null for a directory that cannot be read. */
+type DirListings = Map<string, Promise<Set<string> | null>>;
+
 /**
  * Whether every component of `rel` below `dirPath` exists under exactly that
  * spelling. A case-insensitive filesystem (macOS, Windows) opens `./Helper.mjs`
@@ -87,17 +90,21 @@ async function isRegularFile(abs: string): Promise<boolean> {
  * finds nothing: accepting the loose spelling would fold the file on one machine
  * and not the other, so the rule's hash would differ by operating system. Only
  * the exact on-disk spelling counts, everywhere.
+ *
+ * `listings` caches each directory's entries for one walk of a rule: every
+ * specifier tries up to seven candidates, each checked component by component,
+ * so without it the same directories are listed over and over.
  */
-async function exactSpelling(dirPath: string, rel: string): Promise<boolean> {
+async function exactSpelling(dirPath: string, rel: string, listings: DirListings): Promise<boolean> {
   let current = dirPath;
   for (const part of rel.split('/')) {
-    let names: string[];
-    try {
-      names = await readdir(current);
-    } catch {
-      return false;
+    let listing = listings.get(current);
+    if (listing === undefined) {
+      listing = readdir(current).then((names) => new Set(names), () => null);
+      listings.set(current, listing);
     }
-    if (!names.includes(part)) return false;
+    const names = await listing;
+    if (names === null || !names.has(part)) return false;
     current = path.join(current, part);
   }
   return true;
@@ -131,7 +138,7 @@ function inside(rel: string): boolean {
  * fold a file from wherever the link points — outside the repository, different
  * on every machine, possibly unreadable — into the rule's hash.
  */
-async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string, repoRoot?: string): Promise<Resolved> {
+async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string, listings: DirListings, repoRoot?: string): Promise<Resolved> {
   const base = path.resolve(path.dirname(path.join(dirPath, fromRel)), spec.split(/[?#]/)[0]);
   const candidates = [
     base,
@@ -153,11 +160,11 @@ async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string, 
     if (rootRel.split('/').some(skippedDirName)) return null;
     const linked = symlinkOnPath(root, rootRel);
     if (linked !== null) {
-      return (await exactSpelling(root, linked))
+      return (await exactSpelling(root, linked, listings))
         ? { kind: 'link', rel: toPosixPath(path.relative(dirPath, path.join(root, linked))) }
         : null;
     }
-    if ((await isRegularFile(abs)) && (await exactSpelling(root, rootRel))) return { kind: 'file', rel };
+    if ((await isRegularFile(abs)) && (await exactSpelling(root, rootRel, listings))) return { kind: 'file', rel };
   }
   return null;
 }
@@ -181,7 +188,8 @@ export interface SupportFiles {
  *
  * Three ways a file becomes part of the rule:
  *
- * 1. Any file in the directory, at any depth — except what describes or tunes
+ * 1. Any file in the directory, at any depth, that the repository's
+ *    `.gitignore` files do not ignore — except what describes or tunes
  *    the rule rather than runs (`exclude`, top level only: the rule definition,
  *    the rule files already hashed on their own, an adaptation, a log, a
  *    generator's provenance record), the `drills/` corpus it is measured
@@ -233,7 +241,11 @@ export async function readSupportFileHashes(
       const rel = relPrefix === '' ? entry.name : `${relPrefix}/${entry.name}`;
       const abs = path.join(dirAbs, entry.name);
       const entryDotted = dotted || entry.name.startsWith('.');
-      if (entryDotted && isIgnoredByStack(abs, here, entry.isDirectory())) continue;
+      // What the repository ignores is not committed: a build output (`dist/`)
+      // hashed here would give a verdict recorded on this machine a hash no
+      // clone and no CI runner can reproduce, so it would read as unverified
+      // there. Ignored entries are left out whatever their name.
+      if (isIgnoredByStack(abs, here, entry.isDirectory())) continue;
       if (entry.isDirectory()) {
         if (relPrefix === '' && entry.name === 'drills') continue;
         await walk(abs, rel, entryDotted, here);
@@ -251,6 +263,7 @@ export async function readSupportFileHashes(
   // covers (a top-level `exclude` entry) is followed but never folded twice.
   const queue: string[] = [...RULE_CODE_FILES, ...[...hashed.keys()].filter((rel) => CODE_FILE.test(rel))];
   const traced = new Set<string>();
+  const listings: DirListings = new Map();
   for (let rel = queue.pop(); rel !== undefined; rel = queue.pop()) {
     if (traced.has(rel)) continue;
     traced.add(rel);
@@ -258,7 +271,7 @@ export async function readSupportFileHashes(
     const source = await readFileOrDefault(path.join(dirPath, rel), null, '[artifact-reader] rule code');
     if (source === null) continue;
     for (const spec of relativeSpecifiers(source)) {
-      const target = await resolveInRuleDir(dirPath, rel, spec, projectRoot);
+      const target = await resolveInRuleDir(dirPath, rel, spec, listings, projectRoot);
       if (target === null) continue;
       if (target.kind === 'link') {
         linked.add(target.rel);

@@ -89,6 +89,24 @@ describe('type log — naming and refusals', () => {
   });
 });
 
+describe('type log — the choice a writer owes the decisions in force', () => {
+  it('counts an unreadable log above the type as possibly holding decisions: the add is refused and names it', async () => {
+    const dir = project();
+    const graph = await loadGraph(dir);
+    // The service type sits under module; module's log is there but broken.
+    const moduleLog = path.join(dir, '.yggdrasil', 'types', 'module', 'log.md');
+    mkdirSync(path.dirname(moduleLog), { recursive: true });
+    writeFileSync(moduleLog, 'no header\n', 'utf-8');
+    const r = await appendTypeLogEntry({ graph, typeId: 'service', reasonText: 'Written blind.', nowMs: (clock += 1000) });
+    expect(r.ok ? null : r.error.code).toBe('type-log-choice-missing');
+    expect(r.ok ? '' : r.error.what).toContain("'module'");
+    expect(r.inForce?.map((d) => [d.typeId, d.unreadable !== undefined])).toEqual([['module', true]]);
+    expect(existsSync(path.join(dir, LOG_REL))).toBe(false);
+    // Saying it adds beside them lets it through.
+    expect((await add(graph, 'Adds beside whatever module decided.')).ok).toBe(true);
+  });
+});
+
 describe('type log — baseline, lock section, findings', () => {
   it('records the baseline in its own file, never in the logs file a 6.0.x reader opens, and refuses a malformed one', async () => {
     const dir = project();
@@ -136,6 +154,13 @@ describe('type log — baseline, lock section, findings', () => {
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['services/orders']).toEqual(node);
     expect(lock.types).toBeUndefined();
+    // Ignored on read means not kept on write: a write by this release rebuilds
+    // the file from the sections it knows, so the later release's key is gone
+    // (the-lock.md says so).
+    await writeLock(graph.rootPath, lock, { scope: 'logs' });
+    const rewritten = JSON.parse(readFileSync(logsFile, 'utf-8')) as Record<string, unknown>;
+    expect(rewritten.somethingLater).toBeUndefined();
+    expect((rewritten.nodes as Record<string, unknown>)['services/orders']).toEqual(node);
     // Inside a known section the shape stays strict.
     writeFileSync(logsFile, JSON.stringify({ version: 1, verdicts: {}, nodes: { 'services/orders': { stray: 1 } } }), 'utf-8');
     expect(() => readLock(graph.rootPath)).toThrow(LockInvalidError);

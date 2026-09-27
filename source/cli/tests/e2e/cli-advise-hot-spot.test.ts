@@ -23,7 +23,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitCreating, runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -75,7 +75,7 @@ function makeFixture(label: string, coverageBlock = ''): string {
 }
 
 function git(args: string[], dir: string): void {
-  spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+  runGitFixture(dir, args);
 }
 
 function gitInit(dir: string): void {
@@ -188,17 +188,10 @@ describe.skipIf(!distExists)('CLI E2E — yg advise unguarded hot spot', () => {
 
       // A genuine shallow clone: file:// protocol + --depth so git truncates history
       // (a plain local path hardlinks and ignores --depth). Allow file:// explicitly.
-      const clone = spawnSync(
-        'git',
-        ['-c', 'protocol.file.allow=always', 'clone', '--depth', '1', `file://${src}`, dst],
-        { encoding: 'utf-8' },
-      );
+      const clone = runGitCreating(path.dirname(dst), ['-c', 'protocol.file.allow=always', 'clone', '--depth', '1', `file://${src}`, dst]);
       expect(clone.status).toBe(0);
       // Sanity: the clone really is shallow.
-      const isShallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
-        cwd: dst,
-        encoding: 'utf-8',
-      });
+      const isShallow = runGitFixture(dst, ['rev-parse', '--is-shallow-repository']);
       expect((isShallow.stdout ?? '').trim()).toBe('true');
 
       const { status, stdout } = run(['advise'], dst);

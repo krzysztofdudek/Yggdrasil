@@ -32,6 +32,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
 import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { expectErrorCode } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -113,6 +114,16 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
   // (service-type default + the order-processing flow). We refuse exactly one and
   // assert the sibling stays untagged.
   // ===========================================================================
+
+  // An unreadable lock is lock-invalid: the code names the file at fault, not
+  // the command (the old inference from the message's wording called it usage).
+  it('an unparseable lock fails with error code lock-invalid', () => {
+    const dir = fixture('garbled-lock');
+    writeFileSync(nondetLockPath(dir), '{ not json', 'utf-8');
+    const r = run(['impact', '--aspect', 'no-todo-comments'], dir);
+    expect(r.status).toBe(1);
+    expectErrorCode(r.stderr, 'lock-invalid');
+  });
 
   it('tags a node:<path> refused verdict with [refused]; the approved sibling is untagged', () => {
     const dir = fixture('refused-node');

@@ -1,10 +1,7 @@
 name: Core Infrastructure Tests
 type: test-suite
 description: Unit tests for low-level core infrastructure — file-content
-  caching, when-predicate evaluation, type classification, and the
-  (fromType, toType) allowed-relation-types lookup, relocated from the
-  relations pass into a pure utility and verified identically at its new
-  home, plus a compat-identity check against the old re-export.
+  caching, when-predicate evaluation, and type classification.
 aspects: []
 relations:
   [
@@ -24,4 +21,3 @@ mapping:
   - source/cli/tests/unit/core/file-when-evaluator.test.ts
   - source/cli/tests/unit/core/when-evaluator.test.ts
   - source/cli/tests/unit/core/type-classifier.test.ts
-  - source/cli/tests/unit/core/allowed-relation-types.test.ts

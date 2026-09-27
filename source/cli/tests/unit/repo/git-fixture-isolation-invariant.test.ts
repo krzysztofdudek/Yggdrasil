@@ -32,7 +32,7 @@
 // =============================================================================
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir, devNull } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -275,5 +275,107 @@ describe('GUARD: a fixture git command leaves no background maintenance behind',
       GIT_CONFIG_KEY_1: 'maintenance.auto',
       GIT_CONFIG_VALUE_1: 'false',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every test git command goes through the helper.
+// ---------------------------------------------------------------------------
+//
+// A bare `spawnSync('git', …)` with the worker's own env runs with whatever
+// identity the machine has. A developer's box has a global user.name and
+// user.email, so a fixture commit made that way passes locally, and fails on a
+// CI runner, which has none: that is how a merge-recipe test broke CI after
+// passing the pre-commit gate. The helper gives every fixture git op an
+// identity (and the pin above), so the guard below fails on any git process a
+// test starts outside tests/support/git-fixture.ts that does not carry the
+// helper's env. The gate runs the suite without a global identity too
+// (scripts/repo-check.sh), so a miss here also fails locally, as it would in CI.
+describe('GUARD: a test runs git only through the fixture helper', () => {
+  const TESTS_ROOT = path.resolve(__dirname, '..', '..');
+
+  /**
+   * The few git commands a test may still start itself, per file, with the
+   * reason. None of them commits: each reads this repository, or asks git a
+   * question that involves no repository at all.
+   */
+  const ALLOWED: Record<string, { count: number; reason: string }> = {
+    'unit/repo/git-fixture-isolation-invariant.test.ts': { count: 1, reason: 'reads the worker\'s own git config on purpose, to prove the worker-level quiet config reaches git run outside the helper' },
+    'integration/portal-attestation-meta.test.ts': { count: 1, reason: 'reads this repository\'s HEAD, read-only' },
+    'unit/core/check-lock.test.ts': { count: 1, reason: 'lists files tracked by this repository, read-only' },
+    'unit/repo/false-green-invariant.test.ts': { count: 1, reason: 'lists files tracked by this repository, read-only' },
+    'unit/repo/graph-self-governance-invariant.test.ts': { count: 1, reason: 'lists files tracked by this repository, read-only' },
+    'e2e/cli-aspects-health.test.ts': { count: 1, reason: 'probes git --version, touching no repository' },
+  };
+
+  const GIT_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\(\s*(['"`])git(?:\2|\s)/g;
+
+  function testSources(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'fixtures' && entry.name !== 'node_modules') testSources(p, out);
+      } else if (/\.(ts|mts|js|mjs)$/.test(entry.name)) out.push(p);
+    }
+    return out;
+  }
+
+  /** The text of the call whose opening parenthesis is at `open`, up to its matching close. */
+  function callText(src: string, open: number): string {
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '(') depth++;
+      else if (src[i] === ')' && --depth === 0) return src.slice(open, i + 1);
+    }
+    return src.slice(open);
+  }
+
+  /** Git calls in `src` that carry no fixture env: neither gitFixtureEnv(…) nor a variable built from it. */
+  function rawGitCalls(src: string): number[] {
+    const fromHelper = new Set([...src.matchAll(/\b(?:const|let|var)\s+(\w+)\s*(?::[^=\n;]+)?=\s*gitFixtureEnv\(/g)].map((m) => m[1]));
+    const lines: number[] = [];
+    for (const m of src.matchAll(GIT_CALL)) {
+      const lineStart = src.lastIndexOf('\n', m.index) + 1;
+      const lead = src.slice(lineStart, m.index).trim();
+      if (lead.startsWith('//') || lead.startsWith('*')) continue;
+      const text = callText(src, m.index + m[1].length);
+      if (text.includes('gitFixtureEnv(')) continue;
+      const envName = /\benv:\s*(\w+)\b/.exec(text)?.[1] ?? (/[{,]\s*env\s*[,}]/.test(text) ? 'env' : undefined);
+      if (envName !== undefined && fromHelper.has(envName)) continue;
+      lines.push(src.slice(0, m.index).split('\n').length);
+    }
+    return lines;
+  }
+
+  it('finds a bare git call, and passes one that carries the helper\'s env', () => {
+    // Each sample call is assembled from parts, so this file's own source holds
+    // none of them for the scan below to find.
+    const call = (fn: string, rest: string): string => `${fn}(${rest}`;
+    const bare = [`const r = ${call('spawnSync', "'git', ['commit', '-m', 'x'], { cwd: dir });")}`, call('execSync', "'git init -q', { cwd: dir });")].join('\n');
+    expect(rawGitCalls(bare)).toEqual([1, 2]);
+    const helper = [
+      `const r = ${call('spawnSync', "'git', ['commit'], { cwd: dir, env: gitFixtureEnv(dir) });")}`,
+      'const env = gitFixtureEnv(dir);',
+      call('execFileSync', "'git', ['add', '-A'], { cwd: dir, env });"),
+      `// ${call('spawnSync', "'git', ['a comment'])")}`,
+    ].join('\n');
+    expect(rawGitCalls(helper)).toEqual([]);
+  });
+
+  it('no test starts a git process outside the helper beyond the reasoned exceptions', () => {
+    const found: string[] = [];
+    for (const file of testSources(TESTS_ROOT)) {
+      const rel = path.relative(TESTS_ROOT, file).split(path.sep).join('/');
+      if (rel === 'support/git-fixture.ts') continue;
+      const lines = rawGitCalls(readFileSync(file, 'utf-8'));
+      const allowed = ALLOWED[rel]?.count ?? 0;
+      if (lines.length > allowed) found.push(`${rel}:${lines.join(',')}`);
+    }
+    expect(
+      found,
+      'A test starts git without the fixture helper, so it runs with whatever git identity the machine has: it passes on a ' +
+        'developer box and fails in CI. Use runGitFixture (or gitFixtureEnv) from tests/support/git-fixture.ts, or ' +
+        'runGitCreating for a clone or a bare init.',
+    ).toEqual([]);
   });
 });

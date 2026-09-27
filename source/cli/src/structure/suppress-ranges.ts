@@ -40,9 +40,12 @@ export { SuppressMarkerError } from '../ast/suppress.js';
  * result renders no `<suppressed-ranges>` block and the prompt stays byte-identical
  * to the no-suppress case.
  *
- * A reasonless marker throws `SuppressMarkerError` (out of `collectSuppressions`)
- * — the caller treats that as an infrastructure failure and writes nothing, the
- * same fail-closed disposition the deterministic path takes.
+ * A reasonless marker waives nothing. `collectSuppressions` keeps it on its span,
+ * and `formatSuppressedRangesForAspect` throws `SuppressMarkerError` only when the
+ * marker applies to this aspect (it names it, or it is a wildcard) — the caller
+ * treats that as an infrastructure failure and writes nothing, the same
+ * fail-closed disposition the deterministic path takes. A reasonless marker
+ * naming another aspect leaves this one untouched.
  */
 export async function resolveSuppressedRangesForPrompt(
   subjects: Array<{ path: string; bytes: Buffer }>,

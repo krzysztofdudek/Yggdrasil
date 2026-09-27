@@ -1,5 +1,5 @@
 import type { CheckIssue } from '../model/check-issue.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER, isConfigLoadFailure } from '../utils/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, baseCodeOfOutsideTwin, isScopedCode, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER, isConfigLoadFailure } from '../utils/check-codes.js';
 import { codeInfo, tierRank } from './output-diagnostic.js';
 
 /**
@@ -17,7 +17,7 @@ import { codeInfo, tierRank } from './output-diagnostic.js';
  * and contributes nothing, which is why the filter is not merely decorative.
  */
 function withOutsideTwins(codes: readonly string[]): Set<string> {
-  return new Set([...codes, ...codes.filter((c) => SCOPED_CODES.has(c)).map(outsideTwin)]);
+  return new Set([...codes, ...codes.filter(isScopedCode).map(outsideTwin)]);
 }
 
 /**

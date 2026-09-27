@@ -12,3 +12,9 @@ The drift record now attributes a file the package never installed to the packag
 The drift record separates the unknown files outside every installed package directory (unowned), so the pack commands can report what no per-package view covers.
 ## [2026-09-27T16:09:43.200Z]
 The drift comparison now puts every path into its one stored form, forward slashes and no trailing slash, before it compares or stores it, both the paths recorded for a package and the files found on disk. The record and yg pack list read that result directly, so normalizing only where the rail builds its message left raw Windows paths in what the other consumers were handed; one helper now does it for the comparison, the stored lists and the printed path alike.
+## [2026-09-27T20:25:07.804Z]
+The drift comparison uses the one shared POSIX-path helper instead of a private copy of it. It normalizes only what the lock records, since a record written on Windows can carry backslashes. The file listing is already in its stored form and is no longer normalized a second time: on a POSIX file system a backslash is an ordinary character of a file name, so a file called rule\check.mjs sitting among the copies was read as the recorded rule/check.mjs, and a missing copy was reported as edited instead of as missing beside an unknown file.
+## [2026-09-27T20:25:27.133Z]
+### Supersedes: 2026-09-27T16:09:43.200Z
+
+Correction of the entry on putting every path into its stored form: it claimed the drift comparison had left raw Windows paths in what the record and yg pack list were handed. It had not; the lock parser and the file listing already stored POSIX paths, so the helper added then changed no result. What it did was normalize a second time, which later proved harmful on a POSIX file system, where a backslash belongs to a file name.

@@ -21,6 +21,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync, spawn } from 'node:child_process';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -187,7 +188,7 @@ function commitProject(root: string): void {
   delete env.GIT_DIR;
   delete env.GIT_WORK_TREE;
   delete env.GIT_INDEX_FILE;
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, env, stdio: 'ignore' });
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, env: gitFixtureEnv(root, env), stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
   git('-c', 'user.name=Trust Table', '-c', 'user.email=trust@example.invalid', 'add', '-A', '.yggdrasil', 'src');
   git('-c', 'user.name=Trust Table', '-c', 'user.email=trust@example.invalid', 'commit', '-q', '-m', 'project');

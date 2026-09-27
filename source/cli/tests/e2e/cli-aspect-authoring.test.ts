@@ -567,7 +567,11 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(all).toContain('aspect-reference-broken');
       // The fix names the offending aspect's yg-aspect.yaml.
       expect(all).toContain('.yggdrasil/aspects/has-doc-comment/yg-aspect.yaml');
-      expectIssue(parseJson(run(['check', '--json'], dir).stdout), { code: 'aspect-reference-broken' });
+      // The directory variant, not the missing-file one: the issue belongs to the
+      // aspect, names the entry, and says the path is a directory (it exists).
+      const issue = expectIssue(parseJson(run(['check', '--json'], dir).stdout), { code: 'aspect-reference-broken', aspect: 'has-doc-comment' });
+      expect(issue.what).toContain('docs/atable');
+      expect(issue.what).toContain('directory');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

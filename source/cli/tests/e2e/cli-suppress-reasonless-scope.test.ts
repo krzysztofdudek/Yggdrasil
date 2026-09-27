@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -34,7 +35,7 @@ describe.skipIf(!distExists)('CLI E2E — a reasonless suppress marker fails onl
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-suppress-scope-'));
     try {
       cpSync(LIFECYCLE, dir, { recursive: true });
-      spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
+      runGitFixture(dir, ['init', '-q', '-b', 'main']);
       // A violation of no-todo-comments on line 1, and a reasonless marker for
       // an aspect that is not this one, far from it.
       const file = path.join(dir, ORDERS);

@@ -178,6 +178,31 @@ export type RunGitFixtureOptions = Partial<
 };
 
 /**
+ * Run a `git <args>` that makes a NEW repository at a path its own arguments
+ * name — `clone <src> <dest>`, `init --bare <dir>` — from `cwd`, a fixture
+ * directory. Pinning GIT_DIR to `<cwd>/.git`, as {@link runGitFixture} does,
+ * would redirect such a command into the pin, so this one pins nothing: it
+ * scrubs every inherited GIT_DIR / GIT_WORK_TREE / discovery variable, stops
+ * any upward walk at `cwd` (GIT_CEILING_DIRECTORIES), and gives the process the
+ * fixture identity and quiet housekeeping every fixture git op gets. The
+ * repository it makes is then worked on through {@link runGitFixture}.
+ * Non-throwing, like runGitFixture.
+ */
+export function runGitCreating(
+  cwd: string,
+  args: string[],
+  opts: RunGitFixtureOptions = {},
+): SpawnSyncReturns<string> {
+  const { extraEnv, ...spawnOpts } = opts;
+  const abs = path.resolve(cwd);
+  const env: NodeJS.ProcessEnv = { ...process.env, ...FIXTURE_IDENTITY, ...extraEnv };
+  for (const v of [...INHERITED_DISCOVERY_VARS, 'GIT_DIR', 'GIT_WORK_TREE']) delete env[v];
+  env.GIT_CEILING_DIRECTORIES = abs;
+  applyQuietGitConfig(env);
+  return spawnSync('git', args, { cwd: abs, encoding: 'utf-8', ...spawnOpts, env });
+}
+
+/**
  * Run `git <args>` pinned to `fixtureDir` — cwd is the fixture and the env is the
  * scrubbed, fixture-pinned env from {@link gitFixtureEnv}. Non-throwing: returns
  * the raw spawnSync result so callers keep their own status/stdout handling.

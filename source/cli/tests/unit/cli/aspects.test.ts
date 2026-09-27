@@ -144,6 +144,21 @@ describe('computeAspectUsage', () => {
     expect(usage.get('flow-aspect')?.flow).toBe(1);
   });
 
+  // A flow covers its declared participants and every descendant of one, so a
+  // descendant reached by the flow's rule counts under flow, not as implied.
+  it('counts a flow rule on a descendant of a declared participant as flow', () => {
+    const parent = makeNode('cli', []);
+    const child = makeNode('cli/core', []);
+    child.parent = parent;
+    parent.children.push(child);
+    const graph = makeGraph([makeAspect('flow-aspect')], [parent, child]);
+    graph.flows = [{ path: 'test-flow', name: 'Test Flow', nodes: ['cli'], aspects: ['flow-aspect'] }];
+    const usage = computeAspectUsage(graph);
+    expect(usage.get('flow-aspect')?.total).toBe(2);
+    expect(usage.get('flow-aspect')?.flow).toBe(2);
+    expect(usage.get('flow-aspect')?.implied).toBe(0);
+  });
+
   // Hierarchy inheritance and `implies` are different channels: a maintainer
   // weighing an implies edge must not see inherited reach counted as implied.
   it('counts hierarchy inheritance as inherited, and only implies-expansion as implied', () => {

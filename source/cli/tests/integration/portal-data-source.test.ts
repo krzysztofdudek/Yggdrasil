@@ -4,6 +4,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { gitFixtureEnv } from '../support/git-fixture.js';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -85,7 +86,7 @@ describe('portalStateKey', () => {
   function gitRepo(): string {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-fp-'));
     dirs.push(dir);
-    const git = (...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' });
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, env: gitFixtureEnv(dir), stdio: 'ignore' });
     git('init', '-q');
     git('config', 'user.email', 't@t');
     git('config', 'user.name', 't');

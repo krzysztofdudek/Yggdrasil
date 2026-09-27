@@ -329,7 +329,7 @@ export async function resolveCompanionsForPair(
     if (run.observationsTainted) {
       const what = `Companion resolution for aspect '${aspect.id}' on ${toPosixPath(pair.unitKey)} produced an inconsistent observation set across two runs.`;
       const why = 'companion observations remained inconsistent across two runs (a file changed mid-resolution); a torn set cannot be hashed, so the fill fails closed and writes NOTHING — never paying the reviewer over a torn observation set.';
-      const next = 'Re-run once the working tree is stable: yg check --approve';
+      const next = 'Once the working tree is stable, re-run: yg check --approve';
       return { kind: 'infra', why: 'companion observations remained inconsistent across two runs', messageData: { what, why, next } };
     }
   }

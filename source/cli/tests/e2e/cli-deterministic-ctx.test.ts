@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
-import { textNext } from '../support/assert-output.js';
+import { expectErrorCode, textNext } from '../support/assert-output.js';
 
 // ---------------------------------------------------------------------------
 // E2E suite — the GRAPH-AWARE deterministic check.mjs surface.
@@ -353,6 +353,22 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
   // -------------------------------------------------------------------------
   // Scenario 1: GRAPH-AWARE check passes/refuses through the yg check --approve fill.
   // -------------------------------------------------------------------------
+
+  // A check.mjs that does not export check(ctx) is the rule author's fault, not
+  // a misuse of the command: the code is command-error (the old inference from
+  // the message's wording called it usage).
+  it('aspect-test on a check.mjs without a check export fails with error code command-error', () => {
+    const dir = deterministicFixture('bad-export');
+    try {
+      writeAspect(dir, 'no-export', 'A rule whose script exports nothing to run.', 'export const notCheck = 1;\n');
+      attachAspectToNode(dir, 'services/orders', 'no-export');
+      const r = run(['aspect-test', '--aspect', 'no-export', '--node', 'services/orders'], dir);
+      expect(r.status).toBe(1);
+      expectErrorCode(r.stderr, 'command-error');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
   it('S1a: a graph-aware (ctx.graph + ctx.files) rule that HOLDS passes aspect-test and fill (verdict + touched recorded)', () => {
     const dir = deterministicFixture('s1a');

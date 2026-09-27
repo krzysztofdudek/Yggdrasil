@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -209,11 +210,11 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
     const dir = bareUpgradeRepo('gitignore-effect');
     try {
       expect(run(['init', '--upgrade'], dir).status).toBe(0);
-      spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf-8' });
+      runGitFixture(dir, ['init', '-q']);
 
       for (const name of ['.yg-events.jsonl', '.yg-events.jsonl.1']) {
         writeFileSync(path.join(dir, '.yggdrasil', name), '{}\n', 'utf-8');
-        const probe = spawnSync('git', ['check-ignore', '-q', path.join('.yggdrasil', name)], { cwd: dir });
+        const probe = runGitFixture(dir, ['check-ignore', '-q', path.join('.yggdrasil', name)]);
         expect(probe.status, `${name} must be ignored by the installed rules`).toBe(0);
       }
     } finally {

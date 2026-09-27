@@ -31,7 +31,7 @@ import {
   readHeadCommit,
   readOriginUrl,
 } from '../../../src/utils/git-pack-fetch.js';
-import { runGitFixture, gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
+import { runGitCreating, runGitFixture, gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 import { execFileSync } from 'node:child_process';
 
 const tempDirs: string[] = [];
@@ -215,9 +215,9 @@ describe('whether a local directory is a repository in its own right', () => {
   it('is true for a bare repository', async () => {
     // Not through runGitFixture: that pins GIT_DIR to <dir>/.git, which would
     // make the bare repository one level down. The explicit path argument is
-    // the whole target, and the test setup has already scrubbed inherited GIT_*.
+    // the whole target.
     const bare = path.join(scratch('bare'), 'law.git');
-    execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'pipe' });
+    expect(runGitCreating(path.dirname(bare), ['init', '-q', '--bare', bare]).status).toBe(0);
     expect(await isGitRepositoryRoot(bare)).toBe(true);
   });
 

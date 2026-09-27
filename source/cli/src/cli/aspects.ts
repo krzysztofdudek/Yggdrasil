@@ -5,6 +5,7 @@ import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, getAspectStatusSources, inferAspectDisplayKind } from '../core/graph/aspects.js';
 import type { AttachSource } from '../core/graph/aspects.js';
+import { collectParticipatingFlows } from '../core/graph/flows.js';
 import { computeTypeAspectCascade, isReachableForTypeCoveredFile } from '../core/type-effective.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import type { ExpectedPair, TypeCoverageInput } from '../core/pairs.js';
@@ -95,11 +96,11 @@ export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInpu
   for (const [, node] of graph.nodes) {
     const effective = computeEffectiveAspects(node, graph);
     const ownAspects = new Set(node.meta.aspects ?? []);
+    // A flow covers its declared participants and every descendant of one —
+    // the resolution the flow channel of aspect propagation uses.
     const flowAspects = new Set<string>();
-    for (const flow of graph.flows) {
-      if (flow.nodes.includes(node.path)) {
-        for (const id of flow.aspects ?? []) flowAspects.add(id);
-      }
+    for (const flow of collectParticipatingFlows(graph, node)) {
+      for (const id of flow.aspects ?? []) flowAspects.add(id);
     }
 
     const archAspects = new Set<string>();

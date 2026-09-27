@@ -108,14 +108,21 @@ describe('a type', () => {
   });
 
   it('words a strict coverage gap, capped at ten per list', () => {
-    expect(renderStrictCoverageGap('svc', { preview: false, orphans: [], misplaced: [], conflicts: [] })).toContain('Strict coverage gap (0 files): None');
+    expect(renderStrictCoverageGap('svc', { preview: false, orphans: [], misplaced: [], conflicts: [], unreadable: [] })).toContain('Strict coverage gap (0 files): None');
     const orphans = Array.from({ length: 11 }, (_, i) => `o${i}.ts`);
     const misplaced = Array.from({ length: 11 }, (_, i) => ({ file: `m${i}.ts`, owner: 'x', ownerType: 'other' }));
-    const out = renderStrictCoverageGap('svc', { preview: false, orphans, misplaced, conflicts: [] });
+    const out = renderStrictCoverageGap('svc', { preview: false, orphans, misplaced, conflicts: [], unreadable: [] });
     expect(out).toContain('Orphans (matching files not in any mapping): 11');
     expect(out).toContain('    ... (1 more)\n  Misplaced');
     expect(out).toContain('    m0.ts → x (type: other)');
     expect(out.endsWith('    ... (1 more)\n')).toBe(true);
+  });
+
+  it('names the files the type\'s when could not be evaluated on, and never calls such a gap empty', () => {
+    const out = renderStrictCoverageGap('svc', { preview: true, orphans: [], misplaced: [], conflicts: [], unreadable: [{ file: 'src/huge.ts', reason: 'too large' }] });
+    expect(out).not.toContain('None');
+    expect(out).toContain('Unreadable (when could not be evaluated, so belonging is unknown): 1');
+    expect(out).toContain('    src/huge.ts (too large)');
   });
 
   it('ends with the step, naming the covered files only when there are some', () => {

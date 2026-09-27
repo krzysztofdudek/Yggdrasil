@@ -6,7 +6,6 @@ import { randomBytes } from 'node:crypto';
 import { atomicWriteFile } from './atomic-write.js';
 import { hashFile } from './hash.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { toPosixPath } from '../utils/posix.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { IssueCode } from '../model/issue-code.js';
 import type { PackageConfigKeyDef, PackageManifest, PackagesLock, PackagesLockEntry } from '../model/packages.js';
@@ -757,7 +756,10 @@ async function listFilesUnder(absRoot: string, relRoot: string, packagesTop = fa
       if (entry.isDirectory()) {
         await walk(abs, rel);
       } else if (entry.isFile()) {
-        out.push(toPosixPath(rel));
+        // Already POSIX: `rel` is joined with '/', and a backslash inside a
+        // name is part of that name on a POSIX file system (Windows never
+        // returns one in a directory entry), so it is kept as it is.
+        out.push(rel);
       }
     }
   }

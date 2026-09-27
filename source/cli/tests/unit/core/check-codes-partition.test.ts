@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SCOPED_CODES,
   OUTSIDE_CODES,
+  isScopedCode,
   outsideTwin,
   STRUCTURAL_CODES,
   APPROVE_GATING_CODES,
@@ -66,7 +67,7 @@ describe('outsideTwin', () => {
   });
 
   it('round-trips: stripping the suffix it appended recovers the original code', () => {
-    for (const code of SCOPED_CODES) {
+    for (const code of [...SCOPED_CODES].filter(isScopedCode)) {
       const twin = outsideTwin(code);
       expect(twin.endsWith('-outside')).toBe(true);
       expect(twin.slice(0, -'-outside'.length)).toBe(code);
@@ -74,7 +75,7 @@ describe('outsideTwin', () => {
   });
 
   it('is the only spelling of the suffix: OUTSIDE_CODES is exactly {outsideTwin(c) for c in SCOPED_CODES}', () => {
-    const expected = new Set([...SCOPED_CODES].map(outsideTwin));
+    const expected = new Set([...SCOPED_CODES].filter(isScopedCode).map(outsideTwin));
     expect(OUTSIDE_CODES).toEqual(expected);
     expect(OUTSIDE_CODES.size).toBe(SCOPED_CODES.size);
   });

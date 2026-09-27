@@ -20,6 +20,7 @@
 
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -50,7 +51,7 @@ function fixture(name: string): string {
 }
 
 function git(dir: string, ...args: string[]): void {
-  spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf-8' });
+  runGitFixture(dir, ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args]);
 }
 
 function yg(dir: string, args: string[]): { stdout: string; stderr: string; status: number | null } {

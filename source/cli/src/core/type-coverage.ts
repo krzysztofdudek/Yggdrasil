@@ -215,6 +215,20 @@ export async function classifySingleFileCached(
 }
 
 /**
+ * The batch form of {@link classifySingleFileCached}: ONE persistent
+ * `TypeClassCache` for this graph, shared by every file the returned function
+ * classifies — for a command that answers a list of files one by one
+ * (`yg owner --files`), which would otherwise open the cache again per file.
+ */
+export function singleFileClassifierCached(
+  graph: Graph,
+  cache: FileContentCache,
+): (file: string) => Promise<SingleFileClassification> {
+  const classCache = new TypeClassCache(path.dirname(graph.rootPath), graph.architecture);
+  return (file) => classifySingleFile(graph, file, cache, classCache);
+}
+
+/**
  * Constructs a persistent `TypeClassCache` for this graph and delegates to
  * `computeTypeCoverage` with it, ONE instance reused for the whole scan (not
  * once per file). This is the call every REAL whole-repo classification site

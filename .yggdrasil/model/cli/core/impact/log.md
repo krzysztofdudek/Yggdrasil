@@ -4,3 +4,5 @@ New home for what yg impact computes: the pairs an edit to a file invalidates, t
 A flow blast radius now counts every participant it lists, descendants included, when it says how many would become unverified. Descendants of a declared participant receive the flow rules, so they re-open like the declared ones; counting only the declared participants under-stated the cost of editing the flow.
 ## [2026-09-27T06:16:20.651Z]
 The strict coverage gap of a type is now computed for any type that classifies files, treating the type as strict, by the scan the check runs. The documentation promised a preview before the flag is set, and gave none; once the flag was set, the gap disagreed with the check because owners were read from literal mapping strings. The gap now also names files another strict type matches, which the check reports as conflicts.
+## [2026-09-27T20:25:08.994Z]
+The strict coverage gap yg impact --type previews now lists the files the type's when could not be evaluated on. The scan it shares with yg check already found them, but the preview dropped them, so a type about to be made strict could look clean while yg check would then report those files.

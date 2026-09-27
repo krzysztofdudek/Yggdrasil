@@ -49,6 +49,7 @@ import { fail, nodeNotFound, plural, warn, writeOut, count, failAndExit } from '
 import { exitAfterFlush } from './exit-after-flush.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 import { findCandidateOwners } from '../core/graph/files.js';
+import { collectParticipatingFlows } from '../core/graph/flows.js';
 
 
 /** One matched type's visibility block — what a type-covered file's rules were resolved to. */
@@ -125,7 +126,8 @@ function aspectUsedBy(graph: Graph, aspectId: string, nodes: Set<string>): boole
     const node = graph.nodes.get(nodePath);
     if (node === undefined) continue;
     if (names(node.meta.aspects) || names(graph.architecture.node_types[node.meta.type]?.aspects)) return true;
-    if (graph.flows.some((f) => f.nodes.includes(nodePath) && names(f.aspects))) return true;
+    // A flow covers its declared participants and every descendant of one.
+    if (collectParticipatingFlows(graph, node).some((f) => names(f.aspects))) return true;
   }
   return false;
 }
@@ -141,7 +143,14 @@ function affectsContext(graph: Graph, issue: ValidationIssue, relevant: Set<stri
   if (issue.cycleMembers) return issue.cycleMembers.some((m) => relevant.has(m));
   if (issue.nodePath) return relevant.has(issue.nodePath);
   if (issue.aspectId !== undefined) return aspectUsedBy(graph, issue.aspectId, relevant);
-  if (issue.flowName !== undefined) return graph.flows.some((f) => f.name === issue.flowName && f.nodes.some((n) => relevant.has(n)));
+  if (issue.flowName !== undefined) {
+    // A flow covers its declared participants and every descendant of one, so a
+    // relevant node is in the flow when it or an ancestor is declared in it.
+    return [...relevant].some((p) => {
+      const node = graph.nodes.get(p);
+      return node !== undefined && collectParticipatingFlows(graph, node).some((f) => f.name === issue.flowName);
+    });
+  }
   return CONTEXT_CHANGING_CODES.has(issue.code ?? '') || issue.rule === 'invalid-config';
 }
 

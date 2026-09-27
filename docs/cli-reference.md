@@ -1561,7 +1561,11 @@ The batch form is deliberately lighter than the single-file JSON answer: it neve
 whole-project relation pass or verifies pairs against the lock (both a per-invocation,
 whole-graph cost the single-file command already pays once for its one file — paying them
 again per batch entry would defeat the point of batching), so a `type` entry never carries
-`enforced` — call `yg owner --file <path> --json` for that, one file at a time.
+`enforced` — call `yg owner --file <path> --json` for that, one file at a time. For the
+same reason it does not stop at an aspect `implies` cycle: where `yg owner --file` refuses
+a type-covered file whose rules cannot be resolved for the cycle, the batch still answers
+`kind: type` with its `unit`, since the owner is known either way. `yg check` reports the
+cycle (`aspect-implies-cycle`).
 
 ```text
 $ yg owner --files src/orders/order.service.ts,src/handlers/capturePayment.ts,src/nope.ts
@@ -2287,7 +2291,10 @@ yg pack new <name>
 - `list` — what is installed, which version, pinned or following, from where, the
   tag and commit, and whether each copy is still untouched. Names newer versions
   only when the source answers; an unreachable source produces silence, never a
-  claim that you are current. What a reachable source says is also recorded in a
+  claim that you are current. Beside them it names the command that takes the
+  newest: `yg pack update <name>` for a package that follows the newest version,
+  and `yg pack update <name> --to <version>` for a pinned one, which then stays
+  pinned, at that version. What a reachable source says is also recorded in a
   local, never-committed cache, which is what lets `yg advise` mention a newer
   version without reaching outside the repository itself. `add` and `update`
   refresh the same cache while they are already talking to the source.
