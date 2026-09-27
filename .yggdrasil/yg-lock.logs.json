@@ -253,7 +253,7 @@
     "cli/tests/e2e/lock-merge-llm": {"source":"ca199aca00b0fd43c11ffb9ca2abb5ba5c68ba07ea76fb72e070118cfb2d84b3"},
     "cli/tests/e2e/lock-scope": {"source":"c67d89b12cce695958314aa39e9b65da52abd9650aa2f7975539e0431b6c0553"},
     "cli/tests/e2e/log-gate-extended": {"log":{"last_entry_datetime":"2026-05-31T10:33:50.991Z","prefix_hash":"7f01650073150936e9183821b9f015342f12fb3a3a258b99b25b13637ac930b3"},"source":"2a4d43b36d6c4d88bb4e050dbf0656598ca62a53cb32f6e0ef29b212cfcc24bd"},
-    "cli/tests/e2e/log-gate-scope": {"source":"bff207c479a03f8fe6d796caa0ba1eefe21df5542d40a30537386e3db2a09078"},
+    "cli/tests/e2e/log-gate-scope": {"source":"49702f697b1dd5608759cf7a0fe01e88a67676e941da422798b16f666f1a7caf"},
     "cli/tests/e2e/log-gate-unreadable": {"source":"798c12f9ce7630c4ac9499eb8810aaea730b4bb085e83b14e545660942156501"},
     "cli/tests/e2e/log-integrity": {"source":"047179f5eb271a07aaa815dbe1ccc795cdbc275a9ead6134d11b99fb6c8835cf"},
     "cli/tests/e2e/log-integrity-extended": {"log":{"last_entry_datetime":"2026-05-31T07:46:40.552Z","prefix_hash":"35ddb7534cb7f2ffa529848cf0d71cbab69658d93548c36b9694988b4547e402"},"source":"904ecc0dd6eb306a73786e7597c60033cdd9c8b3ed5b6365d2d7ea42cd61fdc3"},

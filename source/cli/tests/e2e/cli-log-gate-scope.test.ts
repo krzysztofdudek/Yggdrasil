@@ -259,8 +259,8 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
       yg(dir, ['log', 'add', '--node', 'services/lib', '--reason', 'Side a.']);
       expect(yg(dir, ['check', '--approve']).status).toBe(0);
       git(['add', '-A']); git(['commit', '-q', '-m', 'a']);
-      spawnSync('git', ['merge', 'b'], { cwd: dir, env: env() });
-      spawnSync('git', ['checkout', '--ours', '--', '.yggdrasil/yg-lock.logs.json'], { cwd: dir, env: env() });
+      runGitFixture(dir, ['merge', 'b']);
+      runGitFixture(dir, ['checkout', '--ours', '--', '.yggdrasil/yg-lock.logs.json']);
       const resolved = yg(dir, ['log', 'merge-resolve', '--node', 'services/lib']);
       expect(resolved.status, resolved.all).toBe(0);
       const step = textNext(resolved.stdout) ?? '';
