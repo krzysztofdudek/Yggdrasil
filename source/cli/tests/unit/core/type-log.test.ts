@@ -256,6 +256,19 @@ describe('entries that replace earlier ones', () => {
     const settled = `${merged}## [${D}]\n### Supersedes: ${B}\n### Supersedes: ${C}\n\nd\n`;
     expect(competingSuccessors(withStanding(parseLog(settled)))).toEqual([]);
   });
+
+  it('follows each successor down its own replacements: a chain on one side still competes, and replacing one rival settles nothing', () => {
+    const [A, B, C, D, E] = ['01', '02', '03', '04', '05'].map((n) => `2026-01-01T00:00:${n}.000Z`);
+    const e = (dt: string, text: string, ...sup: string[]): string => `## [${dt}]\n${sup.map((t) => `### Supersedes: ${t}\n`).join('')}${sup.length > 0 ? '\n' : ''}${text}\n`;
+    // One side replaced A by B and then B by D; the other replaced A by C. D and C are rivals.
+    // The same file is what replacing only one rival (B, by D) after a clash leaves: still unsettled.
+    const chained = e(A, 'a') + e(B, 'b', A) + e(C, 'c', A) + e(D, 'd', B);
+    expect(competingSuccessors(withStanding(parseLog(chained)))).toEqual([{ target: A, successors: [C, D] }]);
+    // An entry replacing all of the rivals in force settles it.
+    expect(competingSuccessors(withStanding(parseLog(chained + e(E, 'e', C, D))))).toEqual([]);
+    // One writer's line of replacements, A by B by C, never competes.
+    expect(competingSuccessors(withStanding(parseLog(e(A, 'a') + e(B, 'b', A) + e(C, 'c', B))))).toEqual([]);
+  });
 });
 
 describe('a full recording run drops the baseline of a type that no longer exists', () => {

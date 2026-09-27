@@ -21,6 +21,9 @@
 //                   recorded project stays fully verified
 //  10. competing  → two branches superseding the same decision is reported by
 //                   merge-resolve as a conflict, and one entry settles it
+//  11. all at once → a merge where two decisions were each superseded on both
+//                   sides names both clashes in one report, each with its own
+//                   settling command
 //   9. the guard  → with decisions in force on the type or a type above it, an
 //                   add that says neither --supersedes nor --adds is refused,
 //                   and the decisions in force are listed for the writer
@@ -317,6 +320,38 @@ describe.skipIf(!distExists)('CLI E2E — a node type keeps a decision log', () 
       const settled = yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'The queue holds; gRPC was an experiment.', ...successors.flatMap((s) => ['--supersedes', s])]);
       expect(settled.status, settled.all).toBe(0);
       expect(readType(dir).entries).toHaveLength(1);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  }, 60_000);
+  it('11: a merge that clashes on two decisions names both at once, each with its own settling command', () => {
+    const dir = project('merge-supersede-two');
+    const git = (args: string[]): void => { runGitFixture(dir, args); };
+    try {
+      git(['init', '-q', '-b', 'main']);
+      expect(addType(dir, 'Services talk over HTTP.').status).toBe(0);
+      expect(addType(dir, 'Services log in plain text.').status).toBe(0);
+      const [talk, logs] = readType(dir).entries;
+      git(['add', '-A']); git(['commit', '-q', '-m', 'base']);
+      git(['checkout', '-q', '-b', 'b']);
+      expect(addType(dir, 'Side b: services talk over the queue.', talk.datetime).status).toBe(0);
+      expect(addType(dir, 'Side b: services log JSON.', logs.datetime).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'b']);
+      git(['checkout', '-q', 'main']);
+      expect(addType(dir, 'Side a: services talk over gRPC.', talk.datetime).status).toBe(0);
+      expect(addType(dir, 'Side a: services log through OpenTelemetry.', logs.datetime).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'a']);
+      runGitFixture(dir, ['merge', 'b']);
+      runGitFixture(dir, ['checkout', '--ours', '--', '.yggdrasil/yg-lock.types.json']);
+
+      const resolved = yg(dir, ['log', 'merge-resolve', '--type', TYPE]);
+      expect(resolved.status).toBe(1);
+      expectErrorCode(resolved.all, 'log-merge-supersedes-conflict');
+      // Both clashes in one report: each replaced entry is named, and each gets its own settling command.
+      expect(resolved.all).toContain(talk.datetime);
+      expect(resolved.all).toContain(logs.datetime);
+      expect(resolved.all.match(/yg log add --type service/g)).toHaveLength(2);
+      expect(resolved.all.match(/--supersedes /g)).toHaveLength(4);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

@@ -970,9 +970,10 @@ of a type that no longer exists.
 
   When both sides superseded the same entry, each with a decision of its own, the union
   holds two successors that would both read as in force. merge-resolve keeps every entry
-  and records the baseline, but exits with `log-merge-supersedes-conflict` naming the
-  entry and both successors: finish the merge, then add one entry that supersedes both
+  and records the baseline, but exits with `log-merge-supersedes-conflict` naming every
+  such entry and its successors: finish the merge, then add one entry that supersedes both
   and says which decision holds (`yg log add … --supersedes <a> --supersedes <b>`).
+  Until that entry is written, `yg advise` keeps listing the clash as `log-supersedes-conflict`.
 
 ---
 
@@ -1325,22 +1326,24 @@ nomination[aspect-effective-nowhere] Aspect 'no-console' has a rule source but i
 
 The first line counts both sections. Each attention item is one indented line; each nomination is a block in the same grammar as a `yg check` finding — `nomination[<class>] <what>`, `why:`, `fix:`, and with `--ids` an `id:` line. An empty section reads an indented `none right now`; past the cap a closing `… +K more  (yg advise --all)` line says how many are hidden.
 
-The nomination classes, highest priority first. The first five rest on the graph as it stands;
+The nomination classes, highest priority first. The first seven rest on the graph as it stands;
 the next five are read from local history and carry an honesty label while the evidence is thin;
 the last two are whole-codebase observations:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
 2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
-3. **A rule effective nowhere** (`aspect-effective-nowhere`, the same code `yg check` reports) — it ships a rule source and is not draft, yet lands on no component. A dead rule is one nomination: the same rule is never also offered as an orphan.
-4. **An orphaned rule** (`orphaned-aspect`) — nothing references it at all, and the class above does not already cover it: a bundle (no rule source of its own), a draft rule, or a rule in a graph with no code yet.
-5. **A rule past its `review_by:` date** — it is running unreviewed.
-6. **Promote a clean-record advisory rule** — it has passing verdicts and no refusals while advisory.
-7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
-8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
-9. **An unguarded hot spot** (`unguarded-hot-spot`) — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
-10. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
-11. **A look-alike group** — see below.
-12. **An architecture cut** — see below.
+3. **Two decisions in force that replaced the same entry** (`log-supersedes-conflict`) — an entry of a component's, a type's or a rule's log that two later entries each replaced, and neither has been replaced since: what two branches leave when each superseded the same decision. Each successor is followed down its own replacements, so a side that superseded its own successor again, or a later entry that replaced only one of the rivals, still leaves the clash open. `yg log merge-resolve` reports it once, at the merge; this keeps listing it, with the command that settles it, until one entry supersedes both. Which decision holds is yours to say.
+4. **A rule effective nowhere** (`aspect-effective-nowhere`, the same code `yg check` reports) — it ships a rule source and is not draft, yet lands on no component. A dead rule is one nomination: the same rule is never also offered as an orphan.
+5. **An orphaned rule** (`orphaned-aspect`) — nothing references it at all, and the class above does not already cover it: a bundle (no rule source of its own), a draft rule, or a rule in a graph with no code yet.
+6. **A rule past its `review_by:` date** — it is running unreviewed.
+7. **Too many decisions for a type** (`type-decision-budget`) — a component of the type reads more than 7 decisions in force from the type decision logs (its type's and every type's above it), or more than about 2,000 tokens of them, estimated as characters / 4. Every one of them is put in full in front of an agent working on any component of the type, so past that the area's decisions start to crowd out the code and the rules. It is reported once, at the type with decisions of its own — and not for a type below one that is already past a line on its own load, which the item on that type stands for — and proposes folding decisions that say one thing into one entry that supersedes them. Seven is the count a reader holds as a list; 2,000 tokens is seven entries of a full paragraph each, so the token line fires first only when entries run longer than that.
+8. **Promote a clean-record advisory rule** — it has passing verdicts and no refusals while advisory.
+9. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
+10. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
+11. **An unguarded hot spot** (`unguarded-hot-spot`) — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
+12. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
+13. **A look-alike group** — see below.
+14. **An architecture cut** — see below.
 
 The lowest-priority suggestions include two whole-codebase observations: a **look-alike
 group** — a tight group of near-identical files with no rule of their own, offered with a

@@ -51,3 +51,4 @@ mapping:
   - source/cli/tests/unit/core/type-decision-cascade.test.ts
   - source/cli/tests/unit/core/type-log.test.ts
   - source/cli/tests/unit/core/type-law.test.ts
+  - source/cli/tests/unit/core/log-standing-scan.test.ts

@@ -102,3 +102,5 @@ The package-update signal now says whether the record follows the newest version
 Whether a package follows the newest version is now asked of the package-record parser, which already owns the meaning of requested, instead of re-deriving it here from the model constant.
 ## [2026-09-27T11:08:42.422Z]
 The boundary join and the suppression-marker classification are read from the engine instead of from the portal's internals, so the attention feed no longer depends on the portal.
+## [2026-09-27T19:24:00.261Z]
+The feed now reads the logs of the graph for two items about decisions in force, through the log layer. A failure of that read is written to the debug log and leaves both items silent, because the feed must always exit zero on a loadable graph and a bug in one source must not take the others down.

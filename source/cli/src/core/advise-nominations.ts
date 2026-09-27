@@ -32,7 +32,11 @@
  *     anomalies, aspect-effective-nowhere (a rule source that applies to no
  *     node — once named dead-attach, still accepted as an alias), orphaned
  *     aspects (only those effective-nowhere does not already report — a bundle,
- *     a draft, a graph with no code yet), overdue review_by.
+ *     a draft, a graph with no code yet), overdue review_by; and, from the
+ *     graph's own logs (advise-log-nominations.ts), a log entry replaced by two
+ *     entries still in force (ranked just below suppress anomalies) and a type
+ *     whose nodes read more decisions in force than the budget (ranked last of
+ *     T0).
  *   T1 (from local telemetry, thin-data honesty labels — RZ-21): promotion
  *     (an advisory rule with a clean recorded record), sharpen (a rule the
  *     reviewer judged the SAME input inconsistently under --repeat), decorative-rule
@@ -74,6 +78,8 @@ import { packageUpdateNominations } from './advise-package-nominations.js';
 import type { PackageUpdateSignal } from './advise-package-nominations.js';
 export type { PackageUpdateSignal } from './advise-package-nominations.js';
 import { architectureCutNominations } from './advise-architecture-cut.js';
+import { supersedeClashNominations, typeDecisionBudgetNominations } from './advise-log-nominations.js';
+import type { SupersedeClashSignal, TypeDecisionLoadSignal } from './advise-log-nominations.js';
 import { familyNominations } from './advise-family-nominations.js';
 import { count } from '../utils/count.js';
 import {
@@ -235,6 +241,16 @@ export interface NominationSources {
    * unenforced for a file this run could not verify.
    */
   typeEnforcedFiles?: Set<string>;
+  /**
+   * Log entries replaced by more than one entry still in force, read from every
+   * node, type and rule log at the CLI boundary. Absent → none.
+   */
+  supersedeClashes?: SupersedeClashSignal[];
+  /**
+   * What each type's nodes read from the type decision logs, for every type with
+   * decisions of its own in force, read at the CLI boundary. Absent → none.
+   */
+  typeDecisionLoads?: TypeDecisionLoadSignal[];
 }
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -984,6 +1000,11 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   nominations.push(...importedNominations(sources.importedAdvice ?? []));
 
   nominations.push(...packageUpdateNominations(sources.packageUpdates ?? [], todayIso));
+
+  // --- The decisions the logs hold in force: a replaced entry with two successors
+  //     (ranked with T0), and a type whose nodes read too many (last of T0). ---
+  nominations.push(...supersedeClashNominations(sources.supersedeClashes ?? []));
+  nominations.push(...typeDecisionBudgetNominations(sources.typeDecisionLoads ?? []));
 
   nominations.sort((a, b) => {
     if (a.classRank !== b.classRank) return a.classRank - b.classRank;

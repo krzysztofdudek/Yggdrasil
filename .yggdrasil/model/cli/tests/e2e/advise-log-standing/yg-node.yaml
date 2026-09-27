@@ -1,0 +1,12 @@
+name: E2E Tests — advice on decisions in force
+type: test-suite
+description: >-
+  Subprocess E2E for the two attention items about decisions the logs hold in force. An entry replaced by two entries still in force is listed after a real two-branch merge has been committed, and in a component's and a rule's log as well, each with the command that settles it, and goes away only once one entry supersedes both successors. A type whose nodes read more than seven decisions in force, counting the types above it, or more than about two thousand estimated tokens of them, is listed; seven short ones are not, a replaced decision does not count, and a type with no decisions of its own is not reported again for what it reads from above. The feed exits zero throughout.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-advise-log-standing.test.ts

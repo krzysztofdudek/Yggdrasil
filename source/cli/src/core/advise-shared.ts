@@ -137,9 +137,16 @@ export interface ArchitectureCutCycle {
 export const CLASS_RANK = {
   drillMiss: 10,
   suppressAnomaly: 20,
+  // Two decisions in force that each replaced the same log entry: a contradiction
+  // the graph holds right now, read from its own files, so it ranks with T0.
+  logSupersedesConflict: 25,
   effectiveNowhere: 30,
   orphaned: 40,
   overdueReviewBy: 50,
+  // Decisions in force that a type's nodes read past the budget: live from the
+  // graph's own logs like T0, but a matter of weight rather than of anything
+  // being wrong, so it ranks last among them.
+  typeDecisionBudget: 55,
   // --- T1: below all T0 ---
   promotion: 60,
   sharpen: 70,

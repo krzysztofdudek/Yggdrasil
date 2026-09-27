@@ -741,7 +741,9 @@ async function resolveReplay(args: {
  * force. Every entry is kept and the baseline recorded — history is never
  * dropped — but the command reports the conflict, because silently keeping
  * both would leave two contradicting decisions in force. The fix is one entry
- * that supersedes both successors and says which decision holds.
+ * that supersedes both successors and says which decision holds. Every such
+ * entry is named at once, each with its own settling command, so a merge that
+ * clashed on two decisions is not settled one rerun at a time.
  */
 function competingSuccessorsRefusal(
   currentLog: string,
@@ -749,15 +751,18 @@ function competingSuccessorsRefusal(
   wroteUnion: boolean,
   inProgress: InProgressOperation | null,
 ): CodedIssueMessage | null {
-  const clash = competingSuccessors(withStanding(parseLog(currentLog)))[0];
-  if (clash === undefined) return null;
-  const settle = `yg log add ${target.flag} --reason '<which decision holds, and why — ask the user>' ${clash.successors.map((s) => `--supersedes ${s}`).join(' ')}`;
+  const clashes = competingSuccessors(withStanding(parseLog(currentLog)));
+  if (clashes.length === 0) return null;
+  const settle = clashes
+    .map((c) => `yg log add ${target.flag} --reason '<which decision holds, and why — ask the user>' ${c.successors.map((s) => `--supersedes ${s}`).join(' ')}`)
+    .join('; then ');
   // The settling entry comes AFTER the merge is finished: added now, it would be
   // an entry neither side holds, and the merged log would no longer verify.
   const finish = inProgress !== null ? `git add ${target.gitLogPath} and the lock files, ${OPERATION_COMMANDS[inProgress].finish}, then ` : '';
+  const replaced = clashes.map((c) => `the entry ${c.target} was replaced on both sides of the merge — by ${c.successors.join(' and ')}`).join('; ');
   return {
     code: 'log-merge-supersedes-conflict',
-    what: `${target.gitLogPath}: the entry ${clash.target} was replaced on both sides of the merge — by ${clash.successors.join(' and ')}`,
+    what: `${target.gitLogPath}: ${replaced}`,
     why: `Each side superseded the same entry with a decision of its own, so both successors would read as in force and contradict each other. ${wroteUnion ? 'The union of both sides was written and its baseline recorded; ' : 'Every entry is kept and the baseline recorded; '}which decision holds is not something a merge can decide.`,
     next: `${finish}${settle}`,
   };

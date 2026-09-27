@@ -11,7 +11,9 @@ description: >-
   finding's identity, and a further add over a rewritten history is refused; a
   log whose type the architecture no longer defines is a warning; two branches'
   decisions that conflict in git are reconciled into their union with a clean
-  check afterwards. And adding a type or a node log entry changes no pair hash:
+  check afterwards.
+  Two branches that each superseded the same decision are reported as a conflict by merge-resolve, every such decision in one report with its own settling command.
+  And adding a type or a node log entry changes no pair hash:
   a recorded project stays fully verified and a later recording run rewrites no
   verdict.
 aspects: []
