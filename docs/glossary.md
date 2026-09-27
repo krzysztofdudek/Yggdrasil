@@ -1,6 +1,6 @@
 # Glossary
 
-<!-- Generated from source/cli/src/templates/portal/js/glossary.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->
+<!-- Generated from source/cli/src/templates/portal/js/glossary-entries.js and glossary-entries-rest.js, which the portal also reads for its tooltips. Edit the entries there, then run `npm run glossary:update` in source/cli. -->
 
 Each word here has one meaning, the same in these docs, in `yg prime`, in `yg knowledge`, in the CLI output and in the portal. Where an older word meant the same thing, it is listed as not used, so you can map it when you meet it in an old note.
 

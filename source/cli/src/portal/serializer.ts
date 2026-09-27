@@ -73,6 +73,8 @@ interface PortalAssets {
 const MODULE_ORDER = [
   'js/namespace.js',
   'js/state-model.js',
+  'js/glossary-entries.js',
+  'js/glossary-entries-rest.js',
   'js/glossary.js',
   'js/router.js',
   'js/palette.js',

@@ -30,3 +30,5 @@ module holding that logic and the styles it needs would otherwise have pushed
 their files past the size budget every file in this area is held to. Splitting
 them keeps each file inside that budget without shrinking what the page is able
 to say.
+## [2026-09-27T22:19:47.080Z]
+The glossary entries moved out of glossary.js into two data files, glossary-entries.js and glossary-entries-rest.js, because the vocabulary outgrew the portal's per-file line cap; the serializer inlines both ahead of glossary.js, which builds the tooltip lookup from the list they assemble, so the page loads the same entries in the same order as before.
