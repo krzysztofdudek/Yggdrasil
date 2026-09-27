@@ -69,7 +69,7 @@ export function registerImpactCommand(program: Command): void {
             failAndExit({
               what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
               why: 'yg impact resolves impact only for files tracked inside the project.',
-              next: 'Pass a path inside the project root (relative to the repo).',
+              next: 'yg impact --file <a path inside the repository, relative to its root>',
             }, 'command-error');
           }
           debugWrite(`[impact] command failed: ${(error as Error).message}`);
