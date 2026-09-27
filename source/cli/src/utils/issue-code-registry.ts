@@ -443,5 +443,6 @@ export function formerCodes(code: string): string[] | undefined {
   const base = baseCodeOfOutsideTwin(code);
   const formerly = issueCodeEntry(base ?? code)?.formerly;
   if (formerly === undefined || formerly.length === 0) return undefined;
-  return base === undefined ? [...formerly] : formerly.map((old) => outsideTwin(old));
+  // A former name is no longer a CheckCode, but its twin is spelled the way the base code's is.
+  return base === undefined ? [...formerly] : formerly.map((old) => outsideTwin(old as CheckCode));
 }

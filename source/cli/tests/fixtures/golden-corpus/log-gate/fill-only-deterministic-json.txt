@@ -1094,7 +1094,7 @@ exit: 1
     },
     "remaining": {
       "needsFix": 24,
-      "fillable": 0,
+      "fillable": 24,
       "needsUser": 0,
       "waitingOnReviewer": 0
     },

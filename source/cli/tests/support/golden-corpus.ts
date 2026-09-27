@@ -473,6 +473,9 @@ scope:
   },
 ];
 
+/** Where the committed corpus lives: one directory per state, one `<case>.txt` per case. */
+export const GOLDEN_CORPUS_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'fixtures', 'golden-corpus');
+
 /** The compiled CLI the corpus is recorded from. */
 export function binPath(): string {
   return path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'dist', 'bin.js');

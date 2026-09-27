@@ -192,9 +192,7 @@ exit: 1
       "--only-deterministic"
     ],
     "text": "yg check --approve --only-deterministic",
-    "target": {
-      "node": "alpha"
-    },
+    "target": {},
     "cost": {
       "free": 1,
       "reviewerPairs": 0,

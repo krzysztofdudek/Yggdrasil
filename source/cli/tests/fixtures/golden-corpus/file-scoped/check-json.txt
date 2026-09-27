@@ -404,9 +404,7 @@ exit: 1
       "--only-deterministic"
     ],
     "text": "yg check --approve --only-deterministic",
-    "target": {
-      "node": "app/svc-01"
-    },
+    "target": {},
     "cost": {
       "free": 10,
       "reviewerPairs": 0,

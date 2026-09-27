@@ -15,6 +15,9 @@
 //   json-schemas:update   docs/public/schemas/      json-contract-schemas.test.ts
 //   prose:baseline        e2e-prose-baseline.json   e2e-prose-ratchet.test.ts
 //
+// The golden output corpus (golden:update) is written by the e2e sibling,
+// tests/e2e/golden-corpus.update.ts, through the same config.
+//
 // Vitest is only the TypeScript runner here: the renderers import the CLI's
 // TypeScript sources, which plain node cannot load. Every step renders from
 // the committed sources alone, so the same tree always writes the same bytes.
