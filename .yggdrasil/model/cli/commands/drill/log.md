@@ -44,3 +44,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 The drill no longer asks the graphless runner for its trapped context: every graphless run now builds that one context itself, so the drill and the ad-hoc files mode of aspect-test cannot drift apart.
 ## [2026-09-27T20:03:52.182Z]
 The debug line for a case a script rule could not evaluate called the rule a deterministic check, a retired name; it says script rule now.
+## [2026-09-27T22:19:05.016Z]
+--case matches the corpus-relative case label with its extension stripped, not a repository-relative path; the help said the latter and a repository path matched nothing. drill add marks its required flags in --help.

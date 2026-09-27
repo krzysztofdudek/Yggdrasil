@@ -88,7 +88,9 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
       expect(init.status).toBe(0);
       const { stdout, status } = run(['tree'], dir);
       expect(status).toBe(0);
-      expect(stdout).toContain('no nodes yet\nnext: yg knowledge read onboarding');
+      expect(stdout).toContain('no nodes yet\n');
+      // The step is the output's last line, after the type-covered summary.
+      expect(stdout.trimEnd().split('\n').pop()).toMatch(/^next: yg knowledge read onboarding/);
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
       expect(flows.stdout).toBe('(no flows defined)\n');
@@ -202,7 +204,7 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
   it('yg tree --root nonexistent returns exit 1', () => {
     const { stderr, status } = run(['tree', '--root', 'nonexistent']);
     expect(status).toBe(1);
-    expect(stderr).toContain('not found');
+    expect(stderr).toContain('error[node-not-found]');
   });
 
   it('yg aspects output has no stability field', () => {

@@ -26,7 +26,7 @@ More: [Nodes](/nodes).
 
 ### relation {#relation}
 
-A declared dependency between two nodes (calls / uses / …). The code's real dependencies must match what's declared.
+A declared dependency between two nodes (calls / uses / …). Every real code dependency must be declared; a declared relation needs no code behind it.
 
 More: [Relations, Flows & Ports](/relations-flows-ports).
 
@@ -128,7 +128,7 @@ Inherited from a parent component's type.
 
 ### port {#port}
 
-This rule crosses in from a named contract this component consumes.
+This rule crosses in from a port this component enters through a relation — a named one, or the target’s implicit `default` port.
 
 ### implied {#implied}
 
@@ -252,7 +252,7 @@ More: [Configuration](/configuration#coverage-config).
 
 ### type-covered file {#type-covered}
 
-A file no node owns that exactly one classifying type claims. That type’s `per: file` rules enforce it.
+A file no node owns that exactly one non-strict classifying type claims, and no strict type does. That type’s `per: file` rules enforce it.
 
 Not called: type-level lattice, type tier, component-free file. More: [Configuration](/configuration#coverage-config).
 
@@ -300,9 +300,9 @@ More: [The Lock](/the-lock#the-log-gate).
 
 ### line-scoped waiver {#waiver}
 
-A `yg-suppress` marker with a reason. It waives one rule on the lines it covers — a single line, a bracketed range or the whole file — and needs the user’s sign-off.
+A `yg-suppress` marker with a reason. It waives the rules it names — one, a comma-separated list, or every rule with `*` — on the lines it covers: a single line, a bracketed range, or the whole file (the kind `yg suppressions` lists as `file-level`). It needs the user’s sign-off.
 
-Not called: file-level waiver. More: [Reviewers](/reviewers).
+More: [Reviewers](/reviewers).
 
 ### waived {#waived}
 

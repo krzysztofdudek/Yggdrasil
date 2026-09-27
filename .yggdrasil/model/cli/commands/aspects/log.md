@@ -108,3 +108,5 @@ The health table's legend said exposure counts the times the reviewer judged a r
 A flow's rule on a descendant of a flow participant is counted under flow in the rule's usage breakdown. A flow covers its declared participants and every descendant of one, and the rest of the engine resolves it that way, but this count matched only declared participants, so such a node's rule was counted as reached through implies.
 ## [2026-09-27T20:44:40.623Z]
 Two approved changes met in this component at merge and both are kept as written: the health table's legend now says exposure counts the verdicts a fill recorded, since script rules record exposure without a reviewer, and a rule reached through a flow participant's descendant is counted under flow in its usage breakdown. They touch different parts of the command and needed no reconciliation.
+## [2026-09-27T22:19:02.742Z]
+yg aspects --reach without --json is a refused flag combination, so it is reported as usage like every other one rather than as command-error.

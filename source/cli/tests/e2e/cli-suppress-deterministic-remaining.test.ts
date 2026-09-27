@@ -180,7 +180,7 @@ function setNodeAspects(
 // Verdict-lock model: `yg approve` is gone — verification happens via
 // `yg check --approve` (repo-wide fill). A deterministic verdict renders per
 // pair. An empty-reason suppress marker leaves the pair UNVERIFIED with a
-// `malformed-suppress-marker` diagnostic — a fault in the SOURCE marker, not the
+// `suppress-marker-invalid` diagnostic — a fault in the SOURCE marker, not the
 // check, so it is never an `check-failed-to-run` refusal (F6).
 //
 // Fully hermetic: each test builds its own graph in a fresh temp dir, uses only
@@ -279,7 +279,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
   // violation), so the marker must sit on a file that ALSO violates the aspect.
   // In the verdict-lock model the throw is caught at fill time and the pair is
   // left UNVERIFIED. A malformed marker is a fault in the SOURCE marker, not the
-  // check, so it surfaces its OWN `malformed-suppress-marker` diagnostic — never
+  // check, so it surfaces its OWN `suppress-marker-invalid` diagnostic — never
   // an `check-failed-to-run` that blames the (correct) check (F6).
 
   it('2: a single-line yg-suppress(no-todo-comments) with NO reason surfaces a malformed-marker diagnostic (exit 1, never check-failed-to-run)', () => {
@@ -306,7 +306,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       // Its OWN diagnostic (emitIssue → STDERR): names the malformed marker, never
       // the check. The final report (STDOUT) leaves the pair unverified.
       expect(fill.stderr).toContain('Malformed yg-suppress marker');
-      expect(fill.stderr).toContain('malformed-suppress-marker');
+      expect(fill.stderr).toContain('suppress-marker-invalid');
       expect(fill.all).not.toContain('check-failed-to-run');
       expect(fill.all).not.toContain('check.mjs');
       // The throw leaves the pair unverified (no verdict written), not refused.
@@ -342,7 +342,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       // Its OWN diagnostic (emitIssue → STDERR): names the malformed marker, never
       // the check.
       expect(fill.stderr).toContain('Malformed yg-suppress marker');
-      expect(fill.stderr).toContain('malformed-suppress-marker');
+      expect(fill.stderr).toContain('suppress-marker-invalid');
       expect(fill.all).not.toContain('check-failed-to-run');
       expect(fill.all).not.toContain('check.mjs');
       expect(fill.stdout).toContain('unverified');

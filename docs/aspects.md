@@ -45,7 +45,7 @@ Specific rules produce reproducible verdicts. "Audit logging should be appropria
 
 | Kind | Use it for | Cost |
 |---|---|---|
-| **Reviewer rule** (`content.md`) | judgment calls a human reviewer would make — "mutations must emit audit events", "this handler validates its input semantically" | one call per check (paid) |
+| **Reviewer rule** (`content.md`) | judgment calls a human reviewer would make — "mutations must emit audit events", "this handler validates its input semantically" | one reviewer call per pair per fill, times the tier's consensus (paid); a plain `yg check` makes no calls |
 | **Script rule** (`check.mjs`) | mechanical rules — forbidden API calls, naming conventions, import restrictions | runs locally, free, identical every run |
 | **Bundle** (only `implies:`) | attaching several rules as one named group | none of its own — each implied rule is checked as its own kind |
 
@@ -74,6 +74,10 @@ yg log read --aspect no-raw-sql
 Recording a change of status does not make one: you edit `status:` in the rule's
 own file, and the command refuses to record a status the file does not carry, or
 one the rule already had, so the history never shows a promotion that moved nothing.
+Where the rule stood before comes from its own log, else from this checkout's memory
+of it; when neither knows — a rule that never had a status entry, in a fresh
+checkout — the command does not guess, and records the move as from "an unrecorded
+status".
 What justified the move is required, because it is the part nobody can reconstruct
 later. If you move a rule and record nothing, `yg check` says so, and the next
 full fill (`yg check --approve`) writes the bare fact into that rule's log so the change is not lost. The free `--approve --only-deterministic` writes no committed file, so it leaves the warning standing instead.
@@ -158,7 +162,7 @@ The named module is loaded exactly as a sibling `companion.mjs` would be, and it
 
 ## Organizing rules in directories
 
-A rule's id is its folder path under the rules directory, so ids can nest: `logging/audit` lives at `logging/audit/`. A folder with no rule file of its own is just a grouper. Use nesting to keep a growing rule set legible — group related rules under a shared prefix instead of a flat list. Nesting is naming only; it does not make one rule inherit another. What a rule applies to comes from where it's attached (see [How a rule reaches your code](#how-a-rule-reaches-your-code)), never from where its files sit.
+A rule's id is its folder path under the rules directory, so ids can nest: `logging/audit` lives at `logging/audit/`. A folder with no rule file of its own is just a grouper. Three names are reserved and never read as rules: `packages/` directly under the rules directory (installed packages live there), a `drills/` folder inside a rule's own folder (its drill corpus), and any folder whose name starts with a dot. Use nesting to keep a growing rule set legible — group related rules under a shared prefix instead of a flat list. Nesting is naming only; it does not make one rule inherit another. What a rule applies to comes from where it's attached (see [How a rule reaches your code](#how-a-rule-reaches-your-code)), never from where its files sit.
 
 ## Positive and negative rules
 

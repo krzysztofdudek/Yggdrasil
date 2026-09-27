@@ -8,7 +8,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
-import { aspectNotFound, fail, paint, writeOut, failAndExit } from './output.js';
+import { aspectNotFound, nodeNotFound, fail, paint, writeOut, failAndExit } from './output.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -650,6 +650,14 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       why: 'The replay horizon is the set of commits sharing this graph\'s schema; without a current version there is nothing to compare a commit\'s schema against.',
       next: 'Ensure .yggdrasil/yg-config.yaml has a `version:` field, then re-run.',
     }, 'command-error');
+    return 1;
+  }
+
+  // A --node that names no node in the graph is a precondition failure, like a
+  // candidate that names no rule: replaying it would report every commit as
+  // non-comparable and exit 0, so a typo read as a finished report.
+  if (target.kind === 'node' && !graph.nodes.has(target.nodePath)) {
+    fail(nodeNotFound(target.nodePath, 'simulate replays the candidate over the files of an existing node, so the --node path must name one — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
     return 1;
   }
 

@@ -95,7 +95,7 @@ export type { InfraDiagnosticItem };
  * `kind` controls the summary tokens injected into the grouped `what:`:
  *   'det'                → check-failed-to-run token
  *   'companion'          → aspect-companion-runtime-error token
- *   'malformed-suppress' → malformed-suppress-marker token (NOT a check fault)
+ *   'malformed-suppress' → suppress-marker-invalid token (NOT a check fault)
  *   'pool-infra'         → generic unverified summary
  */
 export function emitGroupedDiagnostics(
@@ -138,7 +138,7 @@ export function emitGroupedDiagnostics(
       } else if (kind === 'companion') {
         what = `Companion resolution for '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-companion-runtime-error): ${listed}${overflow}`;
       } else if (kind === 'malformed-suppress') {
-        what = `A malformed yg-suppress marker left aspect '${aspectId}' unverified on ${unitKeys.length} units (malformed-suppress-marker): ${listed}${overflow}`;
+        what = `A malformed yg-suppress marker left aspect '${aspectId}' unverified on ${unitKeys.length} units (suppress-marker-invalid): ${listed}${overflow}`;
       } else {
         what = `Reviewer could not verify aspect '${aspectId}' on ${unitKeys.length} units — left unverified: ${listed}${overflow}`;
       }
@@ -257,7 +257,7 @@ export function reportFillTotals(
   }
   if (totals.malformedSuppressErrors > 0) {
     emitIssue({
-      what: `${totals.malformedSuppressErrors} ${totals.malformedSuppressErrors === 1 ? 'pair' : 'pairs'} left unverified by a malformed yg-suppress marker (malformed-suppress-marker).`,
+      what: `${totals.malformedSuppressErrors} ${totals.malformedSuppressErrors === 1 ? 'pair' : 'pairs'} left unverified by a malformed yg-suppress marker (suppress-marker-invalid).`,
       why: 'A yg-suppress marker in a mapped source file is missing its required reason. This is a fault in the marker itself, not in the aspect being checked; no verdict was written.',
       next: `Add a reason to the marker (or remove it), then re-run ${retry}.`,
     });

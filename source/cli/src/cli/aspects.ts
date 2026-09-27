@@ -1244,7 +1244,7 @@ export function registerAspectsCommand(program: Command): void {
             what: '--reach needs --json.',
             why: 'Reach is an enumeration of every unit each rule judges — hundreds of lines on a real graph, and machine input by nature. The listing answers the same question at the resolution a person reads it at: how many places each rule reaches, split by the channel it arrived through.',
             next: 'Run: yg aspects --json --reach (the enumeration), or yg aspects (the listing with the counts).',
-          }, 'command-error');
+          }, 'usage');
         }
         if (options.json === true && options.health === true) {
           // Its own document, never folded into yg-aspects/1: the inventory keeps

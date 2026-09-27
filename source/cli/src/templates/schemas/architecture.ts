@@ -12,6 +12,12 @@ export const content = `# yg-architecture.yaml — Schema for architecture const
 # a one-entry list). Any other key fails the file (architecture-invalid) naming
 # the key it is probably a typo of — a misspelled key used to be ignored,
 # dropping the type system or the constraint it stated.
+#
+# An error in the type system itself — architecture-invalid, architecture-cycle,
+# type-unknown-parent, type-name-reserved, when-predicate-invalid,
+# enforce-strict-without-when — stops yg check before any node is validated:
+# every per-node finding (mapping, relations, flows, ports, the strict scan)
+# stays hidden until it is fixed.
 
 node_types:
   service:                                   # the type's name — what a node's type: names
@@ -65,7 +71,7 @@ node_types:
 
     aspects:                                 # optional — aspects automatically applied to every
                                              # node of this type (channel 3). Two forms per entry:
-      - audit-logging                        #   bare string — unconditional
+      - audit-logging                        #   bare string — no attach-site filter (the aspect's own when: still applies)
       - id: pii-encryption                   #   object form — with per-site applicability filter
         status: enforced                     #   optional — explicit status override (channel 3).
                                              #   Must satisfy bump rule (bump up OK, downgrade is validator error).

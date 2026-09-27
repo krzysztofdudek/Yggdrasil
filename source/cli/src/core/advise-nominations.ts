@@ -1094,7 +1094,7 @@ export function buildAttention(sources: AttentionSources): string[] {
   }
   if (sources.tunnelCount > 0) {
     lines.push(
-      `${sources.tunnelCount} dependencies jump across distant parts of the architecture — run yg structure to see them`,
+      `${count(sources.tunnelCount, 'dependency', 'dependencies')} ${sources.tunnelCount === 1 ? 'jumps' : 'jump'} across distant parts of the architecture — run yg structure to see them`,
     );
   }
   if (sources.deviationCount > 0) {

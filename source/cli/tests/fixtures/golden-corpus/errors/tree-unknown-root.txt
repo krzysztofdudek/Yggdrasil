@@ -2,6 +2,6 @@ $ yg tree --root nope
 exit: 1
 --- stdout
 --- stderr
-error[node-not-found]: Node 'nope' not found.
-  why:  The --root path must be a valid node path in the graph.
-next: yg tree (no --root) to list all nodes, then pick a valid path.
+error[node-not-found]: node 'nope' is not in the graph
+  why:  The --root path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.
+next: yg find "nope"

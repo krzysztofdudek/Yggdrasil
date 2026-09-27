@@ -95,10 +95,12 @@ small step, once:
 - **Roo Code** — reported to have shut down, so this is here for anyone still
   running an older install. `yg init` deletes the rules file the retired
   installer wrote at `.roo/rules/yggdrasil.md`.
-- **Gemini CLI** — retired as a standalone tool as far as we can tell, so this
-  is likewise here for anyone still running it. `yg init` removes the import
-  line the retired installer added to `GEMINI.md` (and the file itself, if
-  that line was all it held).
+- **Gemini CLI** — reads its own `GEMINI.md`; we have no confirmation that it
+  reads `AGENTS.md` natively. (It is a supported reviewer provider,
+  `gemini-cli` — see [Reviewers](/reviewers); this entry is only about how it
+  picks up the agent rules.) `yg init` removes the import line the retired
+  installer added to `GEMINI.md` (and the file itself, if that line was all it
+  held).
 
 For any of these, point the agent at `AGENTS.md` by hand — for the last two,
 in whichever file that agent reads — or have it run `yg prime` directly. Both

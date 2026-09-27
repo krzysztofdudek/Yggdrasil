@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { registerHelpCommand } from '../../../src/cli/help.js';
+import { registerHelpCommand, withoutHelpOnUnknownCommand } from '../../../src/cli/help.js';
 import { setJsonOutput } from '../../../src/cli/output.js';
 
 function program(): Command {
@@ -81,5 +81,26 @@ describe('usage errors from the argument parser', () => {
     const text = err.mock.calls.map((c) => String(c[0])).join('');
     expect(text).toMatch(/^error\[usage\]: unknown command 'nope'/);
     expect(text).toContain('next: yg --help');
+  });
+
+  it('name a mistyped command even when --help follows it, instead of printing the root help', () => {
+    const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    setJsonOutput(false);
+    const p = program();
+    expect(() => p.parse(withoutHelpOnUnknownCommand(['chek', '--help'], p), { from: 'user' })).toThrow();
+    const text = err.mock.calls.map((c) => String(c[0])).join('');
+    expect(text).toMatch(/^error\[usage\]: unknown command 'chek'/);
+    expect(text).toContain('next: yg --help');
+    expect(out).not.toHaveBeenCalled();
+  });
+
+  it('leave the help flag alone for a known command, the help command, the bare root and after --', () => {
+    const p = program();
+    expect(withoutHelpOnUnknownCommand(['check', '--help'], p)).toEqual(['check', '--help']);
+    expect(withoutHelpOnUnknownCommand(['help', 'check'], p)).toEqual(['help', 'check']);
+    expect(withoutHelpOnUnknownCommand(['--help'], p)).toEqual(['--help']);
+    expect(withoutHelpOnUnknownCommand(['-h', 'nope'], p)).toEqual(['nope']);
+    expect(withoutHelpOnUnknownCommand(['nope', '--', '--help'], p)).toEqual(['nope', '--', '--help']);
   });
 });

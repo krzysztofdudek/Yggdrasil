@@ -54,3 +54,5 @@ The installed agent-rules digest changed wording to match the Glossary (the revi
 The starter architecture comment names root as the parents entry that allows the top level, so a new project learns the rule where it declares parents.
 ## [2026-09-27T19:32:15.098Z]
 A new project's configuration starts with type-law ratification on, with a comment saying what it does, so a fresh graph never needs the one-time upgrade that records existing law and never has law on a type nobody admitted.
+## [2026-09-27T22:19:16.610Z]
+The glossary's type-covered, port, relation and line-scoped waiver entries say what the code does: a strict match is never type-covered, the implicit default port carries rules too, a declared relation needs no code, and a marker may name several rules or all of them.

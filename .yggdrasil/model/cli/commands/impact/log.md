@@ -112,3 +112,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 The impact report for a component now names every flow it is in, including a flow an ancestor of it was declared in. A flow covers its declared participants and all their descendants, which is how its rules reach them and how the context report lists them; the impact report matched only the declared list, so a descendant read as in no flow while its rules came from one.
 ## [2026-09-27T21:04:48.310Z]
 A --file path outside the repository ended on a next that restated the finding (pass a path inside the project root) instead of a step to run. It now names the command to run again with a path inside the repository, in the same words the owner command already uses for the same mistake, so an agent reading either answer gets one runnable instruction.
+## [2026-09-27T22:19:06.246Z]
+--json with --aspect, --flow or --type is a refused flag combination, reported as usage like every other one; the file view's type-covered note agrees its verb with its count.

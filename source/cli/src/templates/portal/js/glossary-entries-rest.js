@@ -30,7 +30,7 @@
       id: 'type-covered',
       term: 'type-covered file',
       group: 'Coverage',
-      def: 'A file no node owns that exactly one classifying type claims. That type’s `per: file` rules enforce it.',
+      def: 'A file no node owns that exactly one non-strict classifying type claims, and no strict type does. That type’s `per: file` rules enforce it.',
       not: 'type-level lattice, type tier, component-free file',
       see: '/configuration#coverage-config',
     },
@@ -87,8 +87,7 @@
       id: 'waiver',
       term: 'line-scoped waiver',
       group: 'The lock and waivers',
-      def: 'A `yg-suppress` marker with a reason. It waives one rule on the lines it covers — a single line, a bracketed range or the whole file — and needs the user’s sign-off.',
-      not: 'file-level waiver',
+      def: 'A `yg-suppress` marker with a reason. It waives the rules it names — one, a comma-separated list, or every rule with `*` — on the lines it covers: a single line, a bracketed range, or the whole file (the kind `yg suppressions` lists as `file-level`). It needs the user’s sign-off.',
       see: '/reviewers',
     },
     {

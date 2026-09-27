@@ -118,7 +118,11 @@ Strict enforcement fires these error codes:
   neither can own it unambiguously (resolve by narrowing one type's \`when\`)
 
 They are reported alongside \`unmapped-files\` when applicable — distinct symptoms
-with distinct fixes, no de-duplication.
+with distinct fixes. That changes under \`coverage.type_level\` (on in every
+project a fresh \`yg init\` writes): a file one of these errors (or
+\`ambiguous-node-type\`) already accounts for is dropped from the plain
+\`unmapped-files\`/\`uncovered-advisory\` listing — one issue per file, the
+most-binding one.
 
 ## Pitfalls
 
@@ -162,6 +166,13 @@ to verify that existing files are classified as expected.
 Both node \`mapping:\` entries and architecture \`when.path\` predicates accept
 minimatch glob patterns. \`*\` matches any characters within a single path
 segment (does not cross \`/\`); \`**\` matches across path segments.
+
+The two grammars differ in one way. A mapping entry (and a \`coverage\` root)
+is a glob only when it contains a \`*\`; then full minimatch applies. Without a
+\`*\`, the characters \`?\`, \`[ ]\` and \`{ }\` are literal, so a route file such
+as \`app/[id]/page.tsx\` maps as the exact path it is. \`when.path\` is always
+full minimatch, so \`src/{a,b}.ts\` matches two files there but names one
+literal (and here missing) file in a mapping.
 
 Examples:
 - \`src/db/*Repository.cs\` — owns only files matching \`*Repository.cs\` directly

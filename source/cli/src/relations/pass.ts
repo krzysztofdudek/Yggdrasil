@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 
 import type { Graph } from '../model/graph.js';
-import { parseFile, grammarDigest, newParser } from '../ast/parser.js';
+import { parseFile, grammarDigest, newParser, getParser } from '../ast/parser.js';
 import { relationLanguageForPath, primaryExtensionForLanguage, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
@@ -84,6 +84,12 @@ export interface RelationParseFailure {
   examplePath: string; // repo-rel POSIX path of the first file that failed to parse
   fileCount: number; // number of files of this language that failed to parse
   message: string; // the underlying parseFile error text (e.g. resolveWasm's)
+  /**
+   * Whether the language's grammar loads. False: the grammar itself is missing or
+   * broken (a reinstall restores it). True: the grammar loads, and the parser failed
+   * on the file itself (a scanner trap that survived the retry, or a null tree).
+   */
+  grammarLoaded: boolean;
 }
 
 /**
@@ -443,17 +449,30 @@ async function parseSingle(record: FileRecord, source: FactSource): Promise<Pars
     // as a BLOCKING relation-parse-failed issue; still return null so the pass completes
     // and every OTHER language is analyzed and reported. parseFile creates no tree when
     // it throws, so there is nothing to delete here.
+    // Two different faults end here, and their fixes differ: a grammar that does
+    // not load (reinstall), and a grammar that loads but fails on this one file.
+    // Loading the grammar on its own tells them apart.
     const message = err instanceof Error ? err.message : String(err);
     const prior = source.parseFailuresByLanguage.get(record.language);
     if (prior) {
       prior.fileCount++;
     } else {
-      source.parseFailuresByLanguage.set(record.language, {
+      // Recorded BEFORE the probe awaits: files parse concurrently, and a second
+      // failure of this language arriving meanwhile must find this entry to count.
+      const failure: RelationParseFailure = {
         language: record.language,
         examplePath: record.path,
         fileCount: 1,
         message,
-      });
+        grammarLoaded: false,
+      };
+      source.parseFailuresByLanguage.set(record.language, failure);
+      try {
+        await getParser(primaryExtensionForLanguage(record.language) ?? grammarExtensionForPath(record.path));
+        failure.grammarLoaded = true;
+      } catch {
+        // The grammar itself did not load: grammarLoaded stays false.
+      }
     }
     return null;
   }

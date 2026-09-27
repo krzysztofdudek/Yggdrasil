@@ -31,6 +31,13 @@ export async function parseFlow(flowDir: string, flowYamlPath: string): Promise<
 
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
 
+  if (raw.nodes !== undefined && raw.participants !== undefined) {
+    throw new Error(
+      `yg-flow.yaml at ${flowYamlPath}: declares both 'nodes' and 'participants'. ` +
+        `'participants' is accepted only as an alias for 'nodes' — declaring both would silently ` +
+        `drop one list, and its participants would escape the flow's rules and its reference checks. Keep only one.`,
+    );
+  }
   const nodes = raw.nodes ?? raw.participants;
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new Error(

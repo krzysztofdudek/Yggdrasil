@@ -123,3 +123,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 The ad-hoc files mode passes the rule's own settings to the check, as a drill and the gate do, so a rule parameterized through its settings runs here the way it runs everywhere else.
 ## [2026-09-27T20:03:47.876Z]
 The unsupported-rule message said the rule 'has reviewer' of some kind, which read as if a script rule had a reviewer called deterministic. It now says the rule declares that reviewer type, the config token the Glossary maps to its word.
+## [2026-09-27T22:19:01.921Z]
+--check-determinism on a reviewer rule is refused before any reviewer call: it used to be ignored there and the run went on to a live, billed review nobody asked for. An unknown --node now answers with the same node-not-found error and yg find step as every other command, and --aspect says it is required in --help.

@@ -356,6 +356,29 @@ describe('graph-loader', () => {
     }
   });
 
+  it('loads a rule under a "drills" directory that is not inside a rule directory', async () => {
+    // drills/ is reserved only where yg drill reads a corpus: inside a rule
+    // directory. Skipping it at every depth made aspects/drills/foo silently
+    // not exist, and every node attaching it reported aspect-undefined.
+    const { mkdir, writeFile, rm } = await import('node:fs/promises');
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-graph-drills-grouper');
+    const yggRoot = path.join(tmpDir, '.yggdrasil');
+    const modelDir = path.join(yggRoot, 'model', 'svc');
+    const ruleDir = path.join(yggRoot, 'aspects', 'drills', 'foo');
+    await mkdir(modelDir, { recursive: true });
+    await mkdir(ruleDir, { recursive: true });
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"');
+    await writeFile(path.join(modelDir, 'yg-node.yaml'), 'name: S\ntype: service\n');
+    await writeFile(path.join(ruleDir, 'yg-aspect.yaml'), 'name: Foo\ndescription: a rule under a grouper named drills\n');
+    await writeFile(path.join(ruleDir, 'check.mjs'), 'export function check() { return []; }\n');
+    try {
+      const graph = await loadGraph(tmpDir);
+      expect(graph.aspects.some((a) => a.id === 'drills/foo')).toBe(true);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('tolerateInvalidConfig returns graph with configError when config is invalid', async () => {
     const { mkdir, writeFile, rm } = await import('node:fs/promises');
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-graph-invalid-config');

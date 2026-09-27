@@ -609,8 +609,11 @@ author by definition. The lock is NEVER written.
 # Drill an aspect's in-repo corpus (aspects/<id>/drills/{violates-*,satisfies-*}/**)
 yg drill --aspect no-direct-minimatch
 
-# Run only matching case labels (repo-relative POSIX glob)
+# Run only matching cases (glob over the corpus-relative label, extension stripped)
 yg drill --aspect no-direct-minimatch --case 'violates-*/**'
+
+# One yg-drill/1 document instead of the case lines
+yg drill --aspect no-direct-minimatch --json
 
 # Drill against an EXTERNAL holdout corpus (data only — case files, never imported)
 yg drill --aspect no-direct-minimatch --dir ../holdout-cases --corpus holdout-v1
@@ -623,7 +626,11 @@ yg drill --aspect has-doc-comment --dir .yggdrasil/aspects/has-doc-comment/drill
 
 Corpus layout: each source file under a \`violates-*\` / \`satisfies-*\`
 directory is one case; its label is the file's corpus-relative POSIX path with
-the extension stripped (e.g. \`violates-namespace-import/star-minimatch\`).
+the extension stripped (e.g. \`violates-namespace-import/star-minimatch\`), and
+\`--case\` matches that label. A Markdown file (\`.md\`) and a file named
+\`yg-aspect.yaml\` are never cases: Markdown beside the cases is their
+documentation, so a rule over Markdown sources cannot be drilled, and
+\`yg drill add\` refuses such a file up front.
 
 Each case resolves to one of five outcomes:
 
@@ -715,7 +722,8 @@ silent zero:
 - \`violations (N)\` — the candidate refused N of that commit's files.
 - \`non-comparable\` — the commit could not be honestly compared: it PRE-DATES
   \`yg init\` (no graph of its own), or its committed graph schema differs from the
-  current one (it would need a migration this replay never performs). Reported
+  current one (it would need a migration this replay never performs), or the
+  replayed node or file does not exist at that commit. Reported
   explicitly, so a commit the replay could not reach never reads as a clean pass.
 
 It writes nothing to your repository, but it RUNS the candidate's \`check.mjs\`
@@ -752,7 +760,7 @@ yg impact --type service               # all nodes of this type + coverage
 
 For \`--node\`, the output ends with a one-line cost summary (\`Editing this node
 re-verifies: N reviewer pairs = M reviewer calls (consensus included); D
-deterministic = free; G currently-green verdicts re-rolled\`). For \`--file\`, it ends with a precise
+script = free; G currently-green verdicts re-rolled\`). For \`--file\`, it ends with a precise
 \`Total to re-verify:\` block -- billed reviewer calls, free script pairs,
 and currently-green verdicts re-rolled -- preceded by a per-node breakdown tagged
 with why each node is affected (own pairs / references this file / companion
@@ -810,7 +818,9 @@ Both views carry the same facts from the same document: the component's \`path\`
 and its name, type and description; the files it owns (\`mapping\`); the
 components it declares a dependency on (\`relations\`, each with its \`target\`,
 its \`type\`, the ports it \`consumes\` and, on the event relation types, the
-\`event_name\` it names); the ports it publishes (\`ports\`, each with its
+\`event_name\` it names; \`consumes\` is the field \`yg-node.yaml\` now spells
+\`portNames\`, and \`yg-node/1\` keeps the older name on purpose so the contract
+does not change); the ports it publishes (\`ports\`, each with its
 \`description\` and the \`aspects\` a consumer of that port must satisfy); and
 where it sits in the hierarchy (\`children\`, \`parent\`).
 
@@ -834,6 +844,8 @@ Browse the graph structure.
 yg tree                        # every node, flat: full path [type] — description, parents first
 yg tree --root orders          # subtree from orders/
 yg tree --depth 2              # limit depth
+yg tree --long                 # whole descriptions instead of their first sentence
+yg tree --json                 # one yg-tree/1 document (whole descriptions)
 \`\`\`
 
 With \`coverage.type_level\` on, a summary line follows the node listing naming
@@ -911,8 +923,8 @@ the graph\` and \`next: yg aspects\`, exit 1 — only the \`why:\` differs, sayi
 that command needed the rule for. Under \`--json\` the \`yg-error/1\` document
 carries the same code.
 
-\`--health\` prints one row per aspect: **aspect** (id), **kind** (llm /
-deterministic / aggregate), **status**, **nodes** and **pairs** (the review
+\`--health\` prints one row per aspect: **aspect** (id), **kind** (reviewer rule /
+script rule / bundle; \`llm\` / \`deterministic\` / \`aggregate\` under \`--json\`), **status**, **nodes** and **pairs** (the review
 surface — distinct nodes and total review units), **refused** (refusals whose
 recorded result still matches the current code — a stale or never-checked unit is
 excluded here), **suppresses** (live \`yg-suppress\` markers targeting this aspect;
@@ -925,7 +937,7 @@ actually refused a unit, against how many times a reviewer genuinely exercised i
 a cached re-render never counts, and reviewer rules and script rules are counted separately
 because their false-alarm behaviours differ), plus a plain-words read of how
 confident that ratio is (few observations reads as a wide, honest uncertainty
-range rather than a false-precise number), and a **label**: \`active\` (it is
+range rather than a false-precise number), and a **signal**: \`active\` (it is
 catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable yet
 never violated). A \`decorative?\` rule whose own examples still pass is reported as
 *possibly deterring the very violations it would catch* rather than assumed
@@ -1106,6 +1118,7 @@ Locate entry-point nodes/aspects/type-covered files by natural-language query.
 \`\`\`bash
 yg find "order cancellation"
 yg find "authentication middleware"
+yg find "order cancellation" --json   # one yg-find/1 document
 \`\`\`
 
 Returns ranked candidates. Scores are RELATIVE — the top result is always
@@ -1146,7 +1159,7 @@ yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
 yg log read --node orders/handler --json       # one yg-log/1 document (with --with-verdicts: plus verdictEvents)
 yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
-yg log merge-resolve --node orders/handler --ours <ref> --theirs <ref>   # a merge that left no merge commit
+yg log merge-resolve --node orders/handler --ours <ref> --theirs <ref> [--base <ref>]  # a merge that left no merge commit: name its two sides
 yg log add --type handler --reason "Handlers validate input at the boundary, never in the service." --adds
 yg log read --type handler                     # the decisions in force, newest first
 yg log read --type handler --all               # replaced decisions too, marked
@@ -1248,7 +1261,8 @@ yg advise --json     # the same feed as one machine-readable document
   advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
   never once caught a violation, and flagging an **unguarded hot spot**
   (\`unguarded-hot-spot\`): a component
-  whose files change often across recent commits yet no rule beyond drafts guards
+  whose files at least one of the last 200 commits touched (the creating commit
+  counts, so a new component qualifies) yet no rule beyond drafts guards
   them — the code most in motion with the least protection. A hot spot cites its churn count, a
   short sample of the changed files, and the commit window as its evidence, and clears
   itself the moment a rule starts guarding it or the churn ages out of the
@@ -1427,10 +1441,12 @@ and their datetimes are strictly ascending. There is **no content hash baseline*
 the ledger must never be able to break CI, so the only integrity signal is a **non-blocking
 \`yg check\` warning** when the datetimes are out of order (the signature of a hand-edit or
 a reordering merge). An absent ledger is tolerated — no file, no warning. \`yg incident\`
-never touches the lock and exits 0 (a rejected tag or a loader error is the only non-zero).
+never touches the lock and exits 0; it exits 1 on a refused entry (an unknown
+\`--tag\`, a missing \`--reason\`, an \`--aspect\` the graph does not declare) or a
+graph that does not load.
 
 \`yg advise\` surfaces the ledger as a one-line reality counter in its Attention section —
-\`N incidents on record …\`, shown even at 0 so the tower stays aware it has an outside
+\`N incidents on record …\` (\`no incidents on record …\` at 0), shown even then so the tower stays aware it has an outside
 reference at all — and, when any incident is tagged \`wrong-rule\`, an aggregate line noting
 that the rules themselves may be miscalibrated.
 
@@ -1438,8 +1454,8 @@ that the rules themselves may be miscalibrated.
 
 Read-only inventory of all active \`yg-suppress\` markers in the repository's
 source files. Lists each marker's aspect path, location, reason, and kind
-(single-line, bracket, wildcard, or **file-level**). Exits 0 always — it is a
-read-only inspection tool.
+(\`single\`, \`disable\`, \`enable\`, or **\`file-level\`**, plus whether it is
+a \`*\` wildcard). Exits 0 always — it is a read-only inspection tool.
 
 \`\`\`bash
 yg suppressions
@@ -1451,12 +1467,13 @@ Emits non-blocking warnings for:
 - **Wildcard suppress** (\`*\`) — suppresses all aspects in range; any aspect added later is also silently waived.
 - **Unbounded range** — a \`yg-suppress-disable\` marker with no matching \`yg-suppress-enable\`, placed below the file head; usually a forgotten closing \`yg-suppress-enable\`, so the suppression runs to end of file by accident.
 - **Waiver on an under-approximating check** (\`waives-under\`) — the marker targets a rule declared \`errs: under\`, which by construction fires only on a provable violation and cannot false-positive. There is nothing about it to waive, so either the \`errs\` label is wrong or the flagged code deserves a second look.
+- **No reason** (\`missing-reason\`) — the marker carries no reason, so it waives nothing.
 
 \`--json\` emits one \`yg-suppressions/1\` document on stdout instead of the text
 listing: \`schema\`, \`markers[]\` (each with \`aspect\`, \`file\`, \`line\`,
 \`kind\`, \`wildcard\`, \`reason\` and \`range\`), \`warnings[]\` (each with a stable
-\`code\` — \`unknown-aspect\`, \`wildcard\`, \`unbounded-range\` or
-\`waives-under\` — plus \`file\`, \`line\`, \`aspect\` and the same rendered
+\`code\` — \`unknown-aspect\`, \`wildcard\`, \`unbounded-range\`,
+\`waives-under\` or \`missing-reason\` — plus \`file\`, \`line\`, \`aspect\` and the same rendered
 \`message\` the text form prints), and \`totals\` (\`markers\`, \`files\`,
 \`fileLevel\`). The same non-blocking warnings apply; they are fields here rather
 than lines. It is a registered cross-repo family contract (Horde's \`land\`

@@ -109,7 +109,7 @@ const COMMANDS: Record<string, CommandHelp> = {
   simulate: {
     group: 'Rules',
     summary: 'Replay history against a rule change',
-    examples: [['yg simulate .yggdrasil/aspects/no-todo', 'what the rule would have caught']],
+    examples: [['yg simulate no-todo --node orders', 'what the rule would have caught on one node']],
   },
   suppressions: {
     group: 'Rules',
@@ -124,11 +124,11 @@ const COMMANDS: Record<string, CommandHelp> = {
   incident: {
     group: 'Rules',
     summary: 'Record a rule that missed, or blocked wrongly',
-    examples: [['yg incident list', 'the ledger']],
+    examples: [['yg incident read', 'the ledger']],
   },
   'type-suggest': {
     group: 'Rules',
-    summary: 'Design an architecture type for a file',
+    summary: 'Which architecture type a file fits',
     examples: [['yg type-suggest --file src/a.ts', 'which type it fits']],
   },
   init: {
@@ -308,4 +308,24 @@ export function withoutColourFlags(argv: readonly string[]): string[] {
   const head = at < 0 ? argv : argv.slice(0, at);
   const tail = at < 0 ? [] : argv.slice(at);
   return [...head.filter((a) => !/^--(?:no-colou?rs?|colou?rs?(?:=(?:auto|always|never|true|false))?)$/.test(a)), ...tail];
+}
+
+/**
+ * The command line without its help flags when the command it names does not
+ * exist. The parser answers a help flag before it looks the command up, so
+ * `yg chek --help` printed the root help and exited 0: the typo read as a
+ * finished request. With the flag dropped, the parser reports the unknown
+ * command as it does without one — `error[usage]`, the nearest command, exit 1.
+ * The root takes no option with a value, so the first word that is not a flag
+ * is the command. Anything after `--` is kept.
+ */
+export function withoutHelpOnUnknownCommand(argv: readonly string[], program: Command): string[] {
+  const at = argv.indexOf('--');
+  const head = at < 0 ? argv : argv.slice(0, at);
+  const name = head.find((a) => !a.startsWith('-'));
+  if (name === undefined) return [...argv];
+  const known = name === 'help' || program.commands.some((c) => c.name() === name || c.aliases().includes(name));
+  if (known) return [...argv];
+  const tail = at < 0 ? [] : argv.slice(at);
+  return [...head.filter((a) => a !== '--help' && a !== '-h'), ...tail];
 }

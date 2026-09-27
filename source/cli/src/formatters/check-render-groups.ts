@@ -160,19 +160,36 @@ function sharedSubject(template: string, nodes: number): string {
   return `${count(nodes, 'node')}: ${said.charAt(0).toLowerCase()}${said.slice(1)}`;
 }
 
-/** The distinct units a block's members name, and how many are nodes and how many files. */
-function unitCounts(members: CheckIssue[]): { nodes: number; files: number } {
-  const nodes = new Set(members.filter((m) => m.nodePath !== undefined).map((m) => m.nodePath));
+/**
+ * The findings about a rule rather than a component. They are keyed on the
+ * rule's own directory (`aspects/<id>`) where a node path would be, so a block
+ * of them is counted in rules, never in nodes.
+ */
+const RULE_SUBJECT_CODES: ReadonlySet<string> = new Set([
+  'orphaned-aspect',
+  'aspect-effective-nowhere',
+  'architecture-default-aspect-unreachable',
+  'aspect-review-overdue',
+]);
+
+function isRuleSubject(m: CheckIssue): boolean {
+  return m.nodePath !== undefined && m.nodePath.startsWith('aspects/') && RULE_SUBJECT_CODES.has(baseCodeOfOutsideTwin(m.code) ?? m.code);
+}
+
+/** The distinct units a block's members name, and how many are nodes, files and rules. */
+function unitCounts(members: CheckIssue[]): { nodes: number; files: number; rules: number } {
+  const rules = new Set(members.filter(isRuleSubject).map((m) => m.nodePath));
+  const nodes = new Set(members.filter((m) => m.nodePath !== undefined && !isRuleSubject(m)).map((m) => m.nodePath));
   const files = new Set(members.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:')).map((m) => m.unitKey));
-  return { nodes: nodes.size, files: files.size };
+  return { nodes: nodes.size, files: files.size, rules: rules.size };
 }
 
 /** `in 3 nodes`, `in 2 nodes and 1 file`, or `on app/svc-05` for one unit. */
 function whereWords(members: CheckIssue[], preposition = 'in'): string {
   const units = [...new Set(members.map(unitOf).filter((u) => u !== ''))];
   if (units.length === 1) return `${preposition} ${units[0]}`;
-  const { nodes, files } = unitCounts(members);
-  const parts = [nodes > 0 ? count(nodes, 'node') : '', files > 0 ? count(files, 'file') : ''].filter((p) => p !== '');
+  const { nodes, files, rules } = unitCounts(members);
+  const parts = [nodes > 0 ? count(nodes, 'node') : '', files > 0 ? count(files, 'file') : '', rules > 0 ? count(rules, 'rule') : ''].filter((p) => p !== '');
   return parts.length > 0 ? `${preposition} ${parts.join(' and ')}` : '';
 }
 

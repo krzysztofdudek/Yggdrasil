@@ -19,6 +19,7 @@ import { runVersionUpgrade as coreRunVersionUpgrade } from '../core/migrator-run
 import { abortOnUnexpectedError, abortUnlessYggdrasilExists } from './preamble.js';
 import { MIGRATIONS } from '../migrations/index.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
+import { block } from '../formatters/output-grammar.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_DIR } from '../utils/rules-artifact-names.js';
 import {
@@ -88,11 +89,13 @@ function ensureKnownProvider(provider: string): asserts provider is ReviewerProv
  */
 function noticeDeprecatedPlatform(platform: string | undefined): void {
   if (!platform) return;
-  writeOut(paint.yellow(`${buildIssueMessage({
+  // A note, not an error: the run goes on, so its remedy is a fix: field and
+  // the output's one next: line stays the last one.
+  writeOut(paint.yellow(`${block({
     what: `--platform ${platform} is deprecated and was ignored.`,
     why: 'Rules are now installed universally for every agent at once (AGENTS.md digest + CLAUDE.md import + .clinerules) — there is no per-platform choice.',
     next: 'Drop --platform from this invocation; everything else works unchanged.',
-  })}\n`));
+  }, 'note')}\n`));
 }
 
 // ---------------------------------------------------------------------------
@@ -165,13 +168,15 @@ function freshRulesArtifacts(flags: RulesArtifactFlags): RulesArtifactsConfig {
 async function existingRulesArtifacts(
   yggRoot: string,
   flags: RulesArtifactFlags,
-): Promise<RulesArtifactsConfig> {
+): Promise<{ artifacts: RulesArtifactsConfig; recorded: boolean }> {
   const committed = await readRulesArtifactsConfig(yggRoot);
   const effective = normalizeRulesArtifacts({ ...committed, ...flagDisables(flags) });
   const changed = (Object.keys(effective) as Array<keyof RulesArtifactsConfig>)
     .some((k) => effective[k] !== committed[k]);
   if (changed) await writeRulesArtifactsConfig(yggRoot, effective);
-  return effective;
+  // `recorded`: this run wrote the choice into yg-config.yaml, a change the
+  // summary must name rather than report "nothing changed" over.
+  return { artifacts: effective, recorded: changed };
 }
 
 /**
@@ -212,6 +217,8 @@ function renderArtifactSummary(
   report: Pick<InstallReport, 'written' | 'removed'> & Partial<Pick<InstallReport, 'skipped' | 'leftover'>> & {
     /** Lines this run appended to the git housekeeping files it maintains, per file. */
     housekeeping?: HousekeepingTopUp[];
+    /** True when this run wrote the rules_artifacts choice into yg-config.yaml. */
+    configRecorded?: boolean;
   },
 ): string {
   const lines: string[] = [];
@@ -224,9 +231,13 @@ function renderArtifactSummary(
   const topUps = (report.housekeeping ?? []).filter((h) => h.added.length > 0);
   if (lines.length === 0) {
     // "nothing changed" is said only when it is true: a run that appended a
-    // line to .yggdrasil/.gitignore or .gitattributes changed a file the user
-    // will see in git diff, and must say which.
-    lines.push(topUps.length === 0 ? 'Agent rules already up to date — nothing changed.' : 'Agent rules already up to date.');
+    // line to .yggdrasil/.gitignore or .gitattributes, or recorded an
+    // artifact choice in yg-config.yaml, changed a file the user will see in
+    // git diff, and must say which.
+    lines.push(topUps.length === 0 && report.configRecorded !== true ? 'Agent rules already up to date — nothing changed.' : 'Agent rules already up to date.');
+  }
+  if (report.configRecorded === true) {
+    lines.push('Recorded in .yggdrasil/yg-config.yaml: rules_artifacts');
   }
   for (const h of topUps) {
     lines.push(`Added to ${h.file}: ${h.added.join(', ')}`);
@@ -1031,10 +1042,11 @@ export function registerInitCommand(program: Command): void {
           // config BEFORE the upgrade installs anything, so `--upgrade
           // --no-clinerules` is a durable choice rather than a one-run effect
           // the next upgrade would undo.
+          const upgradeArtifacts = await existingRulesArtifacts(yggRoot, options);
           const result = await runVersionUpgrade(
             projectRoot,
             yggRoot,
-            await existingRulesArtifacts(yggRoot, options),
+            upgradeArtifacts.artifacts,
           );
 
           // A migration that WITHHELD the version bump (bumpVersion: false)
@@ -1057,14 +1069,14 @@ export function registerInitCommand(program: Command): void {
             writeOut(
               paint.yellow(
                 result.migrationWarnings
-                  .map((w) => buildIssueMessage({ what: `warning: ${w}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }))
+                  .map((w) => block({ what: w, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }, 'warning'))
                   .join('\n') + '\n',
               ),
             );
           }
 
           writeOut(
-            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })}\n`,
+            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping, configRecorded: upgradeArtifacts.recorded })}\n`,
           );
           // An upgrading project that requires its whole tree gets these files
           // as new blocking errors on its very next check. Say so here, where
@@ -1133,9 +1145,9 @@ export function registerInitCommand(program: Command): void {
           // do".
           const artifactOptOut = hasArtifactFlags(options);
           if (artifactOptOut) {
-            const artifacts = await existingRulesArtifacts(yggRoot, options);
+            const { artifacts, recorded } = await existingRulesArtifacts(yggRoot, options);
             const report = await installRules(projectRoot, cliVersion(), artifacts);
-            writeOut(paint.green(`${renderArtifactSummary(report)}\n`));
+            writeOut(paint.green(`${renderArtifactSummary({ ...report, configRecorded: recorded })}\n`));
           }
 
           // --platform alone must NOT change whether the interactive menu

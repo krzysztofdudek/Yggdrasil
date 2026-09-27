@@ -412,7 +412,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'no-todo-comments', '--node', 'does/not/exist'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("Node 'does/not/exist' not found.");
+      expect(all).toContain('error[node-not-found]');
+      expect(all).toContain("'does/not/exist'");
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

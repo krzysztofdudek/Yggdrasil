@@ -979,6 +979,17 @@ describe('aspect-test command behavior (mocked runners)', () => {
     expect(stderr).toContain('--repeat cannot be combined with --dry-run');
   });
 
+  it('--check-determinism is rejected for a reviewer rule before any reviewer call, exit 1', async () => {
+    // It used to be ignored on this path, and the run went on to a live, billed review.
+    stageLlmOnePair();
+    const probe = seqProvider([{ satisfied: true, reason: 'ok', errorSource: 'codeViolation' }]);
+    mockCreateLlmProvider.mockReturnValue(probe.provider);
+    await runCommand(['--aspect', 'llm-a', '--node', 'N', '--check-determinism']);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--check-determinism is not supported for reviewer rule 'llm-a'");
+    expect(probe.calls()).toBe(0);
+  });
+
   it('--repeat is rejected with --files, exit 1', async () => {
     stageLlmOnePair();
     await runCommand(['--aspect', 'llm-a', '--files', 'src/a.ts', '--repeat', '3']);

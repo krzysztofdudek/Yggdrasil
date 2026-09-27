@@ -194,7 +194,7 @@ If you measure changes against a branch, add `--full` to the leg that runs on th
 
 ## Works with
 
-Any agent that reads `AGENTS.md`: Claude Code, Cursor, Copilot, Codex, Cline, OpenCode, Amp, Zed and others. `yg init` writes one universal rule set, so there is no platform to pick.
+Any agent that reads `AGENTS.md` — Cursor, Copilot, Codex, OpenCode, Amp, Zed and others — plus Claude Code, through a one-line `@AGENTS.md` import in `CLAUDE.md`, and Cline, through `.clinerules/yggdrasil.md`. `yg init` writes one universal rule set and both of those, so there is no platform to pick.
 
 Reviewer providers: Anthropic, OpenAI, Google, OpenAI compatible, Ollama locally, or delegation to an installed agent CLI with no API key at all.
 

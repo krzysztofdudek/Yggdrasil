@@ -64,3 +64,5 @@ An adaptation that sets only reviewer.tier or only scope.files over a package ru
 The load error for a rule directory with no content.md, no check.mjs and no implies: is now aspect-rule-source-missing instead of aspect-reviewer-missing. The old name pointed readers at a reviewer: block, which such a rule does not need; what is missing is a rule source. The registry records the old name so the JSON finding keeps it in aliases for consumers that matched it.
 ## [2026-09-27T21:43:00.144Z]
 The rename of the missing-rule-source code arrived beside the previous batch's refusal of a companion key where no companion can run; both are kept, each refusal under its own code.
+## [2026-09-27T22:19:14.461Z]
+A config key on the repository's own rule is refused with a message that says only package rules have configuration keys, instead of naming a package called "(this repository)". The errs refusal points at yg schemas read aspect rather than a file only this repository has.

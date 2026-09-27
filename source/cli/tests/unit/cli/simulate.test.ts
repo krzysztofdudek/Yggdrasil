@@ -212,6 +212,38 @@ describe('yg simulate — path-traversal containment (security regression guard)
     }
   });
 
+  it('runSimulation REJECTS a --node that names no node, before any clone', async () => {
+    // Replaying a node the graph does not have reported every commit as
+    // non-comparable and exited 0, so a typo read as a finished report.
+    const project = mkTmp('ghost-node');
+    mkdirSync(path.join(project, '.yggdrasil', 'model'), { recursive: true });
+    writeFileSync(path.join(project, '.yggdrasil', 'yg-config.yaml'), 'version: "6.0.0"\n', 'utf-8');
+    writeFileSync(path.join(project, '.yggdrasil', 'yg-architecture.yaml'), 'node_types:\n  service:\n    description: s\n', 'utf-8');
+    const ruleDir = path.join(project, '.yggdrasil', 'aspects', 'no-console');
+    mkdirSync(ruleDir, { recursive: true });
+    writeFileSync(path.join(ruleDir, 'yg-aspect.yaml'), 'name: No console\ndescription: d\n', 'utf-8');
+    writeFileSync(path.join(ruleDir, 'check.mjs'), 'export function check(ctx) { return []; }\n', 'utf-8');
+    const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const emitted: string[] = [];
+    try {
+      const code = await runSimulation({
+        candidateId: 'no-console',
+        target: { kind: 'node', nodePath: 'ghost' },
+        maxCommits: 5,
+        cwd: project,
+        binPath: path.join(project, 'no-such-bin.js'),
+        emit: (s) => emitted.push(s),
+      });
+      expect(code).toBe(1);
+      expect(emitted.join('')).toBe('');
+      const stderr = errSpy.mock.calls.map((c) => String(c[0])).join('');
+      expect(stderr).toContain("node 'ghost' is not in the graph");
+    } finally {
+      errSpy.mockRestore();
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+
   it('runSimulation REJECTS a traversing --file path before any clone', async () => {
     const project = mkTmp('trav-file');
     mkdirSync(path.join(project, '.yggdrasil', 'model'), { recursive: true });

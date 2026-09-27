@@ -291,7 +291,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain("'missing/node' not found");
+    expect(stderr).toContain("node 'missing/node' is not in the graph");
   });
 
   it('--node renders file violations as <file>:<line>  <message>', () => {

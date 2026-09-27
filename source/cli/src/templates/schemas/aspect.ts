@@ -246,10 +246,9 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # material in front of, so references: on one is refused
                                    # (aspect-references-on-deterministic). A script rule
                                    # installed from a package that needs a value from outside
-                                   # itself takes it through ctx.config, where the value it READS
-                                   # becomes part of that rule's verdict — something a reference
-                                   # file cannot offer. A rule of your own has no settings
-                                   # (ctx.config is empty): write the value in its check.mjs.
+                                   # itself takes it through ctx.config (see config: below),
+                                   # where the value it READS becomes part of that rule's
+                                   # verdict — something a reference file cannot offer.
                                    #   Permitted on reviewer rules ONLY (forbidden on script rules).
                                    #   Each entry is a string (shorthand) OR an object { path, description? }.
                                    #
@@ -262,7 +261,8 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # Constraints (validated by \`yg check\`):
                                    #   - Path is repo-root-relative.
                                    #   - No '..' that escapes the repo root; no leading '/'; no Windows drive letter; no '~'.
-                                   #   - File must exist at check time and resolve (after symlink follow) to a regular file.
+                                   #   - File must exist at check time and be a regular file reached without passing
+                                   #     through a symbolic link (aspect-reference-symlink otherwise).
                                    #   - No duplicates within one aspect.
                                    #
                                    # Drift semantics: changes to referenced files cascade to all nodes where this
@@ -273,6 +273,14 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # toward the assembled reviewer prompt, bounded by reviewer.tiers.<name>.max_prompt_chars
                                    # (default 50000) in yg-config.yaml; an over-limit pair is a blocking prompt-too-large
                                    # error with remedies (see yg knowledge read writing-llm-aspects).
+
+# config:                         # OPTIONAL — values for the configuration keys a PACKAGE declares
+                                   # for this rule, read by its check.mjs as ctx.config.<key>. Only a
+                                   # rule installed from a package has keys; for a repository's own
+                                   # rule any key is refused (aspect-adapt-config-key-unknown) — write
+                                   # the value into its check.mjs instead. For a package rule it is
+                                   # set in the rule's yg-aspect.adapt.yaml; a key the package does not
+                                   # declare, or a value of the wrong type, is refused.
 
 # companion: <path>               # OPTIONAL — the companion resolver named by PATH instead of
                                    # shipped beside the rule. Repository-relative, and the file must

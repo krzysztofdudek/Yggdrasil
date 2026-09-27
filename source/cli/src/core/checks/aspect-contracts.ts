@@ -77,9 +77,12 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           .filter((f): f is string => f !== null)
           .join(' and ');
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' is a bundle (no reviewer.type declared, only implies) but ships ${present}.`,
+          // Only reachable through an explicit reviewer.type: aggregate — with a
+          // rule file present and no type declared, the kind is inferred from
+          // the file, never as a bundle.
+          what: `Aspect '${aspect.id}' declares reviewer.type: aggregate (a bundle) but ships ${present}.`,
           why: `A bundle groups implied aspects and has no verdict of its own; a rule source here is never read.`,
-          next: `Remove .yggdrasil/aspects/${aspect.id}/${present} to keep it a bundle, or declare reviewer.type explicitly to make it a reviewer rule or a script rule.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/${present} to keep it a bundle, or remove reviewer.type: aggregate so the kind is inferred from the file (content.md → reviewer rule, check.mjs → script rule).`,
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
@@ -669,7 +672,7 @@ export function checkAspectErrsDirection(graph: Graph): ValidationIssue[] {
     const msgData: IssueMessage = {
       what: `Aspect '${aspect.id}' declares errs: '${aspect.errs}' but reviewer.type is '${aspect.reviewer.type}'.`,
       why: `errs declares a script rule's error direction; this aspect is ${reviewerNoun}.`,
-      next: 'Set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".',
+      next: `Remove errs from .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml — it applies to script rules only (yg schemas read aspect describes it).`,
     };
     issues.push({ code: 'aspect-errs-invalid', severity: 'error', rule: 'aspect-errs-invalid', ...issueMsg(msgData), messageData: msgData });
   }

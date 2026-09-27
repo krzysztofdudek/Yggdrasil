@@ -39,7 +39,8 @@ aspects:
 
 \`description\` is required — a flow without it blocks \`yg check\` (the
 validator emits \`description-missing\`). \`nodes:\` may also be written as
-\`participants:\` (alias); the two are interchangeable.
+\`participants:\` (alias); the two are interchangeable, but a flow may declare
+only one of them — declaring both is refused.
 
 Flow-level aspects accept either a bare string or the object form
 \`{ id, when }\`. The \`when\` predicate filters applicability per

@@ -224,7 +224,7 @@ export function renderImpactTotal(summary: ImpactSummary, editedFile: string): s
     // lists them — without this line the totals would look larger than the
     // sum of the rows shown, with no explanation why.
     lines.push(
-      `                    (${summary.fileLevelPairs} of these ${plural(summary.fileLevelPairs, 'pair')} belong to a type-covered file — no component row lists them above)`,
+      `                    (${summary.fileLevelPairs} of these pairs ${summary.fileLevelPairs === 1 ? 'belongs' : 'belong'} to a type-covered file — no component row lists them above)`,
     );
   }
   if (summary.unresolved.length > 0) {

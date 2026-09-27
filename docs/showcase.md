@@ -160,7 +160,7 @@ inherit its implier's level.
 
 **Earn-rate: high.** Without these filters, attaching an aspect to a flow or type default would fire the reviewer on every node in the graph. Filters eliminate false positives without suppression markers.
 
-**Recommendation:** Add a `when:` filter to every aspect that has a natural home type. The filter is evaluated deterministically at zero cost and eliminates accidental over-application. Start with `node_type:`.
+**Recommendation:** Add a `when:` filter to every aspect that has a natural home type. The filter is evaluated deterministically at zero cost and eliminates accidental over-application. Start with `node: { type: … }`.
 
 ---
 
@@ -201,10 +201,10 @@ The following features exist in the schema but were not exercised because no gen
 | Feature | Status | Why not used |
 |---|---|---|
 | `implies:` object form (conditional gate) | Deferred | No implies chain needed a conditional filter |
-| `when: has_mapping:` | Deferred | No aspect needs file-mapping path filter |
-| `when: has_port:` | Deferred | Every node already carries `default` implicitly; a predicate testing port existence would be trivially true almost everywhere |
-| `when: target:` (exact node path) | Deferred | No aspect needs to pin to one specific node |
-| `when: consumes_port:` | Deferred | No relation in the graph names a port explicitly any more; nothing to match against |
+| `when: node: { has_mapping: … }` | Deferred | No aspect needs to tell mapped nodes from organizational ones |
+| `when: node: { has_port: … }` | Deferred | The predicate sees only ports a node declares (the implicit `default` does not count), and only one port is declared in the catalog |
+| `when: node: { id: … }` (exact node path) | Deferred | No aspect needs to pin to one specific node |
+| `when: relations: { <type>: { consumes_port: … } }` | Deferred | No relation in the graph names a port explicitly any more; nothing to match against |
 | Multi-port `portNames:` | Deferred | Only one port in the catalog |
 | Paired `emits` / `listens` | Deferred | No event bus in the codebase |
 | `extends` relation | Used | `cli/llm/registry` → `cli/llm/shared` (the registry barrel extends the shared provider interface) |

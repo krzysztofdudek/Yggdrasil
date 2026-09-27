@@ -155,8 +155,8 @@ describe.skipIf(!distExists)('CLI E2E — command surface: mutex, not-found, req
         dir,
       );
       expect(status).toBe(1);
-      expect(all).toContain("Node 'services/ghost' not found.");
-      expect(all).toContain('--node requires an existing node path in the graph.');
+      expect(all).toContain('error[node-not-found]');
+      expect(all).toContain("'services/ghost'");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

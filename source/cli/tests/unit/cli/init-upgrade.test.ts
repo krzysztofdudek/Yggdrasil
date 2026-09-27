@@ -111,6 +111,20 @@ describe('registerInitCommand action — non-interactive dispatch', () => {
     expect(stdout).toContain('.family-candidates.*.json');
   });
 
+  it('--upgrade --no-clinerules names the config it recorded instead of "nothing changed"', async () => {
+    // The choice is written into yg-config.yaml, a change git diff shows; the
+    // summary used to count only the housekeeping top-ups and call it nothing.
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-optout-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = await scaffoldExistingYgg(projectRoot, '5.1.0');
+    await runInitCommand(projectRoot, ['--upgrade']);
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade', '--no-clinerules']);
+    expect(exitCode).toBeUndefined();
+    expect(await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8')).toContain('clinerules: false');
+    expect(stdout).not.toContain('nothing changed');
+    expect(stdout).toContain('Recorded in .yggdrasil/yg-config.yaml: rules_artifacts');
+  });
+
   it('--upgrade with truly nothing to do still says nothing changed', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-noop-'));
     dirsToCleanup.push(projectRoot);

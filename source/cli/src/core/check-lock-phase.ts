@@ -100,13 +100,12 @@ export async function runLockPhase(args: {
   // Captured from the relation pass (run once by the orchestrator, ahead of
   // validate()) for the optional feature-field index write. Stays null if the
   // lock is invalid — the pass itself already ran either way, but this capture
-  // (like the relation-conformance/type-gate issues below) is still gated on a
-  // readable lock, matching this field's pre-existing behavior.
+  // is still gated on a readable lock, matching this field's pre-existing
+  // behavior. (The relation findings are not: see below.)
   let featureFactsByPath: Map<string, FileFacts> | null = null;
   let featureHashByPath: Map<string, string> | null = null;
 
-  // Read the lock once. A garbled/version/conflict-markered lock fails closed:
-  // one blocking lock-invalid issue, SKIPPING verification + log integrity.
+  // Read the lock once.
   const lockIssues: CheckIssue[] = [];
   // Verified-pair tally, split by reviewer kind (see CheckResult.verifiedDet/
   // verifiedLlm). Declared outside the try so a lock-invalid failure reports
@@ -117,9 +116,22 @@ export async function runLockPhase(args: {
   let typeVisibility: TypeVisibilityReport | undefined;
   // Same lock-invalid posture as verifiedDet: empty until a readable lock is verified.
   let pairs: VerifiedPair[] = [];
+  // A garbled/version/conflict-markered lock fails closed: one blocking
+  // lock-invalid issue, and the verification and log integrity are skipped.
+  function lockInvalid(err: unknown): void {
+    if (!(err instanceof LockInvalidError)) throw err;
+    lockIssues.push({
+      severity: 'error',
+      code: 'lock-invalid',
+      rule: 'lock-invalid',
+      messageData: err.messageData,
+    });
+  }
+  let lock: ReturnType<typeof readLock> | undefined;
+  let verification: LockVerification | undefined;
   try {
-    const lock = readLock(graph.rootPath);
-    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache, { runCompanionHooks });
+    lock = readLock(graph.rootPath);
+    verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache, { runCompanionHooks });
     pairs = verification.pairs;
     const runtimeRows = toRuntimeVisibilityRows(runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage
@@ -156,78 +168,96 @@ export async function runLockPhase(args: {
       }
     }
 
-    // Relation-conformance, computed LIVE (parse + resolve + verify every run) —
-    // reusing the SAME `relResult` the orchestrator computed ahead of validate(),
-    // never a second pass. A node with an undeclared cross-node dependency blocks
-    // with a relation-undeclared-dependency error. No verdict is cached — the
-    // result is always the current truth.
-    // Capture the per-file feature facts + content hashes for the optional feature-field
-    // index write (no extra parse — this is the same pass the relation check runs).
-    featureFactsByPath = relResult.factsByPath;
-    featureHashByPath = relResult.hashByPath;
-    for (const [nodeId, nv] of relResult.violationsByNode) {
-      if (nv.verdict !== 'refused') continue;
+  } catch (err) {
+    lockInvalid(err);
+  }
+
+  // The relation findings below come from the relation pass alone and never
+  // read the lock, so a lock that did not load withholds none of them: the
+  // partial: banner's "computed without it" is true for them as well.
+  // Relation-conformance, computed LIVE (parse + resolve + verify every run) —
+  // reusing the SAME `relResult` the orchestrator computed ahead of validate(),
+  // never a second pass. A node with an undeclared cross-node dependency blocks
+  // with a relation-undeclared-dependency error. No verdict is cached — the
+  // result is always the current truth.
+  for (const [nodeId, nv] of relResult.violationsByNode) {
+    if (nv.verdict !== 'refused') continue;
+    lockIssues.push({
+      severity: 'error',
+      code: 'relation-undeclared-dependency',
+      rule: 'relation-undeclared-dependency',
+      nodePath: nodeId,
+      messageData: relationRefusedMessage(graph, nodeId, nv.violations),
+      importRelationsAllowed: Object.fromEntries(
+        [...new Set(nv.violations.map((v) => v.ownerNode))].map((target) => [target, importRelationsAllowed(graph, nodeId, target)]),
+      ),
+    });
+  }
+
+  // Live type-to-type relation gate (coverage.type_level): a statically-resolved
+  // import edge between two classified endpoints (an explicit node and/or a
+  // type-covered file) has no allowed relation type under the architecture's
+  // allow-list. Computed only when the lattice actually ran this call
+  // (earlyTypeCoverage) — at flag-off there is nothing to gate. Live every run, same
+  // posture as relation-undeclared-dependency above: never cached, never in the lock.
+  if (earlyTypeCoverage) {
+    const gateFindings = computeTypeGateFindings(graph.architecture, relResult.typedEdges, relResult.fileOwnerType);
+    for (const finding of gateFindings) {
       lockIssues.push({
         severity: 'error',
-        code: 'relation-undeclared-dependency',
-        rule: 'relation-undeclared-dependency',
-        nodePath: nodeId,
-        messageData: relationRefusedMessage(graph, nodeId, nv.violations),
-        importRelationsAllowed: Object.fromEntries(
-          [...new Set(nv.violations.map((v) => v.ownerNode))].map((target) => [target, importRelationsAllowed(graph, nodeId, target)]),
-        ),
+        code: 'type-relation-forbidden',
+        rule: 'type-relation-forbidden',
+        messageData: typeGateForbiddenMessage(finding),
+        // Every violating edge in this type-pair's bucket, not just the five
+        // the message samples (typeGateForbiddenMessage) — the structured
+        // field is for machines and must be complete.
+        relationEdges: finding.edges,
       });
     }
+  }
 
-    // Live type-to-type relation gate (coverage.type_level): a statically-resolved
-    // import edge between two classified endpoints (an explicit node and/or a
-    // type-covered file) has no allowed relation type under the architecture's
-    // allow-list. Computed only when the lattice actually ran this call
-    // (earlyTypeCoverage) — at flag-off there is nothing to gate. Live every run, same
-    // posture as relation-undeclared-dependency above: never cached, never in the lock.
-    if (earlyTypeCoverage) {
-      const gateFindings = computeTypeGateFindings(graph.architecture, relResult.typedEdges, relResult.fileOwnerType);
-      for (const finding of gateFindings) {
-        lockIssues.push({
-          severity: 'error',
-          code: 'type-relation-forbidden',
-          rule: 'type-relation-forbidden',
-          messageData: typeGateForbiddenMessage(finding),
-          // Every violating edge in this type-pair's bucket, not just the five
-          // the message samples (typeGateForbiddenMessage) — the structured
-          // field is for machines and must be complete.
-          relationEdges: finding.edges,
-        });
-      }
-    }
-
-    // Relation-conformance INFRASTRUCTURE failures: a mapped file could not be parsed
-    // because its tree-sitter grammar failed to load (missing/corrupt WASM, init/load
-    // rejection, or parser returned null). An unparsed file contributes NO detected
-    // dependencies, so if this were swallowed the relation check would silently pass
-    // over unanalyzed code — repo-wide for a whole language if its grammar is missing.
-    // Fail closed: surface each as a BLOCKING error (one per affected language), so the
-    // build stays red rather than going green over code no reviewer ever analyzed. This
-    // is live every run (no --approve required), exactly like the rest of the check.
-    for (const pf of relResult.parseFailures) {
-      const lang = getLanguageDisplayName(pf.language);
-      const examplePath = toPosixPath(pf.examplePath);
-      const scope =
-        pf.fileCount === 1
-          ? examplePath
-          : `${count(pf.fileCount, `${lang} file`)}, e.g. ${examplePath}`;
-      lockIssues.push({
-        severity: 'error',
-        code: 'relation-parse-failed',
-        rule: 'relation-parse-failed',
-        messageData: {
+  // Relation-conformance INFRASTRUCTURE failures: a mapped file could not be parsed,
+  // either because its tree-sitter grammar failed to load (missing/corrupt WASM,
+  // init/load rejection) or because the loaded parser failed on the file itself (a
+  // trap that survived the retry, or a null tree) — each with its own message. An unparsed file contributes NO detected
+  // dependencies, so if this were swallowed the relation check would silently pass
+  // over unanalyzed code — repo-wide for a whole language if its grammar is missing.
+  // Fail closed: surface each as a BLOCKING error (one per affected language), so the
+  // build stays red rather than going green over code no reviewer ever analyzed. This
+  // is live every run (no --approve required), exactly like the rest of the check.
+  for (const pf of relResult.parseFailures) {
+    const lang = getLanguageDisplayName(pf.language);
+    const examplePath = toPosixPath(pf.examplePath);
+    const scope =
+      pf.fileCount === 1
+        ? examplePath
+        : `${count(pf.fileCount, `${lang} file`)}, e.g. ${examplePath}`;
+    lockIssues.push({
+      severity: 'error',
+      code: 'relation-parse-failed',
+      rule: 'relation-parse-failed',
+      messageData: pf.grammarLoaded
+        ? {
+          what: `The ${lang} parser failed on ${scope} while checking its dependencies: ${pf.message}`,
+          why: `The ${lang} grammar loads, but parsing failed on the file itself, even after a retry on a fresh parser. The relation-conformance check must parse every mapped source file to find its cross-node dependencies; a file that cannot be parsed contributes no detected dependencies, so treating this as "no dependencies" would let real, undeclared dependencies pass unchecked. The check fails closed rather than passing over code it never analyzed. Reinstalling the CLI does not help here.`,
+          next: `Check that ${examplePath} is valid ${lang}. If it is, report it as a parser failure (with the file, or the smallest part of it that still fails), then re-run: yg check`,
+        }
+        : {
           what: `Could not load the ${lang} parser to check dependencies for ${scope}: ${pf.message}`,
           why: `The relation-conformance check must parse every mapped source file to find its cross-node dependencies. A file that cannot be parsed contributes no detected dependencies, so treating this as "no dependencies" would let real, undeclared dependencies pass unchecked — for every ${lang} file at once when the grammar is unavailable. The check fails closed rather than passing over code it never analyzed.`,
           next: `Reinstall the CLI to restore the bundled ${lang} language support, then re-run: yg check`,
         },
-      });
-    }
+    });
+  }
 
+  if (lock === undefined || verification === undefined) {
+    return { issues: lockIssues, verifiedDet, verifiedLlm, typeVisibility, featureFactsByPath, featureHashByPath, pairs };
+  }
+  // Capture the per-file feature facts + content hashes for the optional feature-field
+  // index write (no extra parse — this is the same pass the relation check runs).
+  featureFactsByPath = relResult.factsByPath;
+  featureHashByPath = relResult.hashByPath;
+  try {
     // Log integrity reads its baseline from the lock (spec §9).
     await classifyLogStateFromLock(graph, projectRoot, lock, lockIssues);
 
@@ -255,17 +285,7 @@ export async function runLockPhase(args: {
     // the rule's own history and clears this.
     await classifyAspectStatusDrift(graph, lock, lockIssues);
   } catch (err) {
-    if (err instanceof LockInvalidError) {
-      lockIssues.push({
-        severity: 'error',
-        code: 'lock-invalid',
-        rule: 'lock-invalid',
-        messageData: err.messageData,
-      });
-      // Fail closed: skip lock verification + log integrity.
-    } else {
-      throw err;
-    }
+    lockInvalid(err);
   }
 
   return { issues: lockIssues, verifiedDet, verifiedLlm, typeVisibility, featureFactsByPath, featureHashByPath, pairs };

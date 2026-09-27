@@ -11,7 +11,7 @@ import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
-import { writeOut, failAndExit } from './output.js';
+import { writeOut, failAndExit, nodeNotFound } from './output.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
 /** Schema id of `yg tree --json`. */
@@ -83,11 +83,7 @@ export function registerTreeCommand(program: Command): void {
         if (rootPath !== null) {
           const node = graph.nodes.get(rootPath);
           if (!node) {
-            failAndExit({
-              what: `Node '${rootPath}' not found.`,
-              why: `The --root path must be a valid node path in the graph.`,
-              next: `Run yg tree (no --root) to list all nodes, then pick a valid path.`,
-            }, 'node-not-found');
+            failAndExit(nodeNotFound(rootPath, 'The --root path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
           }
           roots = [node];
         } else {
@@ -122,12 +118,12 @@ export function registerTreeCommand(program: Command): void {
         }
         // An empty graph must still say it ran: a blank listing reads as a
         // failure. (--root always names an existing node, so it never lands here.)
-        if (nodes.length === 0) {
-          writeOut('no nodes yet\nnext: yg knowledge read onboarding  (how to map existing code)\n');
-        }
+        if (nodes.length === 0) writeOut('no nodes yet\n');
 
         const summary = counts !== undefined ? typeCoveredSummaryLine(counts, scopedToRoot) : undefined;
         if (summary) writeOut(summary + '\n');
+        // The step comes last: next: is only ever the output's final line.
+        if (nodes.length === 0) writeOut('next: yg knowledge read onboarding  (how to map existing code)\n');
       } catch (error) {
         abortOnUnexpectedError(error, 'building the tree');
       }

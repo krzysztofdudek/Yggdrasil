@@ -357,4 +357,18 @@ describe('yg-check/1 carries the structure next to the prose', () => {
     const doc = buildCheckJson(result([rel]));
     expect(doc.issues[0].edges).toEqual([{ file: 'src/web/h.ts', line: 5, target: 'data' }]);
   });
+
+  it('the undeclared-dependency edges of an outside twin', () => {
+    // Progressive mode re-codes a refusal outside the change to its -outside twin;
+    // the structured edges must survive the re-coding.
+    const rel = {
+      severity: 'warning',
+      code: 'relation-undeclared-dependency-outside',
+      rule: 'relation-undeclared-dependency',
+      nodePath: 'web',
+      messageData: { what: "Node 'web' has undeclared dependencies on other nodes:\nsrc/web/h.ts:5 → data", why: 'w', next: 'n' },
+    } as CheckIssue;
+    const doc = buildCheckJson(result([rel]));
+    expect(doc.issues[0].edges).toEqual([{ file: 'src/web/h.ts', line: 5, target: 'data' }]);
+  });
 });

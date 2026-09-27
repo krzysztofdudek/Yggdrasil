@@ -182,7 +182,7 @@ export function formatFileContext(data: FileContextData): string {
       // 'default' is never absent any more (an undeclared relation normalizes
       // to it) — only a port named BEYOND the implicit one is worth printing.
       const namedPorts = dep.consumed.filter((p) => p !== DEFAULT_PORT_NAME);
-      lines.push(`  ${posixPath(dep.path)} — ${namedPorts.join(', ')}`);
+      lines.push(namedPorts.length > 0 ? `  ${posixPath(dep.path)} — ${namedPorts.join(', ')}` : `  ${posixPath(dep.path)}`);
     }
     lines.push('');
   }
@@ -190,14 +190,14 @@ export function formatFileContext(data: FileContextData): string {
   // Dependents
   if (data.dependentCount > 0) {
     lines.push(`Dependents: ${data.dependentCount} ${data.dependentCount === 1 ? 'node' : 'nodes'}`);
-    lines.push(`next: yg impact --file ${posixPath(data.filePath)}`);
+    lines.push(`  before editing: yg impact --file ${posixPath(data.filePath)}`);
     lines.push('');
   }
 
   if (data.logs) lines.push(...formatContextLogs(data.logs));
 
   // Back-pointer
-  lines.push(`then: yg context --node ${posixPath(data.ownerPath!)}  (the owning node's whole context)`);
+  lines.push(`next: yg context --node ${posixPath(data.ownerPath!)}  (the owning node's whole context)`);
   lines.push('');
 
   return lines.join('\n');

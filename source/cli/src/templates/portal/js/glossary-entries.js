@@ -47,7 +47,7 @@
       id: 'relation',
       term: 'relation',
       group: 'The graph',
-      def: "A declared dependency between two nodes (calls / uses / …). The code's real dependencies must match what's declared.",
+      def: "A declared dependency between two nodes (calls / uses / …). Every real code dependency must be declared; a declared relation needs no code behind it.",
       see: '/relations-flows-ports',
     },
     {
@@ -155,7 +155,7 @@
     { id: 'ancestor', term: 'ancestor', group: 'Rules', def: 'This rule is inherited from a parent component.' },
     { id: 'own-type', term: 'own type', group: 'Rules', def: 'This rule applies to every component of this type.' },
     { id: 'ancestor-type', term: 'ancestor type', group: 'Rules', def: "Inherited from a parent component's type." },
-    { id: 'port', term: 'port', group: 'Rules', def: 'This rule crosses in from a named contract this component consumes.' },
+    { id: 'port', term: 'port', group: 'Rules', def: 'This rule crosses in from a port this component enters through a relation — a named one, or the target’s implicit `default` port.' },
     { id: 'implied', term: 'implied', group: 'Rules', def: 'Pulled in by another rule that includes this one.' },
     // ── Judging ──────────────────────────────────────────────────────────────
     {

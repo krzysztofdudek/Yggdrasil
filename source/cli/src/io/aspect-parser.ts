@@ -584,7 +584,7 @@ function resolveRuleConfig(
     raw.config,
     {
       aspectId: options.package?.relativeId ?? idTrimmed,
-      packageName: options.package?.packageName ?? '(this repository)',
+      packageName: options.package?.packageName,
       adaptFilePath: configFilePath,
     },
   );
@@ -721,7 +721,7 @@ function parseRuleLabels(
       return fieldRefusal('aspect-errs-invalid', {
         what: `Aspect '${idTrimmed}' declares errs: '${String(raw.errs)}' (not a valid value).`,
         why: 'errs must be one of: over, under, exact.',
-        next: `Edit .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml and set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".`,
+        next: `Edit .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml and set errs to one of over|under|exact, or remove the field — yg schemas read aspect describes what each value means.`,
       });
     }
     errs = raw.errs as ErrsDirection;

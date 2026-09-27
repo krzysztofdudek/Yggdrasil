@@ -118,3 +118,5 @@ The context package now carries the logs as well as the rules, because the owner
 Deciding whether a rule or a flow error touches the context being assembled now resolves flow membership through ancestors, as aspect propagation and yg impact do. A context for a descendant of a flow participant ignored an error in that flow, or in a rule attached only through it.
 ## [2026-09-27T20:44:41.472Z]
 The work that puts the type decisions in force and the component's own log into the context met, at merge, the fix that resolves flow membership through ancestors when deciding whether an error touches the context. Both are kept: the context carries the logs under their own headings, and a descendant of a flow participant now sees that flow's errors. Neither change reads what the other writes.
+## [2026-09-27T22:19:03.566Z]
+The --json help no longer promises the same facts as the text view: the document is deliberately narrower (owner, chain, rules), as the reference says.

@@ -28,7 +28,7 @@ describe('formatFileContext', () => {
     expect(output).toContain('Source: required aspect for type \'library\'');
     expect(output).toContain('Dependencies consumed:');
     expect(output).toContain('cli/core/context — buildContext()');
-    expect(output).toContain('then: yg context --node cli/core/validator');
+    expect(output).toContain('next: yg context --node cli/core/validator');
   });
 
   it('formats unmapped file with candidates', () => {
@@ -157,6 +157,19 @@ describe('formatFileContext', () => {
     });
     expect(output).toContain('deterministic');
     expect(output).not.toContain('Source:');
+  });
+
+  it('lists a dependency entered through the default port with no dangling dash', () => {
+    const output = formatFileContext({
+      filePath: 'src/orders/order.ts',
+      ownerPath: 'orders',
+      ownerType: 'service',
+      aspects: [],
+      dependencies: [{ path: 'pay', consumed: ['default'] }],
+      dependentCount: 0,
+    });
+    expect(output).toContain('Dependencies consumed:\n  pay\n');
+    expect(output).not.toContain('pay — ');
   });
 
   it('omits dependencies section when empty', () => {
@@ -382,7 +395,7 @@ describe('formatFileContext', () => {
     });
 
     expect(output).toContain('[D2]');
-    expect(output.indexOf('[D2]')).toBeLessThan(output.indexOf('then: yg context --node cli/core/validator'));
+    expect(output.indexOf('[D2]')).toBeLessThan(output.indexOf('next: yg context --node cli/core/validator'));
   });
 
   it('lists the rules a type applies to a type-covered file, an unverified pair marked, and the ones it does not enforce there', () => {

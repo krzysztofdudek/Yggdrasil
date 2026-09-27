@@ -14,3 +14,5 @@ Specific to this node: the CLI entrypoint registers the one unified aspect-testi
 Registered the new read-only suppressions inventory subcommand on the top-level CLI dispatcher so operators can list active waiver markers and get warned about unknown aspect ids, wildcards, and unbounded disable ranges.
 ## [2026-07-12T11:42:31.387Z]
 Wires the new advise command family into the CLI so an operator can dismiss or defer an attention item from the command line. Registration only — the entry point continues to just assemble subcommands and owns none of the advise behavior itself.
+## [2026-09-27T22:26:32.090Z]
+The entry point now strips a help flag that follows a command the CLI does not have before parsing, so a mistyped command with --help is a usage error rather than the root help with exit 0.
