@@ -405,6 +405,7 @@ yg-secrets.yaml               # provider API keys
 .debug.log                    # the opt-in command debug log
 .yg-lock.deterministic.json   # the free script-verdict cache (rebuilt keyless)
 .yg-events.jsonl*             # the local verdict-events telemetry sidecar (and its .1 rotation)
+.refused/                     # the bytes and reason of each refusal a fill recorded, one file per verdict hash
 .yg-fill-divergence.log*      # forensic dump written only on a fill convergence divergence (and its .1 rotation)
 .feature-field.json           # the local structural-deviation attention index
 .family-candidates.json       # look-alike group analysis (file name keeps the older word "family"), the shared file earlier releases wrote

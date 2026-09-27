@@ -437,6 +437,7 @@ separately.
 | `.debug.log` | The opt-in command log written when `debug: true`. |
 | `.yg-lock.deterministic.json` | The script-rule verdict cache — rebuilt free and keyless by `yg check --approve --only-deterministic`. |
 | `.yg-events.jsonl*` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). The trailing `*` also covers its `.1` rotation. |
+| `.refused/` | The refused-content store: for each refusal a fill records, the subject files as they were and the reason, in `<hash>.json` named for the verdict's hash (see [Refused-content store](/reviewers#refused-content-store)). A fill writes it only where this line is present — `yg init --upgrade` adds it — and nothing reads it back. |
 | `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). The trailing `*` also covers its `.1` rotation. |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
 | `.family-candidates.json` | Look-alike group analysis (the file name keeps an older term) in the shared file earlier releases wrote; rebuilt by rerunning the producer. |

@@ -681,6 +681,15 @@ A team can opt into a **committed, shared** record of LLM verification-fill even
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
 
+### Refused-content store {#refused-content-store}
+
+The lock keeps a refusal's hash and reason, not the code it refused, so once the code is fixed the refused version is gone. Every fill therefore also keeps, for each refusal it records, a JSON file `.yggdrasil/.refused/<hash>.json`, named for the verdict's input hash — the `hash` of its lock entry and of its line in `.yg-events.jsonl` — holding the aspect, the unit, the rule kind, the reason, the commit when there is one, and the unit's subject files as they were (`content`, or `base64` for bytes that are not UTF-8). A refusal and the next pass of the same unit make a labelled pair: what the rule rejected and what satisfied it — material for a new drill case, or for [Grain](https://github.com/krzysztofdudek/Grain) to derive a script check from a reviewer rule's own verdicts.
+
+- **Local only.** The directory is gitignored, never committed, and never read by any check, verification or render path; delete it at will.
+- **Written only where it is ignored.** A fill never edits a tracked `.gitignore`, so on a graph whose `.yggdrasil/.gitignore` lacks the `.refused/` line it writes nothing; `yg init --upgrade` adds the line.
+- **Bounded per refusal.** A unit whose subject files together exceed 2 MiB is not stored. A record already present is left alone — the same hash means the same inputs.
+- **Best-effort.** A failed write loses that record and never changes a fill's outcome.
+
 ---
 
 ## What a verdict is worth, and against whom
