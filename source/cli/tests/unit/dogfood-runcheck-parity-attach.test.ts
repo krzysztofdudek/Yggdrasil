@@ -43,13 +43,20 @@ const NON_PRODUCTION_NODE_TYPES = new Set([
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', 'build', 'test-results', 'playwright-report']);
 
+/** The test-fixture tree: inert data, never production. Other tests running in
+ *  parallel also create and remove temporary copies of the repo inside it, so
+ *  walking it would race with them (a file listed, then gone before it is read). */
+const FIXTURES_DIR = path.join(REPO_ROOT, 'source', 'cli', 'tests', 'fixtures');
+
 /** Every first-party TypeScript file in the repo. Dot-directories are skipped
  *  wholesale: they hold git internals, sibling worktree checkouts, and the
- *  graph's own drill fixtures — none of them this repo's shipped source. */
+ *  graph's own drill fixtures — none of them this repo's shipped source. The
+ *  test-fixture tree is skipped too (FIXTURES_DIR). */
 function collectTsFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (entry.name.startsWith('.') || SKIP_DIRS.has(entry.name)) continue;
+      if (path.join(dir, entry.name) === FIXTURES_DIR) continue;
       collectTsFiles(path.join(dir, entry.name), out);
     } else if (/\.(ts|tsx|mts|cts)$/.test(entry.name)) {
       out.push(path.join(dir, entry.name));
