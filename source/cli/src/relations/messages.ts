@@ -15,6 +15,7 @@ import type { Violation } from './verifier.js';
 import { allowedRelationTypes, RELATION_TYPES, STRUCTURAL_RELATION_TYPES } from './allowed-types.js';
 import type { TypeGateFinding } from './type-gate.js';
 import { plural } from '../utils/count.js';
+import { toPosixPath } from '../utils/posix.js';
 
 /** The node-type of a graph node, or undefined if the node is unknown. */
 function typeOf(graph: Graph, nodeId: string): string | undefined {
@@ -45,6 +46,9 @@ export function relationRefusedMessage(
   const nodeFile = `.yggdrasil/model/${nodeId}/yg-node.yaml`;
 
   const blocks: string[] = [];
+  // Targets no relation can be declared to: only removing the dependency, or
+  // an architecture change the user approves, clears them.
+  const deadEnds: string[] = [];
   for (const target of targets) {
     const toType = typeOf(graph, target);
     // An architecture with no node types constrains no relation (the
@@ -73,6 +77,7 @@ export function relationRefusedMessage(
       // Dead-end: no relation type connects these two node types.
       const fromDesc = fromType ?? '(unknown type)';
       const toDesc = toType ?? '(unknown type)';
+      deadEnds.push(target);
       blocks.push(
         `${target}: no relation type is allowed from ${fromDesc} to ${toDesc} that sanctions an import (only uses, calls, extends and implements do), so none can be declared.${eventNote} ` +
           `Remove the dependency, or ask the user to approve an architecture change — a different node type, ` +
@@ -86,11 +91,26 @@ export function relationRefusedMessage(
     }
   }
 
-  return {
-    what: `Node '${nodeId}' has undeclared dependencies on other nodes:\n${bySite}`.trimEnd(),
-    why: 'A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.',
-    next: `Declare the missing ${plural(blocks.length, 'relation')} in ${nodeFile} (or remove the dependency if it is not legitimate):\n${blocks.join('\n')}`,
-  };
+  const why = 'A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.';
+  const what = `Node '${nodeId}' has undeclared dependencies on other nodes:\n${bySite}`.trimEnd();
+
+  // Every target a dead end: nothing can be declared in the node file, so
+  // neither the heading nor the step may send the reader there. The step is
+  // the first import to remove; the architecture change stays the user's.
+  if (deadEnds.length === targets.length) {
+    const file = toPosixPath(violations[0].fromFile);
+    return {
+      what,
+      why,
+      next: `No relation can be declared for ${plural(targets.length, 'this dependency', 'these dependencies')}: remove ${plural(targets.length, 'it', 'them')}, or ask the user to approve an architecture change:\n${blocks.join('\n')}`,
+      step: { file, text: `edit ${file}:${violations[0].line}` },
+    };
+  }
+
+  const lead = deadEnds.length > 0
+    ? `Declare the missing ${plural(targets.length - deadEnds.length, 'relation')} in ${nodeFile} where one is allowed, and remove the dependencies no relation can sanction (or ask the user to approve an architecture change):`
+    : `Declare the missing ${plural(blocks.length, 'relation')} in ${nodeFile} (or remove the dependency if it is not legitimate):`;
+  return { what, why, next: `${lead}\n${blocks.join('\n')}` };
 }
 
 /** Unverified: inputs changed since the last approval. */

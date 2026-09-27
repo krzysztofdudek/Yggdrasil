@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync, cpSync, writeFileSync, readFileSync } 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expectIssue, expectNext, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -244,6 +245,22 @@ describe.skipIf(!distExists)('CLI E2E — architecture relation default policy',
       expect(status).toBe(1);
       expect(all).toContain('relation-undeclared-dependency');
       expect(all).toMatch(/no relation type is allowed/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('C13b: a dead-end refusal points its next step at the import to remove, not at yg-node.yaml', () => {
+    const dir = copyFixture('c13b');
+    try {
+      writeFileSync(archPath(dir), archWith(rel('default: deny')), 'utf-8');
+      writeOrdersNoRel(dir);
+      addPaymentsImport(dir);
+      const { status, stdout } = run(['check', '--json'], dir);
+      expect(status).toBe(1);
+      const doc = parseJson(stdout);
+      expectIssue(doc, { code: 'relation-undeclared-dependency', node: 'services/orders' });
+      expectNext(doc, { command: null, file: 'src/services/orders.ts', node: 'services/orders' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
