@@ -1,6 +1,6 @@
 name: E2E Tests — flows-errors
 type: test-suite
-description: "Subprocess E2E pinning flow definition and filesystem error paths — empty/missing name, non-array or missing aspects, non-string or empty or missing nodes, an empty valid description, a missing or unparseable or directory yg-flow.yaml, and a stray non-directory file under flows; several filesystem cases are pinned as actual misclassified behavior."
+description: "Subprocess E2E pinning flow definition and filesystem error paths — empty/missing name, non-array or missing aspects, non-string or empty or missing nodes, an empty valid description, a missing or unparseable or directory yg-flow.yaml — each one flow's yaml-invalid finding, with the rest of the graph loading and every command still running — and a stray non-directory file under flows."
 aspects: []
 relations: []
 mapping:

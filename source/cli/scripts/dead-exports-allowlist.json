@@ -179,6 +179,12 @@
         "src/utils/language-registry.ts#EXTENSION_TO_LANGUAGE",
         "src/utils/terminal-safe.ts#neutralizeControls"
       ]
+    },
+    {
+      "reason": "The file-format conformance test (tests/unit/repo/file-format-conformance.test.ts) walks every field of every format through the rows the field tables are rendered from, so a key the tables show and the parser does not enforce fails by its path. Reading the rows back out of the rendered markdown would test the renderer instead.",
+      "exports": [
+        "src/utils/file-schema.ts#fieldRows"
+      ]
     }
   ]
 }

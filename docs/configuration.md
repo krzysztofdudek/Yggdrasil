@@ -701,6 +701,102 @@ it; delete it by hand when you mean to.
 
 ---
 
+## Field reference
+
+### `yg-config.yaml` {#fields-config}
+
+Generated from the schema the parser enforces — the same table `yg schemas read config` prints.
+
+<!-- file-schema:config:start — generated from the config schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `version` | string | yes | The graph schema version, a quoted three-part string managed by yg init --upgrade. A malformed value is ignored: a version that is not a string is refused before the file is parsed, by every command that loads the graph and by yg init --upgrade, each with its own message. |
+| `quality` | mapping | no | Quality thresholds. |
+| `quality.max_direct_relations` | integer ≥ 1 | no | The relation count above which a node gets the high-fan-out warning. Default: `10`. |
+| `reviewer` | mapping | once a reviewer rule is in effect | The reviewer tiers reviewer rules are judged by. |
+| `reviewer.default` | string | yes, with more than one tier | The tier a reviewer rule without reviewer.tier uses. |
+| `reviewer.tiers` | mapping of &lt;tier&gt; to mapping | yes, at least one | Named reviewer configurations; a tier name starts with a letter and `default` is reserved. |
+| `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | yes | Which reviewer the tier calls. |
+| `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | yes | 1 for a single call, or an odd number for a majority vote. |
+| `reviewer.tiers.<tier>.config` | mapping | yes | The provider settings. |
+| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier. |
+| `reviewer.tiers.<tier>.config.endpoint` | string | yes, for openai-compatible | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
+| `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
+| `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |
+| `reviewer.tiers.<tier>.config.api_key` | string | no | The provider API key; put it in yg-secrets.yaml, never in the committed file. |
+| `reviewer.tiers.<tier>.max_prompt_chars` | integer ≥ 1 | no | The longest prompt a reviewer pair on this tier may send (prompt-too-large above it). Default: `50000`. |
+| `parallel` | integer ≥ 1 | no | Reviewer-rule pairs reviewed at once. Default: `1`. |
+| `debug` | boolean | no | Append all CLI output to .yggdrasil/.debug.log. Default: `false`. |
+| `auto_approve` | boolean or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
+| `signals` | mapping | no | Attention-layer switches. |
+| `signals.attention` | boolean | no | The advisory "structurally unusual" note in yg context --file. Default: `true`. |
+| `events` | mapping | no | The committed-events opt-in. |
+| `events.committed_llm` | boolean | no | Keep a committed, shared record of reviewer verification events. Default: `false`. |
+| `coverage` | mapping | no | Which files must be mapped to a node. |
+| `coverage.required` | list of string | no | Repository-relative roots every file under which must be covered. Default: `["/"]`. |
+| `coverage.excluded` | list of string | no | Roots no coverage is asked of. Default: `[]`. |
+| `coverage.type_level` | boolean | no | Enforce per: file rules of classifying types on files no node maps. Read from the committed file only. Default: `false`. |
+| `progressive` | mapping | no | Progressive mode: block only on what a change reaches. Absent means off. |
+| `progressive.reference` | string | yes, when progressive: is present | The branch a change is measured against (e.g. origin/main). Read from the committed file only. |
+| `rules_artifacts` | mapping | no | Which agent-rules artifacts are written and kept in sync. Read from the committed file only. |
+| `rules_artifacts.agents_md` | boolean | no | Write and check the Yggdrasil block in AGENTS.md. Default: `true`. |
+| `rules_artifacts.claude_md` | boolean | no | Write and check the @AGENTS.md import in CLAUDE.md (refused while agents_md is off). Default: `true`. |
+| `rules_artifacts.clinerules` | boolean | no | Write and check .clinerules/yggdrasil.md. Default: `true`. |
+
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `quality.max_node_chars` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `quality.max_mapping_source_files` (removed in 5.0.0 with the wide-node warning); `reviewer.tiers.<tier>.config.max_tokens` (removed in 5.0.0; the reviewer no longer caps its reply); `reviewer.tiers.<tier>.config.context_length_field` (never read by any release since 5.0.0); `reviewer.tiers.<tier>.config.references` (removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them).
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:config:end -->
+
+### `yg-secrets.yaml` {#fields-secrets}
+
+Generated from the schema the parser enforces — the same table `yg schemas read secrets` prints.
+
+<!-- file-schema:secrets:start — generated from the secrets schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `version` | string | no | The graph schema version, a quoted three-part string managed by yg init --upgrade. A malformed value is ignored: a version that is not a string is refused before the file is parsed, by every command that loads the graph and by yg init --upgrade, each with its own message. |
+| `quality` | mapping | no | Quality thresholds. |
+| `quality.max_direct_relations` | integer ≥ 1 | no | The relation count above which a node gets the high-fan-out warning. Default: `10`. |
+| `reviewer` | mapping | no | The reviewer tiers reviewer rules are judged by. |
+| `reviewer.default` | string | yes, with more than one tier | The tier a reviewer rule without reviewer.tier uses. |
+| `reviewer.tiers` | mapping of &lt;tier&gt; to mapping | yes, at least one | Named reviewer configurations; a tier name starts with a letter and `default` is reserved. |
+| `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | yes | Which reviewer the tier calls. |
+| `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | yes | 1 for a single call, or an odd number for a majority vote. |
+| `reviewer.tiers.<tier>.config` | mapping | yes | The provider settings. |
+| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier. |
+| `reviewer.tiers.<tier>.config.endpoint` | string | yes, for openai-compatible | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
+| `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
+| `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |
+| `reviewer.tiers.<tier>.config.api_key` | string | no | The provider API key; put it in yg-secrets.yaml, never in the committed file. |
+| `reviewer.tiers.<tier>.max_prompt_chars` | integer ≥ 1 | no | The longest prompt a reviewer pair on this tier may send (prompt-too-large above it). Default: `50000`. |
+| `parallel` | integer ≥ 1 | no | Reviewer-rule pairs reviewed at once. Default: `1`. |
+| `debug` | boolean | no | Append all CLI output to .yggdrasil/.debug.log. Default: `false`. |
+| `auto_approve` | boolean or `deterministic` \| `full` | no | What a bare yg check fills: false nothing, deterministic the script pairs, full every pair (held back under CI). Default: `false`. |
+| `signals` | mapping | no | Attention-layer switches. |
+| `signals.attention` | boolean | no | The advisory "structurally unusual" note in yg context --file. Default: `true`. |
+| `events` | mapping | no | The committed-events opt-in. |
+| `events.committed_llm` | boolean | no | Keep a committed, shared record of reviewer verification events. Default: `false`. |
+| `coverage` | mapping | no | Which files must be mapped to a node. |
+| `coverage.required` | list of string | no | Repository-relative roots every file under which must be covered. Default: `["/"]`. |
+| `coverage.excluded` | list of string | no | Roots no coverage is asked of. Default: `[]`. |
+| `coverage.type_level` | boolean | no | Enforce per: file rules of classifying types on files no node maps. Read from the committed file only. Default: `false`. |
+| `progressive` | mapping | no | Progressive mode: block only on what a change reaches. Absent means off. |
+| `progressive.reference` | string | yes, when progressive: is present | The branch a change is measured against (e.g. origin/main). Read from the committed file only. |
+| `rules_artifacts` | mapping | no | Which agent-rules artifacts are written and kept in sync. Read from the committed file only. |
+| `rules_artifacts.agents_md` | boolean | no | Write and check the Yggdrasil block in AGENTS.md. Default: `true`. |
+| `rules_artifacts.claude_md` | boolean | no | Write and check the @AGENTS.md import in CLAUDE.md (refused while agents_md is off). Default: `true`. |
+| `rules_artifacts.clinerules` | boolean | no | Write and check .clinerules/yggdrasil.md. Default: `true`. |
+
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `quality.max_node_chars` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `quality.max_mapping_source_files` (removed in 5.0.0 with the wide-node warning); `reviewer.tiers.<tier>.config.max_tokens` (removed in 5.0.0; the reviewer no longer caps its reply); `reviewer.tiers.<tier>.config.context_length_field` (never read by any release since 5.0.0); `reviewer.tiers.<tier>.config.references` (removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them).
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:secrets:end -->
+
+---
+
 ## Notes
 
 - `yg-node.yaml` is a reserved filename in model directories.

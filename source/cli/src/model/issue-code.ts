@@ -102,6 +102,7 @@ export type CheckCode =
   | 'aspect-invalid-id'
   | 'aspect-name-missing'
   | 'aspect-unknown-key'
+  | 'aspect-field-invalid'
   | 'aspect-status-invalid'
   | 'aspect-review-by-malformed'
   | 'aspect-errs-invalid'

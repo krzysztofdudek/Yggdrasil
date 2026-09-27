@@ -48,25 +48,21 @@ describe('loadGraphOrAbort', () => {
     expect(written).toContain("'yg init'");
   });
 
-  it('classifies a malformed flow file as a flow-specific finding, NOT "run yg init" (graph IS initialized)', async () => {
+  it('loads a graph with a malformed flow and reports the flow as not loaded, NOT "run yg init" and NOT a stop', async () => {
     const ygg = join(dir, '.yggdrasil');
     mkdirSync(join(ygg, 'model'), { recursive: true });
     writeFileSync(join(ygg, 'yg-config.yaml'), `version: "6.0.0"\nschemaVersion: "4.3.0"\nproject:\n  name: t\n`);
     writeFileSync(join(ygg, 'yg-architecture.yaml'), 'node_types: {}\n');
     // A flow directory whose yg-flow.yaml is absent → ENOENT during load. The
-    // graph IS initialized, so this must NOT surface as the not-initialized
-    // message and must NOT read as an internal "file an issue" bug.
+    // graph IS initialized, and one flow is one flow's finding: the graph loads,
+    // with the flow recorded as not loaded, and nothing exits.
     mkdirSync(join(ygg, 'flows', 'broken'), { recursive: true });
 
-    await expect(loadGraphOrAbort(dir, { tolerateInvalidConfig: true })).rejects.toThrow('__exit__');
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    const written = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
-    expect(written).toContain('could not be loaded');
-    expect(written).toContain('yg-flow.yaml');
-    expect(written).toContain('missing, unreadable, or malformed');
-    expect(written).not.toContain('No .yggdrasil/ directory found');
-    expect(written).not.toContain("Run 'yg init'");
-    expect(written).not.toContain('file an issue');
+    const graph = await loadGraphOrAbort(dir, { tolerateInvalidConfig: true });
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(graph.flows).toEqual([]);
+    expect(graph.flowParseErrors?.map((e) => e.flowPath)).toEqual(['broken']);
+    expect(graph.flowParseErrors?.[0].messageData.what).toContain('has no yg-flow.yaml file');
   });
 
   it('abortOnUnexpectedError writes structured message and exits 1', () => {

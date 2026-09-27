@@ -130,3 +130,5 @@ A rule that failed to load now carries its rule id on the finding, so a reader s
 The effective-nowhere linter now runs before the orphan check so its findings can be handed over and a dead rule is reported once rather than twice; its findings are still emitted at their old place in the issue order.
 ## [2026-09-25T21:50:54.593Z]
 A configuration, architecture, component or rule file that does not parse now hands the report the file to correct as data, with the parser's own instruction as the words for the configuration, instead of leaving the report to find the file in the sentence.
+## [2026-09-27T04:43:53.166Z]
+Each flow the loader could not load is reported as a blocking yaml-invalid finding naming its yg-flow.yaml, the same code a yg-node.yaml that fails is reported under, so the problem that used to stop every command is now a finding in the report that points at the file to fix while the rest of the graph is still checked.

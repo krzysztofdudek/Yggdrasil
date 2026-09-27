@@ -1,6 +1,3 @@
-export const summary =
-  'Architecture vocabulary — node types, default aspects, allowed parents/relations, when classifiers.';
-
 export const content = `# yg-architecture.yaml — Schema for architecture constraints
 # File: .yggdrasil/yg-architecture.yaml
 #

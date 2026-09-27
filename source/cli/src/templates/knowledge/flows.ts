@@ -33,7 +33,8 @@ nodes:                  # alias: participants
 aspects:
   - deterministic                 # bare string
   - id: correlation-tracking      # object form
-    when: <predicate>             # optional — per-site applicability filter
+    when:                         # optional — per-site applicability filter
+      node: { has_mapping: true } #   (any node predicate: yg knowledge read conditional-aspects)
 \`\`\`
 
 \`description\` is required — a flow without it blocks \`yg check\` (the

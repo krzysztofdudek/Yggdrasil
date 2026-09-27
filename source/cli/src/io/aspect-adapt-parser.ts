@@ -5,6 +5,8 @@ import type { IssueMessage } from '../model/validation.js';
 import type { CheckCode } from '../model/issue-code.js';
 import type { PackageConfigKeyDef, PackageConfigType } from '../model/packages.js';
 import { ADAPT_FILENAME } from '../model/packages.js';
+import { keysOf, refusedOf } from '../utils/file-schema.js';
+import { ASPECT_ADAPT_ROOT } from '../utils/file-formats-graph.js';
 
 /**
  * source/cli/src/io/aspect-adapt-parser.ts — the consumer's adaptation of a rule
@@ -25,32 +27,17 @@ import { ADAPT_FILENAME } from '../model/packages.js';
  * rather than relying on an older build to ignore the key.
  */
 
-/** Keys an adapt may set. */
-const ADAPTABLE_KEYS = [
-  'scope',
-  'reviewer',
-  'review_by',
-  'references',
-  'status',
-  'config',
-  'companion',
-] as const;
+/** Keys an adapt may set, from the adapt schema `yg schemas read aspect-adapt` prints. */
+const ADAPTABLE_KEYS = keysOf(ASPECT_ADAPT_ROOT);
 
 /**
  * Keys an adapt may NOT set, each with the reason, because a refusal that only
- * says "not adaptable" leaves the reader guessing at the principle.
- *
- * `description` is here alongside the four the specification names: it is what
- * the LLM reviewer is told the rule means, and a consumer rewriting it would be
- * changing the rule's content while keeping the package's name on it.
+ * says "not adaptable" leaves the reader guessing at the principle. Declared in
+ * the same schema. `description` is among them: it is what the LLM reviewer is
+ * told the rule means, and a consumer rewriting it would be changing the rule's
+ * content while keeping the package's name on it.
  */
-const NON_ADAPTABLE_KEYS: Record<string, string> = {
-  name: 'the name identifies the rule the package published',
-  description: 'the description is what the reviewer is told the rule means — changing it changes the rule, not its fit',
-  implies: 'which other rules a rule pulls in is part of what the rule is',
-  errs: 'the error direction states how the rule was built to fail, which only its author knows',
-  when: 'when the rule applies is the package author\'s claim about where it is valid — narrow it with scope: instead',
-};
+const NON_ADAPTABLE_KEYS: Readonly<Record<string, string>> = refusedOf(ASPECT_ADAPT_ROOT);
 
 export type AdaptResult<T> =
   | { ok: true; value: T }
@@ -130,7 +117,7 @@ export async function parseAspectAdapt(
         },
       };
     }
-    if (!(ADAPTABLE_KEYS as readonly string[]).includes(key)) {
+    if (!ADAPTABLE_KEYS.includes(key)) {
       return {
         ok: false,
         code: 'aspect-adapt-key-unknown',

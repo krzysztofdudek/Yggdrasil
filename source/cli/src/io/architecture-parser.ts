@@ -7,39 +7,31 @@ import { parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen } from '../utils/file-when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
 import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
+import { keysOf, retiredOf, schemaProblems } from '../utils/file-schema.js';
+import { ARCHITECTURE_NODE_TYPE, ARCHITECTURE_ROOT } from '../utils/file-formats-graph.js';
 
 const VALID_RELATION_TYPES: Set<string> = new Set(['uses', 'calls', 'extends', 'implements', 'emits', 'listens']);
 
 /**
- * The complete set of keys a single `node_types.<name>` entry may declare. An
- * unknown key is almost always a typo (`parent` for `parents`, `aspect` for
- * `aspects`, `relation` for `relations`) — and a silently-ignored typo drops an
- * intended architectural constraint without any warning, exactly the failure the
- * non-string-array guard below also defends against. Rejecting loudly turns a
- * silent no-op into a blocking, fixable error. Mirrors the unknown-key rejection
- * the config parser already applies to reviewer/tier blocks.
+ * The complete set of keys a single `node_types.<name>` entry may declare, from
+ * the architecture schema (utils/file-formats-graph.ts) that `yg schemas read
+ * architecture` prints. An unknown key is almost always a typo (`parent` for
+ * `parents`, `aspect` for `aspects`, `relation` for `relations`) — and a
+ * silently-ignored typo drops an intended architectural constraint without any
+ * warning, exactly the failure the non-string-array guard below also defends
+ * against. Rejecting loudly turns a silent no-op into a blocking, fixable error.
  */
-const ARCHITECTURE_NODE_TYPE_KEYS = [
-  'description',
-  'aspects',
-  'parents',
-  'relations',
-  'log_required',
-  'when',
-  'enforce',
-] as const;
+const ARCHITECTURE_NODE_TYPE_KEYS = keysOf(ARCHITECTURE_NODE_TYPE);
 
 /**
  * The keys the top level of yg-architecture.yaml accepts. The same reasoning as
  * a type entry's: a misspelled `node_type:` would load an EMPTY type system with
  * no word, and every node would then fail against types that were never read.
  */
-const ARCHITECTURE_KEYS = ['node_types'] as const;
+const ARCHITECTURE_KEYS = keysOf(ARCHITECTURE_ROOT);
 
 /** Node-type keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_NODE_TYPE_KEYS: RetiredKeys = {
-  sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
-};
+export const RETIRED_NODE_TYPE_KEYS: RetiredKeys = retiredOf(ARCHITECTURE_NODE_TYPE);
 
 export async function parseArchitecture(filePath: string): Promise<ArchitectureDef> {
   const content = await readFile(filePath, 'utf-8');
@@ -172,6 +164,11 @@ export async function parseArchitecture(filePath: string): Promise<ArchitectureD
       ...(enforce !== undefined && { enforce }),
     };
   }
+
+  // The schema's floor under the checks above, for any value of the wrong type
+  // none of them looks at.
+  const problems = raw ? schemaProblems(raw, ARCHITECTURE_ROOT) : [];
+  if (problems.length > 0) throw new Error(`yg-architecture.yaml: ${problems[0].message}`);
 
   return {
     node_types: nodeTypes,

@@ -11,7 +11,8 @@ relations:
     { target: cli/schemas, type: uses },
     { target: cli/templates, type: uses },
     { target: cli/templates-platform, type: uses },
-    { target: cli/init-scaffold, type: uses }
+    { target: cli/init-scaffold, type: uses },
+    { target: cli/file-formats, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/templates/commands.test.ts

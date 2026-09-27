@@ -134,7 +134,7 @@ export async function garbageCollectAndRewrite(
   // subtree) from the graph, so its pairs never reach the universe. While the
   // graph is provably incomplete GC cannot prove anything detached — skip pruning
   // and the rewrite entirely, leaving the committed lock byte-for-byte untouched.
-  if ((graph.nodeParseErrors?.length ?? 0) > 0 || (graph.aspectParseErrors?.length ?? 0) > 0) {
+  if ((graph.nodeParseErrors?.length ?? 0) > 0 || (graph.aspectParseErrors?.length ?? 0) > 0 || (graph.flowParseErrors?.length ?? 0) > 0) {
     return emptySummary;
   }
 

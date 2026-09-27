@@ -6,7 +6,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 
 | Code | Severity | Meaning | Fix |
 |------|----------|---------|-----|
-| \`yaml-invalid\` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow) is not valid YAML or not a YAML mapping, so what it declares is not loaded. | Fix the YAML syntax in the file the finding names; the rest of the report may be a symptom of it. |
+| \`yaml-invalid\` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow's yg-flow.yaml) does not parse, is not a YAML mapping or breaks its schema — or a directory under flows/ has no yg-flow.yaml — so what it declares is not loaded; the rest of the graph is. | Fix the file the finding names (yg schemas read gives each file's keys); the rest of the report may be a symptom of it. |
 | \`config-invalid\` | error | yg-config.yaml (or yg-secrets.yaml) does not parse or holds a value of the wrong shape; every setting falls back to its default until it does. | Correct what the finding quotes in .yggdrasil/yg-config.yaml; findings computed on the defaults clear with it. |
 | \`architecture-invalid\` | error | yg-architecture.yaml does not parse, so no architecture rule (types, parents, allowed relations) is checked. | Fix the YAML in .yggdrasil/yg-architecture.yaml. |
 | \`lock-invalid\` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
@@ -39,6 +39,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`aspect-invalid-id\` | error | A rule directory yields an empty rule id. | Rename the directory under aspects/ to the intended rule id. |
 | \`aspect-name-missing\` | error | A yg-aspect.yaml has no name:. | Add name: to the file. |
 | \`aspect-unknown-key\` | error | A yg-aspect.yaml holds a key it does not accept (a typo such as \`stauts:\`); the rule is not loaded until it is corrected. | Rename the key to the one it is a typo of (the finding names it), or remove it. |
+| \`aspect-field-invalid\` | error | A yg-aspect.yaml (with its adaptation, for an installed rule) holds a value of the wrong type for a key it accepts — a description that is a list, a reference description that is a number; the rule is not loaded until it is corrected. | Set the value the finding names to the type it asks for; yg schemas read aspect gives each key's type. |
 | \`aspect-status-invalid\` | error | A declared status: is not one of draft, advisory, enforced. | Set status: to draft, advisory or enforced. |
 | \`aspect-review-by-malformed\` | error | A rule's review_by: is present but not a calendar-valid bare YYYY-MM-DD date (2027-13-01, 2027-02-30). Fired only on the rule that carries the field. | Write review_by: as a real YYYY-MM-DD date — with the user's approval, since the date is theirs. |
 | \`aspect-errs-invalid\` | error | errs: is not one of over, under, exact, or is declared on a rule that is not a script rule. | Set errs to over, under or exact on a script rule, or remove it. |

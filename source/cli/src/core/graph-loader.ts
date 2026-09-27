@@ -117,35 +117,6 @@ class MissingSchemaVersionError extends Error {
   }
 }
 
-/**
- * Thrown when a `flows/<x>/yg-flow.yaml` cannot be loaded — the file is missing
- * (ENOENT), is a directory (EISDIR), is unparseable YAML, or fails flow-shape
- * validation. This is an expected USER condition on an ALREADY-INITIALIZED graph
- * (the fault is one flow file, not a missing `.yggdrasil/`), NOT an internal bug:
- * callers recognize it and emit a flow-specific what/why/next message instead of
- * the misleading "run yg init" (ENOENT) or "please file an issue" (YAML/EISDIR)
- * wrappers. `flowYamlPath` names the offending file; `detail` carries the
- * underlying reason (e.g. the parser's shape message or the raw fs error text).
- */
-class FlowLoadError extends Error {
-  readonly flowYamlPath: string;
-  readonly detail: string;
-
-  constructor(flowYamlPath: string, cause: unknown) {
-    // Normalize to POSIX separators: this path is surfaced verbatim in CLI-facing
-    // what/why/next output, so an OS-native (backslash) path here would leak into
-    // stdout/stderr. Normalizing at the single construction point covers both the
-    // stored property and the embedded message.
-    const normalizedPath = toPosixPath(flowYamlPath);
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    super(`Failed to load flow file ${normalizedPath}: ${detail}`);
-    this.name = 'FlowLoadError';
-    this.flowYamlPath = normalizedPath;
-    this.detail = detail;
-    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
-  }
-}
-
 function toModelPath(absolutePath: string, modelDir: string): string {
   return toPosixPath(path.relative(modelDir, absolutePath));
 }
@@ -232,7 +203,7 @@ export async function loadGraph(
   }
 
   const aspectsLoad = await loadAspects(path.join(yggRoot, 'aspects'), path.dirname(yggRoot));
-  const flows = await loadFlows(path.join(yggRoot, 'flows'));
+  const flowsLoad = await loadFlows(path.join(yggRoot, 'flows'));
 
   return {
     config,
@@ -244,9 +215,10 @@ export async function loadGraph(
     ...(configUnknownKeys && { configUnknownKeys }),
     nodeParseErrors: nodeParseErrors.length > 0 ? nodeParseErrors : undefined,
     aspectParseErrors: aspectsLoad.parseErrors.length > 0 ? aspectsLoad.parseErrors : undefined,
+    flowParseErrors: flowsLoad.parseErrors.length > 0 ? flowsLoad.parseErrors : undefined,
     nodes,
     aspects: aspectsLoad.aspects,
-    flows,
+    flows: flowsLoad.flows,
     rootPath: toPosixPath(yggRoot),
   };
 }
@@ -569,27 +541,53 @@ async function scanInstalledPackages(
   }
 }
 
-async function loadFlows(flowsDir: string): Promise<FlowDef[]> {
+/**
+ * Load every flow under flows/. A flow that cannot be loaded — its directory has
+ * no yg-flow.yaml, the file does not parse, or it breaks the flow schema — is
+ * one flow's finding, exactly as a yg-node.yaml that fails is one node's: it is
+ * left out and reported, and every command still runs on the rest of the graph.
+ * One half-written flow file must not stop every command in the repository.
+ */
+async function loadFlows(flowsDir: string): Promise<{ flows: FlowDef[]; parseErrors: Array<{ flowPath: string; messageData: IssueMessage }> }> {
   const entries = await readSortedDirOrEmpty(flowsDir);
-  if (entries.length === 0) return [];
   const flows: FlowDef[] = [];
+  const parseErrors: Array<{ flowPath: string; messageData: IssueMessage }> = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const flowYamlPath = path.join(flowsDir, entry.name, 'yg-flow.yaml');
-    let flow: FlowDef;
     try {
-      flow = await parseFlow(path.join(flowsDir, entry.name), flowYamlPath);
+      flows.push(await parseFlow(path.join(flowsDir, entry.name), flowYamlPath));
     } catch (err) {
-      // The graph IS initialized — a flow file that is missing (ENOENT), is a
-      // directory (EISDIR), is unparseable YAML, or fails shape validation must
-      // NOT surface as "no .yggdrasil/" or an unclassified "file an issue" bug.
-      // Tag it with the offending file so the preamble renders a flow-specific
-      // what/why/next.
-      throw new FlowLoadError(flowYamlPath, err);
+      parseErrors.push({ flowPath: entry.name, messageData: flowLoadIssue(entry.name, flowYamlPath, err) });
     }
-    flows.push(flow);
   }
-  return flows;
+  return { flows, parseErrors };
+}
+
+/** The what/why/next of one flow that could not be loaded. */
+function flowLoadIssue(flowPath: string, flowYamlPath: string, err: unknown): IssueMessage {
+  const file = `.yggdrasil/flows/${flowPath}/yg-flow.yaml`;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === 'ENOENT' || code === 'EISDIR') {
+    return {
+      what: `Flow directory .yggdrasil/flows/${flowPath}/ has no yg-flow.yaml file.`,
+      why: `A directory under flows/ is a flow, and a flow is defined by its yg-flow.yaml; without one, flow '${flowPath}' is not loaded, so none of the rules it would give its participants apply.`,
+      next: `Add ${file} (a name and a non-empty nodes list; yg schemas read flow), or remove the directory if the flow is no longer needed.`,
+    };
+  }
+  const isSyntaxError = (err as Error).name === 'YAMLParseError';
+  const [said, ...excerpt] = (err as Error).message.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
+  // The parser names the file by its absolute path; the finding names it by the
+  // repository's, which is the same on every machine.
+  const ownFile = `yg-flow.yaml at ${flowYamlPath}: `;
+  const reason = said?.startsWith(ownFile) ? said.slice(ownFile.length) : said;
+  return {
+    what: [`${file} ${isSyntaxError ? 'does not parse' : 'breaks the flow schema'}: ${reason ?? 'unknown error'}`, ...excerpt].join('\n'),
+    why: `Flow '${flowPath}' is not loaded until it ${isSyntaxError ? 'parses' : 'is corrected'}, so none of the rules it would give its participants apply. The rest of the graph is loaded and checked as usual.`,
+    next: isSyntaxError
+      ? `Fix the YAML in ${file}.`
+      : `Correct what the reason above names in ${file} (yg schemas read flow lists the allowed fields).`,
+  };
 }
 
 
@@ -664,17 +662,6 @@ function diagnoseGraphLoadError(err: unknown): IssueMessage | undefined {
       what: `yg-config.yaml version "${err.detectedVersion}" is not valid semver.`,
       why: 'The CLI cannot determine graph compatibility without a parseable version — reading the graph anyway could pass over a format it never confirmed it can read.',
       next: 'Restore the version field in .yggdrasil/yg-config.yaml from version control, or re-run `yg init`, then re-run this command.',
-    };
-  }
-  // A flow file that is missing / a directory / unparseable / mis-shaped is a
-  // fault in ONE flow file on an ALREADY-INITIALIZED graph — never "run yg init"
-  // and never an unclassified "file an issue" bug. Classified BEFORE the
-  // graph-root ENOENT branch (an absent yg-flow.yaml is ENOENT, but the graph exists).
-  if (err instanceof FlowLoadError) {
-    return {
-      what: `Flow file ${err.flowYamlPath} could not be loaded: ${err.detail}`,
-      why: 'The graph is initialized, but this flow file is missing, unreadable, or malformed — the graph cannot load until every flow file under .yggdrasil/flows/ is a valid yg-flow.yaml.',
-      next: 'Fix the flow file (a valid yg-flow.yaml with a name and a non-empty nodes list), or remove its directory under .yggdrasil/flows/ if the flow is no longer needed.',
     };
   }
   const msg = (err as Error | undefined)?.message ?? '';
