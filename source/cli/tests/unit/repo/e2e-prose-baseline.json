@@ -37,7 +37,7 @@
     "cli-context-attention-line.test.ts": 1,
     "cli-coverage-modes.test.ts": 3,
     "cli-det-budget.test.ts": 1,
-    "cli-deterministic-ctx.test.ts": 28,
+    "cli-deterministic-ctx.test.ts": 26,
     "cli-deterministic-fill-lifecycle.test.ts": 4,
     "cli-disk-scan.test.ts": 2,
     "cli-drill-add.test.ts": 8,

@@ -1,9 +1,11 @@
 name: E2E Tests — Graph-aware Deterministic Ctx
 type: test-suite
-description: "Subprocess E2E proving the graph-aware deterministic check.mjs surface — ctx.graph/ctx.files/ctx.parseAst, the allowed-reads boundary error, --check-determinism stable vs non-deterministic, and the --node graph-scoped vs --files ad-hoc mode split."
+description: "Subprocess E2E proving the graph-aware deterministic check.mjs surface — ctx.graph/ctx.files/ctx.parseAst, the allowed-reads boundary error, --check-determinism stable vs non-deterministic, and the --node graph-scoped vs --files ad-hoc mode split, where --files hands the same ctx as a drill and sends a graph-reading check to --node."
 aspects: []
 relations:
   - target: cli/tests/e2e/support
+    type: uses
+  - target: cli/tests/support
     type: uses
 mapping:
   - source/cli/tests/e2e/cli-deterministic-ctx.test.ts

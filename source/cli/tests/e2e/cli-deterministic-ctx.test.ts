@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
+import { textNext } from '../support/assert-output.js';
 
 // ---------------------------------------------------------------------------
 // E2E suite — the GRAPH-AWARE deterministic check.mjs surface.
@@ -596,13 +597,13 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
   // Scenario 5: --node (graph-scoped) vs --files (ad-hoc) on a graph-aware aspect.
   //
   // --node runs the graph-aware structure runner: ctx.graph / ctx.fs /
-  // ctx.parseAst are all present. --files runs the single-file AST runner:
-  // ctx exposes only ctx.files — no graph-aware surfaces. A graph-aware check
-  // therefore THROWS in --files mode (TypeError: ctx.graph/ctx.parseAst
-  // undefined). This is the documented mode distinction, asserted here.
+  // ctx.parseAst are all present. --files runs the graphless runner with the
+  // same ctx a drill gets: ctx.files, ctx.subject and ctx.config, no
+  // graph-aware surfaces. A graph-aware check is therefore refused in --files
+  // mode as needing --node — never reported as a bug in the check.
   // -------------------------------------------------------------------------
 
-  it('S5a: --node runs the graph-aware ctx (ctx.graph works); the same aspect in --files mode throws (no graph ctx)', () => {
+  it('S5a: --node runs the graph-aware ctx (ctx.graph works); the same aspect in --files mode is sent to --node', () => {
     const dir = deterministicFixture('s5a');
     try {
       writeAspect(dir, 'graph-name-match', 'Service file must export a create* function (read via ctx.graph).', GRAPH_NAME_MATCH_CHECK);
@@ -613,13 +614,27 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       expect(node.status).toBe(0);
       expect(node.all).toContain('No violations.');
 
-      // --files: ad-hoc single-file runner — ctx.graph is undefined, so the
-      // graph-aware check throws. exit 1, error names the aspect.
+      // --files: graphless run — the check reads ctx.graph, which is not there,
+      // so the run names the graph-attached one instead of blaming check.mjs.
       const files = run(['aspect-test', '--aspect', 'graph-name-match', '--files', 'src/services/orders.ts'], dir);
       expect(files.status).toBe(1);
-      expect(files.all).toContain("check.mjs threw an exception while running (aspect 'graph-name-match')");
-      // ctx.graph is absent in --files mode — the thrown error reflects that.
-      expect(files.all).toContain("Cannot read properties of undefined (reading 'node')");
+      expect(textNext(files.stderr)?.startsWith('yg aspect-test --aspect graph-name-match --node')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('S5d: --files hands a check the same ctx.subject and ctx.config a drill does', () => {
+    const dir = deterministicFixture('s5d');
+    try {
+      writeAspect(dir, 'subject-size', 'A subject file stays under the configured size.', `export function check(ctx) {
+  return ctx.subject
+    .filter((f) => f.content.length > (ctx.config.limit ?? 100000))
+    .map((f) => ({ file: f.path, line: 1, message: 'too long' }));
+}
+`);
+      const files = run(['aspect-test', '--aspect', 'subject-size', '--files', 'src/services/orders.ts'], dir);
+      expect(files.status, files.all).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1766,7 +1766,10 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   (the refusal names which). Mutually exclusive with `--node` and `--files`.
 - `--files <paths...>` — Run against an explicit file list with **no graph attachment at all**
   (script rules only) — no node mapping, no architecture classification, no `ctx.node` /
-  `ctx.graph`. Useful for ad-hoc testing before wiring the aspect into the graph. Do not confuse with
+  `ctx.graph`. The check gets the same `ctx` as a drill: `ctx.files` and `ctx.subject` (the
+  given files) and `ctx.config` (the rule's settings); a check that reads graph context is
+  reported as needing `--node`, not as a bug in the check. Useful for ad-hoc testing before
+  wiring the aspect into the graph. Do not confuse with
   `--file` (singular): that one *is* graph-attached, to a file's architecture type.
 - `--check-determinism` — (script rules) Runs the check twice and exits 1 if the violation
   sets differ (lexically sorted), catching side effects and machine-dependence in `check.mjs`.
