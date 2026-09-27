@@ -7,7 +7,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead, type LogEntry } from '../core/log/log-read.js';
 import { logMergeResolve, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
-import { appendTypeLogEntry, readTypeLog } from '../core/log/type-log.js';
+import { appendTypeLogEntry, readTypeLog, type TypeDecisions } from '../core/log/type-log.js';
 import { addAspectLogEntry, readAspectLogCommand } from './log-aspect.js';
 import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
@@ -220,12 +220,37 @@ async function reasonTextOf(opts: { reason?: string; reasonFile?: string }, targ
   return await readFile(opts.reasonFile, 'utf-8');
 }
 
-interface AddOpts { node?: string; type?: string; aspect?: string; reason?: string; reasonFile?: string; supersedes?: string[]; status?: string; evidence?: string; by?: string }
+interface AddOpts { node?: string; type?: string; aspect?: string; reason?: string; reasonFile?: string; supersedes?: string[]; adds?: boolean; status?: string; evidence?: string; by?: string }
+
+/**
+ * The decisions in force the writer of a type decision faced, one line each,
+ * nearest type first: its datetime (what --supersedes takes) and the first
+ * line of what it says.
+ */
+function renderInForce(typeId: string, inForce: readonly TypeDecisions[]): string {
+  const lines = [`Decisions in force for type '${typeId}' and the types above it:`];
+  for (const d of inForce) {
+    for (const e of d.entries) {
+      const first = e.body.split('\n').find((l) => l.trim() !== '' && !l.startsWith('### Supersedes: ')) ?? '';
+      lines.push(`  ${d.typeId}  [${e.datetime}]  ${first.trim()}`);
+    }
+    if (d.unreadable !== undefined) lines.push(`  ${d.typeId}  (log unreadable: ${d.unreadable})`);
+  }
+  return `${lines.join('\n')}\n`;
+}
 
 async function addAction(opts: AddOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
   const target = targetOf(opts, 'add');
   onlyFor(target, 'aspect', { '--status': opts.status, '--evidence': opts.evidence, '--by': opts.by }, 'add');
+  onlyFor(target, 'type', { '--adds': opts.adds }, 'add');
+  if (opts.adds === true && (opts.supersedes ?? []).length > 0) {
+    failAndExit({
+      what: '--adds and --supersedes cannot both be given',
+      why: '--adds says the new decision replaces none of those in force; --supersedes names the ones it replaces. One entry says one of the two.',
+      next: `yg log add ${flagOf(target)} --reason '<the decision>' --supersedes <datetime>  (or --adds alone)`,
+    }, 'usage');
+  }
   const reasonText = await reasonTextOf(opts, target);
   const nowMs = entryClock();
 
@@ -234,7 +259,8 @@ async function addAction(opts: AddOpts): Promise<void> {
     return;
   }
   if (target.kind === 'type') {
-    const result = await appendTypeLogEntry({ graph, typeId: target.id, reasonText, nowMs, supersedes: opts.supersedes });
+    const result = await appendTypeLogEntry({ graph, typeId: target.id, reasonText, nowMs, supersedes: opts.supersedes, adds: opts.adds });
+    if (result.inForce !== undefined && result.inForce.length > 0) writeOut(renderInForce(target.id, result.inForce));
     if (!result.ok) failAndExit(result.error);
     writeOut(paint.green(`Added log entry to ${result.logPath}\nTimestamp: ${result.datetime}\n`));
     return;
@@ -473,6 +499,7 @@ export function registerLogCommand(program: Command): void {
       'the datetime of an earlier entry of the same log this one replaces (repeatable); both stay in the file',
       (v: string, prev: string[] = []) => [...prev, v.trim()],
     )
+    .option('--adds', 'with --type: the new decision adds to those in force and replaces none (required, unless --supersedes, whenever any decision is in force for the type or a type above it)')
     .option('--status <status>', "with --aspect: record that the rule's status moved to this one (draft | advisory | enforced) — the rule's own file must already carry it")
     .option('--evidence <text>', 'with --aspect --status: what justified the change of status (required with --status)')
     .option('--by <who>', "with --aspect --status: who decided (default: 'the user')")

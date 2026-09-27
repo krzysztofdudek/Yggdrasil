@@ -150,8 +150,8 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a status change — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
 | \`yg log read --aspect <id>\` [\`--top <n>\` \\| \`--all\`] [\`--json\`] | Read that history, newest first (whole history by default). |
 | \`yg log read --node <path> [--top N \\| --all]\` | Read log entries (default top 10, newest first) |
-| \`yg log add --type <type> --reason <text>\` | Record an explicit decision about every node of a type (\`.yggdrasil/types/<type>/log.md\`); never required. \`yg log read --type <type>\` prints the decisions in force (\`--all\` adds replaced ones) |
-| \`yg log merge-resolve --node <path>\` | Reconcile log.md after a git merge, rebase or cherry-pick (writes / validates the union of both sides' entries) |
+| \`yg log add --type <type> --reason <text>\` [\`--supersedes <datetime>\` \\| \`--adds\`] | Record an explicit decision about every node of a type (\`.yggdrasil/types/<type>/log.md\`); never required. It lists the decisions in force for the type and the types above it; when any exists, say whether the new one replaces one (\`--supersedes\`) or adds beside them (\`--adds\`) — with neither it is refused (\`type-log-choice-missing\`). \`yg log read --type <type>\` prints the decisions in force (\`--all\` adds replaced ones) |
+| \`yg log merge-resolve --node <path>\` (or \`--type <type>\`) | Reconcile log.md after a git merge, rebase or cherry-pick (writes / validates the union of both sides' entries) |
 | \`yg suppressions\` | Read-only inventory of active \`yg-suppress\` markers; warns on unknown aspect-id, wildcard, unbounded range, or a waiver aimed at an \`errs: under\` check (one that cannot false-positive, so there is nothing to waive). Exit 0. |
 | \`yg knowledge list\` / \`yg knowledge read <name>\` | Browse deep-reference topics |
 | \`yg advise\` | Read-only attention layer: aggregates signals and proposes rule changes, each with evidence and a human-action NEXT. Never gates \`yg check\`, never writes a verdict, never appears in a \`next:\` line. |
@@ -338,7 +338,10 @@ the diff and present it as the reason.
 
 After a git merge, rebase or cherry-pick: if both sides added log entries
 to the same node, run \`yg log merge-resolve --node <path>\` while git is
-stopped on the conflict (it writes the union) or from the merge commit. The
+stopped on the conflict (it writes the union) or from the merge commit — and
+\`yg log merge-resolve --type <type>\` for a conflicted type decision log
+(\`.yggdrasil/types/<type>/log.md\`; take one side of a conflicted
+\`yg-lock.types.json\` first). The
 tool keeps the entries both sides start with byte-exact and the union of
 every entry after them — it cannot silently drop or fabricate entries. Do NOT manually concatenate the two
 log histories — integrity hashes will break and \`yg check\` will fail. Until the

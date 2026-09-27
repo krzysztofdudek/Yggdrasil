@@ -210,6 +210,17 @@ so an add refuses a rewritten or conflicted log. \`yg log read --type <type>\`
 prints the decisions in force; \`--all\` adds the replaced ones. A log whose
 type the architecture no longer defines is reported as \`type-log-orphaned\`.
 
+An add lists the decisions in force for the type and the types above it, and
+when any exists it needs \`--supersedes <datetime>\` (the one it replaces) or
+\`--adds\` (it replaces none); with neither it is refused as
+\`type-log-choice-missing\`.
+
+When both sides of a merge superseded the SAME entry, \`yg log merge-resolve\`
+keeps every entry and records the baseline but exits with
+\`log-merge-supersedes-conflict\`: two successors would both be in force. Finish
+the merge, then add one entry that supersedes both and says which holds — ask
+the user which one that is.
+
 ## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
 
 If you just ran \`yg log add\` and notice a typo, and the node has NOT reached

@@ -32,7 +32,7 @@ describe('typeDecisionCascade', () => {
     const graph = await loadGraph(dir);
     let now = Date.parse('2026-09-01T00:00:00.000Z');
     const add = async (typeId: string, reasonText: string, supersedes?: string[]): Promise<string> => {
-      const r = await appendTypeLogEntry({ graph, typeId, reasonText, nowMs: (now += 1000), supersedes });
+      const r = await appendTypeLogEntry({ graph, typeId, reasonText, nowMs: (now += 1000), supersedes, adds: supersedes === undefined });
       if (!r.ok) throw new Error(r.error.what);
       return r.datetime;
     };

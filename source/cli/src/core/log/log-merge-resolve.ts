@@ -22,6 +22,7 @@ import { computeLogBaselineFromContent, computeLogGateState, logGateStateBlocks 
 import { validateAppendOnly } from '../log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from '../log-format.js';
 import { typeLogRelPath, typeLogTargetRefusal } from './type-log.js';
+import { competingSuccessors, withStanding } from './log-supersedes.js';
 
 /**
  * Which log is reconciled: a node's (`nodePath`) or a node type's decision log
@@ -659,6 +660,8 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
 
   const recorded = await recordBaseline(graph, target, currentLog);
   if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, inProgress);
+  if (competing !== null) return { ok: false, error: competing };
 
   return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
@@ -727,7 +730,37 @@ async function resolveReplay(args: {
 
   const recorded = await recordBaseline(graph, target, currentLog);
   if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, replay.kind);
+  if (competing !== null) return { ok: false, error: competing };
   return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+}
+
+/**
+ * The conflict a union of two logs can hide: each side replaced the same entry
+ * with a decision of its own, so the merged log holds two successors both in
+ * force. Every entry is kept and the baseline recorded — history is never
+ * dropped — but the command reports the conflict, because silently keeping
+ * both would leave two contradicting decisions in force. The fix is one entry
+ * that supersedes both successors and says which decision holds.
+ */
+function competingSuccessorsRefusal(
+  currentLog: string,
+  target: LogTarget,
+  wroteUnion: boolean,
+  inProgress: InProgressOperation | null,
+): CodedIssueMessage | null {
+  const clash = competingSuccessors(withStanding(parseLog(currentLog)))[0];
+  if (clash === undefined) return null;
+  const settle = `yg log add ${target.flag} --reason '<which decision holds, and why — ask the user>' ${clash.successors.map((s) => `--supersedes ${s}`).join(' ')}`;
+  // The settling entry comes AFTER the merge is finished: added now, it would be
+  // an entry neither side holds, and the merged log would no longer verify.
+  const finish = inProgress !== null ? `git add ${target.gitLogPath} and the lock files, ${OPERATION_COMMANDS[inProgress].finish}, then ` : '';
+  return {
+    code: 'log-merge-supersedes-conflict',
+    what: `${target.gitLogPath}: the entry ${clash.target} was replaced on both sides of the merge — by ${clash.successors.join(' and ')}`,
+    why: `Each side superseded the same entry with a decision of its own, so both successors would read as in force and contradict each other. ${wroteUnion ? 'The union of both sides was written and its baseline recorded; ' : 'Every entry is kept and the baseline recorded; '}which decision holds is not something a merge can decide.`,
+    next: `${finish}${settle}`,
+  };
 }
 
 /**

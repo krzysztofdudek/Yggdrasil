@@ -93,6 +93,27 @@ export function withStanding(entries: ReadonlyArray<{ datetime: string; body: st
 }
 
 /**
+ * Entries that more than one entry still in force claims to have replaced —
+ * the shape a merge leaves when two branches each superseded the same
+ * decision. One writer cannot produce it (a replaced entry cannot be replaced
+ * again), so it is always two decisions that never saw each other, and which of
+ * them holds is a question only a person can answer. Settled by an entry that
+ * supersedes the competing successors, after which they are no longer in force.
+ */
+export function competingSuccessors(entries: readonly EntryStanding[]): Array<{ target: string; successors: string[] }> {
+  const present = new Set(entries.map((e) => e.datetime));
+  const byTarget = new Map<string, string[]>();
+  for (const e of entries) {
+    if (e.supersededBy !== undefined) continue;
+    for (const target of e.supersedes) {
+      if (!present.has(target) || target >= e.datetime) continue;
+      byTarget.set(target, [...(byTarget.get(target) ?? []), e.datetime]);
+    }
+  }
+  return [...byTarget].filter(([, s]) => s.length > 1).map(([target, successors]) => ({ target, successors }));
+}
+
+/**
  * Why an entry cannot replace the ones it names, or null when it can: every
  * target must be an entry already in this log, and one still in force — an
  * entry already replaced is replaced by the entry that replaced it, and naming

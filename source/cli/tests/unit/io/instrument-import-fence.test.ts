@@ -215,13 +215,13 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     expect([...gating].filter((g) => !flagged.has(g))).toEqual([]);
   });
 
-  it('presentation clause (b) covers both files of the aspects command and the log command', async () => {
+  it('presentation clause (b) covers the aspects command and both files of the log command', async () => {
     const IMPORT_STRINGIFY = `import { stringify } from 'yaml';\nexport const s = stringify;\n`;
     const files = [
       'source/cli/src/cli/structure.ts',
       'source/cli/src/cli/aspects.ts',
-      'source/cli/src/cli/aspects-log.ts',
       'source/cli/src/cli/log.ts',
+      'source/cli/src/cli/log-aspect.ts',
     ];
     for (const rel of files) writeSource(rel, IMPORT_STRINGIFY);
     const flagged = await runGuard(files);

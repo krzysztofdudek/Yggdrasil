@@ -97,9 +97,15 @@ export function typeLogTargetRefusal(graph: Graph, typeId: string): CodedIssueMe
   return null;
 }
 
+/**
+ * The outcome of an add. Both sides carry `inForce`: the decisions in force
+ * for the type and the types above it that the writer faced — before the entry
+ * on a refusal, the ones it was added beside on success — so the command can
+ * put them in front of whoever writes the next one.
+ */
 export type TypeLogAddResult =
-  | { ok: true; datetime: string; logPath: string }
-  | { ok: false; error: CodedIssueMessage };
+  | { ok: true; datetime: string; logPath: string; inForce: TypeDecisions[] }
+  | { ok: false; error: CodedIssueMessage; inForce?: TypeDecisions[] };
 
 /**
  * Append one entry to a type's log and record the new baseline.
@@ -116,6 +122,12 @@ export async function appendTypeLogEntry(input: {
   reasonText: string;
   nowMs: number;
   supersedes?: readonly string[];
+  /**
+   * The writer's answer to the decisions already in force: true means "this
+   * adds to them, it replaces none". Required, like `supersedes`, whenever any
+   * decision is in force for the type or a type above it.
+   */
+  adds?: boolean;
 }): Promise<TypeLogAddResult> {
   const { graph, typeId } = input;
   const refused = typeLogTargetRefusal(graph, typeId);
@@ -151,6 +163,26 @@ export async function appendTypeLogEntry(input: {
     const unsettled = unsettledLogRefusal(existing, baselines[typeId]?.log, typeId, logRel);
     if (unsettled !== null) return { ok: false, error: unsettled };
 
+    // A decision written without having seen the ones already in force is how
+    // two contradicting decisions both end up "in force". So whenever any is —
+    // on this type or a type above it — the writer has to say what the new one
+    // does to them: replace some (--supersedes) or add beside them (--adds).
+    const inForce = (await typeDecisionCascade(graph, typeId)).filter((d) => d.entries.length > 0);
+    const choseSupersedes = (input.supersedes ?? []).length > 0;
+    if (inForce.length > 0 && !choseSupersedes && input.adds !== true) {
+      const count = inForce.reduce((n, d) => n + d.entries.length, 0);
+      return {
+        ok: false,
+        inForce,
+        error: {
+          code: 'type-log-choice-missing',
+          what: `${count} decision${count === 1 ? ' is' : 's are'} already in force for type '${typeId}' and the types above it, and the new entry says nothing about ${count === 1 ? 'it' : 'them'}`,
+          why: 'A decision written without regard to the ones in force can contradict one of them while both keep reading as in force; the writer, who has just seen them listed, is the one who knows whether the new decision replaces one or adds to them.',
+          next: `yg log add --type ${typeId} --reason '<the decision>' --supersedes <datetime of the entry it replaces>  (or --adds when it replaces none)`,
+        },
+      };
+    }
+
     const composed = composeLogEntry(existing, input.reasonText, input.nowMs, { supersedes: input.supersedes });
     if (!composed.ok) return { ok: false, error: { ...composed.error, code: composed.error.code ?? 'command-error' } };
     await writeLogFile(logAbs, composed.content);
@@ -161,7 +193,7 @@ export async function appendTypeLogEntry(input: {
       // this add never writes that file, so neither write can undo the other.
       await writeTypeLock(graph.rootPath, { ...baselines, [typeId]: { log: baseline } });
     }
-    return { ok: true, datetime: composed.datetime, logPath: logRel };
+    return { ok: true, datetime: composed.datetime, logPath: logRel, inForce };
   });
   return locked.ok ? locked.value : { ok: false, error: { ...locked.error, code: 'command-error' } };
 }

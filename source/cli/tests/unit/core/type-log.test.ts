@@ -15,6 +15,8 @@ import { appendTypeLogEntry, readTypeLog, typeLogNameUsable, typeLogTargetRefusa
 import { classifyLogStateFromLock } from '../../../src/core/check-log-state.js';
 import { logMergeResolve } from '../../../src/core/log/log-merge-resolve.js';
 import { composeLogEntry } from '../../../src/core/log/log-entry.js';
+import { competingSuccessors, withStanding } from '../../../src/core/log/log-supersedes.js';
+import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { readLock, writeLock, readTypeLock, writeTypeLock, LockInvalidError } from '../../../src/io/lock-store.js';
 import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { Graph } from '../../../src/model/graph.js';
@@ -38,7 +40,7 @@ function project(): string {
 
 let clock = Date.parse('2026-09-01T00:00:00.000Z');
 async function add(graph: Graph, reasonText: string, typeId = 'service', supersedes?: string[]): Promise<ReturnType<typeof appendTypeLogEntry>> {
-  return appendTypeLogEntry({ graph, typeId, reasonText, nowMs: (clock += 1000), supersedes });
+  return appendTypeLogEntry({ graph, typeId, reasonText, nowMs: (clock += 1000), supersedes, adds: supersedes === undefined });
 }
 
 async function findings(graph: Graph, dir: string): Promise<CheckIssue[]> {
@@ -231,6 +233,28 @@ describe('entries that replace earlier ones', () => {
     expect(unknown.ok ? null : unknown.error.code).toBe('log-supersedes-unknown');
     // A hand-written heading naming a datetime that is not strict ends the run of references.
     put('### Supersedes: yesterday\nprose', 4);
+    expect(withStanding(parseLog(log)).map((e) => e.supersedes.length)).toEqual([0, 1, 0]);
+  });
+
+  it('a hand-written reference to a LATER entry, or to one the log does not hold, replaces nothing', () => {
+    const A = '2026-01-01T00:00:01.000Z';
+    const B = '2026-01-01T00:00:02.000Z';
+    const C = '2026-01-01T00:00:03.000Z';
+    // A names B, which comes after it: a forward reference cannot take B out of force.
+    const forward = `## [${A}]\n### Supersedes: ${B}\n\nwritten first\n## [${B}]\nwritten second\n`;
+    expect(withStanding(parseLog(forward)).map((e) => e.supersededBy)).toEqual([undefined, undefined]);
+    // C names an entry the log does not hold, and itself: neither replaces anything.
+    const dangling = `## [${A}]\na\n## [${C}]\n### Supersedes: 2001-01-01T00:00:00.000Z\n### Supersedes: ${C}\n\nc\n`;
+    expect(withStanding(parseLog(dangling)).map((e) => e.supersededBy)).toEqual([undefined, undefined]);
+    expect(competingSuccessors(withStanding(parseLog(forward)))).toEqual([]);
+  });
+
+  it('two successors of one entry both in force compete, until an entry supersedes them', () => {
+    const [A, B, C, D] = ['01', '02', '03', '04'].map((n) => `2026-01-01T00:00:${n}.000Z`);
+    const merged = `## [${A}]\na\n## [${B}]\n### Supersedes: ${A}\n\nb\n## [${C}]\n### Supersedes: ${A}\n\nc\n`;
+    expect(competingSuccessors(withStanding(parseLog(merged)))).toEqual([{ target: A, successors: [B, C] }]);
+    const settled = `${merged}## [${D}]\n### Supersedes: ${B}\n### Supersedes: ${C}\n\nd\n`;
+    expect(competingSuccessors(withStanding(parseLog(settled)))).toEqual([]);
   });
 });
 

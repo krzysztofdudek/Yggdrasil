@@ -238,3 +238,5 @@ The CLI reference, log-management and lock knowledge now describe the node type 
 The agent manual and the CLI reference knowledge teach the rule history as yg log with --aspect, drop the removed alias of --top, and describe what differs from the other logs: the whole history by default, the status flags, no merge baseline.
 ## [2026-09-27T10:05:54.261Z]
 The lock knowledge and the agent manual describe the committed type baselines file, why it is separate, and that an unknown top-level key in a committed lock file is now ignored rather than lock-invalid.
+## [2026-09-27T10:33:01.223Z]
+The agent manual and the knowledge describe the guard on a type decision (the listing, --supersedes or --adds, the refusal code), the conflict merge-resolve reports when both sides superseded the same entry, and merge-resolve --type in the merge recipe with its own baseline file.

@@ -1116,11 +1116,17 @@ yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
 yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
-yg log add --type handler --reason "Handlers validate input at the boundary, never in the service."
+yg log add --type handler --reason "Handlers validate input at the boundary, never in the service." --adds
 yg log read --type handler                     # the decisions in force, newest first
 yg log read --type handler --all               # replaced decisions too, marked
 yg log merge-resolve --type handler
 \`\`\`
+
+\`yg log add --type\` first LISTS the decisions in force for the type and every
+type above it. When any exists, the new entry must say what it does to them:
+\`--supersedes <datetime>\` (it replaces that one) or \`--adds\` (it replaces
+none). With neither it is REFUSED (\`type-log-choice-missing\`) and nothing is
+written — read the list, then choose.
 
 A type's log lives in \`.yggdrasil/types/<type>/log.md\`. It gets the same
 integrity, format and conflict checks as a node's (findings carry the log file

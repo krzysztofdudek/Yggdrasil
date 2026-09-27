@@ -85,16 +85,16 @@ const FORBIDDEN_ON_GATING = [
 
 /**
  * Presentation commands that must never gain YAML-write capability. structure and
- * aspects only report on the graph (aspects-log.ts is the second file of the
- * aspects command). log does write — `log add` appends to a node's log.md and
- * `log merge-resolve` rewrites the lock's logs partition, both through core
- * helpers — but it never serializes YAML, so none of them may hold a serializer.
+ * aspects only report on the graph. log does write — `log add` appends to a log.md
+ * and `log merge-resolve` rewrites a lock baseline, both through core helpers, and
+ * log-aspect.ts is the log command's second file (a rule's own history) — but it
+ * never serializes YAML, so none of them may hold a serializer.
  */
 const PRESENTATION_COMMANDS = new Set([
   'source/cli/src/cli/structure.ts',
   'source/cli/src/cli/aspects.ts',
-  'source/cli/src/cli/aspects-log.ts',
   'source/cli/src/cli/log.ts',
+  'source/cli/src/cli/log-aspect.ts',
 ]);
 
 /** The `yaml` package (bare specifier) — the sole YAML-write surface in the repo. */

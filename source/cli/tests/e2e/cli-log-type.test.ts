@@ -19,6 +19,11 @@
 //                   writes the union and yg check is clean
 //   8. no verdict → adding a type or a node log entry changes no pair hash: a
 //                   recorded project stays fully verified
+//  10. competing  → two branches superseding the same decision is reported by
+//                   merge-resolve as a conflict, and one entry settles it
+//   9. the guard  → with decisions in force on the type or a type above it, an
+//                   add that says neither --supersedes nor --adds is refused,
+//                   and the decisions in force are listed for the writer
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -73,8 +78,9 @@ function readType(dir: string, all = false): TypeLogDoc {
   return parseJson<TypeLogDoc>(yg(dir, ['log', 'read', '--type', TYPE, '--json', ...(all ? ['--all'] : [])]).stdout);
 }
 
+/** A type decision that says what it does to those in force: replaces one, or (by default) adds beside them. */
 function addType(dir: string, reason: string, supersedes?: string): Run {
-  return yg(dir, ['log', 'add', '--type', TYPE, '--reason', reason, ...(supersedes !== undefined ? ['--supersedes', supersedes] : [])]);
+  return yg(dir, ['log', 'add', '--type', TYPE, '--reason', reason, ...(supersedes !== undefined ? ['--supersedes', supersedes] : ['--adds'])]);
 }
 
 function checkDoc(dir: string): { issues: OutputIssue[] } {
@@ -241,6 +247,76 @@ describe.skipIf(!distExists)('CLI E2E — a node type keeps a decision log', () 
       // A recording run afterwards has nothing to fill and rewrites no verdict.
       expect(yg(dir, ['check', '--approve', '--only-deterministic']).status).toBe(0);
       expect(lockFiles.map((f) => (existsSync(f) ? readFileSync(f, 'utf-8') : ''))).toEqual(before);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  }, 60_000);
+
+  it('9: with decisions in force, an add that neither replaces nor adds is refused and the decisions are listed', () => {
+    const dir = project('guard');
+    try {
+      expect(yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'The first decision needs no choice.']).status).toBe(0);
+      const [first] = readType(dir).entries;
+      const before = readFileSync(path.join(dir, LOG_REL), 'utf-8');
+
+      const refused = yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'A second decision, written blind.']);
+      expect(refused.status).toBe(1);
+      expectErrorCode(refused.all, 'type-log-choice-missing');
+      expect(refused.stdout).toContain(`[${first.datetime}]`);
+      expect(readFileSync(path.join(dir, LOG_REL), 'utf-8')).toBe(before);
+
+      // A decision on a type above counts too: the service type sits under module.
+      expect(yg(dir, ['log', 'add', '--type', 'module', '--reason', 'Modules decide for their services.']).status).toBe(0);
+      const moduleOnly = project('guard-ancestor');
+      try {
+        expect(yg(moduleOnly, ['log', 'add', '--type', 'module', '--reason', 'A module-wide decision.']).status).toBe(0);
+        expectErrorCode(yg(moduleOnly, ['log', 'add', '--type', TYPE, '--reason', 'Blind to the module.']).all, 'type-log-choice-missing');
+        expect(yg(moduleOnly, ['log', 'add', '--type', TYPE, '--reason', 'Adds beside it.', '--adds']).status).toBe(0);
+      } finally {
+        rmSync(moduleOnly, FIXTURE_RM_OPTIONS);
+      }
+
+      expectErrorCode(yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'x', '--adds', '--supersedes', first.datetime]).all, 'usage');
+      expectErrorCode(yg(dir, ['log', 'add', '--node', 'services/orders', '--reason', 'x', '--adds']).all, 'usage');
+      const replaced = yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'Replaces the first.', '--supersedes', first.datetime]);
+      expect(replaced.status, replaced.all).toBe(0);
+      expect(replaced.stdout).toContain(`[${first.datetime}]`);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('10: two branches superseding the same decision is a conflict merge-resolve reports; one entry superseding both settles it', () => {
+    const dir = project('merge-supersede');
+    const git = (args: string[]): void => { runGitFixture(dir, args); };
+    try {
+      git(['init', '-q', '-b', 'main']);
+      expect(addType(dir, 'Services talk over HTTP.').status).toBe(0);
+      const [base] = readType(dir).entries;
+      git(['add', '-A']); git(['commit', '-q', '-m', 'base']);
+      git(['checkout', '-q', '-b', 'b']);
+      expect(addType(dir, 'Side b: services talk over the queue.', base.datetime).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'b']);
+      git(['checkout', '-q', 'main']);
+      expect(addType(dir, 'Side a: services talk over gRPC.', base.datetime).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'a']);
+      runGitFixture(dir, ['merge', 'b']);
+      runGitFixture(dir, ['checkout', '--ours', '--', '.yggdrasil/yg-lock.types.json']);
+
+      const resolved = yg(dir, ['log', 'merge-resolve', '--type', TYPE]);
+      expect(resolved.status).toBe(1);
+      expectErrorCode(resolved.all, 'log-merge-supersedes-conflict');
+      // Nothing was dropped: both successors are in the merged log, and the log verifies.
+      const all = readType(dir, true).entries;
+      expect(all).toHaveLength(3);
+      const successors = all.filter((e) => e.supersedes?.includes(base.datetime)).map((e) => e.datetime);
+      expect(successors).toHaveLength(2);
+      expectNoIssue(checkDoc(dir), { code: 'log-integrity' });
+
+      git(['add', '-A']); git(['commit', '-q', '--no-edit']);
+      const settled = yg(dir, ['log', 'add', '--type', TYPE, '--reason', 'The queue holds; gRPC was an experiment.', ...successors.flatMap((s) => ['--supersedes', s])]);
+      expect(settled.status, settled.all).toBe(0);
+      expect(readType(dir).entries).toHaveLength(1);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

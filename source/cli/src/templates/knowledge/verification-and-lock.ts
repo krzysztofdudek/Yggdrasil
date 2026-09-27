@@ -439,7 +439,9 @@ conflict markers in either committed file and names the offending one.
 
 When BOTH \`log.md\` files and a committed lock file conflicted, the order is:
 resolve the lock file (take a side) → \`yg log merge-resolve --node <path>\` per
-conflicted log → \`yg log add\` for each \`log_required\` component whose code the
+conflicted node log, and \`yg log merge-resolve --type <type>\` per conflicted
+type decision log (\`.yggdrasil/types/<type>/log.md\`; its baseline goes back into
+\`yg-lock.types.json\`, so take a side of that file first too) → \`yg log add\` for each \`log_required\` component whose code the
 merge combined (merge-resolve names it: a merged source owes the merge's reason)
 → \`yg check --approve\`.
 

@@ -852,7 +852,7 @@ Append-only logs. Every command names exactly one of them (`usage` otherwise):
 yg log add --node <path> --reason "<text>"
 yg log add --node <path> --reason-file <file>
 yg log add --node <path> --reason "<text>" --supersedes <datetime>
-yg log add --type <type> --reason "<the decision>" [--supersedes <datetime>]
+yg log add --type <type> --reason "<the decision>" [--supersedes <datetime> | --adds]
 yg log read --node <path> [--top N]
 yg log read --node <path> --all
 yg log read --node <path> --with-verdicts
@@ -863,6 +863,8 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 ```
 
 Neither log is a verdict input: adding an entry to either re-opens no pair.
+
+**A type decision never lands blind.** `yg log add --type` first lists the decisions in force for the type and every type above it (nearest first, each with the datetime `--supersedes` takes). When any exists, the new entry must say what it does to them: `--supersedes <datetime>` for the one it replaces, or `--adds` when it replaces none. With neither, the add is refused (`type-log-choice-missing`) and nothing is written. `--adds` and `--supersedes` together are `usage`, as is `--adds` on any other log.
 
 A type's log is held to what a node's is: the same entry rules, the same append-only
 baseline — in a committed file of its own, `yg-lock.types.json`, written only once a
@@ -965,6 +967,12 @@ of a type that no longer exists.
   operation and `yg check --approve`. A merge that changed only the log owes nothing.
 
   Never hand-stitch conflict markers out of a log — let merge-resolve write the union.
+
+  When both sides superseded the same entry, each with a decision of its own, the union
+  holds two successors that would both read as in force. merge-resolve keeps every entry
+  and records the baseline, but exits with `log-merge-supersedes-conflict` naming the
+  entry and both successors: finish the merge, then add one entry that supersedes both
+  and says which decision holds (`yg log add … --supersedes <a> --supersedes <b>`).
 
 ---
 
@@ -2540,7 +2548,9 @@ severity says so — see [Aspect Status](/aspect-status).
 | `log-merge-entries-lost` | error | The merged log.md drops or alters entries one of the sides added. | Restore the entries the error lists, byte for byte. |
 | `log-merge-entries-unknown` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
 | `log-merge-out-of-order` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
+| `log-merge-supersedes-conflict` | error | yg log merge-resolve found that both sides of the merge superseded the same entry, so two successors would both be in force; the union was written and its baseline recorded. | Finish the merge, then add one entry that supersedes both successors and says which decision holds (yg log add ... --supersedes &lt;a&gt; --supersedes &lt;b&gt;). |
 | `log-supersedes-unknown` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
+| `type-log-choice-missing` | error | yg log add --type was given neither --supersedes nor --adds while decisions are in force for the type or a type above it (the command lists them). | Re-run with --supersedes &lt;datetime&gt; naming the entry the decision replaces, or --adds when it replaces none. |
 | `log-supersedes-superseded` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |
 | `aspect-status-value-invalid` | error | yg log add --aspect --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
 | `aspect-status-not-standing` | error | yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |

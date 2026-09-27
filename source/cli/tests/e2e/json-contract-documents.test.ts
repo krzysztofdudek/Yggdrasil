@@ -116,6 +116,7 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     yg(dir, ['log', 'add', '--type', 'service', '--reason', 'A decision about every service.']);
     const [decided] = (JSON.parse(yg(dir, ['log', 'read', '--type', 'service', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries;
     yg(dir, ['log', 'add', '--type', 'service', '--reason', 'The decision that replaced it.', '--supersedes', decided.datetime]);
+    yg(dir, ['log', 'add', '--type', 'service', '--reason', 'A decision that adds beside it.', '--adds']);
     yg(dir, ['log', 'add', '--node', 'services/orders', '--reason', 'A later reason that replaces the first.', '--supersedes', (JSON.parse(yg(dir, ['log', 'read', '--node', 'services/orders', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries[0].datetime]);
     yg(dir, ['log', 'add', '--aspect', 'no-todo-comments', '--reason', 'Why the rule exists.']);
 
