@@ -226,3 +226,5 @@ Garbage collection now also holds back while a flow file failed to load. A flow 
 Every message a fill prints now names, in its re-run line, the command the run was invoked as. The code that words a failed lock write, an unreachable reviewer, a failing companion hook or a component owing a log entry is shared with commands that are not a fill and cannot know the invocation, so it named the plain approve command; a free deterministic-only run then sent its reader to the paid one, and a full or dry-run invocation lost its flag. The fill now rewrites those lines once at its own boundary: the issues it emits while running, the report it returns, and the approval lock it takes.
 ## [2026-09-27T09:08:25.058Z]
 A full recording run now drops the log baseline of a node type the architecture no longer defines. Left behind, it would make a type created later under the same name read its fresh log as a truncated history.
+## [2026-09-27T09:37:49.864Z]
+The comment on the hand-changed status path names the command that records such a change by its new name; behaviour is unchanged.

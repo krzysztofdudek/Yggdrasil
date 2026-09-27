@@ -1,5 +1,5 @@
 // =============================================================================
-// CLI E2E — a rule's own history: `yg aspects log add | read`, and a standing
+// CLI E2E — a rule's own history: `yg log add | read --aspect`, and a standing
 // that moved.
 //
 // A component has always had a log beside it saying why it is the way it is. A
@@ -95,9 +95,9 @@ interface LogDoc {
   entries: Array<{ at: string; body: string; status?: { from: string; to: string } }>;
 }
 
-/** The rule's history as `yg aspects log read --json` gives it, newest entry first. */
+/** The rule's history as `yg log read --aspect --json` gives it, newest entry first. */
 function readLog(dir: string): LogDoc {
-  return parseJson<LogDoc>(run(['aspects', 'log', 'read', '--aspect', RULE, '--json'], dir).stdout);
+  return parseJson<LogDoc>(run(['log', 'read', '--aspect', RULE, '--json'], dir).stdout);
 }
 
 /**
@@ -111,35 +111,35 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
     const dir = project('add');
     try {
       const added = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--reason', 'This rule exists because an unexported helper was copied into three files before anybody noticed.'],
+        ['log', 'add', '--aspect', RULE, '--reason', 'This rule exists because an unexported helper was copied into three files before anybody noticed.'],
         dir,
       );
       expect(added.status).toBe(0);
       expect(added.stdout).toContain(`'${RULE}'`);
 
-      const read = run(['aspects', 'log', 'read', '--aspect', RULE], dir);
+      const read = run(['log', 'read', '--aspect', RULE], dir);
       expect(read.status).toBe(0);
       expect(read.stdout).toContain('copied into three files');
       expect(read.stdout).toContain('stands at advisory');
 
       // An entry with nothing in it records that something happened and hides what.
-      const empty = run(['aspects', 'log', 'add', '--aspect', RULE, '--reason', '   '], dir);
+      const empty = run(['log', 'add', '--aspect', RULE, '--reason', '   '], dir);
       expect(empty.status).toBe(1);
       expect(empty.stderr).toContain('Reason cannot be empty');
 
       // Text that would swallow every later entry for anything parsing the file.
-      const header = run(['aspects', 'log', 'add', '--aspect', RULE, '--reason', '## [not an entry header]'], dir);
+      const header = run(['log', 'add', '--aspect', RULE, '--reason', '## [not an entry header]'], dir);
       expect(header.status).toBe(1);
       expect(header.stderr).toContain('level-2 header');
 
       // A rule nobody has such a command for.
-      const unknown = run(['aspects', 'log', 'read', '--aspect', 'no-such-rule'], dir);
+      const unknown = run(['log', 'read', '--aspect', 'no-such-rule'], dir);
       expect(unknown.status).toBe(1);
       expectErrorCode(unknown.stderr, 'aspect-not-found');
       expect(unknown.stderr).toContain("'no-such-rule'");
 
       // A rule nothing has been said about yet is not an error.
-      const quiet = run(['aspects', 'log', 'read', '--aspect', 'no-todo-comments'], dir);
+      const quiet = run(['log', 'read', '--aspect', 'no-todo-comments'], dir);
       expect(quiet.status).toBe(0);
       expect(quiet.stdout).toContain('no history recorded yet');
     } finally {
@@ -155,7 +155,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // default and writing a standing that may never have been true.
       setStatus(dir, 'enforced');
       const unseen = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'e', '--reason', 'r'],
+        ['log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'e', '--reason', 'r'],
         dir,
       );
       expect(unseen.status).toBe(0);
@@ -168,7 +168,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       setStatus(dir, 'enforced');
       const recorded = run(
         [
-          'aspects', 'log', 'add', '--aspect', RULE,
+          'log', 'add', '--aspect', RULE,
           '--status', 'enforced',
           '--evidence', 'two waves clean, no new violations',
           '--by', 'the architect',
@@ -197,7 +197,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // The rule still stands at advisory: this record would be a claim about a
       // change nobody made.
       const notThere = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'x', '--reason', 'y'],
+        ['log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'x', '--reason', 'y'],
         dir,
       );
       expect(notThere.status).toBe(1);
@@ -207,7 +207,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // The standing is right, but what justified it is the part nobody can
       // reconstruct later.
       const noEvidence = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'advisory', '--reason', 'y'],
+        ['log', 'add', '--aspect', RULE, '--status', 'advisory', '--reason', 'y'],
         dir,
       );
       expect(noEvidence.status).toBe(1);
@@ -215,7 +215,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       expect(noEvidence.stderr).toContain('no evidence');
 
       const notAStanding = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'important', '--evidence', 'x', '--reason', 'y'],
+        ['log', 'add', '--aspect', RULE, '--status', 'important', '--evidence', 'x', '--reason', 'y'],
         dir,
       );
       expect(notAStanding.status).toBe(1);
@@ -276,7 +276,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       approve(dir);
       setStatus(dir, 'draft');
       run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'draft', '--evidence', 'it is being rewritten', '--reason', 'Parked while the rule is rewritten.'],
+        ['log', 'add', '--aspect', RULE, '--status', 'draft', '--evidence', 'it is being rewritten', '--reason', 'Parked while the rule is rewritten.'],
         dir,
       );
 
@@ -297,7 +297,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       approve(dir);
       setStatus(dir, 'enforced');
       run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'a month advisory, no false alarms', '--reason', 'Promoted.'],
+        ['log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'a month advisory, no false alarms', '--reason', 'Promoted.'],
         dir,
       );
 
@@ -331,7 +331,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // Recording that same change after the tool noted it is the person adding
       // the evidence: it runs from where the rule stood before the edit.
       const evidence = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'a month advisory', '--reason', 'Promoted.'],
+        ['log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'a month advisory', '--reason', 'Promoted.'],
         dir,
       );
       expect(evidence.status, evidence.all).toBe(0);
@@ -341,7 +341,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
 
       // A second record of the same standing is a change nobody made.
       const again = run(
-        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'still clean', '--by', 'the architect', '--reason', 'Promoted again.'],
+        ['log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'still clean', '--by', 'the architect', '--reason', 'Promoted again.'],
         dir,
       );
       expect(again.status).toBe(1);
@@ -354,27 +354,28 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
     }
   });
 
-  it('8: log read takes the same --top / --all flags as yg log read, with --limit as an alias', () => {
+  it('8: log read --aspect takes --top / --all; the whole history is the default', () => {
     const dir = project('topall');
     try {
       for (const n of ['first', 'second', 'third']) {
-        expect(run(['aspects', 'log', 'add', '--aspect', RULE, '--reason', `Entry ${n} about this rule.`], dir).status).toBe(0);
+        expect(run(['log', 'add', '--aspect', RULE, '--reason', `Entry ${n} about this rule.`], dir).status).toBe(0);
       }
       const count = (args: string[]): number =>
-        (JSON.parse(run(['aspects', 'log', 'read', '--aspect', RULE, '--json', ...args], dir).stdout) as LogDoc).entries.length;
+        (JSON.parse(run(['log', 'read', '--aspect', RULE, '--json', ...args], dir).stdout) as LogDoc).entries.length;
       expect(count([])).toBe(3); // the whole history by default
       expect(count(['--top', '2'])).toBe(2);
-      expect(count(['--limit', '2'])).toBe(2);
       expect(count(['--all'])).toBe(3);
 
-      const both = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--all'], dir);
+      const both = run(['log', 'read', '--aspect', RULE, '--top', '2', '--all'], dir);
       expect(both.status).toBe(1);
       expectErrorCode(both.stderr, 'command-error');
       expect(both.stderr).toContain('--top');
       expect(both.stderr).toContain('--all');
-      const disagree = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--limit', '3'], dir);
-      expect(disagree.status).toBe(1);
-      expect(disagree.stderr).toContain('disagree');
+      // `yg aspects log` is gone: the rule's history is one of the logs `yg log` names.
+      expect(run(['aspects', 'log', 'read', '--aspect', RULE], dir).status).not.toBe(0);
+      // A change of standing belongs to a rule's log alone.
+      expectErrorCode(run(['log', 'add', '--node', 'services/orders', '--status', 'enforced', '--reason', 'r'], dir).stderr, 'usage');
+      expectErrorCode(run(['log', 'merge-resolve', '--aspect', RULE], dir).stderr, 'usage');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -234,3 +234,5 @@ The manual and the knowledge topics now say when a merge owes a log entry: a mer
 The agent-facing manual, the log-management knowledge and the CLI reference knowledge now teach yg log add --supersedes as the way to retract a decision, instead of asking the agent to hand-write a Supersedes heading that nothing validated; the hand-written shape is still described because it reads the same way.
 ## [2026-09-27T09:08:28.989Z]
 The CLI reference, log-management and lock knowledge now describe the node type decision log: where it lives, that it is never required and re-opens no verdict, the checks it shares with a node log, its baseline section in the committed logs file, and the orphaned-log warning.
+## [2026-09-27T09:37:51.795Z]
+The agent manual and the CLI reference knowledge teach the rule history as yg log with --aspect, drop the removed alias of --top, and describe what differs from the other logs: the whole history by default, the status flags, no merge baseline.

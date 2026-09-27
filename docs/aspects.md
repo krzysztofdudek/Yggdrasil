@@ -64,9 +64,9 @@ reason. It holds why the rule exists, every change of its status, and every real
 failure taken into its corpus:
 
 ```bash
-yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd."
-yg aspects log add --aspect no-raw-sql --status enforced --evidence "a month advisory, no false alarms" --reason "Promoted."
-yg aspects log read --aspect no-raw-sql
+yg log add --aspect no-raw-sql --reason "Written after the outage on the 3rd."
+yg log add --aspect no-raw-sql --status enforced --evidence "a month advisory, no false alarms" --reason "Promoted."
+yg log read --aspect no-raw-sql
 ```
 
 Recording a change of status does not make one: you edit `status:` in the rule's
@@ -76,7 +76,7 @@ What justified the move is required, because it is the part nobody can reconstru
 later. If you move a rule and record nothing, `yg check` says so, and the next
 full fill (`yg check --approve`) writes the bare fact into that rule's log so the change is not lost. The free `--approve --only-deterministic` writes no committed file, so it leaves the warning standing instead.
 
-See [`yg aspects log`](/cli-reference#yg-aspects-log).
+See [`yg log --aspect`](/cli-reference#yg-log-aspect).
 
 ## Two more fields worth knowing
 

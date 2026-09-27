@@ -1,5 +1,5 @@
 /**
- * The machine-readable form of a rule's own history (`yg aspects log read --json`).
+ * The machine-readable form of a rule's own history (`yg log read --aspect --json`).
  *
  * A component's log has always been prose for a person to read. A rule's is
  * that too, but it is also the answer to questions a tool asks — when did this
@@ -36,6 +36,10 @@ export interface AspectLogJsonEntry {
   body: string;
   /** Present only on an entry that recorded a change of standing. */
   status?: AspectLogJsonStatus;
+  /** Present when the entry replaces earlier entries of the rule's log: their datetimes. */
+  supersedes?: string[];
+  /** Present when a later entry replaced this one: that entry's datetime. */
+  supersededBy?: string;
 }
 
 export interface AspectLogJsonDocument {

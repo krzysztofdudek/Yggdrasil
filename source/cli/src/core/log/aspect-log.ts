@@ -32,6 +32,8 @@ import { composeLogEntry } from './log-entry.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat } from '../log-format.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { withStanding, type EntryStanding } from './log-supersedes.js';
+import type { IssueCode } from '../../model/issue-code.js';
 
 export interface AspectLogAddInput {
   /** Absolute path of the `.yggdrasil/` graph root. */
@@ -42,11 +44,13 @@ export interface AspectLogAddInput {
   reasonText: string;
   /** The caller's clock reading; this module keeps none of its own. */
   nowMs: number;
+  /** Earlier entries of this rule's log the new entry replaces, by datetime. */
+  supersedes?: readonly string[];
 }
 
 export type AspectLogAddResult =
   | { ok: true; datetime: string; logPath: string }
-  | { ok: false; error: IssueMessage };
+  | { ok: false; error: IssueMessage & { code?: IssueCode } };
 
 /**
  * Absolute path of a rule's own log file, in POSIX form.
@@ -100,7 +104,7 @@ export async function appendAspectLogEntry(
   // Same read → compose → replace as a component's log, under the same lock.
   const locked = await withLogWriteLock(input.yggRootPath, async (): Promise<AspectLogAddResult> => {
     const existing = await readLogSafe(logPath);
-    const composed = composeLogEntry(existing, input.reasonText, input.nowMs);
+    const composed = composeLogEntry(existing, input.reasonText, input.nowMs, { supersedes: input.supersedes });
     if (!composed.ok) return { ok: false, error: composed.error };
     await writeLogFile(logPath, composed.content);
     return { ok: true, datetime: composed.datetime, logPath };
@@ -108,13 +112,8 @@ export async function appendAspectLogEntry(
   return locked.ok ? locked.value : { ok: false, error: locked.error };
 }
 
-/** One entry read back from a rule's log. */
-export interface AspectLogEntry {
-  /** ISO 8601 UTC timestamp from the entry header. */
-  datetime: string;
-  /** Everything under that header, verbatim. */
-  body: string;
-}
+/** One entry read back from a rule's log, with what it replaces and what replaced it. */
+export type AspectLogEntry = EntryStanding;
 
 export type AspectLogReadResult =
   | { ok: true; entries: AspectLogEntry[] }
@@ -152,7 +151,7 @@ export async function readAspectLog(
     };
   }
 
-  const entries = parseLog(content).map((e) => ({ datetime: e.datetime, body: e.body }));
+  const entries = withStanding(parseLog(content));
   const newestFirst = [...entries].reverse();
   return { ok: true, entries: limit === undefined ? newestFirst : newestFirst.slice(0, limit) };
 }

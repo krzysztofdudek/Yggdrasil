@@ -8,6 +8,7 @@ import { logAdd } from '../core/log/log-add.js';
 import { logRead, type LogEntry } from '../core/log/log-read.js';
 import { logMergeResolve, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
 import { appendTypeLogEntry, readTypeLog } from '../core/log/type-log.js';
+import { addAspectLogEntry, readAspectLogCommand } from './log-aspect.js';
 import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
@@ -23,25 +24,42 @@ import { count, paint, writeOut, next, thenStep, failAndExit } from './output.js
  *  - `--type <type>` — a node type's decision log: explicit decisions about the
  *    whole area the type stands for, carried into the context of every node of
  *    it. Never required.
+ *  - `--aspect <id>` — a rule's own history: why it exists, and every change of
+ *    its status (`--status`). It replaced `yg aspects log`.
  */
 
 /** The one log a command acts on. */
-type LogTarget = { kind: 'node'; id: string } | { kind: 'type'; id: string };
+type LogTarget = { kind: 'node' | 'type' | 'aspect'; id: string };
 
 /** The log the flags name, or a usage refusal when they name none or more than one. */
-function targetOf(opts: { node?: string; type?: string }, command: string): LogTarget {
-  const named = [
+function targetOf(opts: { node?: string; type?: string; aspect?: string }, command: string): LogTarget {
+  const named: LogTarget[] = [
     ...(opts.node !== undefined ? [{ kind: 'node' as const, id: opts.node.trim().replace(/\/$/, '') }] : []),
     ...(opts.type !== undefined ? [{ kind: 'type' as const, id: opts.type.trim() }] : []),
+    ...(opts.aspect !== undefined ? [{ kind: 'aspect' as const, id: opts.aspect.trim() }] : []),
   ];
   if (named.length !== 1) {
     failAndExit({
-      what: `yg log ${command} needs exactly one of --node or --type`,
-      why: 'Every log belongs to one thing: a node\'s log says why that component is the way it is, a type\'s log holds decisions about every node of the type.',
-      next: `yg log ${command} --node <path>  (or --type <type>)`,
+      what: `yg log ${command} needs exactly one of --node, --type or --aspect`,
+      why: 'Every log belongs to one thing: a node\'s log says why that component is the way it is, a type\'s log holds decisions about every node of the type, and a rule\'s log is that rule\'s own history.',
+      next: `yg log ${command} --node <path>  (or --type <type>, or --aspect <id>)`,
     }, 'usage');
   }
   return named[0];
+}
+
+/** Refuse a flag that means something for one kind of log only, given for another. */
+function onlyFor(target: LogTarget, kind: LogTarget['kind'], flags: Record<string, unknown>, command: string): void {
+  if (target.kind === kind) return;
+  const given = Object.entries(flags).filter(([, v]) => v !== undefined && v !== false).map(([k]) => k);
+  if (given.length === 0) return;
+  failAndExit({
+    what: `${given.join(', ')} ${given.length === 1 ? 'applies' : 'apply'} only to --${kind}, not to --${target.kind}`,
+    why: kind === 'aspect'
+      ? 'A change of status is something only a rule has; a node\'s or a type\'s log has no status to record.'
+      : 'Verification events are recorded per component and per file; only a node\'s log can be read beside them.',
+    next: `yg log ${command} ${flagOf(target)} without ${given.join(', ')}`,
+  }, 'usage');
 }
 
 /**
@@ -202,14 +220,19 @@ async function reasonTextOf(opts: { reason?: string; reasonFile?: string }, targ
   return await readFile(opts.reasonFile, 'utf-8');
 }
 
-interface AddOpts { node?: string; type?: string; reason?: string; reasonFile?: string; supersedes?: string[] }
+interface AddOpts { node?: string; type?: string; aspect?: string; reason?: string; reasonFile?: string; supersedes?: string[]; status?: string; evidence?: string; by?: string }
 
 async function addAction(opts: AddOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
   const target = targetOf(opts, 'add');
+  onlyFor(target, 'aspect', { '--status': opts.status, '--evidence': opts.evidence, '--by': opts.by }, 'add');
   const reasonText = await reasonTextOf(opts, target);
   const nowMs = entryClock();
 
+  if (target.kind === 'aspect') {
+    await addAspectLogEntry(graph, target.id, reasonText, { status: opts.status, evidence: opts.evidence, by: opts.by, supersedes: opts.supersedes, nowMs });
+    return;
+  }
   if (target.kind === 'type') {
     const result = await appendTypeLogEntry({ graph, typeId: target.id, reasonText, nowMs, supersedes: opts.supersedes });
     if (!result.ok) failAndExit(result.error);
@@ -221,11 +244,16 @@ async function addAction(opts: AddOpts): Promise<void> {
   writeOut(paint.green(`Added log entry to .yggdrasil/model/${result.nodePath}/log.md\nTimestamp: ${result.datetime}\n`));
 }
 
-interface ReadOpts { node?: string; type?: string; top?: number; all?: boolean; withVerdicts?: boolean; json?: boolean }
+interface ReadOpts { node?: string; type?: string; aspect?: string; top?: number; all?: boolean; withVerdicts?: boolean; json?: boolean }
 
 async function readAction(opts: ReadOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
   const target = targetOf(opts, 'read');
+  onlyFor(target, 'node', { '--with-verdicts': opts.withVerdicts }, 'read');
+  if (target.kind === 'aspect') {
+    await readAspectLogCommand(graph, target.id, opts);
+    return;
+  }
   if (target.kind === 'type') {
     await readTypeAction(graph, target.id, opts);
     return;
@@ -258,13 +286,6 @@ async function readAction(opts: ReadOpts): Promise<void> {
  * keeps the newest N of whichever set was asked for.
  */
 async function readTypeAction(graph: Graph, typeId: string, opts: ReadOpts): Promise<void> {
-  if (opts.withVerdicts) {
-    failAndExit({
-      what: '--with-verdicts reads a node\'s verification events; a type has none',
-      why: 'Verdicts are recorded per component and per file; a node type\'s log holds decisions, which no fill judges.',
-      next: `yg log read --type ${typeId}`,
-    }, 'usage');
-  }
   if (opts.top !== undefined && opts.all === true) {
     failAndExit({ what: 'Cannot combine --top with --all', why: '--all overrides --top; provide one or the other.', next: `yg log read --type ${typeId} --all` }, 'command-error');
   }
@@ -378,11 +399,18 @@ async function readWithVerdicts(graph: Graph, nodePath: string, entries: LogEntr
   }
 }
 
-interface MergeResolveOpts { node?: string; type?: string; ours?: string; theirs?: string; base?: string }
+interface MergeResolveOpts { node?: string; type?: string; aspect?: string; ours?: string; theirs?: string; base?: string }
 
 async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
   const target = targetOf(opts, 'merge-resolve');
+  if (target.kind === 'aspect') {
+    failAndExit({
+      what: 'yg log merge-resolve reconciles a node\'s or a type\'s log, not a rule\'s',
+      why: 'A rule\'s history keeps no append-only baseline for a merge to be verified against; after a merge, keep every entry of both sides in date order by hand.',
+      next: 'yg log merge-resolve --node <path>  (or --type <type>)',
+    }, 'usage');
+  }
   if ((opts.ours === undefined) !== (opts.theirs === undefined) || (opts.base !== undefined && opts.ours === undefined)) {
     failAndExit({
       what: '--ours and --theirs go together, and --base only with them.',
@@ -430,13 +458,14 @@ async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
 export function registerLogCommand(program: Command): void {
   const log = program
     .command('log')
-    .description("Append-only logs: a node's business log (why it is the way it is) and a node type's decision log");
+    .description("Append-only logs: a node's business log (why it is the way it is), a node type's decision log, and a rule's own history");
 
   log
     .command('add')
-    .description('Append a log entry to a node or a node type')
+    .description('Append a log entry to a node, a node type or a rule')
     .option('--node <path>', 'Node path (relative to .yggdrasil/model/, no model/ prefix)')
     .option('--type <type>', 'Node type (as yg-architecture.yaml names it): record a decision about every node of the type')
+    .option('--aspect <id>', "Rule id: add to the rule's own history")
     .option('--reason <text>', 'Justification text (one of --reason or --reason-file required)')
     .option('--reason-file <path>', 'Read justification from a file (alternative to --reason)')
     .option(
@@ -444,6 +473,9 @@ export function registerLogCommand(program: Command): void {
       'the datetime of an earlier entry of the same log this one replaces (repeatable); both stay in the file',
       (v: string, prev: string[] = []) => [...prev, v.trim()],
     )
+    .option('--status <status>', "with --aspect: record that the rule's status moved to this one (draft | advisory | enforced) — the rule's own file must already carry it")
+    .option('--evidence <text>', 'with --aspect --status: what justified the change of status (required with --status)')
+    .option('--by <who>', "with --aspect --status: who decided (default: 'the user')")
     .action(async (opts: AddOpts) => {
       try {
         await addAction(opts);
@@ -454,16 +486,17 @@ export function registerLogCommand(program: Command): void {
 
   log
     .command('read')
-    .description('Print log entries newest-first (a node: top 10 by default; a type: the decisions in force)')
+    .description('Print log entries newest-first (a node: top 10 by default; a type: the decisions in force; a rule: its whole history)')
     .option('--node <path>', 'Node path (relative to .yggdrasil/model/)')
     .option('--type <type>', 'Node type (as yg-architecture.yaml names it)')
+    .option('--aspect <id>', 'Rule id')
     .option('--top <n>', 'Limit to N newest entries (default for a node: 10)', (v) => parseInt(v, 10))
     .option('--all', 'Return all entries (cannot combine with --top); for a type, replaced decisions too')
     .option(
       '--with-verdicts',
       "interleave the node's verification events (local telemetry) with its log entries",
     )
-    .option('--json', 'Print the entries as a JSON document (yg-log/1 for a node, yg-type-log/1 for a type)')
+    .option('--json', 'Print the entries as a JSON document (yg-log/1 for a node, yg-type-log/1 for a type, yg-aspect-log/1 for a rule)')
     .action(async (opts: ReadOpts) => {
       try {
         await readAction(opts);

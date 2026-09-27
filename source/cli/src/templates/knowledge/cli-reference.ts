@@ -905,7 +905,7 @@ yg aspects --health
 
 \`yg aspects\` is also the step every command that takes a rule id points at when
 the id is not in the graph: \`yg check --aspect\`, \`yg impact --aspect\`,
-\`yg aspect-test --aspect\`, \`yg simulate <id>\`, \`yg aspects log add|read --aspect\`,
+\`yg aspect-test --aspect\`, \`yg simulate <id>\`, \`yg log add|read --aspect\`,
 \`yg drill --aspect\`, \`yg drill add --aspect\` and \`yg incident add --aspect\` all
 refuse an unknown id with the same \`error[aspect-not-found]: rule '<id>' is not in
 the graph\` and \`next: yg aspects\`, exit 1 — only the \`why:\` differs, saying what
@@ -1018,21 +1018,23 @@ window the counts come from, or \`null\`). A rule never judged has \`catch\`,
 yg aspects --health --json
 \`\`\`
 
-### \`yg aspects log\` — a rule's OWN history
+### \`yg log --aspect\` — a rule's OWN history
 
 A component has always had a log beside it. So does a rule, in
-\`.yggdrasil/aspects/<id>/log.md\`, and these are its two commands — on the SAME entry composer and the same guards
-as \`yg log add\` / \`yg log read\` (an empty reason refused, a body carrying its
-own \`## \` header or an unclosed fence refused, timestamps that only move
-forward). The READ flags differ: a rule log takes \`--limit <n>\` (default: whole
-history) and \`--json\`; a node log takes \`--top <n>\` (default 10), \`--all\` and
-\`--with-verdicts\`, and has no \`--json\`.
+\`.yggdrasil/aspects/<id>/log.md\`, written and read by \`yg log add\` /
+\`yg log read\` with \`--aspect <id>\` (this replaced \`yg aspects log\`) — the
+SAME entry composer and guards (an empty reason refused, a body carrying its own
+\`## \` header or an unclosed fence refused, timestamps that only move forward,
+\`--supersedes\`). What differs: a rule read shows the WHOLE history by default
+(\`--top <n>\` or \`--all\`), \`--json\` prints \`yg-aspect-log/1\`, and only a
+rule's log takes \`--status\` / \`--evidence\` / \`--by\` (\`usage\` elsewhere). A
+rule's log has no merge baseline and no \`--with-verdicts\`.
 
 \`\`\`bash
-yg aspects log add --aspect <id> --reason "<why the rule exists / what changed>"
-yg aspects log add --aspect <id> --status <draft|advisory|enforced> \\
+yg log add --aspect <id> --reason "<why the rule exists / what changed>"
+yg log add --aspect <id> --status <draft|advisory|enforced> \\
   --evidence "<what justified it>" --by "<who decided>" --reason "<why>"
-yg aspects log read --aspect <id> [--top <n> | --all] [--json]   # --limit <n> is an alias of --top
+yg log read --aspect <id> [--top <n> | --all] [--json]
 \`\`\`
 
 \`--status\` RECORDS a status change; it does NOT make one. The rule's file

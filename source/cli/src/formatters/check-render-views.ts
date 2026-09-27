@@ -104,13 +104,14 @@ interface Action {
 }
 
 /**
- * The command groups whose subcommands take a word of their own — `yg aspects
- * log add`. A step's command keeps a third word only after one of these, so a
- * sentence (`yg check and fix …`) never reads as a command, and a three-word
- * command is never cut to two (`yg aspects log`, which only prints its usage).
- * A test keeps this set equal to the command tree the CLI registers.
+ * The command groups whose subcommands take a word of their own (`yg <group>
+ * <sub> <verb>`). A step's command keeps a third word only after one of these,
+ * so a sentence (`yg check and fix …`) never reads as a command, and a
+ * three-word command is never cut to two. None is registered today — the last
+ * one, `yg aspects log`, became `yg log --aspect` — and a test keeps this set
+ * equal to the command tree the CLI registers, so a new group lands here too.
  */
-export const THREE_WORD_GROUPS: ReadonlySet<string> = new Set(['aspects log']);
+export const THREE_WORD_GROUPS: ReadonlySet<string> = new Set<string>();
 
 /**
  * A runnable `yg …` command at the start of a line, without the prose after

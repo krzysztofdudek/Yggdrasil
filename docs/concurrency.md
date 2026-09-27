@@ -24,7 +24,7 @@ The local activity record is safe too: Yggdrasil keeps a record of what each run
 
 ## Two log entries at once
 
-**Rule.** Adding log entries concurrently is safe — `yg log add`, `yg aspects log add`, and a run that records a rule's changed status all take turns.
+**Rule.** Adding log entries concurrently is safe — `yg log add`, `yg log add --aspect`, and a run that records a rule's changed status all take turns.
 
 **Why.** An entry is added by reading the log, appending to it and replacing the file, and two writers doing that at the same moment would each replace the file with only their own entry added — the second silently dropping the first while both reported success. So every log write holds a short-lived lock file, `.yggdrasil/.yg-log.lock`, for the few milliseconds it takes. A writer that finds it held waits its turn; one still waiting after 10 seconds gives up with an error saying nothing was written, never writing unguarded. Like the fill lock, it is git-ignored (`.yg-*.lock`) and one left by a crashed process is replaced.
 

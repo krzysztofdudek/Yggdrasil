@@ -222,7 +222,7 @@ export const JSON_DOCUMENTS: ReadonlyArray<{ id: string; title: string; file: st
   { id: 'yg-aspects/1', title: 'Rule list (yg aspects --json)', file: 'src/formatters/aspects-json.ts', type: 'AspectsJsonDocument' },
   { id: 'yg-aspects-health/1', title: 'Rule health (yg aspects --health --json)', file: 'src/formatters/aspects-health-json.ts', type: 'AspectsHealthJsonDocument' },
   { id: 'yg-advise/1', title: 'Attention feed (yg advise --json)', file: 'src/formatters/advise-json.ts', type: 'AdviseJsonDocument' },
-  { id: 'yg-aspect-log/1', title: 'Rule history (yg aspects log read --json)', file: 'src/formatters/aspect-log-json.ts', type: 'AspectLogJsonDocument' },
+  { id: 'yg-aspect-log/1', title: 'Rule history (yg log read --aspect --json)', file: 'src/formatters/aspect-log-json.ts', type: 'AspectLogJsonDocument' },
   { id: 'yg-suppressions/1', title: 'Waiver inventory (yg suppressions --json)', file: 'src/formatters/suppressions-json.ts', type: 'SuppressionsJsonDocument' },
   { id: 'yg-drill/1', title: 'Drill run (yg drill --json)', file: 'src/formatters/drill-json.ts', type: 'DrillJsonDocument' },
   { id: 'yg-error/1', title: 'Command error (any command run with --json that fails)', file: 'src/cli/output.ts', type: 'ErrorDocument' },

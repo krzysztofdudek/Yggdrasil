@@ -117,7 +117,7 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     const [decided] = (JSON.parse(yg(dir, ['log', 'read', '--type', 'service', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries;
     yg(dir, ['log', 'add', '--type', 'service', '--reason', 'The decision that replaced it.', '--supersedes', decided.datetime]);
     yg(dir, ['log', 'add', '--node', 'services/orders', '--reason', 'A later reason that replaces the first.', '--supersedes', (JSON.parse(yg(dir, ['log', 'read', '--node', 'services/orders', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries[0].datetime]);
-    yg(dir, ['aspects', 'log', 'add', '--aspect', 'no-todo-comments', '--reason', 'Why the rule exists.']);
+    yg(dir, ['log', 'add', '--aspect', 'no-todo-comments', '--reason', 'Why the rule exists.']);
 
     emitted(dir, ['check', '--json']);
     emitted(dir, ['check', '--approve', '--dry-run', '--json']);
@@ -134,7 +134,7 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     emitted(dir, ['aspects', '--json']);
     emitted(dir, ['aspects', '--health', '--json']);
     emitted(dir, ['advise', '--json']);
-    emitted(dir, ['aspects', 'log', 'read', '--aspect', 'no-todo-comments', '--json']);
+    emitted(dir, ['log', 'read', '--aspect', 'no-todo-comments', '--json']);
     emitted(dir, ['suppressions', '--json']);
     emitted(dir, ['drill', '--aspect', 'no-todo-comments', '--json']);
     emitted(dir, ['tree', '--json']);
@@ -147,7 +147,7 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     // Command errors.
     emitted(dir, ['context', '--node', 'no/such/node', '--json']);
     emitted(dir, ['node', 'no/such/node', '--json']);
-    emitted(dir, ['aspects', 'log', 'read', '--aspect', 'no-such-rule', '--json']);
+    emitted(dir, ['log', 'read', '--aspect', 'no-such-rule', '--json']);
     expect(departures).toEqual([]);
   }, 300_000);
 

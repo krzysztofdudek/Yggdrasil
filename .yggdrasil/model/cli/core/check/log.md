@@ -336,3 +336,5 @@ The check code taxonomy moved from the engine into the utility layer, so the mod
 The reader of a script refusal's violation list moved from the check document builder into the formatter that owns the yg-check/1 document shapes, and the builder now calls it there. The text report reads the same list, and the report renderers are now formatters, which may not call the engine; one reader in the formatter layer keeps the text report and the machine document listing the same violations.
 ## [2026-09-27T09:08:23.542Z]
 The honesty checks a node log gets — conflict markers, the append-only baseline, a parseable format — now also run on every node type decision log, with the log file as the finding identity since there is no node to key on. A type log whose type the architecture no longer defines is reported as a warning rather than an error: nothing about the code is wrong, and whether its decisions move to the type that replaced it is the author call.
+## [2026-09-27T09:37:47.792Z]
+The warning for a rule status changed by hand now names the command that records it as the log command with --aspect, since the separate rule history command was removed.

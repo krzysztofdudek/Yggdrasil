@@ -134,7 +134,7 @@ export const PACKAGES_DIR = 'packages';
 export const ADAPT_FILENAME = 'yg-aspect.adapt.yaml';
 
 /**
- * The consumer's history of an installed rule — what `yg aspects log add` and a
+ * The consumer's history of an installed rule — what `yg log add --aspect` and a
  * change of standing write for a rule that came from a package. A rule of your
  * own keeps its history in `log.md` beside it; an installed rule's directory is
  * the package's copy, so its history lives beside the adaptation instead, under

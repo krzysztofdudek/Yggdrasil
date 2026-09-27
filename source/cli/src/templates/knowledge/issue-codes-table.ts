@@ -144,7 +144,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`implied-aspect-missing\` | error | A rule implies a rule id that does not exist. | Create the implied rule, or remove it from implies:. |
 | \`aspect-implies-cycle\` | error · stops \`--approve\` | The implies: edges form a cycle, so effective rules cannot be resolved. | Remove one implies edge of the cycle. |
 | \`aspect-status-downgrade\` | error | An attach site declares a status lower than the cascade yields (raising is allowed, lowering is not). | Remove the lower status:, or lower the rule's own status (the user's decision). |
-| \`aspect-status-changed-outside-cli\` | warning | A rule's status changed and its own log records no reason; a full fill writes the bare fact into that log if nobody does. | yg aspects log add --aspect <rule> --status <status> --evidence '<what justified it>' --reason '<why>'. |
+| \`aspect-status-changed-outside-cli\` | warning | A rule's status changed and its own log records no reason; a full fill writes the bare fact into that log if nobody does. | yg log add --aspect <rule> --status <status> --evidence '<what justified it>' --reason '<why>'. |
 | \`aspect-effective-nowhere\` | warning | A rule that ships a rule source and is not draft is effective on zero nodes after the full cascade and every when: — it looks enforced and verifies nothing. | Fix the attach sites or when:, or set status: draft until what it targets exists; for a per: node rule whose type has only type-covered files, give a file a node or make the rule per: file. |
 | \`orphaned-aspect\` | warning | A bundle, a draft rule, or a rule in a graph with no code yet is attached nowhere. | Attach it to a node, type or flow, or remove it. |
 | \`aspect-review-overdue\` | warning | A rule's review_by: date has passed — it is running unreviewed. Never blocks and never writes a verdict. | Ask the user to renew or retire the rule; never change the date yourself. |
@@ -231,10 +231,10 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`log-merge-out-of-order\` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
 | \`log-supersedes-unknown\` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
 | \`log-supersedes-superseded\` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |
-| \`aspect-status-value-invalid\` | error | yg aspects log add --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
-| \`aspect-status-not-standing\` | error | yg aspects log add --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
-| \`aspect-status-evidence-missing\` | error | yg aspects log add --status was given no --evidence for the change. | Re-run with --evidence "<what justified it>". |
-| \`aspect-status-unchanged\` | error | yg aspects log add --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
+| \`aspect-status-value-invalid\` | error | yg log add --aspect --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
+| \`aspect-status-not-standing\` | error | yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
+| \`aspect-status-evidence-missing\` | error | yg log add --aspect --status was given no --evidence for the change. | Re-run with --evidence "<what justified it>". |
+| \`aspect-status-unchanged\` | error | yg log add --aspect --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
 
 ### Packages (\`yg pack\`)
 

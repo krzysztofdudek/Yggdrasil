@@ -238,7 +238,7 @@ export type CommandErrorCode =
   // yg log add --supersedes naming an entry it cannot replace.
   | 'log-supersedes-unknown'
   | 'log-supersedes-superseded'
-  // yg aspects log add refusing a status record.
+  // yg log add --aspect refusing a status record.
   | 'aspect-status-value-invalid'
   | 'aspect-status-not-standing'
   | 'aspect-status-evidence-missing'
