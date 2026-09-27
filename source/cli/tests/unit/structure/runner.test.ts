@@ -315,6 +315,30 @@ describe('runStructureAspect', () => {
     })).rejects.toThrow(/STRUCTURE_UNDECLARED_GRAPH_READ[\s\S]*Add a relation in yg-node\.yaml to 'Other'/);
   });
 
+  it('undeclared flow read → thrown STRUCTURE_UNDECLARED_GRAPH_READ naming the flow to join, not a relation', async () => {
+    await writeAspect('a16f', `export function check(ctx) { ctx.graph.flowParticipants('checkout'); return []; }`);
+    const g = buildTestGraphForStructure({
+      nodes: [
+        { path: 'N', type: 'module', mapping: ['src/a.ts'] },
+        { path: 'Other', type: 'module', mapping: [] },
+      ],
+      flows: [{ path: 'checkout', nodes: ['Other'] }],
+    });
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/a16f'),
+        aspectId: 'a16f', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+      });
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    const err = caught as StructureRunnerError;
+    expect(err.code).toBe('STRUCTURE_UNDECLARED_GRAPH_READ');
+    expect(err.messageData.what).toContain("flow 'checkout'");
+    expect(err.messageData.next).toContain("nodes: of flow 'checkout'");
+    expect(err.messageData.next).not.toContain('Add a relation');
+  });
+
   it('relation target files prewarmup', async () => {
     // Relation target's files should be in the AST input set for prewarmup
     mkdirSync(path.join(projectRoot, 'lib'), { recursive: true });

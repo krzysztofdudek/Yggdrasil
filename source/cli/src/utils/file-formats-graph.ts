@@ -232,7 +232,6 @@ export const ASPECT_FORMAT: FileFormatSchema = {
   root: ASPECT_ROOT,
 };
 
-/** The top level of a yg-aspect.adapt.yaml: the keys a consumer may set over an installed rule. */
 /**
  * The adaptation's `reviewer:` and `scope:` blocks. They merge key by key over
  * the rule's own, so neither needs the key the rule's block requires: a missing
@@ -254,6 +253,7 @@ const ADAPT_SCOPE: ObjectType = {
   },
 };
 
+/** The top level of a yg-aspect.adapt.yaml: the keys a consumer may set over an installed rule. */
 export const ASPECT_ADAPT_ROOT: ObjectType = {
   kind: 'object',
   fields: {
