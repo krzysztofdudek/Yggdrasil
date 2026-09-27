@@ -94,6 +94,15 @@ describe('a type whose nodes read too many decisions in force', () => {
     expect(item.why).not.toContain('more than 7 decisions');
   });
 
+  it('is reported once, at the type above, while that type is past a line on its own load', () => {
+    const parent: TypeDecisionLoadSignal = { typeId: 'module', shares: [{ typeId: 'module', datetimes: datetimes(8), chars: 800 }] };
+    const child = load(1, 100, [{ typeId: 'module', n: 8, chars: 800 }]);
+    expect(typeDecisionBudgetNominations([parent, child]).map((n) => n.id)).toEqual(['type-decision-budget:module']);
+    // Below the line on its own, the type above is not reported and the type below is.
+    const under = load(4, 400, [{ typeId: 'module', n: 4, chars: 400 }]);
+    expect(typeDecisionBudgetNominations([under]).map((n) => n.id)).toEqual(['type-decision-budget:service']);
+  });
+
   it('names both lines when both are crossed', () => {
     const [item] = typeDecisionBudgetNominations([load(9, 9000)]);
     expect(item.why).toContain('more than 7 decisions and more than ~2000 tokens');

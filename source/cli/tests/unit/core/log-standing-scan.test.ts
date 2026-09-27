@@ -58,6 +58,14 @@ describe('scanLogStanding', () => {
     expect(scan.clashes.find((c) => c.flag === '--node services/orders')?.logRel).toBe('.yggdrasil/model/services/orders/log.md');
   });
 
+  it('reads a log checked out with CRLF line endings the same way', async () => {
+    const dir = project();
+    write(dir, 'types/service/log.md', CLASH.replace(/\n/g, '\r\n'));
+    const scan = await scanLogStanding(await loadGraph(dir));
+    expect(scan.clashes).toEqual([{ logRel: '.yggdrasil/types/service/log.md', flag: '--type service', target: A, successors: [B, C] }]);
+    expect(scan.typeLoads.find((l) => l.typeId === 'service')?.shares[0].datetimes).toEqual([B, C]);
+  });
+
   it('skips a log with conflict markers or a broken format instead of guessing', async () => {
     const dir = project();
     write(dir, 'model/services/orders/log.md', `<<<<<<< ours\n${CLASH}=======\n>>>>>>> theirs\n`);

@@ -33,7 +33,9 @@
  *
  * Only a type with decisions of its own in force is reported: a type with none
  * reads exactly what the nearest type above it reads, so that load is already
- * reported once, at the type whose log can change it.
+ * reported once, at the type whose log can change it. For the same reason a type
+ * is not reported while a type above it is past a line on its own load: the
+ * item on that type stands for its whole subtree.
  *
  * INJECTION HYGIENE (RZ-5): a log path, a node path, a rule id and a type id are
  * repo-derived strings; each is rendered through `quoteData`. A datetime has
@@ -82,7 +84,7 @@ export function supersedeClashNominations(clashes: readonly SupersedeClashSignal
       classRank: CLASS_RANK.logSupersedesConflict,
       what: `${c.successors.length} decisions in force in "${logQ}" each replaced the same entry, ${c.target}: ${successors}.`,
       why:
-        `read from "${logQ}": each successor names ${c.target} as the entry it replaces, and neither was replaced since. ` +
+        `read from "${logQ}": each of them replaced ${c.target}, directly or through replacements of its own, and none was replaced since. ` +
         `One writer cannot leave this (an entry already replaced cannot be replaced again), so the two were written apart — ` +
         `the shape two branches leave when each superseded the same decision. Both read as in force, and they may contradict each other.`,
       next: asApprovalNext(
@@ -100,12 +102,22 @@ export function supersedeClashNominations(clashes: readonly SupersedeClashSignal
   });
 }
 
+/** The decisions and estimated tokens a list of shares adds up to, and whether that is past either line. */
+function weigh(shares: TypeDecisionLoadSignal['shares']): { decisions: number; tokens: number; over: boolean } {
+  const decisions = shares.reduce((n, s) => n + s.datetimes.length, 0);
+  const tokens = estimateTokens(shares.reduce((n, s) => n + s.chars, 0));
+  return { decisions, tokens, over: decisions > TYPE_DECISIONS_MAX_IN_FORCE || tokens > TYPE_DECISIONS_TOKEN_BUDGET };
+}
+
 export function typeDecisionBudgetNominations(loads: readonly TypeDecisionLoadSignal[]): Nomination[] {
   const out: Nomination[] = [];
   for (const load of loads) {
-    const decisions = load.shares.reduce((n, s) => n + s.datetimes.length, 0);
-    const tokens = estimateTokens(load.shares.reduce((n, s) => n + s.chars, 0));
-    if (decisions <= TYPE_DECISIONS_MAX_IN_FORCE && tokens <= TYPE_DECISIONS_TOKEN_BUDGET) continue;
+    const { decisions, tokens, over: past } = weigh(load.shares);
+    if (!past) continue;
+    // A type above that is past the budget on its own load is reported there;
+    // every type below it is past the budget for the same reason, so one item
+    // stands for the whole subtree until that load is folded.
+    if (load.shares.some((_, i) => i > 0 && weigh(load.shares.slice(i)).over)) continue;
     const typeQ = quoteData(load.typeId);
     const breakdown = load.shares
       .map((s) => `'${quoteData(s.typeId)}' ${s.datetimes.length} (~${estimateTokens(s.chars)} tokens)`)

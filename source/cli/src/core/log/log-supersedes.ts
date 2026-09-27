@@ -93,24 +93,53 @@ export function withStanding(entries: ReadonlyArray<{ datetime: string; body: st
 }
 
 /**
- * Entries that more than one entry still in force claims to have replaced —
- * the shape a merge leaves when two branches each superseded the same
- * decision. One writer cannot produce it (a replaced entry cannot be replaced
- * again), so it is always two decisions that never saw each other, and which of
- * them holds is a question only a person can answer. Settled by an entry that
- * supersedes the competing successors, after which they are no longer in force.
+ * Entries whose replacements split into more than one line still in force — the
+ * shape a merge leaves when two branches each superseded the same decision. One
+ * writer cannot produce it (a replaced entry cannot be replaced again, so one
+ * writer's replacements of an entry form a single line), so it is always
+ * decisions that never saw each other, and which of them holds is a question
+ * only a person can answer.
+ *
+ * Each successor is followed down its own chain of replacements to the entries
+ * in force it ended in: a branch that superseded the decision and then
+ * superseded its own successor still left a rival to the other branch's, and
+ * replacing only one of two rivals leaves the other still competing. Settled
+ * only by an entry that supersedes every successor in force, after which the
+ * lines meet in one entry. `successors` are those entries in force, oldest
+ * first — exactly what the settling `--supersedes` flags must name.
  */
 export function competingSuccessors(entries: readonly EntryStanding[]): Array<{ target: string; successors: string[] }> {
   const present = new Set(entries.map((e) => e.datetime));
-  const byTarget = new Map<string, string[]>();
+  const inForce = new Set(entries.filter((e) => e.supersededBy === undefined).map((e) => e.datetime));
+  // Who replaced each entry: every later entry that names it, not only the first.
+  const replacers = new Map<string, string[]>();
   for (const e of entries) {
-    if (e.supersededBy !== undefined) continue;
     for (const target of e.supersedes) {
       if (!present.has(target) || target >= e.datetime) continue;
-      byTarget.set(target, [...(byTarget.get(target) ?? []), e.datetime]);
+      replacers.set(target, [...(replacers.get(target) ?? []), e.datetime]);
     }
   }
-  return [...byTarget].filter(([, s]) => s.length > 1).map(([target, successors]) => ({ target, successors }));
+  /** The entries in force a chain of replacements starting at `from` ends in. */
+  const heads = (from: string): Set<string> => {
+    const out = new Set<string>();
+    const seen = new Set<string>();
+    const stack = [from];
+    while (stack.length > 0) {
+      const cur = stack.pop() as string;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      if (inForce.has(cur)) out.add(cur);
+      stack.push(...(replacers.get(cur) ?? []));
+    }
+    return out;
+  };
+  const out: Array<{ target: string; successors: string[] }> = [];
+  for (const [target, direct] of replacers) {
+    if (direct.length < 2) continue;
+    const successors = [...heads(target)].filter((d) => d !== target).sort();
+    if (successors.length > 1) out.push({ target, successors });
+  }
+  return out;
 }
 
 /**
