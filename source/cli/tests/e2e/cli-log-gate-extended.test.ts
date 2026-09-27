@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { expectBlock, expectErrorCode, expectIssue, expectNoBlock, expectVerdict, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -72,6 +73,16 @@ function run(
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? '';
   return { stdout, stderr, status: result.status, all: stdout + stderr };
+}
+
+/**
+ * A log subcommand refused a malformed --node path, before touching any node:
+ * the usage-level command-error, with the rule it broke named by `rule`.
+ */
+function expectNodePathRejected(all: string, rule: string): void {
+  expectErrorCode(all, 'command-error');
+  expect(all).toContain('--node');
+  expect(all).toContain(rule);
 }
 
 /** Copy the e2e-lifecycle fixture into a fresh temp dir for mutation. */
@@ -202,9 +213,18 @@ function buildMergeRepo(label: string, resolvedLog: string): string {
 }
 
 // The drift gate's own why: printed only when --approve stops on a component whose source drifted with no fresh entry.
-const GATE_FIRED = "This component's source has drifted from the state its recorded verdicts were written over";
 // The gate names the drifted node in its block's at: line.
 const GATE_NAMES_ORDERS = /at:\s+services\/orders$/m;
+
+/**
+ * The fill's log gate stopped the run: an ABORTED verdict line over a
+ * log-entry-missing block. (A plain check reports the same code, but under a
+ * PASS/FAIL line — the ABORTED line is what says the fill itself stopped.)
+ */
+function expectLogGateStopped(stdout: string): void {
+  expectVerdict(stdout, { status: 'ABORTED' });
+  expectBlock(stdout, { label: 'log-entry-missing', severity: 'error' });
+}
 
 describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node-path syntax, merge-resolve paths', () => {
   // =========================================================================
@@ -240,7 +260,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // Re-fill WITHOUT adding a new log entry — the gate does not fire.
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).not.toContain(GATE_FIRED);
+      expectNoBlock(refill.stdout, { label: 'log-entry-missing' });
 
       // The log was not mutated by the cascade re-fill.
       expect(readFileSync(ordersLogPath(dir), 'utf-8')).toBe(before);
@@ -265,14 +285,16 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Second source change but the newest log entry is the already-baselined one.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const b = 2;\n', 'utf-8');
-      const { status, all } = run(['check', '--approve'], dir);
+      const { status, stdout, all } = run(['check', '--approve'], dir);
       expect(status).toBe(1);
-      expect(all).toContain(GATE_FIRED);
+      expectLogGateStopped(stdout);
       expect(all).toMatch(GATE_NAMES_ORDERS);
-      expect(all).toContain("Node type 'service' has log_required: true");
+      // The why names the node type whose log_required it enforces.
+      expect(all).toContain("'service'");
+      expect(all).toContain('log_required');
       expect(all).toContain('yg log add --node services/orders');
       // The fix must not push an agent into inventing a WHY for a change it did not make.
-      expect(all).toContain("If you did not make this change, ask the user for the reason");
+      expect(all).toContain('ask the user');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -304,16 +326,13 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Source change, no fresh entry.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const c = 3;\n', 'utf-8');
-      const { status, all } = run(['check', '--approve'], dir);
-      // Even with every aspect advisory, a missing log hard-stops the run: the gate
-      // message prints, exit is 1, and the normal yg-check report is NOT rendered.
-      expect(all).toContain(GATE_FIRED);
+      const { status, stdout, all } = run(['check', '--approve'], dir);
+      // Even with every aspect advisory, a missing log hard-stops the run: exit
+      // is 1 and the normal yg-check report is NOT rendered. The abort is
+      // reported under its own ABORTED verdict line, never a PASS/FAIL summary.
+      expectLogGateStopped(stdout);
       expect(all).toMatch(GATE_NAMES_ORDERS);
-      expect(all).toContain("Node type 'service' has log_required: true");
       expect(status).toBe(1);
-      // Hard stop → no report of the tree: the abort is reported under its own
-      // ABORTED verdict line, never a PASS/FAIL summary.
-      expect(all).toContain('yg check: ABORTED');
       expect(all).not.toMatch(/yg check: (PASS|FAIL)/);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -351,16 +370,16 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // log-entry-missing code; assert the group label/code, the now-visible why,
       // the fix naming the node, and the block's `at:` member line instead.
       expect(status).toBe(1);
-      expect(all).toContain('log-entry-missing');
-      expect(all).toContain("has log_required: true — every source change needs a log entry");
+      expectBlock(stdout, { label: 'log-entry-missing', severity: 'error' });
       expect(all).toContain('yg log add --node services/orders');
       expect(all).toMatch(/at:\s+services\/orders$/m);
-      expect(all).toContain("If you did not make this change, ask the user for the reason");
+      expect(all).toContain('ask the user');
       // Zero pairs to fill: a fill with nothing to do prints no fill line on STDERR,
       // and the verdict line shows every pair skipped as draft with none verified.
       expect(stderr).not.toContain('fill  ');
       // A count of draft rules: the pairs a draft rule would fan out to are never enumerated.
-      expect(stdout).toMatch(/^yg check: FAIL .* · 3 draft rules skipped$/m);
+      expectVerdict(stdout, { status: 'FAIL' });
+      expect(stdout).toMatch(/\b3 draft rules skipped$/m);
       expect(stdout).not.toContain('pairs verified');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -382,9 +401,9 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // not blocked on the unrelated node.
       run(['log', 'add', '--node', 'services/payments', '--reason', 'draft-phase change recorded'], dir);
       run(['log', 'add', '--node', 'services/orders', '--reason', 'draft-phase change recorded'], dir);
-      const { status, stdout, all } = run(['check', '--approve'], dir);
+      const { status, stdout } = run(['check', '--approve'], dir);
       expect(status).toBe(0);
-      expect(all).not.toContain(GATE_FIRED);
+      expectNoBlock(stdout, { label: 'log-entry-missing' });
       // All aspects draft → no pairs to fill → the run is clean.
       expect(stdout).toContain('yg check: PASS');
     } finally {
@@ -403,10 +422,10 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Source change, still no log entry.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const e = 5;\n', 'utf-8');
-      const { status, all } = run(['check', '--approve'], dir);
+      const { status, stdout } = run(['check', '--approve'], dir);
       expect(status).toBe(0);
       // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(all).not.toContain(GATE_FIRED);
+      expectNoBlock(stdout, { label: 'log-entry-missing' });
       // No log.md was ever required or created.
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
@@ -436,11 +455,11 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       run(['log', 'add', '--node', 'services/orders', '--reason', 'init'], dir);
       run(['log', 'add', '--node', 'services/payments', '--reason', 'init'], dir);
 
-      const { status, all } = run(['check', '--approve'], dir);
+      const { status, stdout } = run(['check', '--approve', '--json'], dir);
       expect(status).toBe(0);
       // No source change is possible for `empty`, so the mandatory-log gate never
       // fires for it despite log_required:true on the type.
-      expect(all).not.toContain("No fresh log entry for node 'services/empty'");
+      expect(parseJson(stdout).issues?.some((i) => i.code === 'log-entry-missing' && i.node === 'services/empty')).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -471,8 +490,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // ("No fresh log entry for node '<node>'") is gone for the non-FULL_WHAT
       // log-entry-missing code; assert the group label/code, the now-visible why,
       // the fix naming the node, and the block's `at:` member line instead.
-      expect(plain.all).toContain('log-entry-missing');
-      expect(plain.all).toContain("has log_required: true — every source change needs a log entry");
+      expectBlock(plain.stdout, { label: 'log-entry-missing', severity: 'error' });
+      expectIssue(parseJson(run(['check', '--json'], dir).stdout), { code: 'log-entry-missing', node: 'services/orders' });
       expect(plain.all).toContain('yg log add --node services/orders');
       expect(plain.all).toMatch(/at:\s+services\/orders$/m);
     } finally {
@@ -624,17 +643,14 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       );
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('log-format');
-      // The per-issue `what` ('Log format invalid at <path>') is gone in the
-      // grouped default view (log-format is not a FULL_WHAT code); assert the
-      // group's now-visible shared why instead. The duplicate-datetime reason
-      // detail still surfaces via `yg log read` below.
-      expect(check.all).toContain('Log format must be parseable for indexing and integrity.');
+      expectBlock(check.stdout, { label: 'log-format', severity: 'error' });
+      expectIssue(parseJson(run(['check', '--json'], dir).stdout), { code: 'log-format', node: 'services/orders' });
 
       const read = run(['log', 'read', '--node', 'services/orders'], dir);
       expect(read.status).toBe(1);
       expect(read.all).toContain('duplicate_datetime');
-      expect(read.all).toContain("Datetime '2027-05-05T00:00:00.000Z' also appears at line");
+      // The reason names the repeated datetime.
+      expect(read.all).toContain("'2027-05-05T00:00:00.000Z'");
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -654,7 +670,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', '../escape', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
+      expectNodePathRejected(all, '.. segments');
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -666,7 +682,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', 'model/services/orders', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not start with model/');
+      expectNodePathRejected(all, 'model/');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -677,7 +693,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', '/abs/path', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not be absolute (starts with /)');
+      expectNodePathRejected(all, 'absolute (starts with /)');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -688,7 +704,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', 'C:/foo/bar', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not be absolute (drive letter)');
+      expectNodePathRejected(all, '(drive letter)');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -699,7 +715,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'read', '--node', 'a/../b'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
+      expectNodePathRejected(all, '.. segments');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -712,7 +728,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // `model\services\orders` becomes `model/services/orders` → model/ reject.
       const { status, all } = run(['log', 'read', '--node', 'model\\services\\orders'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not start with model/');
+      expectNodePathRejected(all, 'model/');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -724,7 +740,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // No git repo is needed: validateNodePath runs before the merge-commit check.
       const { status, all } = run(['log', 'merge-resolve', '--node', 'model/x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not start with model/');
+      expectNodePathRejected(all, 'model/');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -735,7 +751,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'a/../b'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
+      expectNodePathRejected(all, '.. segments');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -750,8 +766,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', 'services/ghost', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
-      expect(all).toContain('A log entry belongs to a node, so the node must exist first.');
+      expectErrorCode(all, 'node-not-found');
+      expect(all).toContain("'services/ghost'");
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -762,8 +778,10 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'read', '--node', 'services/ghost'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
-      expect(all).toContain('before its log can be read');
+      expectErrorCode(all, 'node-not-found');
+      expect(all).toContain("'services/ghost'");
+      // The why is the subcommand's own.
+      expect(all).toContain('can be read');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -775,8 +793,9 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // node-not-found fires before the merge-commit check, so no git repo needed.
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/ghost'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
-      expect(all).toContain('before its log can be merge-resolved');
+      expectErrorCode(all, 'node-not-found');
+      expect(all).toContain("'services/ghost'");
+      expect(all).toContain('can be merge-resolved');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -818,8 +837,9 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('log.md not found for node services/orders');
-      expect(all).toContain('this node has no log.md in the working tree');
+      expectErrorCode(all, 'command-error');
+      expect(all).toContain('log.md not found');
+      expect(all).toContain('services/orders');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }
@@ -838,11 +858,12 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('log.md still contains conflict markers');
+      expectErrorCode(all, 'command-error');
+      expect(all).toContain('conflict markers');
       // Committed with the markers in it: no merge in progress to write a union
-      // from, so the message gives the manual sequence instead.
-      expect(all).toContain('the merge of this log was never reconciled');
-      expect(all).toContain('order the entries by datetime');
+      // from, so the next step is the manual sequence instead.
+      expect(all).toContain('remove the markers');
+      expect(all).toContain('by datetime');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }
@@ -855,7 +876,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('New log entries are not in chronological order');
+      expectErrorCode(all, 'command-error');
+      expect(all).toContain('chronological order');
       expect(all).toContain('ordered by timestamp');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);

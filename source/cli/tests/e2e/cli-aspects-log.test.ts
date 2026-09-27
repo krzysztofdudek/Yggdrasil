@@ -26,6 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { runGitFixture } from '../support/git-fixture.js';
+import { expectErrorCode, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -94,6 +95,17 @@ interface LogDoc {
   entries: Array<{ at: string; body: string; status?: { from: string; to: string } }>;
 }
 
+/** The rule's history as `yg aspects log read --json` gives it, newest entry first. */
+function readLog(dir: string): LogDoc {
+  return parseJson<LogDoc>(run(['aspects', 'log', 'read', '--aspect', RULE, '--json'], dir).stdout);
+}
+
+/**
+ * The report line a full approving run prints when it writes a hand-made change
+ * into a rule's log. Only its distinctive tail is matched.
+ */
+const WROTE_TO_RULE_LOG = 'its own log';
+
 describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
   it('1: an entry lands and reads back, and the guards a component log has hold here too', () => {
     const dir = project('add');
@@ -103,7 +115,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(added.status).toBe(0);
-      expect(added.stdout).toContain(`Added a log entry to rule '${RULE}'`);
+      expect(added.stdout).toContain(`'${RULE}'`);
 
       const read = run(['aspects', 'log', 'read', '--aspect', RULE], dir);
       expect(read.status).toBe(0);
@@ -123,7 +135,8 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       // A rule nobody has such a command for.
       const unknown = run(['aspects', 'log', 'read', '--aspect', 'no-such-rule'], dir);
       expect(unknown.status).toBe(1);
-      expect(unknown.stderr).toContain("error[aspect-not-found]: rule 'no-such-rule' is not in the graph");
+      expectErrorCode(unknown.stderr, 'aspect-not-found');
+      expect(unknown.stderr).toContain("'no-such-rule'");
 
       // A rule nothing has been said about yet is not an error.
       const quiet = run(['aspects', 'log', 'read', '--aspect', 'no-todo-comments'], dir);
@@ -146,7 +159,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(unseen.status).toBe(0);
-      expect(readFileSync(logPath(dir), 'utf-8')).toContain('Status: an unrecorded status → enforced');
+      expect(readLog(dir).entries[0].status).toEqual({ from: 'an unrecorded status', to: 'enforced' });
       rmSync(logPath(dir));
 
       // From here on the tool has a memory of where every rule stood.
@@ -165,13 +178,14 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       );
       expect(recorded.status).toBe(0);
 
-      const doc = JSON.parse(run(['aspects', 'log', 'read', '--aspect', RULE, '--json'], dir).stdout) as LogDoc;
+      const doc = readLog(dir);
       expect(doc.schema).toBe('yg-aspect-log/1');
       expect(doc.status).toBe('enforced');
       expect(doc.entries[0].status).toEqual({ from: 'advisory', to: 'enforced' });
       expect(doc.entries[0].body).toContain('decided by the architect');
-      expect(doc.entries[0].body).toContain('two waves clean, no new violations');
-      expect(doc.entries[0].body).toContain('Promoted after it ran advisory');
+      // The evidence and the reason given above are kept.
+      expect(doc.entries[0].body).toContain('two waves clean');
+      expect(doc.entries[0].body).toContain('Promoted after');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -187,8 +201,8 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(notThere.status).toBe(1);
-      expect(notThere.stderr).toContain('stands at advisory, not enforced');
-      expect(notThere.stderr).toContain('records a change; it does not make one');
+      expectErrorCode(notThere.stderr, 'command-error');
+      expect(notThere.stderr).toContain('stands at advisory');
 
       // The standing is right, but what justified it is the part nobody can
       // reconstruct later.
@@ -197,6 +211,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(noEvidence.status).toBe(1);
+      expectErrorCode(noEvidence.stderr, 'command-error');
       expect(noEvidence.stderr).toContain('no evidence');
 
       const notAStanding = run(
@@ -204,7 +219,8 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(notAStanding.status).toBe(1);
-      expect(notAStanding.stderr).toContain('not a status a rule can have');
+      expectErrorCode(notAStanding.stderr, 'command-error');
+      expect(notAStanding.stderr).toContain("'important'");
 
       // Not one of them wrote anything.
       expect(existsSync(logPath(dir))).toBe(false);
@@ -218,7 +234,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
     try {
       // The first approving run only remembers where every rule stands; there is
       // no change to narrate, so nothing is written to any rule's log.
-      expect(approve(dir).all).not.toContain('written into its own log');
+      expect(approve(dir).all).not.toContain(WROTE_TO_RULE_LOG);
       expect(existsSync(logPath(dir))).toBe(false);
 
       setStatus(dir, 'enforced');
@@ -232,19 +248,21 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
 
       // The free CI step writes no committed file: it leaves the change reported.
       const free = approve(dir);
-      expect(free.all).not.toContain('written into its own log');
+      expect(free.all).not.toContain(WROTE_TO_RULE_LOG);
       expect(free.all).toContain('aspect-status-changed-outside-cli');
       expect(existsSync(logPath(dir))).toBe(false);
 
       // The full approving run records it, in the rule's own log.
       const recorded = await approveFull(dir);
-      expect(recorded.all).toContain(`rule '${RULE}' now stands at enforced (was advisory) — written into its own log`);
-      const log = readFileSync(logPath(dir), 'utf-8');
-      expect(log).toContain('Status: advisory → enforced, changed outside the CLI');
+      expect(recorded.all).toContain(`'${RULE}'`);
+      expect(recorded.all).toContain(WROTE_TO_RULE_LOG);
+      const written = readLog(dir).entries;
+      expect(written[0].status).toEqual({ from: 'advisory', to: 'enforced' });
+      expect(written[0].body).toContain('outside the CLI');
 
       // And never again: not in the log, not in the report.
-      expect((await approveFull(dir)).all).not.toContain('written into its own log');
-      expect(approve(dir).all).not.toContain('written into its own log');
+      expect((await approveFull(dir)).all).not.toContain(WROTE_TO_RULE_LOG);
+      expect(approve(dir).all).not.toContain(WROTE_TO_RULE_LOG);
       expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(1);
       expect(run(['check'], dir).all).not.toContain('aspect-status-changed-outside-cli');
     } finally {
@@ -263,7 +281,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       );
 
       const after = approve(dir);
-      expect(after.all).not.toContain('written into its own log');
+      expect(after.all).not.toContain(WROTE_TO_RULE_LOG);
       expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(1);
       expect(readFileSync(logPath(dir), 'utf-8')).not.toContain('changed outside the CLI');
       // And the report is clear: the standing and the record agree.
@@ -307,7 +325,8 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       setStatus(dir, 'enforced');
       await approveFull(dir); // it notices the edit and writes the bare fact into the log
       const drift = readFileSync(logPath(dir), 'utf-8');
-      expect(drift).toContain('Status: advisory → enforced, changed outside the CLI');
+      expect(drift).toContain('outside the CLI');
+      expect(readLog(dir).entries[0].status).toEqual({ from: 'advisory', to: 'enforced' });
 
       // Recording that same change after the tool noted it is the person adding
       // the evidence: it runs from where the rule stood before the edit.
@@ -316,7 +335,9 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(evidence.status, evidence.all).toBe(0);
-      expect(readFileSync(logPath(dir), 'utf-8')).toContain('Status: advisory → enforced, decided by the user');
+      const withEvidence = readLog(dir).entries[0];
+      expect(withEvidence.status).toEqual({ from: 'advisory', to: 'enforced' });
+      expect(withEvidence.body).toContain('by the user');
 
       // A second record of the same standing is a change nobody made.
       const again = run(
@@ -324,7 +345,8 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(again.status).toBe(1);
-      expect(again.stderr).toContain('already stood at enforced before this entry');
+      expectErrorCode(again.stderr, 'command-error');
+      expect(again.stderr).toContain('already stood at enforced');
       expect(readFileSync(logPath(dir), 'utf-8')).not.toContain('enforced → enforced');
       expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(2);
     } finally {
@@ -347,7 +369,9 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
 
       const both = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--all'], dir);
       expect(both.status).toBe(1);
-      expect(both.stderr).toContain('--top and --all cannot both be given');
+      expectErrorCode(both.stderr, 'command-error');
+      expect(both.stderr).toContain('--top');
+      expect(both.stderr).toContain('--all');
       const disagree = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--limit', '3'], dir);
       expect(disagree.status).toBe(1);
       expect(disagree.stderr).toContain('disagree');
