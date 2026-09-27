@@ -2170,23 +2170,28 @@ yg pack new <name>
   after the others are updated. A record from an earlier release with no tag or
   commit gets both on the next update that reaches its version's tag, even with
   nothing newer to take. `--reinstall` restores an edited or incomplete copy from
-  the version the record names; it refuses when the publisher moved the tag or
+  the version the record names, naming every edit it overwrites and every file
+  the package never installed that it deletes; it refuses when the publisher moved the tag or
   re-used the version number, and `--reinstall --accept-republished` takes what
   the source publishes under that number now, keeping your adaptations. Rules
   whose content changed go back to unverified.
 - `list` — what is installed, which version, pinned or following, from where, the
-  tag and commit, and whether each copy is still untouched. Names newer versions
+  tag and commit, and whether each copy is still untouched — "copy changed" for
+  exactly what `yg check` blocks, a file the package never installed (dot-named
+  included; only `.DS_Store` is left out) as much as an edited one. Names newer versions
   only when the source answers; an unreachable source produces silence, never a
   claim that you are current. What a reachable source says is also recorded in a
   local, never-committed cache, which is what lets `yg advise` mention a newer
   version without reaching outside the repository itself. `add` and `update`
   refresh the same cache while they are already talking to the source.
 - `verify` — asks each source whether the recorded tag still points at the
-  recorded commit and whether the copy is still exactly what it holds; exits 1 on
+  recorded commit and whether the copy is still exactly what it holds (a file the
+  package never installed is a difference too); exits 1 on
   any difference, naming its cause (an edited copy, a moved tag, a re-used
   version number, or a version an earlier release installed that was never
   published) and the next step for each package.
-- `remove` — deletes the rules, their adaptations and the record. Refuses while
+- `remove` — deletes the rules, their adaptations and the record, naming any
+  file in the package's directory it never installed. Refuses while
   anything in the graph still names one of them — a component, a port, a type, a
   flow, or another rule's `implies:` — listing what does.
 - `new` — the publishing side. Scaffolds `packages/<name>/` in the marketplace

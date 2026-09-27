@@ -19,7 +19,7 @@ import {
   readInstalledAdapts,
   writePackagesLock,
 } from '../io/package-store.js';
-import { collectPackagesDrift, isCopyIntact, repoRelativePackagePath } from '../core/checks/packages.js';
+import { collectPackagesDrift, isCopyIntact, repoRelativePackagePath, type PackageDrift } from '../core/checks/packages.js';
 import { newerThanInstalled } from '../core/advise-package-nominations.js';
 import {
   FetchSession,
@@ -166,7 +166,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
         const listed = drifted
           .map((pkgName) => {
             const packageDrift = drift.byPackage.get(pkgName);
-            const touched = [...(packageDrift?.modified ?? []), ...(packageDrift?.missing ?? [])]
+            const touched = [...(packageDrift?.modified ?? []), ...(packageDrift?.missing ?? []), ...(packageDrift?.unknown ?? [])]
               .sort((a, b) => (a < b ? -1 : 1))
               .map((f) => `  ${repoRelativePackagePath(f)}`)
               .join('\n');
@@ -243,6 +243,9 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
         const from = install.fetched.tag === undefined ? '' : ` (${install.fetched.tag}, commit ${shortCommit(install.fetched.commit)})`;
         writeOut(paint.green(`${verb} '${plan.name}' ${change}${from}.\n`));
         for (const line of install.summary) writeOut(`${line}\n`);
+        if (opts.reinstall === true) {
+          for (const line of reinstallLosses(drift.byPackage.get(plan.name))) writeOut(`${line}\n`);
+        }
       }
 
       const observed: Record<string, string[]> = {};
@@ -287,6 +290,21 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       await session.cleanup();
     }
   });
+}
+
+/**
+ * What a reinstall threw away, file by file: it puts the copy back exactly as
+ * installed, so an edit is overwritten and a file the package never installed is
+ * deleted. Said, because either may be work someone wants back.
+ */
+function reinstallLosses(drift: PackageDrift | undefined): string[] {
+  if (drift === undefined) return [];
+  const lines: string[] = [];
+  for (const f of drift.modified) lines.push(paint.yellow(`  restored ${repoRelativePackagePath(f)} as installed; the edit made here is gone`));
+  for (const f of drift.missing) lines.push(`  put back ${repoRelativePackagePath(f)}`);
+  for (const f of drift.unknown) lines.push(paint.yellow(`  deleted ${repoRelativePackagePath(f)}, which the package never installed`));
+  if (drift.modified.length + drift.unknown.length > 0) lines.push('  Version control still has what was committed of them.');
+  return lines;
 }
 
 /** Decide, without writing anything, what an update does with one package. */

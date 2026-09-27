@@ -629,9 +629,10 @@ async function runVerify(name: string | undefined): Promise<number> {
         const packageDrift = drift.byPackage.get(pkgName);
         for (const f of packageDrift?.modified ?? []) problems.push(`${repoRelativePackagePath(f)} has been edited in this repository`);
         for (const f of packageDrift?.missing ?? []) problems.push(`${repoRelativePackagePath(f)} is missing in this repository`);
+        for (const f of packageDrift?.unknown ?? []) problems.push(`${repoRelativePackagePath(f)} sits among the copied files, but the package did not install it`);
 
         const next: string[] = [];
-        if ((packageDrift?.modified.length ?? 0) + (packageDrift?.missing.length ?? 0) > 0) {
+        if (!isCopyIntact(packageDrift)) {
           next.push(`to put the copy back as it was installed, keeping your adaptations: yg pack update ${pkgName} --reinstall`);
         }
 
@@ -761,12 +762,22 @@ async function runRemove(name: string): Promise<number> {
     }
 
     const adapted = (await readInstalledAdapts(projectRoot, entry.package, [...own].map((id) => id.slice(idPrefix.length + 1)))).size;
+    const strays = (await collectPackagesDrift(projectRoot, lock)).byPackage.get(name)?.unknown ?? [];
     await removePackageFiles(projectRoot, entry.package);
     const rest = { ...lock.packages };
     delete rest[name];
     await writePackagesLock(projectRoot, { schema: 'yg-packages/1', packages: rest });
 
     writeOut(paint.green(`Removed '${name}' — its rules and its record are gone.\n`));
+    if (strays.length > 0) {
+      writeOut(
+        paint.yellow(
+          `Also deleted, from its directory, ${count(strays.length, 'file', 'files')} the package never installed:\n` +
+            strays.map((f) => `  ${repoRelativePackagePath(f)}\n`).join('') +
+            'Version control still has what was committed of them.\n',
+        ),
+      );
+    }
     if (adapted > 0) {
       writeOut(
         `Its ${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME}) went with it; version control still has ${adapted === 1 ? 'it' : 'them'}.\n`,

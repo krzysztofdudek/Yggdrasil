@@ -308,7 +308,8 @@ yg pack update house-style --reinstall
 When a copied file was edited or deleted and version control cannot put it back
 (an install that was never committed, say), `--reinstall` fetches the version the
 record names and puts the copy back exactly as it was installed, keeping your
-adaptation. It is refused if what the source publishes under that version today
+adaptation. That overwrites every edit and deletes every file the package never
+installed, and the command names each one it restored or deleted. It is refused if what the source publishes under that version today
 is not what was installed — because then nothing could be put back faithfully —
 and the refusal names the cause: the publisher moved the tag, or the publisher
 re-used the version number for different content.
@@ -338,8 +339,8 @@ yg pack verify house-style
 record itself is a committed file, though, and anyone who can change it can
 change it together with the copy. `yg pack verify` asks the source: does the
 recorded tag still point at the recorded commit, does what it holds hash to what
-the record says, and is the copy on disk still that. Any "no" exits 1, naming
-it, and says per package what to do next. A package installed from a plain
+the record says, and is the copy on disk still that — no file edited or missing,
+and none added among the copies. Any "no" exits 1, naming it, and says per package what to do next. A package installed from a plain
 directory is compared with the directory as it is now; one recorded by an earlier
 release, with no commit, is compared file by file with its version's tag, and the
 next `yg pack update` records the tag and commit.
@@ -362,7 +363,8 @@ yg pack list
 
 Names, versions, whether each one is pinned or follows the newest, where each
 came from, the tag and commit it was taken from, and whether each copy is still
-untouched. It also names newer versions — but only when the source actually
+untouched: "copy changed" for exactly what `yg check` blocks — an edited or
+missing file, or a file the package never installed. It also names newer versions — but only when the source actually
 answers. A source that cannot be reached produces silence, never a claim that
 you are up to date.
 
@@ -583,7 +585,7 @@ parsers) is reported as unsupported by a drill, not as failing.
 |---|---|
 | A copied file was edited | `yg check` blocks, naming the file, the adaptation, and `yg pack update <name> --reinstall` |
 | A copied file is missing | `yg check` blocks — a rule with a piece gone stops applying rather than failing loudly |
-| A file among the copies that no package installed | `yg check` blocks — that is how a rule nobody chose would wear a package's name |
+| A file among the copies that no package installed | `yg check` blocks — that is how a rule nobody chose would wear a package's name. A dot-named file counts too (a `.helper.mjs` is code a rule can import); an install never copies one, so nothing it puts in place is ever refused. Only `.DS_Store`, which macOS writes into any directory Finder shows, is left out. `yg pack list` and `yg pack verify` report the same files |
 | A rule of your own under `.yggdrasil/aspects/packages/` | It is not loaded, and `yg check` names the directory as reserved for installed packages |
 | The package record names an install directory other than `<owner>/<repo>/<name>` | `yg check` blocks, and every pack command refuses it — that value is a directory the commands delete |
 | An adaptation names a key that is not adaptable | The graph refuses to load, naming the key |

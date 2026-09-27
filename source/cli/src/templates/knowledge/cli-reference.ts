@@ -1687,25 +1687,31 @@ yg pack new <name>
   \`--reinstall\` puts an edited or incomplete copy back from the version the
   record names, keeping your adaptations; it refuses when the source no longer
   publishes exactly that, naming the cause (the publisher moved the tag, or
-  re-used the version number). \`--reinstall --accept-republished\` takes what the
+  re-used the version number). It overwrites every edit and deletes every file
+  the package never installed, naming each. \`--reinstall --accept-republished\` takes what the
   source publishes under that number now, keeping your adaptations — the only
   command that does; a plain update or \`--to\` the same version changes nothing.
 - \`list\` — what is installed, which version, pinned or following, from where,
-  the tag and commit, and whether each copy is still untouched. It names a newer
+  the tag and commit, and whether each copy is still untouched ("copy changed"
+  for exactly what \`yg check\` blocks: an edited or missing file, or any file the
+  package never installed, dot-named ones included — only \`.DS_Store\` is left
+  out). It names a newer
   version only when the source answers; an unreachable source produces silence,
   never a claim that you are current. What a reachable source said is also kept
   in a local, never-committed cache, which is what lets \`yg advise\` mention a
   newer version (and the \`--to\` command that takes it) without reaching outside
   the repository.
 - \`verify\` — asks each source whether the recorded tag still points at the
-  recorded commit and whether the copy is still exactly what it holds. Exits 1 on
+  recorded commit and whether the copy is still exactly what it holds (a file the
+  package never installed is a difference too). Exits 1 on
   any difference, and names per package its cause and the next step: an edited
   copy (\`--reinstall\`), a moved tag or a re-used version number
   (\`--reinstall --accept-republished\`), or a version an earlier release
   installed that the source never published (\`yg pack update <name>\` once
   anything is published, or \`yg pack remove\`). The record attests only to
   itself; this is the check against the source.
-- \`remove\` — deletes the installed rules, their adaptations and the record.
+- \`remove\` — deletes the installed rules, their adaptations and the record,
+  naming any file in the package's directory it never installed.
   REFUSED while anything in the graph still names one of the rules — a
   component, a port, a type, a flow, or another rule's \`implies:\` — listing what
   does.

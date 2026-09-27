@@ -218,7 +218,9 @@ describe('reading an installed package back off disk', () => {
     mkdirSync(path.join(dir, '.hidden'), { recursive: true });
     writeFileSync(path.join(dir, '.hidden', 'nope.mjs'), 'x\n', 'utf-8');
 
+    // A dot-named module inside an install is a file like any other there.
     expect(await listInstalledFiles(root, 'acme/law/demo')).toEqual([
+      'packages/acme/law/demo/rule-a/.hidden/nope.mjs',
       'packages/acme/law/demo/rule-a/check.mjs',
     ]);
   });
