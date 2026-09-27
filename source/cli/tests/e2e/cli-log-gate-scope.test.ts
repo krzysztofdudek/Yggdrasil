@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { expectIssue, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -208,6 +209,28 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
       expect(free.stdout).not.toContain('ABORTED');
       expect(free.stderr).toMatch(/^fill {2}4 pairs · 4 script \(free\)/m);
       expect(owes(free, 'services/doc')).toBe(true);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  }, 120_000);
+  // Every "then re-run" line of a fill names the command as it was invoked, so
+  // a free run never sends its reader to the paid one: the owed entry the
+  // report names, and the fill that finds another one already holding the lock.
+  it('the re-run a fill names is the command as it was invoked, flags kept', () => {
+    const dir = baseline('retry');
+    const rerun = (next: string): string | undefined => /re-run:? (yg check[a-z -]*?)(?=[.\n]|$)/.exec(next)?.[1];
+    try {
+      write(dir, 'src/lib/util.ts', 'export const util = 2;\n');
+      for (const flags of [['--only-deterministic'], ['--dry-run'], ['--only-deterministic', '--full']]) {
+        const run = yg(dir, ['check', '--approve', ...flags, '--json']);
+        const issue = expectIssue(parseJson(run.stdout), { code: 'log-entry-missing', node: 'services/lib' });
+        expect(rerun(String(issue.next))).toBe(['yg check --approve', ...flags].join(' '));
+      }
+      writeFileSync(path.join(dir, '.yggdrasil', '.yg-approve.lock'), JSON.stringify({ pid: 1, host: 'elsewhere', command: 'yg check --approve', startedAt: new Date().toISOString() }));
+      const held = yg(dir, ['check', '--approve', '--only-deterministic', '--json']);
+      const error = parseJson(held.stdout);
+      expect(error.code).toBe('lock-environment');
+      expect(rerun(error.next?.text ?? '')).toBe('yg check --approve --only-deterministic');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

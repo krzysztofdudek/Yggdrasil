@@ -82,11 +82,13 @@ const APPROVE_LOCK_STALE_MS = 12 * 60 * 60 * 1000;
  * other's, so the second one fails fast instead of silently losing the first
  * one's verdicts. The lock is released by the returned function, on a normal
  * process exit, and on SIGINT/SIGTERM; one left by a crashed run is detected
- * (its process is gone) and replaced.
+ * (its process is gone) and replaced. `command` is the run as it was invoked:
+ * recorded as the holder, and named by the "then re-run" line of a run that
+ * finds the lock taken.
  */
-export function acquireApproveLock(yggRoot: string, nowMs: number): () => void {
+export function acquireApproveLock(yggRoot: string, nowMs: number, command = 'yg check --approve'): () => void {
   const filePath = path.join(yggRoot, APPROVE_LOCK_FILE_NAME);
-  const result = tryAcquireExclusiveFile(filePath, 'yg check --approve', nowMs, APPROVE_LOCK_STALE_MS);
+  const result = tryAcquireExclusiveFile(filePath, command, nowMs, APPROVE_LOCK_STALE_MS);
   if (!result.ok) {
     const who = result.holder
       ? `process ${result.holder.pid} on ${result.holder.host}, running '${result.holder.command}' since ${result.holder.startedAt}`
@@ -94,7 +96,7 @@ export function acquireApproveLock(yggRoot: string, nowMs: number): () => void {
     throw new LockEnvironmentError('approve-in-progress', {
       what: `Another fill is already running in this repository (${who}).`,
       why: 'Two fills running at once each write their own copy of the verdict lock over the other\'s, so the verdicts of one of them would be lost. Nothing was filled or written by this run.',
-      next: `Wait for that run to finish, then re-run: yg check --approve. If no such run exists any more, delete ${toPosixPath(path.relative(path.dirname(yggRoot), filePath))} and re-run.`,
+      next: `Wait for that run to finish, then re-run: ${command}. If no such run exists any more, delete ${toPosixPath(path.relative(path.dirname(yggRoot), filePath))} and re-run.`,
     });
   }
   const release = result.release;

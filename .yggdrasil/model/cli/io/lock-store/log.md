@@ -54,3 +54,5 @@ Two release lines met here: one that routes every piece of CLI output through th
 A lock file that cannot be trusted now hands the report its first step as data: restore that file from version control, or take one side of a conflicted one wholesale. Read out of the words, the step came out as a fill, which would re-verify over a lock nobody can trust.
 ## [2026-09-26T21:33:31.276Z]
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
+## [2026-09-27T05:41:47.805Z]
+The approval lock records, and its refusal names, the command the waiting run was invoked as, instead of always the plain approve command. A free deterministic-only run that found the lock taken used to be told to re-run the paid command.

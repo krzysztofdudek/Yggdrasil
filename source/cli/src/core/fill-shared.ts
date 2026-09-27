@@ -13,6 +13,29 @@ import type { VerdictEvent } from '../io/events-store.js';
 import type { FillEventSink, FillLane } from '../model/fill-event.js';
 import { debugWrite } from '../utils/debug-log.js';
 
+/** The command a fill's messages name when the run was invoked as a plain `--approve`. */
+export const DEFAULT_RETRY = 'yg check --approve';
+
+/** A "re-run" line naming the plain `--approve`, and not a longer command that starts with it. */
+const DEFAULT_RETRY_LINE = /(\bre-run:?\s+)yg check --approve(?![\w-]|\s+--)/gi;
+
+/**
+ * The same message, its "re-run" lines naming the command the run was invoked
+ * as. The code that words a fill's failures — a lock that cannot be written, a
+ * reviewer that cannot run, a companion that fails, a component owing a log
+ * entry — is shared with commands that are not a fill and does not know how
+ * this one was invoked, so it names the plain `yg check --approve`. Left like
+ * that, a free `--only-deterministic` run would send its reader to the paid one,
+ * and `--full` or `--dry-run` would be dropped. Every message a fill prints
+ * passes through here once, at the fill's own boundary, so no such line can
+ * escape it. A message already naming the invoked command is returned as it is.
+ */
+export function retargetRetry(msg: IssueMessage, retry: string): IssueMessage {
+  if (retry === DEFAULT_RETRY) return msg;
+  const next = msg.next.replace(DEFAULT_RETRY_LINE, (_match: string, lead: string) => `${lead}${retry}`);
+  return next === msg.next ? msg : { ...msg, next };
+}
+
 /** Outcome of filling one deterministic pair. A real verdict carries an entry to
  *  write; a runtime-error is an infra disposition (no write — spec §3.2) and carries
  *  the structured notice so the orchestrator can collect and group by aspectId before
