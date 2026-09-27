@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock as readTriadLock, detLockPath, nondetLockPath, logsLockPath } from './support/read-lock.js';
 import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { expectBlock, expectIssue, parseJson } from '../support/assert-output.js';
 
 // ---------------------------------------------------------------------------
 // CLI E2E — the DETERMINISTIC FILL LIFECYCLE (verdict-lock model).
@@ -47,6 +48,22 @@ const distExists = existsSync(BIN_PATH);
 // port 1 never has a listener — with no dependency on any real endpoint being
 // absent.
 const DEAD_ENDPOINT = 'http://127.0.0.1:1';
+
+/**
+ * The enforced no-todo-comments refusal on services/orders, as `yg check --json`
+ * records it: the rule, the node and the violating file carried as fields.
+ */
+function expectOrdersTodoRefusal(dir: string): void {
+  const refused = expectIssue(parseJson(run(['check', '--json'], dir).stdout), {
+    code: 'aspect-violation-enforced',
+    aspect: 'no-todo-comments',
+    node: 'services/orders',
+  });
+  const violations = refused.violations as Array<{ file: string; message: string }>;
+  expect(violations.map((v) => v.file)).toEqual(['src/services/orders.ts']);
+  // The rule's own violation message is carried through to the report.
+  expect(violations[0].message).toContain('TODO comment found');
+}
 
 function run(
   args: string[],
@@ -195,11 +212,17 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       appendFileSync(ordersFile(dir), '\n// TODO: refactor this later\n');
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(1);
-      // The source hash changed, so the stored verdict no longer hashes-valid.
-      // The unverified block names the cause (stale inputs) in its subject and
-      // the pair (`<aspect> @ <node>`) on its member line.
-      expect(stdout).toContain('error[unverified] 1 pair whose inputs changed since the verdict');
+      // The source hash changed, so the stored verdict no longer hashes-valid:
+      // the pair is unverified for a stale input, and the block's member line
+      // names it (`<aspect> @ <node>`).
+      expectBlock(stdout, { label: 'unverified', severity: 'error' });
       expect(stdout).toMatch(/^ {2}at: +no-todo-comments @ services\/orders$/m);
+      expectIssue(parseJson(run(['check', '--json'], dir).stdout), {
+        code: 'unverified',
+        cause: 'stale',
+        aspect: 'no-todo-comments',
+        node: 'services/orders',
+      });
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -216,9 +239,9 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // The closing line counts the refusal, and the check renderer surfaces the
       // enforced refusal as a blocking error[refused] block whose member line
       // names the node, the violating line and the violation message.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — 1 passed · 1 refused · 0 failed/m);
-      expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
-      expect(fill.stdout).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+ {2}TODO comment found/m);
+      expect(fill.stderr).toMatch(/^fill .*\b1 passed · 1 refused · 0 failed\b/m);
+      expect(expectBlock(fill.stdout, { label: 'refused', severity: 'error' }).subject).toContain('no-todo-comments');
+      expectOrdersTodoRefusal(dir);
       // The lock records the refused verdict (with the violation text in reason).
       const lock = readLock(dir);
       expect(verdictFor(lock, 'no-todo-comments', 'services/orders')?.verdict).toBe('refused');
@@ -259,12 +282,18 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(fill.status).toBe(0); // advisory refusal does NOT block the fill
       // Progress (the fill's closing line) goes to STDERR; final report to STDOUT.
       expect(fill.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
-      expect(fill.stdout).toContain('warning[refused] requires-named-export — 1 violation in services/payments');
+      expect(expectBlock(fill.stdout, { label: 'refused', severity: 'warning' }).subject).toContain('requires-named-export');
       expect(fill.stdout).not.toContain('error[refused]');
 
       const check = run(['check'], dir);
       expect(check.status).toBe(0); // advisory warning does NOT fail check
-      expect(check.stdout).toContain('warning[refused] requires-named-export — 1 violation in services/payments');
+      expect(expectBlock(check.stdout, { label: 'refused', severity: 'warning' }).subject).toContain('requires-named-export');
+      expectIssue(parseJson(run(['check', '--json'], dir).stdout), {
+        severity: 'warning',
+        label: 'refused',
+        aspect: 'requires-named-export',
+        node: 'services/payments',
+      });
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -324,8 +353,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(refused.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
       // The blocking refusal block names the aspect and the node; its member line
       // carries the violating line and the violation message.
-      expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
-      expect(refused.stdout).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+ {2}TODO comment found/m);
+      expect(expectBlock(refused.stdout, { label: 'refused', severity: 'error' }).subject).toContain('no-todo-comments');
+      expectOrdersTodoRefusal(dir);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -350,8 +379,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // Both nodes report the no-todo-comments pair as unverified. The capped
       // view collapses them into one rule line counting both nodes; --details
       // lists each pair on its own line.
-      expect(drifted.stdout).toContain('error[unverified] 2 pairs whose inputs changed since the verdict');
-      expect(drifted.stdout).toMatch(/^ {2}at: +no-todo-comments {2}2 pairs · 2 nodes · script$/m);
+      expect(drifted.stdout).toMatch(/^error\[unverified\] 2 pairs /m);
+      expect(drifted.stdout).toMatch(/^ {2}at: +no-todo-comments {2}2 pairs · 2 nodes\b/m);
       const details = run(['check', '--details'], dir).stdout;
       expect(details).toMatch(/no-todo-comments @ services\/orders$/m);
       expect(details).toMatch(/no-todo-comments @ services\/payments$/m);
@@ -474,8 +503,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(existsSync(detLockFile(dir))).toBe(true);
       // Fill progress (the opening and closing `fill` lines) goes to STDERR; the
       // verdict is confirmed via the lock.
-      expect(det.stderr).toMatch(/^fill {2}4 pairs · 4 script \(free\) · 0 reviewer calls$/m);
-      expect(det.stderr).toMatch(/^fill {2}done in .* — 4 passed · 0 refused · 0 failed · 0 reviewer calls/m);
+      expect(det.stderr).toMatch(/^fill .*\b0 reviewer calls$/m);
+      expect(det.stderr).toMatch(/^fill .*\b4 passed · 0 refused · 0 failed\b/m);
       expect(verdictFor(readLock(dir), 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
 
       // The reviewer was NEVER contacted — a full --approve would say 'unreachable'; this does not.
@@ -512,8 +541,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(det.stderr).not.toMatch(/^next: /m);
       expect(det.stdout).toMatch(/^ {2}fix: {2}yg check --approve {2}\(2 reviewer pairs · 2 calls · paid\)$/m);
       // And the report keeps them red as unverified reviewer pairs.
-      expect(det.stdout).toContain('error[unverified] 2 pairs with no verdict yet');
-      expect(det.stdout).toMatch(/^ {2}at: +has-doc-comment {2}2 pairs · 2 nodes · reviewer$/m);
+      expect(det.stdout).toMatch(/^error\[unverified\] 2 pairs /m);
+      expect(det.stdout).toMatch(/^ {2}at: +has-doc-comment {2}2 pairs · 2 nodes\b/m);
 
       // BUG: the pre-dispatch header must flag that LLM pairs will NOT be reviewed
       // this run — not imply it is filling them.

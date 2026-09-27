@@ -45,11 +45,27 @@ export interface OutputIssue {
 
 /** The `next` object of a machine document (`yg-check/1`, `yg-error/1`, …). */
 export interface OutputNext {
-  command: string[] | string | null;
+  command?: string[] | string | null;
   text?: string;
   requiresUser?: boolean;
   target?: { node?: string; file?: string };
-  [key: string]: unknown;
+}
+
+/**
+ * What the issue helpers need of an issue. A suite's own narrower issue type
+ * (one without an index signature) is accepted as it is, and returned as it is.
+ */
+export interface IssueLike {
+  code: string;
+  severity?: string;
+  cause?: string;
+  node?: string;
+  aspect?: string;
+}
+
+/** Any document with an `issues` array: `OutputDoc`, or a suite's own narrower type. */
+export interface DocWithIssues<I extends IssueLike> {
+  issues?: readonly I[];
 }
 
 /** The parts of a machine document these helpers read. Any other field stays reachable. */
@@ -79,12 +95,12 @@ export function parseJson<T = OutputDoc>(stdout: string): T {
 /** The fields an issue can be matched on. Each given field must be equal. */
 export type IssueMatch = Partial<Record<'code' | 'severity' | 'cause' | 'node' | 'aspect' | 'unit' | 'label', string>>;
 
-function matches(issue: OutputIssue, match: IssueMatch): boolean {
-  return Object.entries(match).every(([k, v]) => issue[k] === v);
+function matches(issue: IssueLike, match: IssueMatch): boolean {
+  return Object.entries(match).every(([k, v]) => (issue as unknown as Record<string, unknown>)[k] === v);
 }
 
 /** A compact listing of a document's issues, for failure messages. */
-function describeIssues(doc: OutputDoc): string {
+function describeIssues(doc: DocWithIssues<IssueLike>): string {
   const issues = doc.issues ?? [];
   if (issues.length === 0) return '(no issues)';
   return issues
@@ -93,25 +109,25 @@ function describeIssues(doc: OutputDoc): string {
 }
 
 /** Every issue of `doc` matching `match` (all issues when `match` is empty). */
-export function findIssues(doc: OutputDoc, match: IssueMatch = {}): OutputIssue[] {
+export function findIssues<I extends IssueLike>(doc: DocWithIssues<I>, match: IssueMatch = {}): I[] {
   return (doc.issues ?? []).filter((i) => matches(i, match));
 }
 
 /** Assert at least one issue matches; returns the first match. */
-export function expectIssue(doc: OutputDoc, match: IssueMatch): OutputIssue {
+export function expectIssue<I extends IssueLike>(doc: DocWithIssues<I>, match: IssueMatch): I {
   const found = findIssues(doc, match);
   expect(found.length, `no issue matching ${JSON.stringify(match)}; the document has:\n${describeIssues(doc)}`).toBeGreaterThan(0);
   return found[0];
 }
 
 /** Assert no issue matches. */
-export function expectNoIssue(doc: OutputDoc, match: IssueMatch): void {
+export function expectNoIssue<I extends IssueLike>(doc: DocWithIssues<I>, match: IssueMatch): void {
   const found = findIssues(doc, match);
   expect(found.length, `expected no issue matching ${JSON.stringify(match)}; the document has:\n${describeIssues(doc)}`).toBe(0);
 }
 
 /** The `next` command of a machine document as one string, or null when it names none. */
-export function nextCommand(doc: OutputDoc): string | null {
+export function nextCommand(doc: { next?: OutputNext | null }): string | null {
   const cmd = doc.next?.command;
   if (cmd === undefined || cmd === null) return null;
   return Array.isArray(cmd) ? cmd.join(' ') : cmd;
@@ -123,7 +139,7 @@ export function nextCommand(doc: OutputDoc): string | null {
  * `requiresUser`, `node` and `file` compare the matching fields.
  */
 export function expectNext(
-  doc: OutputDoc,
+  doc: { next?: OutputNext | null },
   want: { command?: string | null; requiresUser?: boolean; node?: string; file?: string },
 ): void {
   const got = doc.next;
