@@ -3,9 +3,9 @@
 // diagnostics around it (issue 228), on the built binary:
 //
 //   - `yg context` refuses only over errors that affect that node's context; a
-//     repository-wide error it does not depend on (a key in the committed
-//     config, no reviewer configured, a rule no node here uses) is named on
-//     stderr and the context is given.
+//     repository-wide error it does not depend on (an unknown config key, no
+//     reviewer configured, a rule no node here uses) is named on stderr and
+//     the context is given.
 //   - config-committed-api-key (a warning) says the truth per case: a key only
 //     typed into the working copy has leaked nowhere; one in HEAD is in history.
 //   - a symlinked rule directory is refused as a link, never reported as a

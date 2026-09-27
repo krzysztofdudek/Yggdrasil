@@ -926,7 +926,7 @@ function tierConfigTypeError(c: Record<string, unknown>): { key: string; problem
     return { key: 'endpoint', problem: 'must be a URL string', fix: 'to a URL string' };
   }
   if (c.api_key !== undefined && c.api_key !== null && typeof c.api_key !== 'string') {
-    return { key: 'api_key', problem: 'must be a string', fix: 'to the key as a string (in yg-secrets.yaml, never the committed file)' };
+    return { key: 'api_key', problem: 'must be a string', fix: 'to the key as a string (best kept in the gitignored yg-secrets.yaml; in the committed file every clone receives it)' };
   }
   return null;
 }

@@ -102,7 +102,7 @@
     "cli/io/lock-store": {"log":{"last_entry_datetime":"2026-09-27T10:05:43.369Z","prefix_hash":"f35c81aacec8d6f46659aaf55ab4bb8c9192b7de1e6b5534b55c3a5afb5c8a7b"},"source":"6dd80516ce2c6822e0b2722ac5583e8ade58a03ba2f5457844dd97c70104eab3"},
     "cli/io/parsers": {"log":{"last_entry_datetime":"2026-05-28T07:05:20.439Z","prefix_hash":"37f42209106cd013687ba25b3ed69aa0d8e956cd9e93c096dc77f236dfa28aae"}},
     "cli/io/parsers/aspect": {"log":{"last_entry_datetime":"2026-09-27T04:43:55.100Z","prefix_hash":"29923d19feca2578911f3fd1a15ee5be53f01472c4e56cf76dfcfca1543ceea7"},"source":"577624e10d29ffcc7da73615d5a3d6e511353266de196e396fd35b17ae931bf6"},
-    "cli/io/parsers/config": {"log":{"last_entry_datetime":"2026-09-27T17:05:45.487Z","prefix_hash":"970fc4c191bbecddca3c34fea6f34771b406d287ce45dc2f159e5d8a64af1c10"},"source":"59b7366262d1f7f3950d9bc7ec165ed7319796778e11b70a5eea2f114f5466c3"},
+    "cli/io/parsers/config": {"log":{"last_entry_datetime":"2026-09-27T17:31:37.106Z","prefix_hash":"79f515fc302e74f56935a47ceab1c0cf6e016ffe990f1973948e669df3540b1b"},"source":"15f4ff4edcf9077cd2b81a927b0aee80ee5340f3e811e5dbb67c6e17577d7880"},
     "cli/io/parsers/graph": {"log":{"last_entry_datetime":"2026-09-27T04:43:54.610Z","prefix_hash":"52928b1160054400d1367801ae021d8c93048dc33eb232b1f58396344d71ab78"},"source":"8347d761981e664b149f4e1c210d89bace1bbfc6ee22b94ae50b4567c29503a3"},
     "cli/io/parsers/packages": {"log":{"last_entry_datetime":"2026-09-27T10:31:39.387Z","prefix_hash":"518ceec3f6367589a4903f05be91414877f222a0f5989dff2bd9f249e6abddd8"},"source":"c8915c886b2574b165c9881e65688e8ba4a9a971c40220d9d87b4b879bcce0ce"},
     "cli/io/stores": {"log":{"last_entry_datetime":"2026-09-27T15:40:01.005Z","prefix_hash":"d4dbc4bc8ebcea9c8ad3ed02fe77bb11ba27e45937a6e1c497e7f40ff6f63eab"},"source":"fd94b12d226182b7fc60b826ba686df3567e960badd73b697ba4b4df54feffcc"},
@@ -269,7 +269,7 @@
     "cli/tests/e2e/meta-modeling": {"source":"5d50925535f02ed5e4621fa525c974812dfe7c2711c106e5e4569d6772210fd9"},
     "cli/tests/e2e/migrations": {"log":{"last_entry_datetime":"2026-05-31T06:24:50.988Z","prefix_hash":"d5f4eef169f84fbb23d6d0d4082770ba8ab7840ee9bfb781d4ee29622d817414"},"source":"49efc180e17da5304d8fb2a3de977a0295417ed4003522787498fdbb01bea931"},
     "cli/tests/e2e/migrations-config-extended": {"log":{"last_entry_datetime":"2026-05-31T09:15:51.280Z","prefix_hash":"bb229557f9f30fdc73b477ee584e84485e81054092e5d82cb71e9cbfb86389c1"},"source":"4ffdac2aaae831a6604cda11ba70eb34efcd22cc34f8a906f61104d5a6b3a413"},
-    "cli/tests/e2e/next-contract": {"source":"8ed088e2d28f539ea07d372a4edbdd3804b3f1de37ffcdae0d3faa9c2faeb1d1"},
+    "cli/tests/e2e/next-contract": {"source":"26b1eb53457a8e8e5bcf0522bbb21c3b9b8fee4c2bb6ee5a1fd3723a6c90a8c0"},
     "cli/tests/e2e/next-executes": {"source":"a2606fb9c9206ff4d983f9a30f219a247880b22f676abc8ad91f52711a6f8937"},
     "cli/tests/e2e/other-worktree": {"source":"2c33224a963cebc7a6ef4b657b7caf869b0d6ed2d4d37b7c99b89eff670e9469"},
     "cli/tests/e2e/own-graph-default-port": {"source":"3eb97ea6fc27e04115eed861d6a561931d5e0b8ec8a8b740c1e68637913c18e5"},
@@ -495,7 +495,7 @@
     "graph-rules": {"log":{"last_entry_datetime":"2026-09-23T20:09:45.974Z","prefix_hash":"a0d354290fd63f36eda6677e002124784143e3882970e160600fee563c648f4b"},"source":"1b50857e4aa8ce61de1c2a5de626a7b11adb116798b13d619c1164596ddd8f91"},
     "root": {"log":{"last_entry_datetime":"2026-05-15T11:05:58.272Z","prefix_hash":"3183f15df80dcc84c2e60d5b4bff7c641dd5f1b72a92a50c1ce78dff5d704db7"}},
     "root/ci": {"log":{"last_entry_datetime":"2026-09-23T20:09:49.031Z","prefix_hash":"435717e9988acfe37d8330994136843cac79d14ed912a6bd7716bc933b1a38ac"},"source":"284bc4579b3379f3fd645cebc88f8d46c017915c294d734c255e20b5e8151bdd"},
-    "root/project-config": {"source":"587d7ebd2cea4290e69da9f7d65d1c5482acc80d6930a1f57325db70b5234b2a"},
+    "root/project-config": {"source":"cef8d241980db41c71fa04379c50ac460b52667e3bcb4055a69cdd9454fb33bc"},
     "scripts": {"source":"0adcce0ba310353eb2a22881da898720160da940219bf64e93e9f81822e6e2f1"},
     "tools": {"source":"f802cdf6a80311c31c8303f74d88afd512443c47f380c0cdeab03564d4bb0249"}
   }
