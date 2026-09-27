@@ -220,3 +220,5 @@ The walk over installed copies stopped skipping dot-named files: an install neve
 The rule hash stopped at the rule directory, so a helper several rules share (../shared/x.mjs) could change what they decide while their verdicts stayed on record. Imports are now followed anywhere inside the repository, keyed by the path that leads there, with links and spelling asked from the repository root; a file outside the repository is still not followed, since nothing there is pinned.
 ## [2026-09-27T15:40:01.005Z]
 The walk over installed copies left out every dot-named entry directly under packages/, wider than the documented exemptions; it now leaves out only a file named .DS_Store and the install's own .staging- and .replaced- directories, so a dot-named directory dropped there is checked like any other.
+## [2026-09-27T20:25:15.158Z]
+The package file listing no longer rewrites backslashes: it joins paths with '/' itself, Windows never returns a separator inside a directory entry, and on a POSIX file system a backslash is part of a name, so rewriting it made a file called rule\check.mjs pass for the recorded rule/check.mjs.

@@ -30,5 +30,7 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/core/checks/packages.ts

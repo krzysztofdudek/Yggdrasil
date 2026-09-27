@@ -100,6 +100,14 @@ describe('committed LLM-fill stream: sealed by month', () => {
     expect(read.committedCount).toBe(4);
   });
 
+  it('seals a current file whose first event is longer than a few KiB', () => {
+    const root = dir();
+    // The committed stream strips `reason`, so the length comes from a long unit key.
+    appendVerdictEvent(root, llm(`file:${'deep/'.repeat(2000)}x.ts`, '2026-07-13T00:00:00.000Z'), committed);
+    appendVerdictEvent(root, llm('node:sep', '2026-09-27T00:00:00.000Z'), committed);
+    expect(committedFiles(root)).toEqual([committedSegmentFilename('2026-07'), COMMITTED_EVENTS_FILENAME]);
+  });
+
   it('leaves a current file whose first line cannot be read as it is, rather than seal it under a guessed month', () => {
     const root = dir();
     writeFileSync(path.join(root, COMMITTED_EVENTS_FILENAME), 'not json\n');
@@ -134,6 +142,15 @@ describe('readFirstLine and sealFile', () => {
     expect(readFirstLine(f)).toBe('first');
     writeFileSync(f, 'a'.repeat(50));
     expect(readFirstLine(f, 10)).toBeUndefined();
+  });
+
+  it('readFirstLine reads a first line longer than one read step, multi-byte characters across the step intact', () => {
+    const f = path.join(dir(), 'x.log');
+    const long = `${'ż'.repeat(3000)}${'a'.repeat(5000)}`;
+    writeFileSync(f, `${long}\nsecond\n`);
+    expect(readFirstLine(f)).toBe(long);
+    writeFileSync(f, `${'a'.repeat(9000)}\n`);
+    expect(readFirstLine(f, 8192)).toBeUndefined();
   });
 
   it('sealFile renames into a free name, and appends into a taken one', () => {

@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -38,7 +39,7 @@ interface CheckDoc {
 let dir: string;
 
 function git(...args: string[]): void {
-  const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: dir, encoding: 'utf-8' });
+  const r = runGitFixture(dir, ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
 }
 

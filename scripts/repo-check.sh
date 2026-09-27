@@ -79,7 +79,16 @@ run_step "Graph: deterministic cache (test prerequisite)" "$REPO_ROOT" "node sou
 # the threshold it missed. `npm run test:coverage` on its own still enforces the
 # thresholds from vitest.config.ts; COVERAGE_GATE below must match them.
 COVERAGE_GATE='{"lines":90,"statements":90,"functions":90,"branches":90}'
-if run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage -- --coverage.thresholds.lines=0 --coverage.thresholds.statements=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0"; then
+# The tests run without the developer's git identity, as they do in CI. A test
+# that commits through a bare git call with no identity of its own passed here,
+# where the global ~/.gitconfig supplied a user.name and user.email, and failed
+# in CI, where there is none. The run gets a global config of its own that holds
+# no identity and forbids guessing one from the host name (useConfigOnly), and
+# no system config, so such a test fails here first. safe.directory is kept
+# open so a checkout owned by another user is still readable, as in CI.
+IDENTITYLESS_GITCONFIG="$(mktemp)"
+printf '[user]\n\tuseConfigOnly = true\n[safe]\n\tdirectory = *\n' > "$IDENTITYLESS_GITCONFIG"
+if run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "GIT_CONFIG_GLOBAL='$IDENTITYLESS_GITCONFIG' GIT_CONFIG_NOSYSTEM=1 npm run test:coverage -- --coverage.thresholds.lines=0 --coverage.thresholds.statements=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0"; then
   echo "[repo-check] CLI: coverage >= 90%"
   COVERAGE_VERDICT_FILE="$(mktemp)"
   (cd "$REPO_ROOT/source/cli" && COVERAGE_GATE="$COVERAGE_GATE" COVERAGE_VERDICT_FILE="$COVERAGE_VERDICT_FILE" node -e "
@@ -149,6 +158,7 @@ else
   echo "[repo-check] SKIPPED — cannot evaluate: CLI: test (with coverage) failed above, so coverage-summary.json is missing or incomplete. This is not a coverage threshold miss; fix the failing test(s) first."
   FAILED+=("CLI: coverage >= 90% (not evaluated — a test failed, see CLI: test (with coverage))")
 fi
+rm -f "$IDENTITYLESS_GITCONFIG"
 # Guard: the AST-extraction-cache false-green audit (warm, then cache-on vs cache-off,
 # asserting per-file facts AND violationsByNode deep-equal over a C# global-using +
 # global-using-alias corpus) is the standing proof that the cache never serves a stale

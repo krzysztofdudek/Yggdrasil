@@ -73,14 +73,17 @@ function run(args: string[], cwd: string): { all: string; status: number | null 
   return { all: (r.stdout ?? '') + (r.stderr ?? ''), status: r.status };
 }
 /**
- * Exactly `count` of the aspect's pairs are unverified because an input changed
- * since their verdict — as `yg check --json` records it (code `unverified`,
- * cause `stale`), whatever the text report's words for it.
+ * Exactly `count` pairs are unverified because an input changed since their
+ * verdict, all of them the aspect's — as `yg check --json` records it (code
+ * `unverified`, cause `stale`), whatever the text report's words for it. The
+ * total is pinned too, as the text assertion it replaced pinned the whole
+ * block: an edit that also staled another rule's pairs must fail here.
  */
 function expectStalePairs(dir: string, aspect: string, count: number): void {
   const r = spawnSync('node', [BIN_PATH, 'check', '--json'], { cwd: dir, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
-  const stale = findIssues(parseJson(r.stdout ?? ''), { code: 'unverified', cause: 'stale', aspect });
-  expect(stale.length).toBe(count);
+  const doc = parseJson(r.stdout ?? '');
+  expect(findIssues(doc, { code: 'unverified', cause: 'stale', aspect }).length).toBe(count);
+  expect(findIssues(doc, { code: 'unverified', cause: 'stale' }).length).toBe(count);
 }
 function pointReviewer(dir: string, endpoint: string): void {
   const p = cfgPath(dir);

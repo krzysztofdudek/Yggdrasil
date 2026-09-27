@@ -5,6 +5,7 @@
 
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { gitFixtureEnv } from '../../support/git-fixture.js';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -25,7 +26,7 @@ afterEach(() => {
 function project(config: string, secrets?: string, opts: { trackSecrets?: boolean } = {}): string {
   const root = mkdtempSync(path.join(tmpdir(), 'yg-cred-'));
   dirs.push(root);
-  const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, env: gitFixtureEnv(root), stdio: 'ignore' });
   git('init', '-q');
   git('config', 'user.email', 't@t');
   git('config', 'user.name', 't');

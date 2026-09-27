@@ -13,6 +13,6 @@ description: >-
   size. A command that starts running repository code, or starts sending
   source out, fails here before the table can claim otherwise.
 aspects: []
-relations: [ { target: cli/tests/e2e/support, type: uses } ]
+relations: [ { target: cli/tests/e2e/support, type: uses }, { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-trust-table.test.ts

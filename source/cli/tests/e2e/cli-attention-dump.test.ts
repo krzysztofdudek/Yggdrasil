@@ -16,7 +16,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -60,7 +60,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
   it('`yg check` writes the index and git never stages it (self-ignored)', () => {
     const dir = makeFixture('write');
     try {
-      const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+      const git = (args: string[]) => runGitFixture(dir, args);
       git(['init', '-q']);
       git(['config', 'user.email', 't@t.t']);
       git(['config', 'user.name', 't']);
@@ -84,7 +84,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
   it('a check never edits the tracked .gitignore: without the line it writes no index and prints the upgrade notice', () => {
     const dir = makeFixture('no-line');
     try {
-      const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+      const git = (args: string[]) => runGitFixture(dir, args);
       git(['init', '-q']);
       git(['config', 'user.email', 't@t.t']);
       git(['config', 'user.name', 't']);
@@ -159,7 +159,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
   it('`yg check --approve` maintains the index (via the fill report) and git never stages it', () => {
     const dir = makeFixture('approve');
     try {
-      const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+      const git = (args: string[]) => runGitFixture(dir, args);
       git(['init', '-q']);
       git(['config', 'user.email', 't@t.t']);
       git(['config', 'user.name', 't']);

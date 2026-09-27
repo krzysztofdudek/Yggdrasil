@@ -24,7 +24,7 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findProseAssertions, PROSE_MIN_WORDS } from '../../support/prose-assertions.js';
@@ -167,10 +167,20 @@ describe('end-to-end prose assertions only go down', () => {
     }
     const baseline = readBaseline();
 
+    // A file renamed with its assertions unchanged shows up as a new file over a
+    // baseline of 0, and its old name as a listed file that is gone. The guard
+    // cannot tell a rename from a new file without asking git, so it names the
+    // gone entries: moving the count to the new name is a one-key edit of the
+    // baseline, visible in review as exactly that.
+    const gone = Object.keys(baseline.files).filter((rel) => !counts.has(rel) && !existsSync(path.join(E2E_ROOT, rel)));
     const over: string[] = [];
     for (const [rel, { count, lines }] of counts) {
       const allowed = baseline.files[rel] ?? 0;
-      if (count > allowed) over.push(`${rel}: ${count} prose assertions, baseline ${allowed}\n${lines.join('\n')}`);
+      if (count <= allowed) continue;
+      const renamed = allowed === 0 && gone.length > 0
+        ? `\n  If ${rel} is a renamed file, rename its baseline key: the baseline still lists ${gone.join(', ')}, which no longer exist.`
+        : '';
+      over.push(`${rel}: ${count} prose assertions, baseline ${allowed}${renamed}\n${lines.join('\n')}`);
     }
     expect(
       over,

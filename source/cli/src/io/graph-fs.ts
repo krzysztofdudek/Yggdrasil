@@ -67,12 +67,6 @@ export function fileExistsSync(filePath: string): boolean {
 }
 
 /**
- * Synchronous UTF-8 read that never throws: returns the file's text, or null when
- * the file is missing or unreadable. For read-only consumers that must resolve a
- * value inline (no async boundary) and treat an absent/garbled source as "nothing
- * to say" rather than an error — e.g. the silent feature-field index reader.
- */
-/**
  * The resolved form of a path (symbolic links followed), or null when it cannot
  * be resolved — a path that does not exist or cannot be read. For a caller that
  * compares two spellings of one directory and treats an unresolvable one as
@@ -86,6 +80,12 @@ export function realPathSyncOrNull(targetPath: string): string | null {
   }
 }
 
+/**
+ * Synchronous UTF-8 read that never throws: returns the file's text, or null when
+ * the file is missing or unreadable. For read-only consumers that must resolve a
+ * value inline (no async boundary) and treat an absent/garbled source as "nothing
+ * to say" rather than an error — e.g. the silent feature-field index reader.
+ */
 export function readTextFileSyncOrNull(filePath: string): string | null {
   try {
     return readFileSync(filePath, 'utf-8');

@@ -16,7 +16,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { checkPackageFilesModified, PACKAGE_FILE_MODIFIED } from '../../../src/core/checks/packages.js';
+import { checkPackageFilesModified, collectPackagesDrift, PACKAGE_FILE_MODIFIED } from '../../../src/core/checks/packages.js';
+import type { PackagesLock } from '../../../src/model/packages.js';
 import { hashFile } from '../../../src/io/hash.js';
 import type { Graph } from '../../../src/model/graph.js';
 
@@ -68,6 +69,33 @@ ${entries === '' ? '' : `${entries}\n`}`.replace(/files:\n$/, 'files: {}\n'),
     'utf-8',
   );
 }
+
+describe('paths in their one stored form', () => {
+  /** A record as the comparison takes it, the recorded path spelled as given. */
+  const lockOf = (recorded: string, hash: string): PackagesLock =>
+    ({ packages: { demo: { package: INSTALL, files: { [recorded]: hash } } } }) as unknown as PackagesLock;
+
+  it('reads a record written with backslashes as the POSIX path on disk', async () => {
+    const root = newRepo();
+    const hash = await installRule(root);
+    const drift = await collectPackagesDrift(root, lockOf(RULE_REL.split('/').join('\\'), hash));
+    expect(drift.byPackage.get('demo')).toEqual({ modified: [], missing: [], unknown: [] });
+    expect(drift.unknown).toEqual([]);
+  });
+
+  // On a POSIX file system a backslash is part of a name: a file called
+  // `rule-a\check.mjs` is not the recorded rule-a/check.mjs, and must not pass
+  // for it (it used to be read as that path, and the missing copy as edited).
+  it.skipIf(process.platform === 'win32')('keeps a file whose name holds a backslash apart from the recorded path', async () => {
+    const root = newRepo();
+    const hash = await installRule(root);
+    rmSync(join(root, '.yggdrasil', 'aspects', ...RULE_REL.split('/')));
+    const lookalike = `packages/${INSTALL}/rule-a\\check.mjs`;
+    writeFileSync(join(root, '.yggdrasil', 'aspects', ...lookalike.split('/')), RULE_BODY, 'utf-8');
+    const drift = await collectPackagesDrift(root, lockOf(RULE_REL, hash));
+    expect(drift.byPackage.get('demo')).toEqual({ modified: [], missing: [RULE_REL], unknown: [lookalike] });
+  });
+});
 
 describe('checking an installed package against what it published', () => {
   it('says nothing when every recorded file is what it was', async () => {

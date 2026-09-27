@@ -57,8 +57,10 @@ function contextParamName(root: Node): string {
         node.childForFieldName('value')?.type === 'function_expression');
     if (!isNamedCheck && !isAssignedCheck) return;
     const fn = isNamedCheck ? node : node.childForFieldName('value');
-    const params = fn?.childForFieldName('parameters') ?? fn?.childForFieldName('parameter');
-    const first = params?.namedChild(0) ?? null;
+    // `(c) => …` has a parameter list; `c => …` has its one parameter as the
+    // node itself, under the field `parameter`.
+    const params = fn?.childForFieldName('parameters');
+    const first = params != null ? params.namedChild(0) : (fn?.childForFieldName('parameter') ?? null);
     if (first !== null && first.type === 'identifier') found = first.text;
   });
   return found ?? 'ctx';
@@ -82,8 +84,10 @@ function literalKey(node: Node): string | null {
     return inner?.text ?? '';
   }
   // A template string with no substitution is still a literal name; one with a
-  // substitution is not, and falls through to the dynamic path.
-  if (node.type === 'template_string' && node.namedChildren.length === 0) {
+  // substitution is not, and falls through to the dynamic path. Its text sits in
+  // `string_fragment` children (none for an empty template), which are not
+  // substitutions.
+  if (node.type === 'template_string' && node.namedChildren.every((c) => c?.type === 'string_fragment')) {
     return node.text.slice(1, -1);
   }
   return null;

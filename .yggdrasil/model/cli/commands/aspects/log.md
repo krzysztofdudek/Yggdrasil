@@ -102,3 +102,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 A status record refused by yg aspects log add (a value that is no status, a status the rule file does not carry, no evidence, a status that did not change) read as the generic command-error, so a caller could only tell the four apart by matching the sentence. Each now has its own code, the four aspect-status-* codes.
 ## [2026-09-27T09:37:43.358Z]
 The rule history subcommand moved to the log command, which now names a rule with --aspect, so the rule list command registers no subcommand of its own any more. The inventory still reads each rule history for its last entry.
+## [2026-09-27T20:25:12.178Z]
+A flow's rule on a descendant of a flow participant is counted under flow in the rule's usage breakdown. A flow covers its declared participants and every descendant of one, and the rest of the engine resolves it that way, but this count matched only declared participants, so such a node's rule was counted as reached through implies.

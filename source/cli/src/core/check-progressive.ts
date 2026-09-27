@@ -27,7 +27,7 @@ import type { CheckIssue } from './check-contract.js';
 import type { VerifiedPair } from './verify-lock.js';
 import type { BurnSet } from './progressive-scope.js';
 import { progressivePairKey } from './progressive-scope.js';
-import { SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from '../utils/check-codes.js';
+import { SCOPED_CODES, SINGLETON_INPUTS, isScopedCode, outsideTwin } from '../utils/check-codes.js';
 import { splitCoverageIssueByTouched } from './check-coverage-tiers.js';
 // BaselineNoise lives in the model layer (model/check-result.ts) beside the result
 // that carries it; re-exported for this module's callers.
@@ -195,6 +195,8 @@ export function issueIsInScope(
 /** The same finding, re-coded to its outside twin. `messageData` is untouched:
  *  the what/why/next a person reads describes the finding, not its scope. */
 function toOutsideTwin(issue: CheckIssue): CheckIssue {
+  // Every caller passes a scoped finding; a code without a twin stays as it is.
+  if (!isScopedCode(issue.code)) return issue;
   return { ...issue, code: outsideTwin(issue.code), severity: 'warning' };
 }
 

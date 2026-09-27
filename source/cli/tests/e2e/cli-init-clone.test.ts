@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitCreating, runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN_PATH = path.join(__dirname, '../..', 'dist', 'bin.js');
@@ -16,11 +16,7 @@ function yg(args: string[], cwd: string): { status: number | null; all: string }
 }
 
 function git(args: string[], cwd: string): void {
-  const r = spawnSync(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...args],
-    { cwd, encoding: 'utf-8' },
-  );
+  const r = runGitFixture(cwd, ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'init.defaultBranch=main', ...args]);
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
 }
 
@@ -44,7 +40,8 @@ function initCommitClone(dropPlaceholders: boolean): { root: string; clone: stri
   }
   git(['add', '-A'], origin);
   git(['commit', '-q', '-m', 'init'], origin);
-  git(['clone', '-q', origin, clone], root);
+  const cloned = runGitCreating(root, ['clone', '-q', origin, clone]);
+  if (cloned.status !== 0) throw new Error(`git clone failed: ${cloned.stderr}`);
   return { root, clone };
 }
 

@@ -19,7 +19,7 @@ import {
   PACKAGES_LOCK_FILENAME,
   REQUESTED_LATEST,
 } from '../model/packages.js';
-import { parseMarketplaceManifest } from '../io/package-manifest-parser.js';
+import { followsNewest, parseMarketplaceManifest } from '../io/package-manifest-parser.js';
 import {
   PackCommandBusyError,
   hashPackageTree,
@@ -584,7 +584,7 @@ async function runList(): Promise<number> {
     observed[name] = tags;
     const newer = newerThanInstalled(tags, entry.version);
     if (newer.length > 0) {
-      const follows = (entry.requested ?? REQUESTED_LATEST) === REQUESTED_LATEST;
+      const follows = followsNewest(entry);
       writeOut(
         `\n'${name}' also publishes: ${newer.join(', ')}  — take the newest with: ${takeNewestCommand({ name, newerVersions: newer, follows })}` +
           `${follows ? '' : ' (it stays pinned, at that version)'}\n`,

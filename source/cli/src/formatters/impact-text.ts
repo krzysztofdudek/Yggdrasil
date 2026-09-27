@@ -157,9 +157,9 @@ export function renderTypeVerdictImpact(impact: TypeVerdictImpact): string {
 
 /** The files a type's `when` matches outside a node of that type, as `enforce: strict` sees them. */
 export function renderStrictCoverageGap(typeId: string, gap: StrictCoverageGap): string {
-  const { orphans, misplaced, conflicts } = gap;
+  const { orphans, misplaced, conflicts, unreadable } = gap;
   const heading = gap.preview ? 'Strict coverage gap — preview, if enforce: strict were set' : 'Strict coverage gap';
-  if (orphans.length === 0 && misplaced.length === 0 && conflicts.length === 0) {
+  if (orphans.length === 0 && misplaced.length === 0 && conflicts.length === 0 && unreadable.length === 0) {
     return `\n${heading} (0 files): None — all files satisfying when are in ${typeId}-type nodes.\n`;
   }
   let out = `\n${heading}:\n`;
@@ -173,6 +173,11 @@ export function renderStrictCoverageGap(typeId: string, gap: StrictCoverageGap):
     out += `  Conflicting (also matched by another strict type): ${conflicts.length}\n`;
     for (const c of conflicts.slice(0, 10)) out += `    ${toPosixPath(c.file)} (also: ${c.types.join(', ')})\n`;
     if (conflicts.length > 10) out += `    ... (${conflicts.length - 10} more)\n`;
+  }
+  if (unreadable.length > 0) {
+    out += `  Unreadable (when could not be evaluated, so belonging is unknown): ${unreadable.length}\n`;
+    for (const u of unreadable.slice(0, 10)) out += `    ${toPosixPath(u.file)} (${u.reason})\n`;
+    if (unreadable.length > 10) out += `    ... (${unreadable.length - 10} more)\n`;
   }
   return out;
 }

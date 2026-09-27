@@ -558,6 +558,28 @@ describe('owner --files (batch form, 447)', () => {
     });
   });
 
+  it('--files - reads the first path right when standard input opens with a byte-order mark and uses CRLF', async () => {
+    await withFixtureCopy(async (cwd) => {
+      const result = spawnSync(
+        'node',
+        [BIN_PATH, 'owner', '--files', '-', '--json'],
+        { cwd, encoding: 'utf-8', input: '\uFEFFsrc/orders/order.service.ts\r\nsrc/checkout/checkout.controller.ts\r\n' },
+      );
+      expect(result.status).toBe(0);
+      const doc = JSON.parse(result.stdout);
+      expect(doc.files.map((f: { file: string }) => f.file)).toEqual(['src/orders/order.service.ts', 'src/checkout/checkout.controller.ts']);
+      expect(doc.files.map((f: { node: string | null }) => f.node)).toEqual(['orders/order-service', 'checkout/controller']);
+    });
+  });
+
+  it('answers kind: type for a file whose type hit an implies cycle, where --file refuses: the owner is known either way', async () => {
+    await withTypeLevelFixtureCopy(async (cwd) => {
+      const result = spawnSync('node', [BIN_PATH, 'owner', '--files', 'src/cyclic/z.ts', '--json'], { cwd, encoding: 'utf-8' });
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout).files[0]).toMatchObject({ file: 'src/cyclic/z.ts', kind: 'type', type: 'cyclic' });
+    }, FIXTURE_CYCLIC_TYPE);
+  });
+
   it('a file outside the project root becomes an "invalid" entry with an error, without aborting the rest of the batch', async () => {
     await withFixtureCopy(async (cwd) => {
       const result = spawnSync(

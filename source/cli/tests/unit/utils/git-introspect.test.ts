@@ -22,7 +22,7 @@ import {
   pathExistsAtRef,
 } from '../../../src/utils/git-introspect.js';
 import { hashGitBlob } from '../../../src/core/progressive-scope.js';
-import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
+import { gitFixtureEnv, runGitCreating, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
 
@@ -526,16 +526,9 @@ describe('isShallowRepository', () => {
     // every other fixture op in this file) it must NOT run under a
     // pre-pinned GIT_DIR/GIT_WORK_TREE — those would point clone at a
     // work tree it didn't create and it refuses with "already exists".
-    // Still scrub the inherited discovery vars (same isolation concern
-    // {@link gitFixtureEnv} exists for) so this clone cannot wander into the
-    // real repo through a leaked env.
-    const cloneEnv = gitFixtureEnv(shallow);
-    delete cloneEnv.GIT_DIR;
-    delete cloneEnv.GIT_WORK_TREE;
-    execSync(`git clone -q --depth 1 "file://${repo}" "${shallow}"`, {
-      stdio: 'pipe',
-      env: cloneEnv,
-    });
+    // runGitCreating scrubs the inherited discovery vars instead, so this
+    // clone cannot wander into the real repo through a leaked env.
+    expect(runGitCreating(path.dirname(shallow), ['clone', '-q', '--depth', '1', `file://${repo}`, shallow]).status).toBe(0);
     expect(await isShallowRepository(shallow)).toBe(true);
   });
 

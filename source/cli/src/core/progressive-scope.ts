@@ -7,6 +7,7 @@ import {
   LOCK_FILE_NAME,
   LOCK_LOGS_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
+  LOCK_TYPES_FILE_NAME,
 } from '../model/lock.js';
 import { COMMITTED_EVENTS_FILENAME, COMMITTED_EVENTS_SEGMENT_RE, EVENTS_FILENAME } from '../io/events-store.js';
 import type { ExpectedPair } from './pairs.js';
@@ -179,6 +180,7 @@ const IGNORED_OUTPUTS: ReadonlySet<string> = new Set(
     LOCK_FILE_NAME,
     LOCK_NONDET_FILE_NAME,
     LOCK_LOGS_FILE_NAME,
+    LOCK_TYPES_FILE_NAME,
     LOCK_DET_FILE_NAME,
     COMMITTED_EVENTS_FILENAME,
     EVENTS_FILENAME,

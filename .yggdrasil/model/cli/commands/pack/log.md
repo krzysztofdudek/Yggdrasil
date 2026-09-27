@@ -48,3 +48,5 @@ pack list, pack verify and pack update now judge a copy by the same three facts 
 pack list named --to <version> for every newer version, and running it pinned a package that followed the newest. It now names a plain update for a follower and --to only for a pinned package, from the same helper the attention feed uses.
 ## [2026-09-27T15:39:59.226Z]
 A file under the packages area outside every installed package belongs to no package, so the per-package views never showed it while yg check blocked it. pack list now names such files, and pack verify with no package named reports them and exits 1.
+## [2026-09-27T20:25:14.469Z]
+yg pack list decides whether a package follows the newest version through the shared helper the advise nomination already uses, so the two cannot drift apart on which command takes the newest version.

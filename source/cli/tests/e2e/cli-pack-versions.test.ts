@@ -77,7 +77,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitCreating, runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -241,9 +241,7 @@ function versionedMarket(): Market {
   // helper (which pins one); the environment is scrubbed of every inherited
   // GIT_* variable so it cannot reach any other repository either.
   const bare = path.join(root, 'bare.git');
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  const init = spawnSync('git', ['init', '-q', '--bare', bare], { cwd: root, encoding: 'utf-8', env });
+  const init = runGitCreating(root, ['init', '-q', '--bare', bare]);
   if (init.status !== 0) throw new Error(`git init --bare failed: ${init.stderr}`);
   git(work, ['push', '-q', bare, 'main', 'release-0.2']);
   git(work, ['push', '-q', bare, '--tags']);

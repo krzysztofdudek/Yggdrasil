@@ -680,8 +680,8 @@ describe('logMergeResolve — a rebase or cherry-pick still in progress', () => 
     const graph0 = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     expect((await logMergeResolve({ graph: graph0, nodePath: 'billing', repoRoot: projectRoot })).ok).toBe(true);
     r('git add -A && git rebase --continue');
-    const stale = execSync('git rev-parse --git-path REBASE_HEAD', { cwd: projectRoot }).toString().trim();
-    await writeFile(path.join(projectRoot, stale), execSync('git rev-parse HEAD', { cwd: projectRoot }).toString());
+    const stale = execSync('git rev-parse --git-path REBASE_HEAD', { cwd: projectRoot, env: gitFixtureEnv(projectRoot) }).toString().trim();
+    await writeFile(path.resolve(projectRoot, stale), execSync('git rev-parse HEAD', { cwd: projectRoot, env: gitFixtureEnv(projectRoot) }).toString());
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
     expect(result.ok).toBe(false);

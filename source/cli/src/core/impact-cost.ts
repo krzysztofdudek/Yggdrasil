@@ -446,11 +446,13 @@ export async function strictCoverageGapOf(graph: Graph, typeId: string): Promise
     orphans: [],
     misplaced: [],
     conflicts: [],
+    unreadable: [],
   };
   for (const f of findings) {
     if (f.kind === 'orphan' && f.typeId === typeId) gap.orphans.push(f.file);
     else if (f.kind === 'misplaced' && f.typeId === typeId) gap.misplaced.push({ file: f.file, owner: f.owner, ownerType: f.ownerType });
     else if (f.kind === 'overlap' && f.typeIds.includes(typeId)) gap.conflicts.push({ file: f.file, types: f.typeIds.filter((t) => t !== typeId) });
+    else if (f.kind === 'unreadable' && f.typeId === typeId) gap.unreadable.push({ file: f.file, reason: f.reason });
   }
   return gap;
 }

@@ -29,10 +29,10 @@ import {
   rootComponentPath,
   type ExistingViolations,
   type ProposalProvenance,
+  describeRestoreFailure,
   type RestoreFailure,
 } from './adopt-transaction.js';
 import { fail, paint, warn, writeErr, writeOut } from './output.js';
-import { toPosixPath } from '../utils/posix.js';
 
 /**
  * `yg adopt <proposal-dir>` — the acceptance transaction.
@@ -167,31 +167,10 @@ function acceptanceEntry(graph: Graph, provenance: ProposalProvenance | undefine
   ].join('\n');
 }
 
-/**
- * The why and next for a restore that failed: which directory is left in what
- * state, and the move to make by hand. Paths are repository-relative so the
- * step can be followed from the repository root as written.
- */
-function restoreFailure(repoRoot: string, left: RestoreFailure): { why: string; next: string } {
-  const rel = (p: string): string => toPosixPath(path.relative(repoRoot, p));
-  const graphDir = `${rel(left.destination)}/`;
-  if (left.preservedAt !== undefined) {
-    const aside = `${rel(left.preservedAt)}/`;
-    return {
-      why: `The graph this repository had is intact at ${aside} but could not be moved back, so ${graphDir} does not hold it: the next check would run against a partial graph or none. Nothing was deleted.`,
-      next: `Delete ${graphDir} if it is there, then rename ${aside} back to ${graphDir}.`,
-    };
-  }
-  return {
-    why: `This repository had no graph before this run, and ${graphDir} could not be removed, so a partly copied graph may be left there and would govern the next check.`,
-    next: `Delete ${graphDir} by hand, then run yg adopt again once the cause is fixed.`,
-  };
-}
-
 /** Say what an undo that failed left behind, before the command reports why it undid. */
 function warnRestoreFailure(repoRoot: string, left: RestoreFailure | undefined): void {
   if (left === undefined) return;
-  warn({ what: `Undoing the acceptance failed: ${left.reason}`, ...restoreFailure(repoRoot, left) }, 'adopt-restore-failed');
+  warn({ what: `Undoing the acceptance failed: ${left.reason}`, ...describeRestoreFailure(repoRoot, left) }, 'adopt-restore-failed');
 }
 
 export function registerAdoptCommand(program: Command): void {
@@ -310,7 +289,7 @@ export function registerAdoptCommand(program: Command): void {
           debugWrite(`[adopt] copy into place failed and the restore failed too: ${err.message}`);
           fail({
             what: `Copying the proposed graph into ${GRAPH_DIR}/ failed (${copyError}), and putting the repository back as it was failed too: ${err.restore.reason}`,
-            ...restoreFailure(repoRoot, err.restore),
+            ...describeRestoreFailure(repoRoot, err.restore),
           }, 'adopt-restore-failed');
           await exitAfterFlush(1);
           return;

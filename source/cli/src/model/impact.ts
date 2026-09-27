@@ -134,4 +134,6 @@ export interface StrictCoverageGap {
   misplaced: Array<{ file: string; owner: string; ownerType: string }>;
   /** Files another strict type's `when` also matches — a `strict-overlap-conflict` each. */
   conflicts: Array<{ file: string; types: string[] }>;
+  /** Files the type's `when` could not be evaluated on, so the scan cannot say whether they belong. */
+  unreadable: Array<{ file: string; reason: string }>;
 }

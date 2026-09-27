@@ -33,22 +33,38 @@ export function appendWithRotation(filePath: string, text: string, maxBytes: num
   appendFileSync(filePath, text, 'utf-8');
 }
 
+/** How much of a file `readFirstLine` reads per step while looking for the first newline. */
+const FIRST_LINE_CHUNK_BYTES = 4096;
+
 /**
- * The first line of a file, read from at most its first `maxBytes` bytes —
- * without reading the rest, so a caller that appends to a large log can look at
- * where the log begins on every append. Undefined when the file is absent,
- * empty, unreadable, or its first line is longer than `maxBytes`.
+ * The first line of a file, read in chunks up to its first newline and never
+ * further, so a caller that appends to a large log can look at where the log
+ * begins on every append. The line may be as long as `maxBytes` (1 MiB by
+ * default: a verification event naming a deeply nested file can run past a few KiB, and
+ * a first line cut off at a fixed small size would leave the log unsealed
+ * forever). Undefined when the file is absent, empty, unreadable, its first line
+ * is empty or unterminated, or longer than `maxBytes`.
  */
-export function readFirstLine(filePath: string, maxBytes = 4096): string | undefined {
+export function readFirstLine(filePath: string, maxBytes = 1024 * 1024): string | undefined {
   let fd: number | undefined;
   try {
     fd = openSync(filePath, 'r');
-    const buf = Buffer.alloc(maxBytes);
-    const n = readSync(fd, buf, 0, maxBytes, 0);
-    const text = buf.subarray(0, n).toString('utf-8');
-    const nl = text.indexOf('\n');
-    if (nl <= 0) return undefined;
-    return text.slice(0, nl);
+    const chunks: Buffer[] = [];
+    let read = 0;
+    while (read < maxBytes) {
+      const buf = Buffer.alloc(Math.min(FIRST_LINE_CHUNK_BYTES, maxBytes - read));
+      const n = readSync(fd, buf, 0, buf.length, read);
+      if (n === 0) return undefined;
+      const nl = buf.subarray(0, n).indexOf(0x0a);
+      if (nl >= 0) {
+        chunks.push(buf.subarray(0, nl));
+        const line = Buffer.concat(chunks);
+        return line.length === 0 ? undefined : line.toString('utf-8');
+      }
+      chunks.push(buf.subarray(0, n));
+      read += n;
+    }
+    return undefined;
   } catch {
     // Absent or unreadable: there is no first line to report.
     return undefined;

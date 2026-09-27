@@ -20,7 +20,7 @@ import {
   walkRepoFiles,
 } from '../io/repo-scanner.js';
 import type { GraphExclusionSet } from '../io/repo-scanner.js';
-import { classifySingleFileCached, computeTypeCoverageCached } from '../core/type-coverage.js';
+import { classifySingleFileCached, computeTypeCoverageCached, singleFileClassifierCached, type SingleFileClassification } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade } from '../core/type-effective.js';
@@ -213,7 +213,8 @@ interface OwnerBatchContext {
   index: OwnerIndex;
   exclusion: GraphExclusionSet;
   typeLevel: boolean;
-  contentCache: FileContentCache;
+  /** Classifies one file by type, through one type-class cache for the whole batch. */
+  classify: (file: string) => Promise<SingleFileClassification>;
 }
 
 /**
@@ -224,6 +225,9 @@ interface OwnerBatchContext {
  * never the whole-repo relation pass, never a lock read, so a type-covered
  * entry's `type` and `unit` are always populated but its enforcement is not
  * — `yg owner --file --json` is where a caller pays that cost, for one file.
+ * Nor does it stop at an aspect `implies` cycle as `--file` does: the cycle
+ * only blocks resolving the file's rules, never its owner, and `yg check`
+ * reports it.
  */
 async function resolveOneOwnerForBatch(graph: Graph, repoRoot: string, file: string, ctx: OwnerBatchContext): Promise<OwnerBatchEntry> {
   const raw = findOwner(graph, repoRoot, file, ctx.index);
@@ -249,7 +253,7 @@ async function resolveOneOwnerForBatch(graph: Graph, repoRoot: string, file: str
     return { file: raw.file, kind: 'excluded', ...EMPTY_BATCH_ENTRY, excludedBecause: cause };
   }
   if (exists && ctx.typeLevel) {
-    const classification = await classifySingleFileCached(graph, raw.file, ctx.contentCache);
+    const classification = await ctx.classify(raw.file);
     if (classification.bucket === 'covered') {
       return {
         file: raw.file, kind: 'type', ...EMPTY_BATCH_ENTRY,
@@ -270,7 +274,8 @@ async function resolveOneOwnerForBatch(graph: Graph, repoRoot: string, file: str
 /**
  * `yg owner --files`'s engine: resolve ownership for a whole list of files
  * against ONE loaded graph — one `buildOwnerIndex`, one
- * `resolveGraphExclusionSet`, one `FileContentCache`, all built here and
+ * `resolveGraphExclusionSet`, one `FileContentCache` and one type-class
+ * cache, all built here and
  * shared across every file, instead of the graph load and index build that N
  * separate `yg owner --file` invocations would each pay for again. This is
  * the resolver a territory computation (Horde, issue 447 / the family vision
@@ -288,7 +293,7 @@ async function resolveOwnersBatch(graph: Graph, repoRoot: string, rawFiles: read
     index: buildOwnerIndex(graph.nodes),
     exclusion: await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED),
     typeLevel: graph.config.coverage?.typeLevel === true,
-    contentCache: new FileContentCache(),
+    classify: singleFileClassifierCached(graph, new FileContentCache()),
   };
 
   const entries: OwnerBatchEntry[] = [];
@@ -312,13 +317,16 @@ async function resolveOwnersBatch(graph: Graph, repoRoot: string, rawFiles: read
  * `--files`'s value: a comma-separated list, or standard input — one path per
  * line — when the value is `-` (the same convention `yg advise import -`
  * already uses for "read the document from stdin"). Blank lines and
- * surrounding whitespace are dropped either way.
+ * surrounding whitespace are dropped either way, and so is a byte-order mark
+ * at the start of standard input.
  */
 async function readBatchFileList(filesOption: string): Promise<string[]> {
   if (filesOption === '-') {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-    return Buffer.concat(chunks).toString('utf-8').split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
+    // A list saved by a Windows editor can open with a UTF-8 byte-order mark;
+    // it is not part of the first path.
+    return Buffer.concat(chunks).toString('utf-8').replace(/^\uFEFF/, '').split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
   }
   return filesOption.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
 }

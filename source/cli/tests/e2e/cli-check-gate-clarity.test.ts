@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFixtureTree } from '../support/fixture-copy.js';
-import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 import { expectBlock, expectErrorCode, expectIssue, expectNext, expectVerdict, parseJson, textBlocks, textNext } from '../support/assert-output.js';
 import net from 'node:net';
 
@@ -66,7 +66,7 @@ function run(args: string[], cwd: string): Run {
 }
 
 function git(args: string[], cwd: string): string {
-  const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf-8' });
+  const r = runGitFixture(cwd, ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
   return (r.stdout ?? '') + (r.stderr ?? '');
 }
 
@@ -370,14 +370,12 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
   }
 
   function continueOp(op: 'rebase' | 'cherry-pick', dir: string): string {
-    const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', op, '--continue'], {
-      cwd: dir, encoding: 'utf-8', env: { ...process.env, GIT_EDITOR: 'true' },
-    });
+    const r = runGitFixture(dir, ['-c', 'user.name=t', '-c', 'user.email=t@t', op, '--continue'], { extraEnv: { GIT_EDITOR: 'true' } });
     return (r.stdout ?? '') + (r.stderr ?? '');
   }
 
   const inProgress = (dir: string, ref: string): boolean =>
-    spawnSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: dir, encoding: 'utf-8' }).status === 0;
+    runGitFixture(dir, ['rev-parse', '-q', '--verify', ref]).status === 0;
 
   /** base (approved) → branch feat-a with two approved entries → main with one approved entry, written after them. */
   function divergedProject(label: string): { dir: string; main: string } {

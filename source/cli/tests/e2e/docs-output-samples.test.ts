@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { runGitFixture } from '../support/git-fixture.js';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -22,7 +23,7 @@ function yg(args: string[], cwd: string): { status: number | null; stdout: strin
 }
 
 function git(args: string[], cwd: string): void {
-  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd, encoding: 'utf-8' });
+  runGitFixture(cwd, ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args]);
 }
 
 function doc(rel: string): string {

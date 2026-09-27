@@ -54,3 +54,4 @@ A sentence is the right thing to assert only when the sentence itself is the con
 - A new prose assertion fails the guard, which names the file and line. Assert on a code, a label or a JSON field instead.
 - When a conversion removes prose assertions, the guard fails until the baseline follows. Run `npm run prose:baseline`: it lowers each count to what the file holds now, and never raises one.
 - If the wording is what a whole file tests, add the file to `WORDING_CONTRACT` in the guard. That change is visible in review.
+- When you rename an end-to-end file, rename its key in the baseline by hand. The guard cannot tell a rename from a new file without asking git, so the new name fails with a baseline of 0; its message names the baseline entries whose files are gone, so the key to move is in front of you.

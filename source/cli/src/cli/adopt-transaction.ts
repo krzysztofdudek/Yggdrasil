@@ -287,6 +287,27 @@ export interface RestoreFailure {
 }
 
 /**
+ * The why and next for a restore that failed: which directory is left in what
+ * state, and the move to make by hand. Paths are repository-relative so the
+ * step can be followed from the repository root as written.
+ */
+export function describeRestoreFailure(repoRoot: string, left: RestoreFailure): { why: string; next: string } {
+  const rel = (p: string): string => toPosixPath(path.relative(repoRoot, p));
+  const graphDir = `${rel(left.destination)}/`;
+  if (left.preservedAt !== undefined) {
+    const aside = `${rel(left.preservedAt)}/`;
+    return {
+      why: `The graph this repository had is intact at ${aside} but could not be moved back, so ${graphDir} does not hold it: the next check would run against a partial graph or none. Nothing was deleted.`,
+      next: `Delete ${graphDir} if it is there, then rename ${aside} back to ${graphDir}.`,
+    };
+  }
+  return {
+    why: `This repository had no graph before this run, and ${graphDir} could not be removed, so a partly copied graph may be left there and would govern the next check.`,
+    next: `Delete ${graphDir} by hand, then run yg adopt again once the cause is fixed.`,
+  };
+}
+
+/**
  * The copy into place failed AND putting the previous state back failed too.
  * Carries the copy error as `cause` and the restore failure, so the command can
  * say where the previous graph is instead of reporting only the copy error.
@@ -309,7 +330,11 @@ function errorText(err: unknown): string {
  * Put back what was there before: clear the destination, then move the previous
  * graph (if any) back into it. Both steps are attempted even when the first one
  * fails; the first failure is returned, never thrown, and also written to the
- * debug log.
+ * debug log. When a previous graph was moved back into place, the repository is
+ * as it was even if clearing the destination reported an error first (a rename
+ * onto a directory only succeeds when that directory is gone or empty), so that
+ * counts as restored: reporting it as a failure would tell the user a graph
+ * that is back in place is missing.
  */
 async function restorePrevious(destination: string, movedAsideTo: string | undefined): Promise<RestoreFailure | undefined> {
   let reason: string | undefined;
@@ -329,6 +354,7 @@ async function restorePrevious(destination: string, movedAsideTo: string | undef
   }
   if (reason === undefined) return undefined;
   debugWrite(`[adopt] restore: ${reason}`);
+  if (movedAsideTo !== undefined && restored) return undefined;
   return { destination, preservedAt: restored ? undefined : movedAsideTo, reason };
 }
 

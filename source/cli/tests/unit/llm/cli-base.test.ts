@@ -163,9 +163,14 @@ describe('CliAgentProvider — failure reasons', () => {
 
   it.skipIf(process.platform === 'win32')('a timeout says so and names config.timeout', async () => {
     const bin = script('cat >/dev/null\necho "still thinking" >&2\nexec sleep 20');
-    const r = await new FakeCliProvider(bin, 500).verifyAspect('prompt');
+    // The budget is 4 s, not a fraction of one: the assertion on 'still thinking'
+    // needs the fake CLI to start and write its stderr before the timeout fires, and
+    // on a host at load ~15 a shell start alone took longer than the old 500 ms,
+    // leaving the stderr tail empty and the hook red. The timeout still fires long
+    // before the 20 s sleep ends, so the test proves the same thing.
+    const r = await new FakeCliProvider(bin, 4_000).verifyAspect('prompt');
     expect(r.errorSource).toBe('provider');
-    expect(r.reason).toContain('timed out after 1s');
+    expect(r.reason).toContain('timed out after 4s');
     expect(r.reason).toContain('config.timeout');
     expect(r.reason).toContain('still thinking');
   });

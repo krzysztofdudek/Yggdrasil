@@ -355,14 +355,23 @@ export const SCOPED_CODES: ReadonlySet<string> = new Set<CheckCode>([
 ]);
 
 /**
+ * Whether a code is one of `SCOPED_CODES` — the codes that have an outside twin.
+ * Narrows it to a `CheckCode`, which is what {@link outsideTwin} takes, so a
+ * code that is already a twin (or not a check code at all) cannot be twinned.
+ */
+export function isScopedCode(code: string): code is CheckCode {
+  return SCOPED_CODES.has(code);
+}
+
+/**
  * The ONLY place the `-outside` suffix is spelled. Every producer and consumer
  * of an outside-twin code must call this function rather than re-spelling the
  * suffix inline — a hand-spelled copy that drifts from this one would silently
  * stop matching, defeating the twin scheme without raising any error.
  */
-export function outsideTwin(code: string): OutsideTwinCode {
-  // Callers pass a SCOPED_CODES member (a CheckCode); the template type says
-  // what the result is, and this is the one place it is spelled.
+export function outsideTwin(code: CheckCode): OutsideTwinCode {
+  // Callers pass a SCOPED_CODES member (narrowed by isScopedCode, or named as a
+  // literal); the template type says what the result is.
   return `${code}-outside` as OutsideTwinCode;
 }
 

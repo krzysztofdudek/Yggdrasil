@@ -7,6 +7,7 @@ import { ADAPT_FILENAME, CONSUMER_FILENAMES, PACKAGES_LOCK_FILENAME } from '../.
 import { parsePackagesLock } from '../../io/package-manifest-parser.js';
 import { hashAspectsRelativeFile, installDirRelative, listAllPackageFiles, packagesLockPath } from '../../io/package-store.js';
 import { issueMsg } from './shared.js';
+import { toPosixPath } from '../../utils/posix.js';
 
 /**
  * source/cli/src/core/checks/packages.ts — the rail that keeps a copied rule a
@@ -70,18 +71,9 @@ export function isCopyIntact(drift: PackageDrift | undefined): boolean {
   return drift === undefined || (drift.modified.length === 0 && drift.missing.length === 0 && drift.unknown.length === 0);
 }
 
-/**
- * A path relative to `.yggdrasil/aspects/` in its one stored form: forward
- * slashes, no trailing slash. A record or a directory walk on Windows can carry
- * backslashes, so nothing is compared, stored or printed before this.
- */
-function toPosixAspectsPath(aspectsRelPath: string): string {
-  return aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '');
-}
-
 /** Repository-relative POSIX path of a file addressed relative to `.yggdrasil/aspects/`. */
 export function repoRelativePackagePath(aspectsRelPath: string): string {
-  return `.yggdrasil/aspects/${toPosixAspectsPath(aspectsRelPath)}`;
+  return `.yggdrasil/aspects/${toPosixPath(aspectsRelPath)}`;
 }
 
 /**
@@ -102,11 +94,16 @@ export async function collectPackagesDrift(
     byPackage.set(packageName, { modified: [], missing: [], unknown: [] });
     dirs.push({ prefix: `${installDirRelative(entry.package)}/`, packageName });
     for (const [recordedPath, hash] of Object.entries(entry.files)) {
-      expected.set(toPosixAspectsPath(recordedPath), { hash, packageName });
+      // A record written on Windows can carry backslashes: the stored form is POSIX.
+      expected.set(toPosixPath(recordedPath), { hash, packageName });
     }
   }
 
-  const actual = (await listAllPackageFiles(projectRoot)).map(toPosixAspectsPath);
+  // The listing is already in the stored form (joined with '/'), and is not
+  // normalized again: on a POSIX file system a backslash is an ordinary
+  // character of a file name, so `rule\check.mjs` is a file of its own, never
+  // the recorded `rule/check.mjs`.
+  const actual = await listAllPackageFiles(projectRoot);
   const actualSet = new Set(actual);
   const unknown: string[] = [];
 
