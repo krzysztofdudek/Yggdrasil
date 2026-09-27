@@ -666,7 +666,7 @@ async function runVerify(name: string | undefined): Promise<number> {
               next.splice(0, next.length, `put the edited files back from version control: git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}`);
             }
             untagged =
-              `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release: '${entry.source}' publishes no version ${entry.version} of it ` +
+              `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release: '${maskCredentials(entry.source)}' publishes no version ${entry.version} of it ` +
               `(no tag pack/${pkgName}@${entry.version}), so there is nothing to compare the copy with.`;
             next.push(
               others.length > 0
@@ -708,7 +708,7 @@ async function runVerify(name: string | undefined): Promise<number> {
             against =
               fetched.tag !== undefined
                 ? `${fetched.tag} at commit ${shortCommit(fetched.commit)}${entry.commit === undefined ? ` (the record names no commit, so only the files were compared; the next yg pack update ${pkgName} records the tag and commit)` : ''}`
-                : `the directory '${entry.source}' as it is now (it publishes no versions)`;
+                : `the directory '${maskCredentials(entry.source)}' as it is now (it publishes no versions)`;
           }
         } catch (err) {
           if (!(err instanceof PackRefusal)) throw err;

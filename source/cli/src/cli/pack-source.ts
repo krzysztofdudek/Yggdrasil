@@ -418,8 +418,11 @@ export class FetchSession {
  * the one its author can open.
  */
 function inSource(msg: IssueMessage, rootAbs: string): IssueMessage {
-  const prefixes = [...new Set([`${rootAbs}${path.sep}`, `${toPosixPath(rootAbs)}/`])];
-  const strip = (text: string): string => prefixes.reduce((t, p) => t.split(p).join(''), text);
+  const roots = [...new Set([rootAbs, toPosixPath(rootAbs)])];
+  // Drop the root and the separator after it, whichever separator that is; a root not
+  // followed by one (the root named on its own) stays as it is.
+  const strip = (text: string): string =>
+    roots.reduce((t, root) => t.split(root).map((part, i) => (i === 0 ? part : /^[\\/]/.test(part) ? part.slice(1) : root + part)).join(''), text);
   return { ...msg, what: strip(msg.what), why: strip(msg.why), next: strip(msg.next) };
 }
 

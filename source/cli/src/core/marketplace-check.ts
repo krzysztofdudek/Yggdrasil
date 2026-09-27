@@ -15,6 +15,7 @@ import { collectConfigReads } from '../structure/config-reads.js';
 import { discoverDrillCases } from './drill-runner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
 
 /**
  * source/cli/src/core/marketplace-check.ts — everything a marketplace should be
@@ -762,7 +763,7 @@ async function checkDrills(
         'package-drills-missing',
         'error',
         {
-          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${(await statKind(drillsDir)) !== 'dir' ? 'no drills/ directory' : `drills/ with ${violates.length} case file${violates.length === 1 ? '' : 's'} that must be refused and ${satisfies.length} that must pass`}.`,
+          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${(await statKind(drillsDir)) !== 'dir' ? 'no drills/ directory' : `drills/ with ${count(violates.length, 'case file')} that must be refused and ${satisfies.length} that must pass`}.`,
           why: 'A published rule runs somebody else\'s code against somebody else\'s repository. The pair of cases is the only thing that shows what it refuses and what it lets through, and it is the only thing a consumer can run to see the rule work before they trust it.',
           next: `Add ${relDir}/drills/violates-<name>/ and ${relDir}/drills/satisfies-<name>/, each holding one source file, then run 'yg drill --aspect <id>' in a repository that has the rule installed.`,
         },
