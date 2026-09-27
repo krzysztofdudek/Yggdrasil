@@ -52,6 +52,12 @@ export interface PackagesDrift {
   byPackage: Map<string, PackageDrift>;
   /** Every file under the packages area that no installed package recorded. */
   unknown: string[];
+  /**
+   * The part of {@link unknown} outside every installed package's directory
+   * (`packages/acme/law/ghost/x.mjs` with no package `acme/law/ghost`): files no
+   * package can be asked about, so a per-package view never shows them.
+   */
+  unowned: string[];
 }
 
 /**
@@ -117,7 +123,8 @@ export async function collectPackagesDrift(
     if (!actualSet.has(filePath)) byPackage.get(record.packageName)?.missing.push(filePath);
   }
 
-  return { byPackage, unknown };
+  const owned = new Set([...byPackage.values()].flatMap((d) => d.unknown));
+  return { byPackage, unknown, unowned: unknown.filter((f) => !owned.has(f)) };
 }
 
 function issue(messageData: IssueMessage): ValidationIssue {

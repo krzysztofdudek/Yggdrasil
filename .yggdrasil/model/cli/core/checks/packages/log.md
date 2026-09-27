@@ -8,3 +8,5 @@ The same idea went by several names across the docs, the agent manual and the CL
 An edited, missing or stray copy of an installed package now hands the report its first step as data: the reinstall command with the package name, or the stray file to delete. The report used to read the command back out of the sentence and cut it at the package name, leaving a step the CLI itself refuses.
 ## [2026-09-27T09:53:52.029Z]
 The drift record now attributes a file the package never installed to the package whose directory holds it, and a copy counts as intact only with none, so the pack commands that read isCopyIntact agree with the rail instead of ignoring such files.
+## [2026-09-27T15:40:00.207Z]
+The drift record separates the unknown files outside every installed package directory (unowned), so the pack commands can report what no per-package view covers.

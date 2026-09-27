@@ -112,11 +112,12 @@ export function isIgnoredPackageEntry(name: string): boolean {
 
 /**
  * True for an entry the walk over the INSTALLED copies (the file-modified rail,
- * `yg pack list` and `yg pack verify`) leaves out: `.DS_Store`, the Finder
- * metadata macOS drops into any directory it shows, which holds no code; and,
- * directly under `packages/` only, a dot-named entry — the install's own
- * staging and set-aside directories (`.staging-*`, `.replaced-*`), which exist
- * only while an install runs or after one was cut short.
+ * `yg pack list` and `yg pack verify`) leaves out: a file named `.DS_Store`,
+ * the Finder metadata macOS drops into any directory it shows, which holds no
+ * code; and, directly under `packages/` only, the install's own staging and
+ * set-aside directories (`.staging-*`, `.replaced-*`), which exist only while
+ * an install runs or after one was cut short. Nothing else is left out — any
+ * other dot-named entry directly under `packages/` counts like one deeper down.
  *
  * Every other dot-named file among the copies counts as one no package put
  * there. An install never copies a dot-named entry (see isIgnoredPackageEntry),
@@ -124,8 +125,9 @@ export function isIgnoredPackageEntry(name: string): boolean {
  * reject a file an install put in place — while a dot-named module beside a
  * copied rule is code the rule can import, exactly like any other file.
  */
-function isIgnoredInstalledEntry(name: string, atPackagesTop: boolean): boolean {
-  return name === '.DS_Store' || (atPackagesTop && name.startsWith('.'));
+function isIgnoredInstalledEntry(entry: { name: string; isFile(): boolean }, atPackagesTop: boolean): boolean {
+  if (entry.name === '.DS_Store' && entry.isFile()) return true;
+  return atPackagesTop && !entry.isFile() && (entry.name.startsWith('.staging-') || entry.name.startsWith('.replaced-'));
 }
 
 export type StoreResult<T> =
@@ -749,7 +751,7 @@ async function listFilesUnder(absRoot: string, relRoot: string, packagesTop = fa
       return;
     }
     for (const entry of entries) {
-      if (isIgnoredInstalledEntry(entry.name, packagesTop && relPrefix === relRoot)) continue;
+      if (isIgnoredInstalledEntry(entry, packagesTop && relPrefix === relRoot)) continue;
       const abs = path.join(dirAbs, entry.name);
       const rel = `${relPrefix}/${entry.name}`;
       if (entry.isDirectory()) {

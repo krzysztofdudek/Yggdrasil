@@ -376,8 +376,14 @@ describe('reading an installed copy back', () => {
     write(packages, 'acme/law/demo/r/.DS_Store', 'x\n');
     write(packages, '.staging-demo-00/r/yg-aspect.yaml', 'x\n');
     write(packages, '.replaced-demo-01/r/yg-aspect.yaml', 'x\n');
+    write(packages, '.lib/helper.mjs', 'x\n');
+    write(packages, '.DS_Store/inside.mjs', 'x\n');
     if (POSIX) symlinkSync(path.join(packages, 'acme'), path.join(packages, 'acme', 'law', 'demo', 'loop'));
+    // Only a FILE named .DS_Store and the install's own .staging-/.replaced-
+    // directories are left out; any other dot-named entry at the top counts.
     expect(await listAllPackageFiles(root)).toEqual([
+      'packages/.DS_Store/inside.mjs',
+      'packages/.lib/helper.mjs',
       'packages/acme/law/demo/r/.hidden',
       'packages/acme/law/demo/r/yg-aspect.yaml',
       'packages/zeta/law/p/r/yg-aspect.yaml',

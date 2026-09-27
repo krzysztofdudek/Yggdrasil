@@ -2178,7 +2178,8 @@ yg pack new <name>
 - `list` — what is installed, which version, pinned or following, from where, the
   tag and commit, and whether each copy is still untouched — "copy changed" for
   exactly what `yg check` blocks, a file the package never installed (dot-named
-  included; only `.DS_Store` is left out) as much as an edited one. Names newer versions
+  included; only a `.DS_Store` file and an install's own staging directories are
+  left out) as much as an edited one, and a file outside every installed package. Names newer versions
   only when the source answers; an unreachable source produces silence, never a
   claim that you are current. What a reachable source says is also recorded in a
   local, never-committed cache, which is what lets `yg advise` mention a newer
@@ -2186,7 +2187,8 @@ yg pack new <name>
   refresh the same cache while they are already talking to the source.
 - `verify` — asks each source whether the recorded tag still points at the
   recorded commit and whether the copy is still exactly what it holds (a file the
-  package never installed is a difference too); exits 1 on
+  package never installed is a difference too; with no package named, a file
+  outside every installed package fails the run); exits 1 on
   any difference, naming its cause (an edited copy, a moved tag, a re-used
   version number, or a version an earlier release installed that was never
   published) and the next step for each package.

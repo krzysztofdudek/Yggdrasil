@@ -218,3 +218,5 @@ Issue codes are public names: adopters, CI scripts and sibling tools branch on t
 The walk over installed copies stopped skipping dot-named files: an install never copies one, so any there was put by someone else, and a dot-named module is code a copied rule can import. It still leaves out .DS_Store and the install's own staging directories directly under packages/, which hold no rule.
 ## [2026-09-27T10:51:26.083Z]
 The rule hash stopped at the rule directory, so a helper several rules share (../shared/x.mjs) could change what they decide while their verdicts stayed on record. Imports are now followed anywhere inside the repository, keyed by the path that leads there, with links and spelling asked from the repository root; a file outside the repository is still not followed, since nothing there is pinned.
+## [2026-09-27T15:40:01.005Z]
+The walk over installed copies left out every dot-named entry directly under packages/, wider than the documented exemptions; it now leaves out only a file named .DS_Store and the install's own .staging- and .replaced- directories, so a dot-named directory dropped there is checked like any other.

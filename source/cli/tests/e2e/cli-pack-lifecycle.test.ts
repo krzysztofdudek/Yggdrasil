@@ -21,6 +21,7 @@
 //   5b. the same, dot-named too     → list, verify and check agree; a reinstall
 //                                     names each file it deletes
 //   5c. .DS_Store                   → not a file among the copies
+//   5d. a file outside every install → list names it, verify fails, as check does
 //   Settings
 //    6. change one the rule READS   → back to unverified, and the answer changes
 //    7. change one it ignores       → nothing re-opens
@@ -389,6 +390,35 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       write(dir, path.join('.yggdrasil', 'aspects', ...RULE_A.split('/'), '.DS_Store'), 'finder\n');
       expectNoIssue(parseJson<OutputDoc>(run(['check', '--json'], dir).stdout), { code: 'package-file-modified' });
       expect(run(['pack', 'list'], dir).stdout).toContain('copy untouched');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  // A file outside every installed package's directory belongs to no package,
+  // so a per-package view never saw it. Before: yg check blocked it while
+  // pack list stayed silent and pack verify exited 0.
+  it('5d: a file outside every installation is named by list and fails verify, as check blocks it', () => {
+    const dir = consumer('ghost');
+    try {
+      run(['pack', 'add', `${MARKET_V1}#demo`, '--as', 'acme/law'], dir);
+      write(dir, path.join('.yggdrasil', 'aspects', 'packages', 'acme', 'law', 'ghost', 'x.mjs'), 'export const x = 1;\n');
+      write(dir, path.join('.yggdrasil', 'aspects', 'packages', '.sneaky', 'y.mjs'), 'export const y = 1;\n');
+
+      const checked = run(['check', '--json'], dir);
+      const flagged = findIssues(parseJson<OutputDoc>(checked.stdout), { code: 'package-file-modified' }).map((i) => i.what ?? '');
+      expect(flagged.some((w) => w.includes('packages/acme/law/ghost/x.mjs')), flagged.join('\n')).toBe(true);
+      expect(flagged.some((w) => w.includes('packages/.sneaky/y.mjs')), flagged.join('\n')).toBe(true);
+
+      const listed = run(['pack', 'list'], dir);
+      expect(listed.stdout).toContain('.yggdrasil/aspects/packages/acme/law/ghost/x.mjs');
+      expect(listed.stdout).toContain('.yggdrasil/aspects/packages/.sneaky/y.mjs');
+
+      const verified = run(['pack', 'verify'], dir);
+      expect(verified.status, verified.all).toBe(1);
+      expect(verified.stdout).toContain('.yggdrasil/aspects/packages/acme/law/ghost/x.mjs');
+      // Asked about one package only, verify answers for that package.
+      expect(run(['pack', 'verify', 'demo'], dir).status).toBe(0);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

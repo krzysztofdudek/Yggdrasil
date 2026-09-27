@@ -529,12 +529,13 @@ async function runList(): Promise<number> {
 
   const lock = await readLock(projectRoot);
   const names = Object.keys(lock.packages).sort((a, b) => (a < b ? -1 : 1));
+  const drift = await collectPackagesDrift(projectRoot, lock);
   if (names.length === 0) {
     writeOut(`No packages installed.\n\nInstall one with: yg pack add <url-or-path>#<package>\n`);
+    writeUnowned(drift.unowned);
     return 0;
   }
 
-  const drift = await collectPackagesDrift(projectRoot, lock);
   writeOut(`${names.length} installed:\n\n`);
   for (const name of names) {
     const entry = lock.packages[name];
@@ -552,6 +553,7 @@ async function runList(): Promise<number> {
     );
   }
 
+  writeUnowned(drift.unowned);
   const stale = names.filter((n) => !isCopyIntact(drift.byPackage.get(n)));
   if (stale.length > 0) {
     writeOut(
@@ -616,12 +618,18 @@ async function runVerify(name: string | undefined): Promise<number> {
       });
     }
     const names = name === undefined ? Object.keys(lock.packages).sort() : [name];
+    const drift = await collectPackagesDrift(projectRoot, lock);
+    // Files outside every installed package belong to none of them, so only
+    // the run over all packages can answer for them — and it fails over them,
+    // exactly as yg check does.
+    const unowned = name === undefined ? drift.unowned : [];
     if (names.length === 0) {
       writeOut('No packages are installed.\n');
-      return 0;
+      if (unowned.length === 0) return 0;
+      writeUnowned(unowned);
+      return 1;
     }
 
-    const drift = await collectPackagesDrift(projectRoot, lock);
     const session = new FetchSession(projectRoot);
     let failed = 0;
     try {
@@ -722,14 +730,32 @@ async function runVerify(name: string | undefined): Promise<number> {
       await session.cleanup();
     }
 
+    writeUnowned(unowned);
     if (failed > 0) {
       writeOut(
         `\n${count(failed, 'copy', 'copies')} could not be shown to be what the publisher released; each says above what to do next.\n`,
       );
       return 1;
     }
-    return 0;
+    return unowned.length > 0 ? 1 : 0;
   });
+}
+
+/**
+ * Name the files under the packages area that no installed package accounts
+ * for — outside every install's directory — with what to do about them. yg
+ * check blocks on each; a listing that left them out would vouch for a
+ * packages area check refuses.
+ */
+function writeUnowned(unowned: string[]): void {
+  if (unowned.length === 0) return;
+  writeOut(
+    paint.red(
+      `\n${count(unowned.length, 'file', 'files')} under .yggdrasil/aspects/packages/ no installed package accounts for:\n` +
+        unowned.map((f) => `  ${repoRelativePackagePath(f)}\n`).join('') +
+        'yg check refuses them. The directory is reserved for installed packages: delete them, or install the package they belong to.\n',
+    ),
+  );
 }
 
 // ============================================================
