@@ -6,3 +6,5 @@ Exported values that no other file reads were found across the source, left over
 Flattening the suppression scan into one risk-resolved entry per waiver moved here from the portal, because yg advise reads it too; the portal and the attention feed now share the engine's classification.
 ## [2026-09-27T22:19:13.831Z]
 The reason-less marker warning no longer claims nothing else reports it, since yg check raises the same warning.
+## [2026-09-27T23:06:11.849Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the reason-less marker warning no longer claims nothing else reports it.

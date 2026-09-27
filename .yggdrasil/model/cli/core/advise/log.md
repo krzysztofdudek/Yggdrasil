@@ -106,3 +106,5 @@ Two decisions that each replaced the same log entry used to be reported only onc
 The decision budget is not reported for a type while a type above it is past a line on its own load. Every type below such a type is past the budget for the same reason, so one item on the type above stands for the whole subtree until its decisions are folded; a type below is reported only when its own decisions are what tips the load over.
 ## [2026-09-27T22:19:09.017Z]
 The tunnel count agrees with its noun instead of printing "1 dependencies jump".
+## [2026-09-27T23:05:57.196Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the tunnel count agrees with its noun.

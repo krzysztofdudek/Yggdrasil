@@ -110,3 +110,5 @@ An unattached rule installed from a package now gets a next step that names yg p
 An unattached rule installed from a package is told to be attached, left be, or removed through the package command, never deleted by hand, because deleting the verbatim copy trips the package-file-modified rail. Other unattached rules keep the old advice. Merged beside the previous batch's refusal of a companion key where no companion can run, which stays as it was.
 ## [2026-09-27T22:19:10.362Z]
 The bundle-with-rule-source message is reachable only through an explicit reviewer.type aggregate, so it now says that instead of claiming no type was declared, and points at removing the declaration. The errs refusal on a reviewer rule or bundle offers the only fix there is, removing errs, instead of pointing at a README adopters do not have.
+## [2026-09-27T23:06:00.934Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the bundle-with-rule-source and errs refusals point at the fix that exists instead of a missing declaration or a README adopters do not have.

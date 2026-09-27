@@ -162,3 +162,7 @@ The init flag-usage and reviewer-probe fixes arrived beside the previous batch's
 Recording a rules-artifact opt-out in yg-config.yaml is a change git diff shows, so init names it instead of reporting that nothing changed. The deprecated --platform note and the upgrade's migration warnings are headed note and warning with a fix line, so the output keeps a single next step at its end.
 ## [2026-09-27T22:24:59.729Z]
 Init writes the yg-log and yg-lock merge drivers into each clone's local git configuration, with a fallback to git's own conflict markers when the CLI or node is gone, and installs a post-merge hook that records merged logs' baselines where the repository has none of its own; it also lists the local refused-content store among the gitignored entries it maintains. The two changes arrived in one batch and both are kept.
+## [2026-09-27T23:05:51.040Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: recording a rules-artifact opt-out in yg-config.yaml is named as a change, and the deprecation and migration notes end with one next step.
+## [2026-09-27T23:15:54.659Z]
+The notice that an upgrade turned type-law ratification on is a what/why/next message like its failure sibling: the ratify command sits in why:, and next: names the rule logs and the configuration to review and commit, instead of all of it in one unlabelled sentence.

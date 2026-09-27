@@ -190,7 +190,6 @@ export function formatFileContext(data: FileContextData): string {
   // Dependents
   if (data.dependentCount > 0) {
     lines.push(`Dependents: ${data.dependentCount} ${data.dependentCount === 1 ? 'node' : 'nodes'}`);
-    lines.push(`  before editing: yg impact --file ${posixPath(data.filePath)}`);
     lines.push('');
   }
 
@@ -198,6 +197,9 @@ export function formatFileContext(data: FileContextData): string {
 
   // Back-pointer
   lines.push(`next: yg context --node ${posixPath(data.ownerPath!)}  (the owning node's whole context)`);
+  // With dependents, the step after reading is weighing what an edit re-checks —
+  // a report's step is written as next:/then:, never under a label of its own.
+  if (data.dependentCount > 0) lines.push(`then: yg impact --file ${posixPath(data.filePath)}  (before editing: what an edit here re-checks)`);
   lines.push('');
 
   return lines.join('\n');

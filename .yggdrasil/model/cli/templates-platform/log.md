@@ -56,3 +56,5 @@ The starter architecture comment names root as the parents entry that allows the
 A new project's configuration starts with type-law ratification on, with a comment saying what it does, so a fresh graph never needs the one-time upgrade that records existing law and never has law on a type nobody admitted.
 ## [2026-09-27T22:19:16.610Z]
 The glossary's type-covered, port, relation and line-scoped waiver entries say what the code does: a strict match is never type-covered, the implicit default port carries rules too, a declared relation needs no code, and a marker may name several rules or all of them.
+## [2026-09-27T23:06:21.830Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the glossary entries for type-covered, port, relation and line-scoped waiver say what the code does; the release had split the glossary into entry files, so the corrected entries live there now.

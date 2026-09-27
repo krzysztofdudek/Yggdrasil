@@ -64,3 +64,5 @@ A component whose yg-node.yaml sat under a directory without one, or beneath a c
 The strict backward scan is now a scan that returns what it found per file, and the check words its findings from that. The impact report previews the same gap before a type is made strict, and it has to agree with the check exactly: it used to resolve owners from literal mapping strings, so a file owned through a directory or glob entry read as an orphan and a misplaced file never showed. One scan with the same exclusions and the same most-specific-owner resolution makes the preview and the check the same answer.
 ## [2026-09-27T22:19:11.040Z]
 An identical mapping entry on two nodes is reported as a mapping entry (it may be a directory or glob), and the why says child precedence does not apply to identical entries.
+## [2026-09-27T23:06:03.040Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: an identical mapping entry on two nodes is reported as a mapping entry, and the why says child precedence does not apply to it.

@@ -44,3 +44,5 @@ Context assembly now produces a second, machine-readable form of the same packag
 The dependency views built for the text context report now read a relation's port list from the model's renamed field; the value is always populated instead of sometimes absent, so the text renderer filters the implicit default port out before deciding whether to print a port annotation.
 ## [2026-09-27T22:19:11.739Z]
 Every read: path in yg context is repository-root relative: flow, dependency and parent paths lacked the .yggdrasil/ prefix and did not resolve where the aspect paths did. The in-body impact suggestion no longer uses a next: line, which is reserved for the output's final step; the file view ends with a next: line instead of a lone then:, and a dependency through the default port prints no dangling dash.
+## [2026-09-27T23:06:05.016Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: every read: path is repository-root relative so it resolves, and the next: line is kept for the final step only.

@@ -46,3 +46,5 @@ The drill no longer asks the graphless runner for its trapped context: every gra
 The debug line for a case a script rule could not evaluate called the rule a deterministic check, a retired name; it says script rule now.
 ## [2026-09-27T22:19:05.016Z]
 --case matches the corpus-relative case label with its extension stripped, not a repository-relative path; the help said the latter and a repository path matched nothing. drill add marks its required flags in --help.
+## [2026-09-27T23:05:47.368Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --case is described as the corpus-relative case label it really matches, and drill add marks its required flags.

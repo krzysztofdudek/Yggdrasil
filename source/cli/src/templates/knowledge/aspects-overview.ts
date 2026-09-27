@@ -160,7 +160,7 @@ reports (\`yg aspects --health\`, and \`yg suppressions\`, which warns on a waiv
 an \`errs: under\` rule); it is never part of a verdict's hash, and it is refused
 on a reviewer rule or a bundle.
 
-\`check.mjs\` runs inside the yg process — on worker threads during a fill, on
+\`check.mjs\` runs inside the CLI's own process — on worker threads during a fill, on
 the main thread in \`yg aspect-test\` and \`yg drill\` — with full privileges;
 there is no security sandbox. The read allow-list is a discipline that scopes observed
 dependencies, not an isolation boundary. Only run aspects you trust.

@@ -50,3 +50,5 @@ The command layer had two ways of ending the process side by side: the shared he
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
 ## [2026-09-27T22:19:08.175Z]
 An unknown --root answers with the shared node-not-found error and yg find step, and on an empty graph the onboarding step is printed after the type-covered summary so it is the last line.
+## [2026-09-27T23:05:55.473Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: an unknown --root uses the shared node-not-found error, and the onboarding step on an empty graph is the last line.

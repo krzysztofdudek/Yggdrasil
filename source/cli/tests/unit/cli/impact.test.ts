@@ -472,7 +472,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain('src/excl/vendor/lib.ts is excluded from graph coverage by design.');
-        expect(result.stdout).toContain('No action needed.');
+        expect(result.stdout).toContain('next: Edit src/excl/vendor/lib.ts freely; no verdict needs re-checking afterwards.');
         // Neither the false owner name nor a re-verification cost block ever appears.
         expect(result.stdout).not.toContain('-> excl');
         expect(result.stdout).not.toContain('Total to re-verify');

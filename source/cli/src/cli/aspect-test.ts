@@ -37,7 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { aspectNotFound, nodeNotFound, fail, field, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
+import { aspectNotFound, nodeNotFound, fail, field, heading, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -224,7 +224,7 @@ async function runStructureUnitAndReport(
     return;
   }
   writeOut(detRefusedStamp(result.violations.length));
-  printStructureViolations(result.violations);
+  printStructureViolations(aspectId, result.violations);
   writeOut(DIAGNOSTIC_FOOTER);
   await exitAfterFlush(1);
 }
@@ -603,7 +603,7 @@ async function runAdHocFiles(
     return;
   }
   writeOut(detRefusedStamp(result.violations.length));
-  printAstViolations(result.violations);
+  printAstViolations(aspect.id, result.violations);
   writeOut(DIAGNOSTIC_FOOTER);
   await exitAfterFlush(1);
 }
@@ -1392,7 +1392,22 @@ function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2
 // Renderers (kept separate: AST has required line, structure does not)
 // ============================================================
 
-function printAstViolations(violations: AstViolation[]): void {
+/**
+ * The violations of one script-rule run as one finding block: a heading naming
+ * the rule, each violation under at:, then why: and fix:, in the same grammar
+ * a yg check finding uses.
+ */
+function writeViolationBlock(aspectId: string, rows: string[]): void {
+  const lines = [
+    heading('error', 'refused', aspectId),
+    ...field('at', rows),
+    ...field('why', `Script rule '${aspectId}' reported these violations for the code as it stands now.`),
+    ...field('fix', `Change the code at these lines, then re-run yg aspect-test --aspect ${aspectId}; yg check --approve records the verdict.`),
+  ];
+  writeOut(lines.join('\n') + '\n');
+}
+
+function printAstViolations(aspectId: string, violations: AstViolation[]): void {
   const byFile = new Map<string, AstViolation[]>();
   for (const v of violations) {
     if (!byFile.has(v.file)) byFile.set(v.file, []);
@@ -1401,10 +1416,10 @@ function printAstViolations(violations: AstViolation[]): void {
   // The block template's at: field — each violation where it is, then what it says.
   const entries = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b));
   const rows = entries.flatMap(([file, vs]) => vs.sort((a, b) => a.line - b.line).map((v) => `${file}:${v.line}  ${v.message}`));
-  writeOut(field('at', rows, false).join('\n') + '\n');
+  writeViolationBlock(aspectId, rows);
 }
 
-function printStructureViolations(violations: StructureViolation[]): void {
+function printStructureViolations(aspectId: string, violations: StructureViolation[]): void {
   const withFile: StructureViolation[] = [];
   const withoutFile: StructureViolation[] = [];
   for (const v of violations) {
@@ -1424,5 +1439,5 @@ function printStructureViolations(violations: StructureViolation[]): void {
       rows.push(typeof v.line === 'number' ? `${file}:${v.line}  ${v.message}` : `${file}  ${v.message}`);
     }
   }
-  writeOut(field('at', rows, false).join('\n') + '\n');
+  writeViolationBlock(aspectId, rows);
 }

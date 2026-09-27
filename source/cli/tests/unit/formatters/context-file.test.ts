@@ -101,7 +101,9 @@ describe('formatFileContext', () => {
     });
 
     expect(output).toContain('Dependents: 5 nodes');
-    expect(output).toContain('yg impact --file');
+    // The impact step is the report's then:, after the owner's context, not a line under its own label.
+    expect(output).toContain('next: yg context --node cli/core/validator  (the owning node\'s whole context)\nthen: yg impact --file source/cli/src/core/validator.ts');
+    expect(output).not.toContain('before editing: yg impact');
   });
 
   it('omits dependents section when count is 0', () => {
@@ -115,6 +117,7 @@ describe('formatFileContext', () => {
     });
 
     expect(output).not.toContain('Dependents:');
+    expect(output).not.toContain('then: yg impact');
   });
 
   it('omits aspects section when empty', () => {

@@ -66,3 +66,5 @@ The load error for a rule directory with no content.md, no check.mjs and no impl
 The rename of the missing-rule-source code arrived beside the previous batch's refusal of a companion key where no companion can run; both are kept, each refusal under its own code.
 ## [2026-09-27T22:19:14.461Z]
 A config key on the repository's own rule is refused with a message that says only package rules have configuration keys, instead of naming a package called "(this repository)". The errs refusal points at yg schemas read aspect rather than a file only this repository has.
+## [2026-09-27T23:06:14.292Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: a config key on a repository's own rule is refused with a message that says only package rules have configuration keys.

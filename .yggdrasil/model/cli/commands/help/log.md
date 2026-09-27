@@ -14,3 +14,5 @@ Two help examples failed when run (yg incident list, a path given to yg simulate
 The grouped help lists the merge-driver command under setup with the exact shape git invokes it with, so a reader who meets it in a git configuration can find what it is. It arrived in one batch with the verdict-vocabulary and coverage work, and the help text written earlier about a bare check being read-only unless auto_approve is set is kept unchanged.
 ## [2026-09-27T22:26:31.547Z]
 A help flag after a mistyped command printed the root help and exited 0, so an agent's typo read as a finished request. The help flag is now dropped when the command it follows does not exist, and the parser reports the unknown command exactly as it does without the flag: a usage error naming the nearest command, exit 1.
+## [2026-09-27T23:05:47.947Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: help examples that failed when run are corrected, type-suggest is described as reporting a fitting type, and a mistyped command followed by --help is a usage error instead of the root help with exit 0.

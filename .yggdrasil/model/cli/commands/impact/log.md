@@ -114,3 +114,7 @@ The impact report for a component now names every flow it is in, including a flo
 A --file path outside the repository ended on a next that restated the finding (pass a path inside the project root) instead of a step to run. It now names the command to run again with a path inside the repository, in the same words the owner command already uses for the same mistake, so an agent reading either answer gets one runnable instruction.
 ## [2026-09-27T22:19:06.246Z]
 --json with --aspect, --flow or --type is a refused flag combination, reported as usage like every other one; the file view's type-covered note agrees its verb with its count.
+## [2026-09-27T23:05:48.725Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --json with --aspect, --flow or --type is reported as a usage error, and the type-covered note agrees its verb with its count.
+## [2026-09-27T23:15:53.984Z]
+The graph is loaded before the target flags are checked, as every command that needs graph state starts, so a run outside a graph reports the missing graph first. An excluded file's answer names a concrete next step, editing that file freely, instead of 'No action needed.', which named nothing to do.

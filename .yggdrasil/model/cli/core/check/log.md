@@ -366,3 +366,5 @@ A lock file that does not load no longer hides the live relation findings: they 
 The check document always reports node-owned, type-covered and excluded file counts as numbers, and files under an excluded root no longer count as covered whether type-level coverage is on or off, so a fresh repository no longer reads as fully covered. It arrived in one batch with the git merge drivers, which do not change the check.
 ## [2026-09-27T22:32:40.559Z]
 The warning for a waiver marker with no reason now carries its file as a forward-slash unit key like every other path the check reports, so a consumer matching findings by unit sees the same key on every platform.
+## [2026-09-27T23:05:59.052Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: a lock that does not load no longer hides live relation findings, outside-change refusals keep their edges in the JSON document, and a block about rules counts rules. The JSON builder keeps both the release's former-code lookup and the branch's outside-twin base code, since each serves a different field.

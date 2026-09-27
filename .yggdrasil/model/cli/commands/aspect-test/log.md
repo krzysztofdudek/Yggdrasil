@@ -125,3 +125,7 @@ The ad-hoc files mode passes the rule's own settings to the check, as a drill an
 The unsupported-rule message said the rule 'has reviewer' of some kind, which read as if a script rule had a reviewer called deterministic. It now says the rule declares that reviewer type, the config token the Glossary maps to its word.
 ## [2026-09-27T22:19:01.921Z]
 --check-determinism on a reviewer rule is refused before any reviewer call: it used to be ignored there and the run went on to a live, billed review nobody asked for. An unknown --node now answers with the same node-not-found error and yg find step as every other command, and --aspect says it is required in --help.
+## [2026-09-27T23:05:45.654Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --check-determinism on a reviewer rule is refused before any billed reviewer call, and an unknown --node answers with the shared node-not-found error.
+## [2026-09-27T23:15:53.264Z]
+A script rule's violations are printed as one finding block: a heading naming the rule, the violations under at:, then why: and fix:. A flat at: list with no heading and no why or fix was a finding laid out outside the CLI's one output grammar.

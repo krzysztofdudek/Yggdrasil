@@ -601,7 +601,11 @@ function renderTypeLawTakeUp(t: TypeLawTakeUp | null): string | null {
     }
   }
   if (t.armed) {
-    lines.push('Type-law ratification is on (type_law.ratification: true in .yggdrasil/yg-config.yaml): a rule enforced on a node type from now on needs the user\'s ratification — yg log add --aspect <id> --ratify --by \'<who>\' — or it blocks. Review and commit the entries and the setting.');
+    lines.push(buildIssueMessage({
+      what: 'Type-law ratification is on (type_law.ratification: true in .yggdrasil/yg-config.yaml).',
+      why: 'From now on a rule enforced on a node type blocks yg check until the user ratifies it with yg log add --aspect <id> --ratify --by \'<who>\'.',
+      next: 'Review the entries recorded above in each rule\'s .yggdrasil/aspects/<id>/log.md and the setting in .yggdrasil/yg-config.yaml, then commit them together.',
+    }));
     return lines.join('\n');
   }
   lines.push(buildIssueMessage({

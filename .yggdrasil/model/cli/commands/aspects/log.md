@@ -110,3 +110,5 @@ A flow's rule on a descendant of a flow participant is counted under flow in the
 Two approved changes met in this component at merge and both are kept as written: the health table's legend now says exposure counts the verdicts a fill recorded, since script rules record exposure without a reviewer, and a rule reached through a flow participant's descendant is counted under flow in its usage breakdown. They touch different parts of the command and needed no reconciliation.
 ## [2026-09-27T22:19:02.742Z]
 yg aspects --reach without --json is a refused flag combination, so it is reported as usage like every other one rather than as command-error.
+## [2026-09-27T23:05:46.255Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --reach without --json is reported as a usage error like every other refused flag combination.

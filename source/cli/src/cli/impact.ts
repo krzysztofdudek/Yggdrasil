@@ -81,10 +81,10 @@ export function registerImpactCommand(program: Command): void {
 
 /** The command: check the target flags, resolve the target, report its impact. */
 async function runImpactCommand(options: ImpactOptions): Promise<void> {
+  const graph = await loadGraphOrAbort(process.cwd());
   const asJson = options.json === true;
   refuseInvalidImpactTargets(options, asJson);
 
-  const graph = await loadGraphOrAbort(process.cwd());
   initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
   const lock = await readImpactLock(graph);
 
@@ -133,7 +133,7 @@ async function runImpactCommand(options: ImpactOptions): Promise<void> {
   await renderNodeImpact(graph, nodePath, lock, fileImpact);
 }
 
-/** Refuse a missing, doubled or --json-incompatible target before anything loads. */
+/** Refuse a missing, doubled or --json-incompatible target before anything is resolved. */
 function refuseInvalidImpactTargets(options: ImpactOptions, asJson: boolean): void {
   if (options.node && options.file) {
     failAndExit({
@@ -278,7 +278,7 @@ async function fileRedirect(graph: Graph, repoRoot: string, repoRelative: string
     return buildIssueMessage({
       what: `${repoRelative} is excluded from graph coverage by design.`,
       why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
-      next: 'No action needed.',
+      next: `Edit ${repoRelative} freely; no verdict needs re-checking afterwards.`,
     }) + '\n';
   }
   return null;

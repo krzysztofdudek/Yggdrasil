@@ -444,7 +444,10 @@ yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 
 ```text
 yg aspect-test: refused — 1 violation
+error[refused] async-fs
   at:   src/utils/config.ts:12  fs.readFileSync is synchronous — use async equivalent
+  why:  Script rule 'async-fs' reported these violations for the code as it stands now.
+  fix:  Change the code at these lines, then re-run yg aspect-test --aspect async-fs; yg check --approve records the verdict.
 diagnostic only — lock unchanged; yg check judges the lock against your files, not this run
 ```
 

@@ -309,6 +309,10 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     );
     expect(status).toBe(1);
     expect(stdout).toContain('  at:   src/a.ts:1  found issue');
+    // One finding block: a heading naming the rule, then why: and fix: under at:.
+    expect(stdout).toContain('error[refused] with-file\n  at:   src/a.ts:1  found issue');
+    expect(stdout).toContain("  why:  Script rule 'with-file' reported these violations");
+    expect(stdout).toContain('  fix:  Change the code at these lines, then re-run yg aspect-test --aspect with-file;');
   });
 
   it('--node refusal: the verdict stamp is the first line, before any file path', () => {
@@ -395,6 +399,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     );
     expect(status).toBe(1);
     expect(stdout).toContain('  at:   <graph>  graph violation');
+    expect(stdout).toContain('error[refused] graph-level\n  at:   <graph>  graph violation');
   });
 
   it('--node surfaces a broken check (default export instead of named) with exit 1', () => {

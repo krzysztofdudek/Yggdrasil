@@ -242,3 +242,5 @@ The malformed yg-suppress marker is named suppress-marker-invalid in every messa
 Every refusal the fill records is also handed to a local, gitignored store of the refused content keyed by the verdict hash, written only when the store's directory is ignored and never able to fail the fill, so the code a rule rejected survives its fix for drills and for deriving script checks. It arrived in one batch with the git merge drivers, which do not change the fill.
 ## [2026-09-27T22:32:39.952Z]
 The refused-content store now receives the unit key and subject files in their forward-slash form, as the lock and the events sidecar already do, so a record written on Windows names the same paths as one written elsewhere; and when asking whether the store's directory is gitignored fails, the failure goes to the debug log instead of vanishing, while the store still stays off for that run.
+## [2026-09-27T23:06:07.256Z]
+Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the malformed yg-suppress marker is named suppress-marker-invalid everywhere, the same code the JSON document uses.
