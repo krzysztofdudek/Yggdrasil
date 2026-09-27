@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expectIssue, expectNoIssue, parseJson } from '../support/assert-output.js';
 
 // ---------------------------------------------------------------------------
 // Hermetic E2E harness — `yg check` VALIDATION ERROR-CODE matrix.
@@ -421,6 +422,51 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
       expect(all).toContain('parent-type-forbidden');
       expect(all).toContain('outer/inner');
       expect(all).toContain("Allowed parent types for 'widget': [gadget]");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // parent-type-forbidden at the top level: a type with parents: may sit at
+  // the top of model/ only when its parents name the reserved entry root.
+  function topLevelWidget(parents: string): string {
+    const architecture = [
+      'node_types:',
+      '  gadget:',
+      "    description: 'A gadget'",
+      '    log_required: false',
+      '  widget:',
+      "    description: 'A widget'",
+      '    log_required: false',
+      `    parents: ${parents}`,
+      '',
+    ].join('\n');
+    return minimalGraph(
+      'parent-top',
+      ({ ygRoot }) => {
+        writeNode(ygRoot, 'top', ['name: Top', 'description: a top-level widget node', 'type: widget', ''].join('\n'));
+      },
+      { architecture },
+    );
+  }
+
+  it('D1b: a top-level node whose type lists parents without root yields parent-type-forbidden (exit 1)', () => {
+    const dir = topLevelWidget('[gadget]');
+    try {
+      const { status, stdout } = run(['check', '--json'], dir);
+      expect(status).toBe(1);
+      expectIssue(parseJson(stdout), { code: 'parent-type-forbidden', node: 'top' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('D1c: a top-level node whose type lists root among its parents is placed', () => {
+    const dir = topLevelWidget('[root, gadget]');
+    try {
+      const doc = parseJson(run(['check', '--json'], dir).stdout);
+      expectNoIssue(doc, { code: 'parent-type-forbidden' });
+      expectNoIssue(doc, { code: 'type-unknown-parent' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

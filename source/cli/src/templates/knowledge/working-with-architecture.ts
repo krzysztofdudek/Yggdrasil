@@ -27,6 +27,25 @@ Two kinds of types coexist:
 2. **Organizational types** — no \`when\`. Used as parent-only in the
    hierarchy. Nodes of this type cannot have non-empty \`mapping:\`.
 
+## Hierarchy — \`parents:\`
+
+\`parents:\` defines where a node of the type may sit in the model tree:
+
+- **No \`parents:\`** — anywhere, the top level of \`model/\` included. There
+  may be many top-level nodes.
+- **\`parents: [module]\`** — only directly under a node of type \`module\`. A
+  top-level node of this type is refused (\`parent-type-forbidden\`), exactly
+  like one under a node of any other type.
+- **\`parents: [root, module]\`** — at the top level as well as under a
+  \`module\`. \`root\` is the reserved entry for the top of the model: it names
+  no node type (never define a type called \`root\`), and it is not a step in
+  the type's inherited chain — \`[root, module]\` inherits from \`module\` as
+  \`[module]\` does.
+
+A type whose \`parents:\` reach neither the top level nor a type that can is
+unplaceable: \`architecture-cycle\` names it, and adding \`root\` to one of the
+trapped types is the smallest fix.
+
 ## Predicate grammar
 
 A type's \`when\` uses the FILE-atom set — \`path\` and \`content\` — with the
@@ -113,6 +132,9 @@ with distinct fixes, no de-duplication.
 - **Mixing organizational with classifying parents**: a classifying type's
   parents can include organizational types (they're allowed as parents
   in the hierarchy). Validator imposes no semantic restriction.
+- **A nested-only type at the top**: \`parents: [module]\` also forbids the
+  top level. A type whose nodes also sit at the top of the model lists
+  \`root\` beside its other parents.
 - **Narrow content regex**: a content predicate that is too specific may
   fail to match valid files when implementation details change.
 

@@ -166,6 +166,11 @@ export interface ArchitectureNodeType {
   aspectWhens?: Record<string, WhenPredicate>;
   /** Per-aspect explicit status override for aspects listed in `aspects` (channel 3) */
   aspectStatus?: Record<string, AspectStatus>;
+  /**
+   * Where a node of this type may sit. Absent: anywhere, the top level
+   * included. Present: only under a node of a listed type, and at the top of
+   * the model only when the list also names ROOT_PARENT.
+   */
   parents?: string[];
   relations?: Partial<Record<RelationType, string[]>>;
   /**
@@ -213,6 +218,14 @@ export interface QualityConfig {
  * A node declares `ports.default` explicitly only to hang aspects on it.
  */
 export const DEFAULT_PORT_NAME = 'default';
+
+/**
+ * The reserved `parents:` entry that stands for the top of the model: a type
+ * whose parents list it may sit at the top level as well as under the other
+ * types listed. It names no node type, so it is never an unknown parent and
+ * never a step in a type's inherited chain.
+ */
+export const ROOT_PARENT = 'root';
 
 /** Port on a target node — consumers must satisfy port's aspects */
 export interface PortDef {

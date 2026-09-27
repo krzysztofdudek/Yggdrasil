@@ -220,7 +220,7 @@ Pre-flight procedure (only for new creation):
 
 1. Read \`yg-architecture.yaml\` to see what node types exist
 2. Pick the type that matches what you're creating (read the type's description)
-3. Use the type's allowed parents, allowed relations, default aspects, and mapping convention to place the file correctly
+3. Use the type's allowed parents, allowed relations, default aspects, and mapping convention to place the file correctly (a type with \`parents:\` sits only under a listed type, and at the top of \`model/\` only when the list names \`root\`)
 4. Create the file in the right location AND the corresponding \`yg-node.yaml\` with the matching type
 
 Skipping pre-flight leads to refusals: a file created under \`src/ui/\` that imports the DB client trips the \`ui-no-direct-db\` rule on \`yg check --approve\`, and you move it, re-run, and possibly hit the next rule — many cycles against one file read.

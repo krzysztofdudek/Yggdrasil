@@ -193,6 +193,62 @@ describe('checkArchitectureParentCycles', () => {
   });
 });
 
+describe('parents: the top level (root)', () => {
+  function topLevel(parents: string[]): Graph {
+    const top = createNode('api', { type: 'service' });
+    return createGraph({
+      architecture: {
+        node_types: {
+          module: { description: 'Module' },
+          service: { description: 'Service', parents },
+        },
+      },
+      nodes: new Map([['api', top]]),
+    });
+  }
+
+  it('refuses a top-level node whose type lists parents without root', async () => {
+    const result = await validate(topLevel(['module']));
+    const issue = result.issues.find((i) => i.code === 'parent-type-forbidden');
+    expect(issue?.nodePath).toBe('api');
+  });
+
+  it('accepts a top-level node whose type lists root among its parents', async () => {
+    const result = await validate(topLevel(['root', 'module']));
+    const codes = result.issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+    expect(codes).not.toContain('type-unknown-parent');
+  });
+
+  it('accepts a node under a listed parent when the list also names root', async () => {
+    const mod = createNode('app', { type: 'module' });
+    const svc = createNode('app/api', { type: 'service' });
+    svc.parent = mod;
+    mod.children = [svc];
+    const graph = createGraph({
+      architecture: {
+        node_types: {
+          module: { description: 'Module' },
+          service: { description: 'Service', parents: ['root', 'module'] },
+        },
+      },
+      nodes: new Map([['app', mod], ['app/api', svc]]),
+    });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+    expect(codes).not.toContain('type-unknown-parent');
+  });
+
+  it('a self-loop with root among its parents is placeable: no architecture-cycle, and root is no unknown parent', async () => {
+    const graph = createGraph({
+      architecture: { node_types: { module: { description: 'Mod', parents: ['root', 'module'] } } },
+    });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).not.toContain('architecture-cycle');
+    expect(codes).not.toContain('type-unknown-parent');
+  });
+});
+
 describe('checkEnforceStrictWithoutWhen', () => {
   it('emits error when type has enforce: strict without when', async () => {
     const graph = createGraph({
