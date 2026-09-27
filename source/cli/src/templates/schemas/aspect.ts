@@ -56,7 +56,7 @@ description: "Short description"   # required — shown in yg aspects output and
                                    #                   reviewer and produces no verdict of its own. An
                                    #                   aspect with no rule source, no implies:, and no
                                    #                   reviewer: block is rejected as
-                                   #                   aspect-reviewer-missing.
+                                   #                   aspect-rule-source-missing.
   # type: llm                      #   REQUIRED whenever the reviewer: block is present (one of
                                    #     'llm', 'deterministic', 'aggregate'). The block itself is
                                    #     optional — omit it entirely to infer the kind — but you

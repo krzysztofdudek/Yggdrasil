@@ -31,7 +31,7 @@
 
 import type { CheckCode, IssueCode } from '../model/issue-code.js';
 import type { UnverifiedCause } from '../model/check-issue.js';
-import { UNVERIFIED_CAUSE_ORDER } from './check-codes.js';
+import { UNVERIFIED_CAUSE_ORDER, baseCodeOfOutsideTwin, outsideTwin } from './check-codes.js';
 
 /**
  * Where a code sorts in a report, most urgent first.
@@ -110,6 +110,13 @@ export interface IssueCodeEntry<S extends IssueStage = IssueStage> {
    * report's `next:` names for this code, worded as one to ask the user for.
    */
   decision?: string;
+  /**
+   * The names this code was reported under before it was renamed, oldest
+   * first. A finding or a command error under a renamed code carries them as
+   * `aliases` in its JSON form, so a consumer matching the old name can find
+   * it; the rendered code tables say "formerly".
+   */
+  formerly?: readonly string[];
 }
 
 /**
@@ -176,7 +183,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'aspect-implies-not-array': { severity: 'error', stage: 'load', meaning: 'implies: is not a list.', fix: 'Write implies: as a list of rule ids (or { id, when, status_inherit } entries).' },
   'aspect-implies-invalid': { severity: 'error', stage: 'load', meaning: 'An implies: entry is neither a rule id nor an { id, when?, status_inherit? } mapping.', fix: 'Fix the entry; yg schemas read aspect gives the shape.' },
   'implies-status-inherit-invalid': { severity: 'error', stage: 'load', meaning: 'An implies entry\'s status_inherit: is not `strictest` or `own-default`.', fix: 'Set status_inherit: to strictest or own-default.' },
-  'aspect-reviewer-missing': { severity: 'error', stage: 'load', meaning: 'A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing.', fix: 'Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle.' },
+  'aspect-rule-source-missing': { severity: 'error', stage: 'load', formerly: ['aspect-reviewer-missing'], meaning: 'A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing.', fix: 'Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle.' },
   'aspect-reviewer-not-mapping': { severity: 'error', stage: 'load', meaning: 'reviewer: is present but not a mapping.', fix: 'Write reviewer: as a mapping with type: and optionally tier:, or remove it (the kind is inferred from the rule source).' },
   'aspect-reviewer-type-missing': { severity: 'error', stage: 'load', meaning: 'reviewer: is a mapping without type:.', fix: 'Add type: llm, deterministic or aggregate, or remove reviewer: to have the kind inferred.' },
   'aspect-reviewer-type-invalid': { severity: 'error', stage: 'load', meaning: 'reviewer.type is not llm, deterministic or aggregate.', fix: 'Set reviewer.type to llm, deterministic or aggregate.' },
@@ -405,4 +412,16 @@ const BY_CODE: ReadonlyMap<string, IssueCodeEntry> = new Map(Object.entries(ISSU
  */
 export function issueCodeEntry(code: string): IssueCodeEntry | undefined {
   return BY_CODE.get(code);
+}
+
+/**
+ * The names a code was reported under before a rename — the `aliases` its
+ * finding or command error carries in JSON. An outside twin's former names are
+ * its base code's, twinned. Undefined when the code was never renamed.
+ */
+export function formerCodes(code: string): string[] | undefined {
+  const base = baseCodeOfOutsideTwin(code);
+  const formerly = issueCodeEntry(base ?? code)?.formerly;
+  if (formerly === undefined || formerly.length === 0) return undefined;
+  return base === undefined ? [...formerly] : formerly.map((old) => outsideTwin(old));
 }

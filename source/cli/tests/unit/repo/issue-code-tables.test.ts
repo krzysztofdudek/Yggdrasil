@@ -80,7 +80,9 @@ function severityCell(code: string, e: IssueCodeEntry): string {
 }
 
 function codeCell(code: string, e: IssueCodeEntry): string {
-  return e.label !== undefined && e.label !== code ? `\`${code}\` (heads as \`${e.label}\`)` : `\`${code}\``;
+  const heads = e.label !== undefined && e.label !== code ? ` (heads as \`${e.label}\`)` : '';
+  const formerly = e.formerly !== undefined && e.formerly.length > 0 ? ` (formerly ${e.formerly.map((old) => `\`${old}\``).join(', ')})` : '';
+  return `\`${code}\`${heads}${formerly}`;
 }
 
 /** The tables, as markdown: one per stage, every registered code once. */

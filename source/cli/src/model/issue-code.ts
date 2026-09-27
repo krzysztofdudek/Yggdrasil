@@ -113,7 +113,7 @@ export type CheckCode =
   | 'aspect-implies-not-array'
   | 'aspect-implies-invalid'
   | 'implies-status-inherit-invalid'
-  | 'aspect-reviewer-missing'
+  | 'aspect-rule-source-missing'
   | 'aspect-reviewer-not-mapping'
   | 'aspect-reviewer-type-missing'
   | 'aspect-reviewer-type-invalid'

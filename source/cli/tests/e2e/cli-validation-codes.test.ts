@@ -305,7 +305,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
   // These are parse-time errors surfaced via graph.aspectParseErrors.
   // -------------------------------------------------------------------------
 
-  it('C1: a missing reviewer block yields aspect-reviewer-missing (exit 1)', () => {
+  it('C1: a missing reviewer block yields aspect-rule-source-missing (exit 1)', () => {
     const dir = minimalGraph('rev-missing', ({ ygRoot }) => {
       // No `reviewer:` key at all.
       writeAspect(
@@ -319,8 +319,14 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
     try {
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('aspect-reviewer-missing');
+      expect(all).toContain('aspect-rule-source-missing');
       expect(all).toContain('ref-aspect');
+      // Renamed from aspect-reviewer-missing: the JSON finding carries the old
+      // name in `aliases`, so a consumer matching it still finds the finding.
+      const json = JSON.parse(run(['check', '--json'], dir).stdout) as { issues: Array<{ code: string; aliases?: string[] }> };
+      const finding = json.issues.find((i) => i.code === 'aspect-rule-source-missing');
+      expect(finding?.aliases).toEqual(['aspect-reviewer-missing']);
+      expect(json.issues.filter((i) => i.code !== 'aspect-rule-source-missing').every((i) => i.aliases === undefined)).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

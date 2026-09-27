@@ -74,6 +74,8 @@ export interface CheckJsonPair {
 /** One finding, exactly as the text report counts it. */
 export interface CheckJsonIssue {
   code: string;
+  /** The names `code` was reported under before it was renamed, oldest first; absent for a code never renamed. */
+  aliases?: string[];
   severity: 'error' | 'warning';
   aspect?: string;
   node?: string;
