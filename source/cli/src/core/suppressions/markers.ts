@@ -1,15 +1,30 @@
-import type { SuppressionMarkerInfo } from '../../core/suppressions/scan.js';
-import type { SuppressionMarkerInput } from '../contract.js';
-import type { SuppressionsReport } from '../../core/suppressions/scan.js';
+import type { SuppressionMarkerInfo, SuppressionsReport } from './scan.js';
 
 /**
- * portal/api/suppress-adapt — turns the engine's suppression scan (its
- * `SuppressionsReport`) into the portal's flat, risk-resolved marker shape. The scan
- * itself is engine code every surface shares; this adaptation is the portal's own.
+ * core/suppressions/markers — turns the suppression scan (its `SuppressionsReport`)
+ * into one flat, risk-resolved entry per waiver. The portal's inventory and
+ * `yg advise`'s nominations both read it, so it lives beside the scan rather than
+ * in either surface.
  */
 
 /**
- * Adapt the suppression report into the portal's flat marker shape, resolving each
+ * One waiver: where it sits, what it waives, its scope shape and the risk it
+ * carries (absent when clean). The portal's `SuppressionMarkerInput`
+ * (portal/contract.ts) is the same shape; its facade returns these as that type.
+ */
+export interface SuppressionMarker {
+  file: string;
+  line: number;
+  aspectId: string;
+  reason: string;
+  /** 'line' (a single marker), 'range' (a disable…enable block, or a later unclosed disable), 'file' (a file-head unclosed disable). */
+  form: 'line' | 'range' | 'file';
+  /** Why the waiver itself is suspect, or absent when it is clean. Precedence: wildcard > typo > inert > errs-under > unbounded. */
+  risk?: 'wildcard' | 'unbounded' | 'inert' | 'typo' | 'errs-under';
+}
+
+/**
+ * Flatten the suppression report into one entry per waiver, resolving each
  * marker's `form` and `risk` flag. Only the genuine, reviewer-honored waiver KINDS are
  * inventoried (`single` and `disable` — the markers that actually silence a check);
  * `enable` markers are range terminators, not waivers, so they are not surfaced as
@@ -40,12 +55,12 @@ import type { SuppressionsReport } from '../../core/suppressions/scan.js';
  * deliberately never surfaces the errs-under footgun) keeps compiling and behaving
  * unchanged.
  */
-export function scanPortalSuppressions(
+export function classifySuppressionMarkers(
   report: SuppressionsReport,
   knownAspectIds: Set<string>,
   draftAspectIds: Set<string>,
   underApproximatingAspectIds: Set<string> = new Set(),
-): SuppressionMarkerInput[] {
+): SuppressionMarker[] {
   // Re-derive open (unbounded) disable lines per file so each marker can be tagged.
   const unboundedByFile = new Map<string, Set<number>>();
   for (const { file, markers } of report.fileEntries) {
@@ -68,14 +83,14 @@ export function scanPortalSuppressions(
     if (open.size > 0) unboundedByFile.set(file, open);
   }
 
-  const out: SuppressionMarkerInput[] = [];
+  const out: SuppressionMarker[] = [];
   for (const { file, markers } of report.fileEntries) {
     const open = unboundedByFile.get(file);
     for (const m of markers) {
       if (m.kind === 'enable') continue; // range terminator, not a waiver entry
       const risk = resolveRisk(m, file, open, knownAspectIds, draftAspectIds, report.fileLevelKeys, underApproximatingAspectIds);
       // form: single → 'line'; disable with fileLevelKeys hit → 'file'; other disable → 'range'
-      const form: SuppressionMarkerInput['form'] =
+      const form: SuppressionMarker['form'] =
         m.kind === 'single' ? 'line' : report.fileLevelKeys?.has(`${file}:${m.line}`) ? 'file' : 'range';
       out.push({
         file,
@@ -98,7 +113,7 @@ function resolveRisk(
   draftAspectIds: Set<string>,
   fileLevelKeys: Set<string> | undefined,
   underApproximatingAspectIds: Set<string>,
-): SuppressionMarkerInput['risk'] | undefined {
+): SuppressionMarker['risk'] | undefined {
   if (m.wildcard) return 'wildcard';
   if (!knownAspectIds.has(m.aspectId)) return 'typo';
   if (draftAspectIds.has(m.aspectId)) return 'inert';

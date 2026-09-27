@@ -4,7 +4,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import type { Graph } from '../model/graph.js';
-import { computeDetectedEdges, computeTypedEdges } from '../portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../core/dependency-boundary.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
@@ -302,7 +302,7 @@ export function renderStructure(
  * same universe the dashboard computes — never a second, drifting graph reader.
  *
  * This is a read-only DATA accessor, not a command handler: it loads the graph and
- * runs the relation pass through the read-only portal facade (parse + resolve; no
+ * runs the relation pass through the engine's read-only boundary accessor (parse + resolve; no
  * verdict written, no lock touched), then returns the node ids plus the deduped
  * structural edges (declared structural relations ∪ statically detected
  * dependencies; event relations excluded) — identical to what `registerStructureCommand`
@@ -335,7 +335,7 @@ export function registerStructureCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
 
-        // Detected code dependencies come through the read-only facade. If the
+        // Detected code dependencies come through the read-only boundary accessor. If the
         // relation parse fails, degrade to the declared-relations-only view
         // (still an honest subset of the universe) rather than fail the command.
         const projectRoot = path.dirname(graph.rootPath);

@@ -53,22 +53,15 @@ describe.skipIf(!existsSync(BIN_PATH))('yg check and the portal worklist state t
     expect(portalCodes).toEqual(checkCodes);
   }, 120_000);
 
-  it('no command module imports from the portal facade beyond the known, tracked exceptions', () => {
-    // The two remaining reaches into portal/api — the attention layer's use of the
-    // portal's marker adapter and boundary join, and yg structure's use of the
-    // boundary join — are tracked for removal (issue 360). Anything else is new
-    // coupling of a command to the portal and fails here.
-    const KNOWN = new Set([
-      'advise.ts ../portal/api/suppress-adapt.js',
-      'advise.ts ../portal/api/boundary.js',
-      'structure.ts ../portal/api/boundary.js',
-    ]);
+  it('no command module imports from the portal\'s internals (portal/api)', () => {
+    // The boundary join and the marker classification live in the engine
+    // (core/dependency-boundary, core/suppressions/markers); a command that needs
+    // them asks the engine, never the portal. Before: yg advise and yg structure
+    // imported both from portal/api.
     const found = readdirSync(path.join(SRC, 'cli'))
       .filter((f) => f.endsWith('.ts'))
       .flatMap((f) => [...readFileSync(path.join(SRC, 'cli', f), 'utf-8').matchAll(/from '(\.\.\/portal\/api\/[^']+)'/g)].map((m) => `${f} ${m[1]}`));
-    expect(found.filter((x) => !KNOWN.has(x))).toEqual([]);
-    // An exception that no longer exists is removed from the list, so the list stays the truth.
-    expect([...KNOWN].filter((k) => !found.includes(k))).toEqual([]);
+    expect(found).toEqual([]);
   });
 
   it('the gate imports nothing from the portal at all', () => {

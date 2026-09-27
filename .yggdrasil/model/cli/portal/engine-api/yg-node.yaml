@@ -4,25 +4,23 @@ description: >-
   The portal's SINGLE read-only gateway to the engine. engine-api.ts wraps every engine
   call the portal needs — loadPortalGraph (committed-only, noSecrets), runPortalCheck,
   readAndVerifyLock, computePortalPairs, scanPortalUncovered, readNodeLog, the
-  effective-aspect/status helpers, the FULL live boundary (api/boundary.ts: phantom +
-  declared-only + forbidden-type, joined from the relation pass and the architecture
-  matrix), and the live suppression inventory (the engine's own yg-suppress scan, adapted
-  into the portal's marker shape by api/suppress-adapt.ts). Its check report
+  effective-aspect/status helpers, the FULL live boundary (phantom + declared-only +
+  forbidden-type, joined by the engine's core/dependency-boundary.ts from the relation
+  pass and the architecture matrix), and the live suppression inventory (the engine's
+  own yg-suppress scan, flattened into risk-resolved entries by the engine's
+  core/suppressions/markers.ts). Its check report
   hands runCheck the same scan's reason-less markers the command line hands it,
   so the worklist and yg check state the same warning. This ONE node concentrates the entire portal→engine coupling (the
   single seam) so the extraction pipeline never reaches an engine subsystem directly — it
   imports only this facade and the data contract. Read-only by construction: no lock
-  writer is imported and the graph is loaded committed-only. The boundary join changes no
-  engine logic; it reuses an additive read-only detected-edge accessor on the relation
-  pass. computePortalBoundary optionally accepts the caller's own type-coverage
+  writer is imported and the graph is loaded committed-only. computePortalBoundary
+  optionally accepts the caller's own type-coverage
   classification (typeCoveredFiles); when given, the SAME single relation pass it already
   runs also carries the live type-relation gate's edges, surfaced on its return value's
   typedEdges field, translated to plain StructEdge data — so the extraction pipeline can
   widen the structure PANEL with the identical edges `yg structure` widens its own
-  universe with, at no extra relation pass. api/boundary.ts separately exposes
-  computeTypedEdges as its own second-pass accessor for a caller that cannot fold the
-  widening into an existing pass — `yg structure` itself calls it directly (not through
-  this facade), since a CLI command is not bound to the portal's single-pass call.
+  universe with, at no extra relation pass. `yg structure` and `yg advise` read the
+  same boundary from the engine directly, never through this facade or portal/api.
   isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
   not core/check-coverage-tiers, so it adds no new relation beyond the already-declared
   cli/utils) lets the residue derivation exclude a deliberately-excluded file the same
@@ -109,8 +107,6 @@ relations:
 mapping:
   - source/cli/src/portal/engine-api.ts
   - source/cli/src/portal/api/attestation.ts
-  - source/cli/src/portal/api/boundary.ts
-  - source/cli/src/portal/api/suppress-adapt.ts
   - source/cli/src/portal/api/type-coverage.ts
   - source/cli/src/portal/api/freshness.ts
   - source/cli/src/portal/api/source-file-counts.ts

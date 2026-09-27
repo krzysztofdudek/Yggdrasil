@@ -34,9 +34,9 @@ import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, Sourc
 // (fromType, toType)-pair function would be dead weight. It is still the reference
 // semantics this function mirrors — cross-checked against it in the test suite.
 import { RELATION_TYPES } from '../relations/allowed-types.js';
-import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
+import { computeDependencyBoundary } from '../core/dependency-boundary.js';
 import { runSuppressionsScan, scanReasonlessMarkers } from '../core/suppressions/scan.js';
-import { scanPortalSuppressions as adaptSuppressions } from './api/suppress-adapt.js';
+import { classifySuppressionMarkers } from '../core/suppressions/markers.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
 import { computePortalTypeCoverage as computeTypeCoverageImpl, toPortalTypeCoverageInput as toTypeCoverageInputImpl } from './api/type-coverage.js';
 import { computePortalSourceFileCounts as computeSourceFileCountsImpl } from './api/source-file-counts.js';
@@ -299,14 +299,14 @@ export { FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from '../formatters/gr
  * type-coverage classification, so the returned `typedEdges` (the live type-relation
  * gate's edges — the same ones `yg structure` widens its own universe with) come from
  * this ONE call rather than a second, dedicated pass — see `computePortalBoundary`'s
- * own doc in api/boundary.ts.
+ * own doc in core/dependency-boundary.ts.
  */
 export async function computePortalBoundary(
   graph: Graph,
   projectRoot: string,
   typeCoveredFiles?: Map<string, string>,
 ): Promise<BoundaryInput | null> {
-  return computeBoundaryImpl(graph, projectRoot, typeCoveredFiles);
+  return computeDependencyBoundary(graph, projectRoot, typeCoveredFiles);
 }
 
 // ── Live suppression inventory ────────────────────────────────────────────────
@@ -350,7 +350,7 @@ export async function scanPortalSuppressions(
     graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
   );
   return {
-    markers: adaptSuppressions(report, knownAspectIds, draftAspectIds, underApproximatingAspectIds),
+    markers: classifySuppressionMarkers(report, knownAspectIds, draftAspectIds, underApproximatingAspectIds),
     totalMarkers: report.totalMarkers,
   };
 }

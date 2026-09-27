@@ -1,7 +1,9 @@
 name: Suppressions
 type: engine
 description: >-
-  The one scan of yg-suppress markers every surface reads. It finds each marker
+  The one scan of yg-suppress markers every surface reads, and (markers.ts) its
+  flattening into one risk-resolved entry per waiver that the portal inventory
+  and yg advise both read. It finds each marker
   in the files a marker can waive in (mapped sources and type-covered files; the
   shared eligibility rule keeps generated mirrors, logs and prose docs out),
   asking the structure layer (which parses code; the engine may not) for each
@@ -32,3 +34,4 @@ mapping:
   - source/cli/src/core/suppressions/scan.ts
   - source/cli/src/core/suppressions/eligibility.ts
   - source/cli/src/core/suppressions/coverage.ts
+  - source/cli/src/core/suppressions/markers.ts

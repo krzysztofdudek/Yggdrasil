@@ -1,13 +1,14 @@
-import type { Graph } from '../../model/graph.js';
-import { runProjectRelationPass } from '../../relations/pass.js';
-import type { RelationPassResult } from '../../relations/pass.js';
-import { buildOwnerIndex } from '../../relations/owner-index.js';
-import type { StructEdge } from '../../core/graph-metrics.js';
-import type { BoundaryInput } from '../contract.js';
+import type { Graph } from '../model/graph.js';
+import { runProjectRelationPass } from '../relations/pass.js';
+import type { RelationPassResult } from '../relations/pass.js';
+import { buildOwnerIndex } from '../relations/owner-index.js';
+import type { StructEdge } from './graph-metrics.js';
 
 /**
- * portal/api/boundary — the FULL live dependency-boundary computation, behind the
- * portal facade. This is the SOLE place the portal reaches the relations layer.
+ * core/dependency-boundary — the FULL live dependency-boundary computation. The
+ * engine owns it so every surface asks one place: the portal (through its
+ * engine facade), `yg advise` and `yg structure` all call it here, and none of
+ * the commands reaches into the portal's internals for it.
  *
  * It runs the relation pass ONCE (read-only: parse + resolve, no verdict written) and
  * derives all THREE boundary classes by a PURE JOIN over the pass's already-computed
@@ -24,7 +25,7 @@ import type { BoundaryInput } from '../contract.js';
  *                     by the architecture matrix for the source node's type under ANY
  *                     structural relation type. Join: detected edges × the matrix.
  *
- * `computePortalBoundary` returns `null` ONLY when the relation parse genuinely throws —
+ * `computeDependencyBoundary` returns `null` ONLY when the relation parse genuinely throws —
  * the caller maps `null` to `unknown: true` and never fabricates a clean boundary.
  *
  * A caller may also seed the SAME pass with a type-coverage classification
@@ -75,7 +76,7 @@ function isLineage(a: string, b: string): boolean {
  * Translate the relation pass's live type-relation-gate index (`RelationPassResult.typedEdges`,
  * `fileOwnerType`) into the plain `StructEdge[]` shape both `yg structure` and the portal
  * structure panel consume — the SAME translation `computeTypedEdges` below performs for its own,
- * separate (second) pass. Factored out so `computePortalBoundary` can fold the identical
+ * separate (second) pass. Factored out so `computeDependencyBoundary` can fold the identical
  * translation into the ONE pass it already runs when a caller seeds `typeCoveredFiles`, instead
  * of paying for a second pass just to obtain this. `pass.typedEdges.edgesFrom` returns `[]` for
  * every file when the pass was not seeded with a classification, so this is `[]` in that case —
@@ -95,6 +96,25 @@ function structEdgesFromPass(graph: Graph, pass: Pick<RelationPassResult, 'fileO
 }
 
 /**
+ * The three boundary classes plus the detected-edge set they were joined from.
+ * The portal's `BoundaryInput` (portal/contract.ts) is the same shape: the
+ * portal facade returns this value as that type, so a field that changes here
+ * without changing there fails to compile.
+ */
+export interface DependencyBoundary {
+  /** PHANTOM: real code dependency on another mapped node with no declared relation. */
+  phantom: Array<{ source: string; target: string }>;
+  /** DECLARED-ONLY: a declared structural relation with no static code backing (DI / HTTP / events). */
+  declaredOnly: Array<{ source: string; target: string }>;
+  /** FORBIDDEN-TYPE: a detected dependency whose target type the architecture matrix forbids. */
+  forbiddenType: Array<{ source: string; target: string }>;
+  /** Every statically-detected cross-node code edge, source → sorted targets, flattened from the pass's Map/Set. */
+  detectedEdgesByNode: Array<{ from: string; targets: string[] }>;
+  /** The live type-relation gate's edges from the same pass; `[]` when no classification was seeded. */
+  typedEdges: StructEdge[];
+}
+
+/**
  * Compute the FULL live boundary by running the relation pass once and joining its
  * outputs with the architecture matrix. Returns `null` iff the relation pass throws
  * (the only honest "unknown" — never a fabricated clean boundary).
@@ -105,11 +125,11 @@ function structEdgesFromPass(graph: Graph, pass: Pick<RelationPassResult, 'fileO
  * rather than a second, dedicated one. Omitted (or empty), `typedEdges` is simply `[]` —
  * byte-identical to a caller that never asks for the widening at all.
  */
-export async function computePortalBoundary(
+export async function computeDependencyBoundary(
   graph: Graph,
   projectRoot: string,
   typeCoveredFiles?: Map<string, string>,
-): Promise<BoundaryInput | null> {
+): Promise<DependencyBoundary | null> {
   let pass;
   try {
     pass = await runProjectRelationPass(graph, projectRoot, typeCoveredFiles);
@@ -182,12 +202,12 @@ export async function computePortalBoundary(
  * resolve, no verdict written, no lock touched) and return the FULL set of
  * statically-detected cross-node code edges — `detectedEdgesByNode` verbatim,
  * keyed by source nodeId → the set of resolved target nodeIds. This is the same
- * call path `computePortalBoundary` uses; it changes no engine logic and writes
+ * call path `computeDependencyBoundary` uses; it changes no engine logic and writes
  * nothing.
  *
  * Exposed so a command that cannot legally reach the relations layer directly
  * (the architecture denies `command → relations-adapter`) can still obtain the
- * detected-edge half of the structural universe through this facade node.
+ * detected-edge half of the structural universe through the engine.
  *
  * Returns `null` ONLY when the relation parse genuinely throws — the caller may
  * then fall back to the declared-relations-only view rather than fabricate

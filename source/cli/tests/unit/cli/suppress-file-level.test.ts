@@ -6,7 +6,7 @@ import {
   runSuppressionsScan,
   formatSuppressionsOutput,
 } from '../../../src/cli/suppressions.js';
-import { scanPortalSuppressions as adaptPortalSuppressions } from '../../../src/portal/api/suppress-adapt.js';
+import { classifySuppressionMarkers as adaptPortalSuppressions } from '../../../src/core/suppressions/markers.js';
 import { collectSuppressions } from '../../../src/ast/suppress.js';
 import { resolveSuppressedRangesForPrompt } from '../../../src/structure/suppress-ranges.js';
 import { suppressionWarningText } from '../../../src/cli/suppressions.js';

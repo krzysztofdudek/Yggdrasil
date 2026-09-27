@@ -100,3 +100,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 The package-update signal now says whether the record follows the newest version, so the nomination can name the command that takes the newest one without pinning a package that was following.
 ## [2026-09-27T10:31:34.429Z]
 Whether a package follows the newest version is now asked of the package-record parser, which already owns the meaning of requested, instead of re-deriving it here from the model constant.
+## [2026-09-27T11:08:42.422Z]
+The boundary join and the suppression-marker classification are read from the engine instead of from the portal's internals, so the attention feed no longer depends on the portal.

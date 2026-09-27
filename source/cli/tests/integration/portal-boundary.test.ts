@@ -11,7 +11,7 @@ import { computePortalBoundary } from '../../src/portal/engine-api.js';
  * REAL on-disk fixture projects (real `.yggdrasil/` graph + real source) — no mocking.
  *
  * These fixtures deliberately construct each boundary class so the join logic in
- * `portal/api/boundary.ts` is covered on its own, independent of the real repo (which —
+ * `core/dependency-boundary.ts` is covered on its own, independent of the real repo (which —
  * being green — has zero phantom and zero forbidden-type edges).
  */
 

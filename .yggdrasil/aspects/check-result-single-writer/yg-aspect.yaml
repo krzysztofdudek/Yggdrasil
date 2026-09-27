@@ -1,0 +1,18 @@
+name: CheckResultSingleWriter
+description: >-
+  One place writes the check result. The findings of a run (a result's `issues`)
+  and its suggested next step (`suggestedNext`) are assembled by runCheck in
+  source/cli/src/core/check*.ts and nowhere else: a command or the portal that
+  appends a finding after runCheck returns shows it on one surface and not on
+  the other (the portal worklist and `yg check --json` then disagree about the
+  same repository, which is exactly how the reason-less suppress warning once
+  went missing from the portal). An input a surface has to contribute is handed
+  to runCheck as an option instead. Flags, outside core/check*.ts, a member
+  write to `.issues` (assignment, push, unshift, splice) and an assignment to
+  `.suggestedNext`; the formatters may set `suggestedNext` on the machine
+  document they render, which is a projection of the result, not the result.
+  Test code is exempt. errs: under — it sees only a literal member write, not
+  one through an alias or a computed property.
+errs: under
+status: enforced
+review_by: 2027-03-27

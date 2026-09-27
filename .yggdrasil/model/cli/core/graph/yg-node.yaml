@@ -6,7 +6,11 @@ description: >-
   algorithms, and the WhenPredicate evaluator that decides whether a predicate
   passes against a (GraphNode, Graph) pair. Helpers take a Graph and/or GraphNode
   and return derived data with no side effects. Canonical home for new
-  graph-query helpers. It also assembles the graph's own machine documents — the
+  graph-query helpers. It also owns the live dependency boundary
+  (dependency-boundary.ts): one read-only relation pass joined with the
+  architecture matrix into phantom, declared-only and forbidden-type edges plus
+  the detected and type-level edge sets, which the portal facade, yg advise and
+  yg structure all read here instead of from the portal. It also assembles the graph's own machine documents — the
   versioned JSON forms of "what depends on this component" and "what IS this
   component" — from those same queries: the reverse-dependency closure and the
   path each indirect dependent is reached through are computed in exactly one
@@ -47,4 +51,5 @@ mapping:
   - source/cli/src/core/graph/machine-documents.ts
   - source/cli/src/core/graph/traversal.ts
   - source/cli/src/core/graph-metrics.ts
+  - source/cli/src/core/dependency-boundary.ts
   - source/cli/src/core/when-evaluator.ts

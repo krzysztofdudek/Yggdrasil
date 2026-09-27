@@ -32,8 +32,6 @@ relations:
     type: calls
   - target: cli/core/graph
     type: calls
-  - target: cli/portal/engine-api
-    type: calls
   - target: cli/tests/unit/cli
     type: uses
   - target: cli/core/type-coverage

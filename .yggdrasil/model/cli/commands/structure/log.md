@@ -20,3 +20,5 @@ An earlier entry here said the Modules heading widens to name type-covered files
 The declared-relation collector feeding the structural edge universe now reads a relation's port list from the model's renamed field instead of the retired one.
 ## [2026-09-24T13:51:07.670Z]
 Every byte this command prints now goes through the output layer: stdout and stderr through writeOut and writeErr, colour through paint, instead of process.stdout.write, process.stderr.write and a chalk import of its own. The repository now refuses a direct stream write, a console call or a chalk import outside that layer, so that where output goes, what guards it and when it is decorated are decided in one place and cannot drift command by command again, as they had across hundreds of write sites before the layer existed.
+## [2026-09-27T11:08:38.096Z]
+The detected and type-level edges are now read from the engine's dependency boundary instead of the portal's internals, so this command no longer depends on the portal at all.

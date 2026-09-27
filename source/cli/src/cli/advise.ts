@@ -42,9 +42,9 @@ import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../core/suppressions/scan.js';
-import { scanPortalSuppressions } from '../portal/api/suppress-adapt.js';
+import { classifySuppressionMarkers } from '../core/suppressions/markers.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
-import { computePortalBoundary } from '../portal/api/boundary.js';
+import { computeDependencyBoundary } from '../core/dependency-boundary.js';
 import {
   edgeUniverse,
   tunnelSpans,
@@ -307,7 +307,7 @@ async function gatherSuppressData(
       graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
     );
     const anomalies: SuppressAnomaly[] = [];
-    for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {
+    for (const m of classifySuppressionMarkers(report, knownAspectIds, draftAspectIds)) {
       if (!m.risk) continue; // only the risky markers become nominations
       anomalies.push({
         file: m.file,
@@ -543,7 +543,7 @@ interface RelationBoundaryResult {
 
 /**
  * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
- * from ONE shared relation pass — `computePortalBoundary` already exists to
+ * from ONE shared relation pass — `computeDependencyBoundary` already exists to
  * fold the live type-relation gate's edge translation into the SAME pass a
  * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
  * invariant intact even when the type-level tier is on"). Before this, `yg
@@ -551,10 +551,10 @@ interface RelationBoundaryResult {
  * least one file: one unseeded (for the tunnel count, via the since-removed
  * `computeDetectedEdges`) and one seeded with `typeCoverage.covered` (for the
  * cluster edges, via the since-removed `computeTypedEdges`) — duplicating the
- * parse + resolve work `computePortalBoundary` already does once. Seeding
+ * parse + resolve work `computeDependencyBoundary` already does once. Seeding
  * costs nothing when `typeCoverage` is undefined or empty: `typedEdges` comes
  * back `[]`, byte-identical to a caller that never asked for the widening
- * (`computePortalBoundary`'s own contract) — so this is a strict consolidation,
+ * (`computeDependencyBoundary`'s own contract) — so this is a strict consolidation,
  * not a new cost paid when the tier is off.
  *
  * `typeCoveredEdges` mirrors the former `gatherTypeCoveredEdges` contract
@@ -566,7 +566,7 @@ interface RelationBoundaryResult {
  * correctly excludes every node-to-node or mixed edge). The tunnel count
  * degrades to 0 on its own failure (mirroring the former `computeTunnelCount`
  * exactly); the whole boundary degrades to "pass failed" only when the
- * relation parse itself throws, in which case `computePortalBoundary` returns
+ * relation parse itself throws, in which case `computeDependencyBoundary` returns
  * `null` rather than throwing, and both halves degrade together. Never
  * throws: this is `yg advise`'s own read-only, never-gating contract (G4).
  */
@@ -576,9 +576,9 @@ async function gatherRelationBoundary(
   typeCoverage: TypeCoverageInput | undefined,
 ): Promise<RelationBoundaryResult> {
   const wantsTypedEdges = typeCoverage !== undefined && typeCoverage.covered.size > 0;
-  let boundary: Awaited<ReturnType<typeof computePortalBoundary>>;
+  let boundary: Awaited<ReturnType<typeof computeDependencyBoundary>>;
   try {
-    boundary = await computePortalBoundary(graph, projectRoot, typeCoverage?.covered);
+    boundary = await computeDependencyBoundary(graph, projectRoot, typeCoverage?.covered);
   } catch (error) {
     debugWrite(`[advise] relation boundary degraded (pass threw): ${(error as Error).message}`);
     boundary = null;

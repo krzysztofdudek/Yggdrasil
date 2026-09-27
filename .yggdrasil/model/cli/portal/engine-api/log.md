@@ -149,3 +149,5 @@ The portal's check report now receives the same reason-less yg-suppress markers 
 The source-freshness marker reads a recorded fingerprint only for components whose type requires log entries. Components of other types now carry a fingerprint too, but it is a bare record of their bytes taken on every full run, not of what a rule read, so treating it as the marker's baseline would paint unrelated components as changed.
 ## [2026-09-27T00:25:48.607Z]
 The facade now takes the issue grouping and the implies-cycle sentence from the formatter layer. The grouping moved there with the rest of the check report renderers, which were command-layer support and are now formatters, so the portal no longer imports that part of the command layer at all; the sentence moved with the other type-level coverage sentences. The worklist groups exactly as the terminal report does, as before.
+## [2026-09-27T11:08:57.698Z]
+The facade now delegates the boundary join and the marker classification to the engine modules that own them, instead of hosting them under portal/api where commands had to reach into the portal to use them.
