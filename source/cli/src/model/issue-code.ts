@@ -222,6 +222,21 @@ export type CommandErrorCode =
   | 'lock-environment'
   | 'no-coverage'
   | 'adopt-restore-failed'
+  | 'node-path-invalid'
+  // yg log merge-resolve refusing a log it cannot reconcile.
+  | 'log-merge-not-in-progress'
+  | 'log-merge-log-missing'
+  | 'log-merge-conflict-markers'
+  | 'log-merge-sides-unreadable'
+  | 'log-merge-history-rewritten'
+  | 'log-merge-entries-lost'
+  | 'log-merge-entries-unknown'
+  | 'log-merge-out-of-order'
+  // yg aspects log add refusing a status record.
+  | 'aspect-status-value-invalid'
+  | 'aspect-status-not-standing'
+  | 'aspect-status-evidence-missing'
+  | 'aspect-status-unchanged'
   | PackageCode;
 
 /**

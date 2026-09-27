@@ -77,10 +77,10 @@ function run(
 
 /**
  * A log subcommand refused a malformed --node path, before touching any node:
- * the usage-level command-error, with the rule it broke named by `rule`.
+ * with its own code, node-path-invalid, and the rule it broke named by `rule`.
  */
 function expectNodePathRejected(all: string, rule: string): void {
-  expectErrorCode(all, 'command-error');
+  expectErrorCode(all, 'node-path-invalid');
   expect(all).toContain('--node');
   expect(all).toContain(rule);
 }
@@ -837,7 +837,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expectErrorCode(all, 'command-error');
+      expectErrorCode(all, 'log-merge-log-missing');
       expect(all).toContain('log.md not found');
       expect(all).toContain('services/orders');
     } finally {
@@ -858,7 +858,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expectErrorCode(all, 'command-error');
+      expectErrorCode(all, 'log-merge-conflict-markers');
       expect(all).toContain('conflict markers');
       // Committed with the markers in it: no merge in progress to write a union
       // from, so the next step is the manual sequence instead.
@@ -876,7 +876,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expectErrorCode(all, 'command-error');
+      expectErrorCode(all, 'log-merge-out-of-order');
       expect(all).toContain('chronological order');
       expect(all).toContain('ordered by timestamp');
     } finally {

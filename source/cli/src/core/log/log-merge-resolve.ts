@@ -166,7 +166,7 @@ function droppedSinceBase(baseLog: string, sideLog: string): string[] {
  * it — none dropped or altered, none invented — in strict date order after the
  * last shared entry. Null when it does.
  */
-function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | null {
+function verifyUnion(currentLog: string, shared: SharedHistory): CodedIssueMessage | null {
   const currentBytes = Buffer.from(currentLog, 'utf-8');
   const current = parseLog(currentLog).map(withFinalNewline);
   const k = shared.sharedKeys.length;
@@ -177,6 +177,7 @@ function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | 
     shared.sharedKeys.some((key, i) => entryKeyOf(current[i]) !== key)
   ) {
     return {
+      code: 'log-merge-history-rewritten',
       what: 'log.md does not start with the history both sides share',
       why: 'The entries both sides of the merge start with must stay first and byte-for-byte unchanged; a merge adds the rest after them.',
       next: 'Restore the shared entries at the start of log.md without modification — or restore the conflicted file (git checkout --conflict=merge -- <log.md>) and let yg log merge-resolve write it.',
@@ -189,6 +190,7 @@ function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | 
   const missing = shared.added.filter((a) => !currentNewKeys.has(a.key));
   if (missing.length > 0) {
     return {
+      code: 'log-merge-entries-lost',
       what: `log.md is missing or has altered ${missing.length} entr${missing.length === 1 ? 'y' : 'ies'} from merge parents`,
       why: 'Every new log entry from both branches must be preserved byte-for-byte in the merge result.',
       next: `Restore these entries unmodified: ${missing.map((e) => e.datetime).join(', ')}`,
@@ -197,6 +199,7 @@ function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | 
   const fabricated = currentNew.filter((e) => !addedKeys.has(entryKeyOf(e)));
   if (fabricated.length > 0) {
     return {
+      code: 'log-merge-entries-unknown',
       what: `log.md contains ${fabricated.length} new entr${fabricated.length === 1 ? 'y' : 'ies'} not present in either merge parent`,
       why: 'A merge resolution may only union the entries from the two branches — it cannot add or alter entries.',
       next: `Remove the fabricated or altered entries: ${fabricated.map((e) => e.datetime).join(', ')}`,
@@ -206,6 +209,7 @@ function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | 
   for (const e of currentNew) {
     if (previous !== null && e.datetime <= previous) {
       return {
+        code: 'log-merge-out-of-order',
         what: 'New log entries are not in chronological order',
         why: 'Log entries must be ordered by timestamp to maintain a consistent history.',
         next: 'Sort the entries after the shared history by datetime (oldest first), each once.',
@@ -303,7 +307,7 @@ function verifyReplayResolution(
   oursLog: string,
   added: ReturnType<typeof parseLog>,
   replay: { kind: 'rebase' | 'cherry-pick'; commit: string },
-): IssueMessage | null {
+): CodedIssueMessage | null {
   const ours = parseLog(oursLog).map(withFinalNewline);
   const addedNorm = added.map(withFinalNewline);
   const current = parseLog(currentLog);
@@ -316,6 +320,7 @@ function verifyReplayResolution(
   const missing = expected.filter((e) => !currentKeys.has(entryKeyOf(e)));
   if (missing.length > 0) {
     return {
+      code: 'log-merge-entries-lost',
       what: `log.md is missing or has altered ${missing.length} entr${missing.length === 1 ? 'y' : 'ies'} from HEAD or ${replayed}`,
       why: `Every entry HEAD carries and every entry ${replayed} adds must survive byte-for-byte in the ${replay.kind} result.`,
       next: `Restore these entries unmodified: ${missing.map((e) => e.datetime).join(', ')}`,
@@ -324,6 +329,7 @@ function verifyReplayResolution(
   const fabricated = current.filter((e) => !expectedKeys.has(entryKeyOf(e)));
   if (fabricated.length > 0) {
     return {
+      code: 'log-merge-entries-unknown',
       what: `log.md contains ${fabricated.length} entr${fabricated.length === 1 ? 'y' : 'ies'} found neither on HEAD nor added by ${replayed}`,
       why: `A ${replay.kind} resolution may only union HEAD's log with the entries the replayed commit adds — it cannot add or alter entries.`,
       next: `Remove the fabricated or altered entries: ${fabricated.map((e) => e.datetime).join(', ')}`,
@@ -341,6 +347,7 @@ function verifyReplayResolution(
   );
   if (outOfOrder || undated) {
     return {
+      code: 'log-merge-out-of-order',
       what: 'log.md entries are not in chronological order',
       why: "HEAD's entries keep their order, and each entry the replayed commit adds sits where its timestamp falls, so the log stays one dated, append-only history.",
       next: `Order the entries by datetime (oldest first), keeping HEAD's own entries in their order — or restore the conflicted file (git checkout --conflict=merge -- <log.md>) and let yg log merge-resolve write it.`,
@@ -388,7 +395,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'node-path-invalid',
         what: `Invalid --node value: ${nv.reason}`,
         why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
         next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',
@@ -437,7 +444,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
         return {
           ok: false,
           error: {
-            code: 'command-error',
+            code: 'log-merge-not-in-progress',
             what: 'HEAD is not a merge commit, and no merge, rebase or cherry-pick is in progress',
             why: 'yg log merge-resolve reconciles a log against the two sides of a merge. It reads them from an operation stopped on a conflict (a merge: HEAD and MERGE_HEAD; a rebase: HEAD and REBASE_HEAD; a cherry-pick: HEAD and CHERRY_PICK_HEAD) or from the merge commit at HEAD; here there is none of them.',
             next: `Run it while the merge, rebase or cherry-pick is stopped on the conflict, or on the merge commit — or, for a merge that left no merge commit, name the two sides: yg log merge-resolve --node ${nodePath} --ours <ref> --theirs <ref>.`,
@@ -458,7 +465,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-log-missing',
         what: `log.md not found for node ${nodePath}`,
         why: 'merge-resolve reconciles an existing per-node log; this node has no log.md in the working tree.',
         next: 'Confirm the --node path. If the node has no log yet, there is nothing to merge-resolve.',
@@ -478,7 +485,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-conflict-markers',
         what: 'log.md still contains conflict markers',
         why: 'Conflict markers mean the merge of this log was never reconciled. merge-resolve writes the union itself only while the merge, rebase or cherry-pick is still stopped on the conflict; here none is, so it can only verify a log that is already whole.',
         next: `Keep every entry from both sides, remove the markers, order the entries by datetime (oldest first), then run: yg log merge-resolve --node ${nodePath}${input.sides !== undefined ? ` --ours ${input.sides.ours} --theirs ${input.sides.theirs}` : ''}.`,
@@ -512,7 +519,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-sides-unreadable',
         what: `Could not read ${gitLogPath} from the two sides of the merge`,
         why: 'The merged log is verified against the log each side had, so both refs (and --base, when given) must resolve in this repository.',
         next: 'Check the refs with git rev-parse, then re-run with --ours and --theirs naming the two branches that were merged.',
@@ -526,7 +533,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-history-rewritten',
         what: `The two sides of the merge do not share ${gitLogPath}'s history`,
         why:
           shared === null
@@ -543,7 +550,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
         return {
           ok: false,
           error: {
-            code: 'command-error',
+            code: 'log-merge-history-rewritten',
             what: `The ${label} side of the merge dropped or changed ${dropped.length} entr${dropped.length === 1 ? 'y' : 'ies'} of ${gitLogPath} it had at the merge base`,
             why: 'A log is append-only: a branch may add entries, never drop or change one it already had. A union carries added entries, not a rewrite.',
             next: `${abortHint} these entries on that side unmodified, and merge again: ${dropped.join(', ')}`,
@@ -564,10 +571,10 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   }
 
   const bad = verifyUnion(currentLog, shared);
-  if (bad !== null) return { ok: false, error: { ...bad, code: 'command-error' } };
+  if (bad !== null) return { ok: false, error: bad };
 
   const lockError = await recordBaseline(yggRoot, nodePath, currentLog);
-  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'command-error' } };
+  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'lock-invalid' } };
 
   return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}) };
 }
@@ -603,7 +610,7 @@ async function resolveReplay(args: {
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-sides-unreadable',
         what: `Could not read ${gitLogPath} from HEAD and the commit being replayed`,
         why: `At a ${replay.kind} stop the log is reconciled against HEAD and the replayed commit (with its parent), so each of them must be readable from this repository.`,
         next: `Check git status and the ${replay.kind} state, or ${abort} and start it again.`,
@@ -616,7 +623,7 @@ async function resolveReplay(args: {
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'log-merge-history-rewritten',
         what: `The commit being replayed (${replay.commit.slice(0, 12)}) rewrote ${gitLogPath}`,
         why: 'A log is append-only: a commit may add entries, never drop or change one its parent had. A union can carry added entries, not a rewrite.',
         next: `${abort}, restore the entries that commit dropped or changed, and run the ${replay.kind} again.`,
@@ -633,10 +640,10 @@ async function resolveReplay(args: {
   }
 
   const bad = verifyReplayResolution(currentLog, oursLog, added, replay);
-  if (bad !== null) return { ok: false, error: { ...bad, code: 'command-error' } };
+  if (bad !== null) return { ok: false, error: bad };
 
   const lockError = await recordBaseline(yggRoot, nodePath, currentLog);
-  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'command-error' } };
+  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'lock-invalid' } };
   return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind };
 }
 

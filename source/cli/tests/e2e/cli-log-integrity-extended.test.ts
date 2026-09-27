@@ -710,7 +710,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('missing or has altered');
+      expect(all).toMatch(/^error\[log-merge-entries-lost\]:/m);
       // The dropped entry's datetime is named in the restore guidance.
       expect(all).toContain('2026-05-11T11:00:00.000Z');
     } finally {
@@ -724,7 +724,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('not present in either merge parent');
+      expect(all).toMatch(/^error\[log-merge-entries-unknown\]:/m);
       expect(all).toContain('2026-05-11T13:00:00.000Z');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
@@ -739,7 +739,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('missing or has altered');
+      expect(all).toMatch(/^error\[log-merge-entries-lost\]:/m);
       expect(all).toContain('2026-05-11T11:00:00.000Z');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);

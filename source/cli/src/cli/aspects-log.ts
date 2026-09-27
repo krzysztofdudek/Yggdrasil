@@ -206,7 +206,7 @@ async function statusPrefixFor(
       what: `'${to}' is not a status a rule can have.`,
       why: `A rule stands at one of ${ASPECT_STATUSES.join(', ')} — draft enforces nothing, advisory reports without blocking, enforced refuses. Anything else names no authority at all.`,
       next: `Re-run with --status ${ASPECT_STATUSES.join(' | --status ')}.`,
-    }, 'command-error');
+    }, 'aspect-status-value-invalid');
   }
 
   const actual = currentStatus(aspect);
@@ -215,7 +215,7 @@ async function statusPrefixFor(
       what: `Rule '${aspect.id}' stands at ${actual}, not ${to}.`,
       why: "This records a change; it does not make one. The rule's own file is yours to edit, and a history that claimed a change nobody made would be worse than no history at all.",
       next: `Set status: ${to} in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml, then record it here.`,
-    }, 'command-error');
+    }, 'aspect-status-not-standing');
   }
 
   if (opts.evidence === undefined || opts.evidence.trim() === '') {
@@ -223,7 +223,7 @@ async function statusPrefixFor(
       what: 'A change of status was recorded with no evidence.',
       why: "A rule's status is the whole of its authority, so what justified moving it is the part of the record that matters most a year later — and the part nobody can reconstruct.",
       next: 'Re-run with --evidence "<what justified it>", e.g. --evidence "two waves clean, no new violations".',
-    }, 'command-error');
+    }, 'aspect-status-evidence-missing');
   }
 
   const previous = await previousStatus(graph, aspect);
@@ -232,7 +232,7 @@ async function statusPrefixFor(
       what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of status to record.`,
       why: "A status entry records a move from one status to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
       next: `Record the note without --status (yg aspects log add --aspect ${aspect.id} --reason "..."), or set a different status: in the rule's yg-aspect.yaml first and record that change.`,
-    }, 'command-error');
+    }, 'aspect-status-unchanged');
   }
   return statusLine({
     from: previous,

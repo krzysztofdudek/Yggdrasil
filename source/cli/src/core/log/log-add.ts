@@ -25,7 +25,7 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'node-path-invalid',
         what: `Invalid --node value: ${nv.reason}`,
         why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
         next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',

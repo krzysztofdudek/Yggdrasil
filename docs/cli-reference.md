@@ -254,7 +254,7 @@ error[node-not-found]: node 'nope' is not in the graph
 next: yg find "nope"
 ```
 
-The heading is `error[<code>]: <what>`; `why:` says why it is refused; `next:` is the one step to take. Every command error names its code explicitly — `node-not-found` for a node the graph does not hold, `aspect-not-found` for a rule, `usage` for a flag or argument used wrongly, a specific code where the refusal has one (`lock-invalid`, `graph-missing`, …), and `command-error` for the rest; the code is never inferred from the wording, which may change while the code does not. [Issue codes](#codes-command) lists them. A flag or argument the parser itself rejects is an `error[usage]` whose `next:` names the command's help:
+The heading is `error[<code>]: <what>`; `why:` says why it is refused; `next:` is the one step to take. Every command error names its code explicitly — `node-not-found` for a node the graph does not hold, `aspect-not-found` for a rule, `usage` for a flag or argument used wrongly, a specific code where the refusal has one (`lock-invalid`, `node-path-invalid`, `log-merge-out-of-order`, …), and `command-error` for the rest; the code is never inferred from the wording, which may change while the code does not. [Issue codes](#codes-command) lists them. A flag or argument the parser itself rejects is an `error[usage]` whose `next:` names the command's help:
 
 ```text
 error[usage]: unknown option '--message'
@@ -2445,6 +2445,19 @@ severity says so — see [Aspect Status](/aspect-status).
 | `lock-environment` | error | The lock cannot be written: another yg check --approve holds it, or writing it failed. | Wait for the other run to finish (or remove its stale marker, as the error says), then re-run. |
 | `no-coverage` | error | yg context --file names a file that no node maps and no type covers. | yg context --node &lt;node&gt;, or map the file to a node. |
 | `adopt-restore-failed` | error | yg adopt could not undo its own install after a failure, so a partly copied graph may be left in place. | Restore the graph by hand as the error describes, then run yg adopt again. |
+| `node-path-invalid` | error | A --node value is not a node path: empty, absolute, climbing with .., or starting with model/. | Write the path relative to .yggdrasil/model/, e.g. billing/cancel. |
+| `log-merge-not-in-progress` | error | yg log merge-resolve found no merge, rebase or cherry-pick in progress, and HEAD is not a merge commit, so there are no two sides to reconcile. | Run it during the merge (or on the merge commit), or name the sides with --ours &lt;ref&gt; --theirs &lt;ref&gt;. |
+| `log-merge-log-missing` | error | yg log merge-resolve was asked about a node that has no log.md. | Check the node path; a node with no log has nothing to reconcile. |
+| `log-merge-conflict-markers` | error | log.md still carries git conflict markers and no merge is in progress to write the union from. | Remove the markers, keeping every entry of both sides ordered by datetime, then run yg log merge-resolve again. |
+| `log-merge-sides-unreadable` | error | yg log merge-resolve could not read log.md from the two sides of the merge (or from HEAD and the commit being replayed). | Check that the refs exist locally (fetch them), then run it again. |
+| `log-merge-history-rewritten` | error | The log's shared history was changed: the merged log does not start with what both sides share, the sides share no history, or one side or the replayed commit rewrote entries it had. | Restore the shared entries unmodified (or restore the conflicted file and let yg log merge-resolve write it). |
+| `log-merge-entries-lost` | error | The merged log.md drops or alters entries one of the sides added. | Restore the entries the error lists, byte for byte. |
+| `log-merge-entries-unknown` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
+| `log-merge-out-of-order` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
+| `aspect-status-value-invalid` | error | yg aspects log add --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
+| `aspect-status-not-standing` | error | yg aspects log add --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
+| `aspect-status-evidence-missing` | error | yg aspects log add --status was given no --evidence for the change. | Re-run with --evidence "&lt;what justified it&gt;". |
+| `aspect-status-unchanged` | error | yg aspects log add --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
 
 ### Packages (`yg pack`) {#codes-package}
 
