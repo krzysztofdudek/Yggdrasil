@@ -19,6 +19,13 @@ import type { FieldType, FileFormatSchema } from '../../../src/utils/file-schema
 
 export type JsonSchema = Record<string, unknown>;
 
+/**
+ * Carried by every closed schema: what it is for, and what it must not be used
+ * for, since a closed schema used on read would break the family's /1 promise.
+ */
+export const CLOSED_SCHEMA_COMMENT =
+  'This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).';
+
 /** A TypeScript program over the CLI's sources, for reading document types out of. */
 export function documentProgram(files: string[]): { program: ts.Program; checker: ts.TypeChecker } {
   const program = ts.createProgram(files, {
@@ -147,6 +154,7 @@ export function schemaFromType(
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $id: `https://krzysztofdudek.github.io/Yggdrasil/schemas/${meta.id.replace('/', '-')}.schema.json`,
     title: meta.title,
+    $comment: CLOSED_SCHEMA_COMMENT,
     ...body,
     ...(Object.keys(defs).length > 0 && { $defs: Object.fromEntries(Object.entries(defs).sort(([a], [b]) => a.localeCompare(b))) }),
   };

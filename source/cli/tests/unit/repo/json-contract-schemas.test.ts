@@ -25,7 +25,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { JSON_DOCUMENTS, YAML_DOCUMENTS, documentProgram, propertyNames, schemaFromFileFormat, schemaFromType, type JsonSchema } from './json-schema-from-types.js';
+import { CLOSED_SCHEMA_COMMENT, JSON_DOCUMENTS, YAML_DOCUMENTS, documentProgram, propertyNames, schemaFromFileFormat, schemaFromType, type JsonSchema } from './json-schema-from-types.js';
 import { schemaFileName, validate } from '../../support/json-schema-validate.js';
 import { fileFormat } from '../../../src/utils/file-formats.js';
 
@@ -57,6 +57,10 @@ describe('the yg-*/1 JSON Schemas are derived from the document types', () => {
         expect(idField!.const, `${d.type} does not declare schema: '${d.id}'`).toBe(d.id);
       }
     }
+  });
+
+  it('every closed schema says it checks producers and must not reject documents on read', () => {
+    for (const d of JSON_DOCUMENTS) expect(derived.get(d.id)!.$comment, d.id).toBe(CLOSED_SCHEMA_COMMENT);
   });
 
   it('the published schemas are the derived ones', () => {

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-suppressions-1.schema.json",
   "title": "Waiver inventory (yg suppressions --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
   "type": "object",
   "properties": {
     "schema": {
