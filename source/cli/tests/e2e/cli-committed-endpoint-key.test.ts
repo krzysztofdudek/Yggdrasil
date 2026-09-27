@@ -1,15 +1,15 @@
 // =============================================================================
-// CLI E2E — a committed endpoint never receives a developer's key unasked.
+// CLI E2E — a reviewer key is never withheld; yg check only warns.
 //
 // yg-config.yaml is shared: whoever last changed it decides a tier's
-// config.endpoint. The key a first-party provider (anthropic, openai, google)
-// sends is the developer's own — the environment variable, or yg-secrets.yaml.
-// Before this, a committed endpoint other than the provider's own received that
-// key on the next `yg check --approve`, and check only printed a warning. Now
-// the key goes there only when the developer names the endpoint locally in
-// yg-secrets.yaml. This drives the real binary and looks at what arrives: a
-// capture server speaking the Anthropic wire format records every request's
-// x-api-key header.
+// config.endpoint, and may even hold the key itself. Where the key sits and
+// where it goes is the repository owner's call, so Yggdrasil sends it wherever
+// the tier points and never turns the check red over it: a committed endpoint
+// that is not the provider's own, a stored key reaching a committed
+// openai-compatible server, a yg-secrets.yaml tracked by git, and a key written
+// straight into yg-config.yaml each give a warning and nothing more. This
+// drives the real binary and looks at what arrives: capture servers speaking
+// the Anthropic and OpenAI wire formats record every request's key header.
 //
 // HERMETIC: mkdtemp project, capture server on an ephemeral loopback port, the
 // child's environment stripped of every provider key but the one under test.
@@ -123,7 +123,7 @@ function run(args: string[], cwd: string): Promise<{ status: number | null; stdo
 }
 
 describe.skipIf(!distExists)('a committed first-party endpoint and the developer\'s key', () => {
-  it('the committed endpoint receives nothing: the key is withheld, check warns, and the output never shows the key', async () => {
+  it('the committed endpoint receives the key, check only warns, and the output never shows the key', async () => {
     const server = await captureServer();
     const root = project(server.endpoint);
     try {
@@ -131,18 +131,20 @@ describe.skipIf(!distExists)('a committed first-party endpoint and the developer
       expectIssue(parseJson<OutputDoc>(read.stdout), { code: 'reviewer-endpoint-committed', severity: 'warning' });
 
       const fill = await run(['check', '--approve', '--json'], root);
-      expect(server.keys, fill.all).toEqual([]);
+      expect(fill.status, fill.all).toBe(0);
+      expect(server.keys.length).toBeGreaterThan(0);
+      expect(server.keys.every((k) => k === LOCAL_KEY), JSON.stringify(server.keys)).toBe(true);
       expect(fill.all).not.toContain(LOCAL_KEY);
-      expect(fill.status, fill.all).not.toBe(0);
-      // The tier's pair is left unjudged for want of a reviewer, not judged by the committed endpoint.
-      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'unverified', cause: 'reviewer-unreachable' });
+      const doc = parseJson<OutputDoc>(fill.stdout);
+      expectIssue(doc, { code: 'reviewer-endpoint-committed', severity: 'warning' });
+      expectNoIssue(doc, { code: 'unverified' });
     } finally {
       await server.close();
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('naming the same endpoint in yg-secrets.yaml is the local opt-in: the key goes there, and the warning is gone', async () => {
+  it('naming the same endpoint in yg-secrets.yaml makes it a local choice: the key goes there, and the warning is gone', async () => {
     const server = await captureServer();
     const root = project(server.endpoint);
     w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:
@@ -190,25 +192,25 @@ function compatProject(endpoint: string): string {
   return root;
 }
 
-// A key stored in yg-secrets.yaml for one reviewer must not follow a committed
-// switch of the provider to an openai-compatible server. Before: the switched
-// tier sent the stored key to whatever endpoint the committed file named.
+// A key stored in yg-secrets.yaml for one reviewer follows a committed switch
+// of the provider to an openai-compatible server: allowed, and warned about.
 describe.skipIf(!distExists)('a key stored in yg-secrets.yaml and a committed openai-compatible endpoint', () => {
-  it('the committed server receives no stored key; naming it in yg-secrets.yaml is the opt-in', async () => {
+  it('the committed server receives the stored key; check warns until the endpoint is named locally', async () => {
     const server = await openAiCapture();
     const root = compatProject(server.endpoint);
     try {
       w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: ${STORED}\n`);
       const fill = await run(['check', '--approve', '--json'], root);
-      expect(server.auth, fill.all).toEqual([]);
+      expect(fill.status, fill.all).toBe(0);
+      expect(server.auth.length).toBeGreaterThan(0);
+      expect(server.auth.every((a) => a === `Bearer ${STORED}`), JSON.stringify(server.auth)).toBe(true);
       expect(fill.all).not.toContain(STORED);
       expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'reviewer-endpoint-committed', severity: 'warning' });
 
       w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: ${STORED}\n        endpoint: "${server.endpoint}"\n`);
-      const optedIn = await run(['check', '--approve', '--json'], root);
-      expect(optedIn.status, optedIn.all).toBe(0);
-      expect(server.auth.length).toBeGreaterThan(0);
-      expect(server.auth.every((a) => a === `Bearer ${STORED}`), JSON.stringify(server.auth)).toBe(true);
+      const local = await run(['check', '--json'], root);
+      expect(local.status, local.all).toBe(0);
+      expectNoIssue(parseJson<OutputDoc>(local.stdout), { code: 'reviewer-endpoint-committed' });
     } finally {
       await server.close();
       rmSync(root, { recursive: true, force: true });
@@ -216,23 +218,58 @@ describe.skipIf(!distExists)('a key stored in yg-secrets.yaml and a committed op
   });
 });
 
-// A yg-secrets.yaml that is tracked by git is shared like the committed file:
-// it must not be able to forge the local opt-in. Before: a tracked overlay
-// naming the endpoint sent the developer's key there.
+// A yg-secrets.yaml tracked by git is shared like the committed file. That is
+// the owner's call: its key still goes out, and check warns.
 describe.skipIf(!distExists)('a tracked yg-secrets.yaml', () => {
-  it('forges no opt-in: no key is sent, and secrets-file-tracked stands', async () => {
+  it('its key is sent and secrets-file-tracked is a warning that leaves the check green', async () => {
     const server = await captureServer();
     const root = project(server.endpoint);
     try {
-      w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        endpoint: "${server.endpoint}"\n`);
+      w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: ${STORED}\n`);
       runGitFixture(root, ['init', '-q', '-b', 'main']);
       runGitFixture(root, ['add', '-A']);
       runGitFixture(root, ['add', '-f', '.yggdrasil/yg-secrets.yaml']);
       runGitFixture(root, ['commit', '-qm', 'project with a tracked overlay']);
       const fill = await run(['check', '--approve', '--json'], root);
-      expect(server.keys, fill.all).toEqual([]);
-      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'secrets-file-tracked' });
-      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'unverified', cause: 'reviewer-unreachable' });
+      expect(fill.status, fill.all).toBe(0);
+      expect(server.keys.length).toBeGreaterThan(0);
+      expect(server.keys.every((k) => k === STORED), JSON.stringify(server.keys)).toBe(true);
+      expect(fill.all).not.toContain(STORED);
+      const doc = parseJson<OutputDoc>(fill.stdout);
+      expectIssue(doc, { code: 'secrets-file-tracked', severity: 'warning' });
+      expectNoIssue(doc, { code: 'unverified' });
+    } finally {
+      await server.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// A key written straight into the committed yg-config.yaml works: the owner
+// decided to share it. check warns (config-committed-api-key) and stays green.
+describe.skipIf(!distExists)('a key written in yg-config.yaml', () => {
+  it('is sent, and config-committed-api-key is a warning that leaves the check green', async () => {
+    const committedKey = 'sk-ant-COMMITTED-IN-CONFIG';
+    const server = await captureServer();
+    const root = project(server.endpoint);
+    try {
+      const cfg = path.join(root, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace('        temperature: 0\n', `        temperature: 0\n        api_key: ${committedKey}\n`), 'utf-8');
+      runGitFixture(root, ['init', '-q', '-b', 'main']);
+      runGitFixture(root, ['add', '-A']);
+      runGitFixture(root, ['commit', '-qm', 'project with a committed key']);
+      const fill = await run(['check', '--approve', '--json'], root);
+      expect(fill.status, fill.all).toBe(0);
+      expect(server.keys.length).toBeGreaterThan(0);
+      // config.api_key outranks ANTHROPIC_API_KEY, committed or not.
+      expect(server.keys.every((k) => k === committedKey), JSON.stringify(server.keys)).toBe(true);
+      expect(fill.all).not.toContain(committedKey);
+      const doc = parseJson<OutputDoc>(fill.stdout);
+      expectIssue(doc, { code: 'config-committed-api-key', severity: 'warning' });
+      expectNoIssue(doc, { code: 'unverified' });
+
+      const read = await run(['check'], root);
+      expect(read.status, read.all).toBe(0);
     } finally {
       await server.close();
       rmSync(root, { recursive: true, force: true });

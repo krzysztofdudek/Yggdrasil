@@ -7,8 +7,8 @@ export const KNOWN_PROVIDERS = [
  * The first-party API providers: each has one canonical endpoint, and the key
  * it sends is read from its own environment variable when no config.api_key is
  * set. `yg check` compares a committed config.endpoint against these (see
- * core/checks/credentials.ts), and the providers withhold their key from a
- * committed endpoint that is not one of them (withheldCommittedEndpoint below); the providers
+ * core/checks/credentials.ts and committedKeyEndpoint below) and warns about
+ * one that is not the provider's own; the key is still sent. The providers
  * default to the same endpoints (llm/anthropic.ts, llm/openai.ts, llm/google.ts).
  */
 const FIRST_PARTY_PROVIDERS: Readonly<Record<'anthropic' | 'openai' | 'google', { endpoint: string; envVar: string }>> = {
@@ -34,27 +34,25 @@ function isCanonicalEndpoint(provider: { endpoint: string }, endpoint: string): 
 }
 
 /**
- * The committed endpoint a tier refuses to send the developer's key to, or
- * undefined when the key may go.
+ * The endpoint named only in the committed yg-config.yaml that a tier sends the
+ * developer's key to, when `yg check` should say so; undefined when there is
+ * nothing to point out.
  *
- * The key is the developer's own — their environment variable, or their
- * yg-secrets.yaml — while yg-config.yaml is shared: whoever last changed the
- * committed file would otherwise decide where that key travels on the next
- * `yg check --approve`. So a key goes to an endpoint named only in the
- * committed file in two cases alone: it is a first-party provider's own
- * canonical endpoint, or the key is `OPENAI_COMPATIBLE_API_KEY`, the variable
- * that exists for whatever server an openai-compatible tier names. Everything
- * else needs the endpoint named for the tier in yg-secrets.yaml — the same URL
- * as the committed one is the explicit way to accept it — and then the local
- * value wins, so a later committed change cannot move the key either:
- *   - a first-party tier (anthropic, openai, google) at any other endpoint,
- *     whatever the key's source;
- *   - an openai-compatible tier whose key is a `config.api_key` (in practice
- *     stored in yg-secrets.yaml for some earlier reviewer): switching the
- *     committed provider to openai-compatible must not carry it to a new server.
- * ollama and the CLI providers send no key.
+ * The key is the developer's own — their environment variable, or a
+ * config.api_key — while yg-config.yaml is shared: whoever last changed the
+ * committed file decides where that key travels on the next
+ * `yg check --approve`. That is allowed; the key is sent. The warning only
+ * makes the destination visible on every check:
+ *   - a first-party tier (anthropic, openai, google) at any endpoint other than
+ *     the provider's own canonical one (plain http included), whatever the
+ *     key's source;
+ *   - an openai-compatible tier holding a `config.api_key` (in practice stored
+ *     in yg-secrets.yaml for some earlier reviewer), which a committed switch
+ *     of the provider carries to the server the committed file names.
+ * An endpoint the tier names in yg-secrets.yaml is the developer's own choice
+ * and is not pointed out. ollama and the CLI providers send no key.
  */
-export function withheldCommittedEndpoint(config: {
+export function committedKeyEndpoint(config: {
   provider: string;
   endpoint?: string;
   endpointSource?: 'committed' | 'local';

@@ -32,8 +32,6 @@ import {
   readReviewerTarget,
   type ReviewerChoice,
   settleStoredKey,
-  endpointIsLocal,
-  localEndpointNotice,
   storedKeyNotice,
 } from './init-reviewer-setup.js';
 import {
@@ -298,12 +296,7 @@ async function freshInit(
  */
 async function writeReviewerWithKey(yggRoot: string, choice: ReviewerChoice): Promise<void> {
   const prev = await readReviewerTarget(yggRoot);
-  // A first-party endpoint a key may reach only locally goes to yg-secrets.yaml
-  // alone (settleStoredKey writes it). An openai-compatible tier keeps its
-  // endpoint in the committed file too — it cannot run without one — and
-  // settleStoredKey also names it locally, so the typed key may go there.
-  const localOnly = choice.provider !== 'openai-compatible' && endpointIsLocal(choice.provider, choice.endpoint, choice.apiKey !== undefined);
-  await writeReviewerConfig(yggRoot, localOnly ? { provider: choice.provider, model: choice.model } : choice);
+  await writeReviewerConfig(yggRoot, choice);
   const outcome = await settleStoredKey(yggRoot, prev, {
     provider: choice.provider,
     endpoint: choice.endpoint,
@@ -311,7 +304,7 @@ async function writeReviewerWithKey(yggRoot: string, choice: ReviewerChoice): Pr
     keyAnswered: choice.keyAnswered === true,
   });
   const notice = storedKeyNotice(outcome, prev, undefined, await readReviewerTarget(yggRoot));
-  if (notice) (outcome === 'withheld' ? p.log.warning : p.log.info)(buildIssueMessage(notice));
+  if (notice) (outcome === 'stored-overridden' ? p.log.warning : p.log.info)(buildIssueMessage(notice));
 }
 
 // ---------------------------------------------------------------------------
@@ -358,11 +351,7 @@ async function persistReviewerConfig(
   // Read where the tier sent its key BEFORE rewriting it: a key stored for the
   // previous reviewer must not follow the tier to a new one.
   const prev = await readReviewerTarget(yggRoot);
-  // An endpoint a key may reach only as a local choice goes to yg-secrets.yaml
-  // (settleStoredKey writes it there); the committed file gets the rest.
-  const local = endpointIsLocal(provider, endpoint, false);
-  await writeReviewerConfig(yggRoot, { provider, model, ...(local ? {} : { endpoint }) });
-  if (local && endpoint !== undefined) writeOut(paint.yellow(`${buildIssueMessage(localEndpointNotice(provider, endpoint))}\n`));
+  await writeReviewerConfig(yggRoot, { provider, model, endpoint });
   // The environment's key is never written: the reviewer reads the variable
   // itself at run time. Only a stale stored key is settled here.
   const outcome = await settleStoredKey(yggRoot, prev, { provider, endpoint, keyAnswered: keyEnvVar !== undefined });

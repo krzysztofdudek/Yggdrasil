@@ -1,14 +1,16 @@
-name: E2E Tests — a committed endpoint gets no developer key
+name: E2E Tests — a reviewer key is never withheld, only warned about
 type: test-suite
 description: >-
-  Subprocess E2E for the rule that a first-party reviewer (anthropic, openai,
-  google) sends its key to an endpoint other than the provider's own only when
-  the developer names that endpoint locally. The committed yg-config.yaml
-  points an anthropic tier at a capture server; with the developer's key in
-  the environment, a real fill must send that server nothing and leave the
-  pair unverified, while a plain check warns. Naming the same endpoint in
-  yg-secrets.yaml is the opt-in: the next fill reaches the server with the key
-  and the warning is gone.
+  Subprocess E2E for the rule that Yggdrasil never refuses or withholds a
+  reviewer key over where it sits or where it goes; it only warns. Capture
+  servers stand in for the provider: a committed anthropic endpoint that is
+  not the provider's own receives the developer's key with a
+  reviewer-endpoint-committed warning (naming it in yg-secrets.yaml silences
+  the warning); a key stored in yg-secrets.yaml reaches a committed
+  openai-compatible server; a yg-secrets.yaml tracked by git still sends its
+  key with a secrets-file-tracked warning; and a key written in the committed
+  yg-config.yaml is sent with a config-committed-api-key warning. Every fill
+  exits 0 and no output repeats a key.
 aspects: []
 relations:
   - target: cli/tests/support

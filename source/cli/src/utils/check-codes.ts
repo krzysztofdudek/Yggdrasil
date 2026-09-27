@@ -65,10 +65,9 @@ export const STRUCTURAL_CODES: ReadonlySet<string> = new Set<CheckCode>([
   // the configuration is in effect; the key itself blocks until it is renamed or
   // removed, because whatever it was meant to set is not set.
   'config-unknown-key',
-  // A reviewer credential in the committed configuration, or the local secrets
-  // overlay tracked by git (core/checks/credentials.ts).
-  'config-committed-api-key',
-  'secrets-file-tracked',
+  // Not here: config-committed-api-key and secrets-file-tracked
+  // (core/checks/credentials.ts). Where a reviewer key sits is the repository
+  // owner's call, so both are warnings and never block.
   'duplicate-aspect-id',
   'node-yaml-missing',
   // A yg-node.yaml the loader never reached — under a directory that is no node,

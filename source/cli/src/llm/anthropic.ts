@@ -1,6 +1,6 @@
 import type { LlmProvider, AspectResponse } from './types.js';
 import type { LlmConfig } from '../model/graph.js';
-import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, unavailableKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
+import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, missingKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
 import { parseAspectResponse } from './cli-base.js';
 import { registerProvider } from './provider.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -12,7 +12,6 @@ export class AnthropicProvider implements LlmProvider {
   private apiKey: string;
   private timeout: number;
   private providerName: string;
-  private config: LlmConfig;
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'https://api.anthropic.com/v1';
@@ -21,7 +20,6 @@ export class AnthropicProvider implements LlmProvider {
     this.apiKey = resolveApiKey(config) ?? '';
     this.timeout = config.timeout ?? DEFAULT_API_TIMEOUT_MS;
     this.providerName = config.provider;
-    this.config = config;
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
@@ -70,7 +68,7 @@ export class AnthropicProvider implements LlmProvider {
 
   async isAvailable(): Promise<boolean> { return !!this.apiKey; }
 
-  async unavailableReason(): Promise<string> { return unavailableKeyReason(this.config); }
+  async unavailableReason(): Promise<string> { return missingKeyReason(this.providerName); }
 }
 
 registerProvider('anthropic', (c) => new AnthropicProvider(c));

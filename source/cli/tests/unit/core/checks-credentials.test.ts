@@ -1,6 +1,7 @@
 // Reviewer credentials in the committed configuration, a tracked secrets
 // overlay, and a committed endpoint that would receive the environment's key.
-// Before: all three passed `yg check` silently.
+// All three are warnings: where a reviewer key sits and where it goes is the
+// repository owner's call, so none of them blocks and no key is withheld.
 
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
@@ -55,12 +56,16 @@ reviewer:
 ${extra}`;
 
 describe('checkReviewerCredentials', () => {
-  it('an api_key in the committed yg-config.yaml is a blocking error that never repeats the key', async () => {
-    const issues = await issuesFor(project(tier('        api_key: sk-ant-committed-123\n')));
+  it('an api_key in the committed yg-config.yaml is a warning, never a block, and never repeats the key', async () => {
+    const root = project(tier('        api_key: sk-ant-committed-123\n'));
+    const issues = await issuesFor(root);
     expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ severity: 'error', code: 'config-committed-api-key' });
+    expect(issues[0]).toMatchObject({ severity: 'warning', code: 'config-committed-api-key' });
     expect(JSON.stringify(issues)).not.toContain('sk-ant-committed-123');
-    expect(STRUCTURAL_CODES.has('config-committed-api-key')).toBe(true);
+    expect(STRUCTURAL_CODES.has('config-committed-api-key')).toBe(false);
+    // The key stays in effect: the tier carries it to the provider.
+    const config = await parseConfig(path.join(root, '.yggdrasil', 'yg-config.yaml'));
+    expect(config.reviewer?.tiers.standard.api_key).toBe('sk-ant-committed-123');
   });
 
   it('an api_key in the gitignored overlay is the documented place and passes', async () => {
@@ -68,10 +73,14 @@ describe('checkReviewerCredentials', () => {
     expect(issues).toEqual([]);
   });
 
-  it('a force-tracked yg-secrets.yaml is a blocking error', async () => {
-    const issues = await issuesFor(project(tier(''), 'reviewer:\n  tiers:\n    standard:\n      config:\n        model: claude-x\n', { trackSecrets: true }));
-    expect(issues.map((i) => [i.severity, i.code])).toEqual([['error', 'secrets-file-tracked']]);
-    expect(STRUCTURAL_CODES.has('secrets-file-tracked')).toBe(true);
+  it('a force-tracked yg-secrets.yaml is a warning, and the key it holds stays in effect', async () => {
+    const root = project(tier(''), 'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: sk-tracked\n', { trackSecrets: true });
+    const issues = await issuesFor(root);
+    expect(issues.map((i) => [i.severity, i.code])).toEqual([['warning', 'secrets-file-tracked']]);
+    expect(STRUCTURAL_CODES.has('secrets-file-tracked')).toBe(false);
+    expect(JSON.stringify(issues)).not.toContain('sk-tracked');
+    const config = await parseConfig(path.join(root, '.yggdrasil', 'yg-config.yaml'));
+    expect(config.reviewer?.tiers.standard.api_key).toBe('sk-tracked');
   });
 
   it('a committed plain-http endpoint that would receive the environment key is warned about, whether or not the key is set here', async () => {
@@ -93,10 +102,11 @@ describe('checkReviewerCredentials', () => {
     expect(await issuesFor(project(tier(''), 'reviewer:\n  tiers:\n    standard:\n      config:\n        endpoint: http://127.0.0.1:9911\n'))).toEqual([]);
   });
 
-  it('a key stored in the local overlay does not exempt a committed endpoint: that key is withheld from it too', async () => {
+  it('a key stored in the local overlay does not exempt a committed endpoint: the key goes there, and the warning says so', async () => {
     const root = project(tier('        endpoint: https://proxy.example.test/v1\n'), 'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: sk-local\n');
     const issues = await issuesFor(root);
     expect(issues.map((i) => [i.severity, i.code])).toEqual([['warning', 'reviewer-endpoint-committed']]);
+    expect(issues[0].messageData?.what).toContain('sends its API key');
     expect(JSON.stringify(issues)).not.toContain('sk-local');
   });
 
