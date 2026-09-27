@@ -39,6 +39,8 @@ A check fails when this page and the code disagree — in either direction, in a
 | Convention check (`grain check --json`, `grain review --json`) | `grain-check/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Obligation (`grain obligation --json`) | `grain-obligation/1` | Grain | Horde — `tk new` | before 6.0.0 | [this page](/family-contracts) |
 | Co-change partners (`grain completeness --json`) | `grain-completeness/1` | Grain | Horde — the architect, planned (it does not read the document yet) | 6.1.0 | [this page](/family-contracts) |
+| Co-change and cut score (`grain cochange --json`) | `grain-cochange/1` | Grain | Horde — the architect's plan cut along co-change seams, planned (issue 448; it does not read the document yet) | 6.1.0 | [this page](/family-contracts) |
+| Territory measurement (`grain measure --json`) | `grain-measure/1` | Grain | Horde — the architect's before/after measurement in the client report (`horde-report/1`), planned (issue 448; it does not read the document yet) | 6.1.0 | [this page](/family-contracts) |
 | Proposal report (`grain propose --json`) | `grain-propose/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle record (`oracle.json`) | `grain-oracle/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Adopter correction inside an oracle record | `grain-correction/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
@@ -67,7 +69,7 @@ A document can declare more than its producers write. The register says who prod
 
 - `relation` — filled by Grain, `grain advise`.
 - `split` — filled by Grain, `grain advise`.
-- `rule` — no producer today. Grain could fill it and does not yet.
+- `rule` — filled by Grain, `grain advise`, since 6.1.0 (issue 446).
 - `port` — no producer. Grain reads no aspects, so it has nothing to name a contract from.
 
 Yggdrasil's `yg advise import` accepts all four kinds, because they are the graph's own vocabulary. A look-alike group (a set of similar files) does not travel in `grain-advice/1` as a `rule`: an advice item names components in `nodes`, and a look-alike group can cut across components, so look-alike groups have their own document, one file per producer: `.family-candidates.<producer>.json`. That file name keeps the older word "family"; everywhere else on this page, "family" means the tool family.
