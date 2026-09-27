@@ -230,3 +230,7 @@ The agent manual, the knowledge topics and the glossary are aligned with two own
 The operating manual names yg-flow.yaml among the files that accept only the keys their schemas list, says a value of the wrong type is refused as well, and lists every format yg schemas covers, because both became true: flows are held to their schema and every file is checked against the types its schema declares.
 ## [2026-09-27T05:50:25.693Z]
 The manual and the knowledge topics now say when a merge owes a log entry: a merge that combined both sides changes in a component changed its source and owes the reason for the merge, which only the person who merged knows, while a merge that changed only the log owes nothing. The documented merge order now includes that entry, since without it the recipe ended on a missing-entry error.
+## [2026-09-27T07:13:29.577Z]
+The manual and the knowledge now say that only a structural relation sanctions an import and that an event pair is no way around a structural cycle, matching what the relation check enforces.
+## [2026-09-27T07:39:26.992Z]
+The manual, the knowledge and the architecture schema now say that parents: also govern the top level and that root is the reserved entry allowing a type to sit there.

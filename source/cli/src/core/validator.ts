@@ -8,6 +8,7 @@ import { issueMsg } from './checks/shared.js';
 import { toPosixPath } from '../utils/posix.js';
 import {
   checkTypeUnknownParent,
+  checkTypeNameReserved,
   checkRelationTargetTypeUnknown,
   checkArchitectureParentCycles,
   checkEnforceStrictWithoutWhen,
@@ -60,6 +61,7 @@ import {
 // Architecture-level errors that abort per-node and global validation stages.
 const ARCHITECTURE_FATAL_CODES = new Set<string>([
   'type-unknown-parent',
+  'type-name-reserved',
   'architecture-cycle',
   'enforce-strict-without-when',
   'when-predicate-invalid',
@@ -233,6 +235,7 @@ export async function validate(
 
   // Stage 3: architecture-level checks — fatal errors short-circuit per-node + global stages.
   const archIssues: ValidationIssue[] = [];
+  archIssues.push(...checkTypeNameReserved(graph));
   archIssues.push(...checkTypeUnknownParent(graph));
   archIssues.push(...checkRelationTargetTypeUnknown(graph));
   archIssues.push(...checkArchitectureParentCycles(graph));

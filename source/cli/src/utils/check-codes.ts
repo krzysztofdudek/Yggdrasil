@@ -88,6 +88,8 @@ export const STRUCTURAL_CODES: ReadonlySet<string> = new Set<CheckCode>([
   // not a defined node type (and not the '*' wildcard) — a dangling reference
   // that silently over-restricts the relation. Blocking, like type-unknown-parent.
   'relation-target-type-unknown',
+  // A node type named root, the reserved parents: entry for the top level.
+  'type-name-reserved',
   'when-predicate-invalid',
   'when-unknown-type',
   'when-unknown-node',

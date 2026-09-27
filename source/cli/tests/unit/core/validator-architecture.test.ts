@@ -157,8 +157,8 @@ describe('checkArchitectureParentCycles', () => {
     const graph = createGraph({
       architecture: {
         node_types: {
-          module: { description: 'Mod', parents: ['module', 'root'] },
-          root: { description: 'Root' },
+          module: { description: 'Mod', parents: ['module', 'top'] },
+          top: { description: 'Top' },
         },
       },
     });
@@ -190,6 +190,80 @@ describe('checkArchitectureParentCycles', () => {
     });
     const result = await validate(graph);
     expect(result.issues.find((i) => i.code === 'architecture-cycle')).toBeUndefined();
+  });
+});
+
+describe('parents: the top level (root)', () => {
+  function topLevel(parents: string[]): Graph {
+    const top = createNode('api', { type: 'service' });
+    return createGraph({
+      architecture: {
+        node_types: {
+          module: { description: 'Module' },
+          service: { description: 'Service', parents },
+        },
+      },
+      nodes: new Map([['api', top]]),
+    });
+  }
+
+  it('refuses a top-level node whose type lists parents without root', async () => {
+    const result = await validate(topLevel(['module']));
+    const issue = result.issues.find((i) => i.code === 'parent-type-forbidden');
+    expect(issue?.nodePath).toBe('api');
+  });
+
+  it('accepts a top-level node whose type lists root among its parents', async () => {
+    const result = await validate(topLevel(['root', 'module']));
+    const codes = result.issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+    expect(codes).not.toContain('type-unknown-parent');
+  });
+
+  it('accepts a node under a listed parent when the list also names root', async () => {
+    const mod = createNode('app', { type: 'module' });
+    const svc = createNode('app/api', { type: 'service' });
+    svc.parent = mod;
+    mod.children = [svc];
+    const graph = createGraph({
+      architecture: {
+        node_types: {
+          module: { description: 'Module' },
+          service: { description: 'Service', parents: ['root', 'module'] },
+        },
+      },
+      nodes: new Map([['app', mod], ['app/api', svc]]),
+    });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+    expect(codes).not.toContain('type-unknown-parent');
+  });
+
+  it('an empty parents: list places a node anywhere, the top level included, like no list', async () => {
+    const codes = (await validate(topLevel([]))).issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+  });
+
+  it('refuses a node type named root, the reserved top-level entry', async () => {
+    const graph = createGraph({
+      architecture: {
+        node_types: {
+          root: { description: 'Root' },
+          child: { description: 'Child', parents: ['root'] },
+        },
+      },
+    });
+    const issue = (await validate(graph)).issues.find((i) => i.code === 'type-name-reserved');
+    expect(issue?.severity).toBe('error');
+  });
+
+  it('a self-loop with root among its parents is placeable: no architecture-cycle, and root is no unknown parent', async () => {
+    const graph = createGraph({
+      architecture: { node_types: { module: { description: 'Mod', parents: ['root', 'module'] } } },
+    });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).not.toContain('architecture-cycle');
+    expect(codes).not.toContain('type-unknown-parent');
   });
 });
 

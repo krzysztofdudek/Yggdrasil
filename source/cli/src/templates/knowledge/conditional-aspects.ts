@@ -236,6 +236,12 @@ node_types:
 A bare \`path\` plus \`content\` at the top level implies \`all_of\` of both atoms.
 (File classification deep dive: \`yg knowledge read working-with-architecture\`.)
 
+The two sites differ on one kind of file. Type classification auto-exempts a
+file under \`.yggdrasil/\` (a type's \`when\` is true for it without being read,
+so a graph file may be mapped to a node of any type). \`scope.files\` has no such
+exemption: it filters a mapped \`.yggdrasil/\` file exactly as it filters source
+(\`yg knowledge read meta-modeling\`).
+
 ## Propagation through channels
 
 Aspect-global \`when\` (on the aspect definition) and per-attach-site \`when\`

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 
-import { DEFAULT_PORT_NAME } from '../../model/graph.js';
+import { DEFAULT_PORT_NAME, ROOT_PARENT } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
@@ -13,12 +13,34 @@ import { isGlobPattern, mappingEntryMatchesFile } from '../../utils/mapping-path
 import { toPosixPath } from '../../utils/posix.js';
 import { getChildMappingExclusions } from '../pairs.js';
 
+/**
+ * A node type may not be named ROOT_PARENT: in a `parents:` list that name
+ * stands for the top of the model, so a type called `root` would be both a
+ * parent type and the top level at once — a child listing it would sit at the
+ * top and silently stop inheriting that type's rules.
+ */
+export function checkTypeNameReserved(graph: Graph): ValidationIssue[] {
+  if (!Object.hasOwn(graph.architecture.node_types, ROOT_PARENT)) return [];
+  const msgData: IssueMessage = {
+    what: `Architecture type '${ROOT_PARENT}' uses a reserved name.`,
+    why: `In a parents: list '${ROOT_PARENT}' stands for the top level of the model, never for a type — a child listing it would not inherit this type's rules.`,
+    next: `Rename the type '${ROOT_PARENT}' in yg-architecture.yaml, and the type: of every node that declares it — an architecture change, so ask the user to approve it first.`,
+  };
+  return [{
+    severity: 'error',
+    code: 'type-name-reserved',
+    rule: 'type-name-reserved',
+    ...issueMsg(msgData),
+    messageData: msgData,
+  }];
+}
+
 export function checkTypeUnknownParent(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const knownTypes = new Set(Object.keys(graph.architecture.node_types));
   for (const [typeName, typeConfig] of Object.entries(graph.architecture.node_types)) {
     for (const parent of typeConfig.parents ?? []) {
-      if (!knownTypes.has(parent)) {
+      if (parent !== ROOT_PARENT && !knownTypes.has(parent)) {
         const msgData: IssueMessage = {
           what: `Architecture type '${typeName}' declares parent '${parent}' which is not defined in node_types.`,
           why: `Parent types must be defined in yg-architecture.yaml — referencing an undefined type makes the architecture semantically invalid.`,
@@ -81,7 +103,7 @@ export function checkArchitectureParentCycles(graph: Graph): ValidationIssue[] {
   // Skip if any parent reference is unknown — checkTypeUnknownParent handles that
   const knownTypes = new Set(typeIds);
   for (const def of Object.values(types)) {
-    if (def.parents?.some((p) => !knownTypes.has(p))) return [];
+    if (def.parents?.some((p) => p !== ROOT_PARENT && !knownTypes.has(p))) return [];
   }
 
   // Pass 1: DFS three-color — collect back-edges (cycle-forming edges)
@@ -101,16 +123,17 @@ export function checkArchitectureParentCycles(graph: Graph): ValidationIssue[] {
     if (color.get(typeId) === BLACK) return;
     color.set(typeId, GRAY);
     path.push(typeId);
-    for (const parent of types[typeId]?.parents ?? []) dfs(parent, path);
+    for (const parent of types[typeId]?.parents ?? []) if (parent !== ROOT_PARENT) dfs(parent, path);
     path.pop();
     color.set(typeId, BLACK);
   }
   for (const id of typeIds) { if (color.get(id) === WHITE) dfs(id, []); }
 
-  // Pass 2: BFS per type excluding back-edges — check if rootable type reachable
+  // Pass 2: BFS per type excluding back-edges — check if rootable type reachable.
+  // A type may sit at the top when it lists no parents, or lists ROOT_PARENT.
   function isRootable(id: string): boolean {
     const parents = types[id]?.parents;
-    return !parents || parents.length === 0;
+    return !parents || parents.length === 0 || parents.includes(ROOT_PARENT);
   }
   function canReachRootable(typeId: string): boolean {
     if (isRootable(typeId)) return true;
@@ -136,7 +159,7 @@ export function checkArchitectureParentCycles(graph: Graph): ValidationIssue[] {
   const msgData: IssueMessage = {
     what: `Cycle in parents: declarations: ${cycleStr}\nTrapped types: ${trapped.join(', ')}`,
     why: `Every type in the cycle can only reach other cycle members — no rootable type is reachable. Nodes of these types can never be instantiated.`,
-    next: `Break the cycle: add a rootable parent (one with no parents:), remove one parents: declaration, or add a third type as alternative parent.`,
+    next: `Break the cycle: add '${ROOT_PARENT}' to one trapped type's parents: so it may sit at the top level, add a rootable parent (a type with no parents: or with '${ROOT_PARENT}' in them), or remove one parents: declaration.`,
   };
   return [{
     severity: 'error',
@@ -501,7 +524,26 @@ export function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 
   for (const [nodePath, node] of graph.nodes) {
     const typeConfig = graph.architecture.node_types[node.meta.type];
-    if (!typeConfig?.parents || !node.parent) {
+    // An empty parents: list means what no list means — anywhere — as the
+    // parser and the cycle check read it.
+    if (!typeConfig?.parents || typeConfig.parents.length === 0) continue;
+
+    // A top-level node: its type must name the top level among its parents.
+    if (!node.parent) {
+      if (typeConfig.parents.includes(ROOT_PARENT)) continue;
+      const msgData: IssueMessage = {
+        what: `Node '${node.path}' (type '${node.meta.type}') sits at the top level of the model, but its type may sit only under [${typeConfig.parents.join(', ')}].`,
+        why: `A type's parents: list every place a node of that type may sit; the top level is one of them only when the list names '${ROOT_PARENT}'.`,
+        next: `Either move this node under a node of an allowed parent type, change this node's type, or add '${ROOT_PARENT}' to '${node.meta.type}.parents' in yg-architecture.yaml — an architecture change, so ask the user to approve it first.`,
+      };
+      issues.push({
+        severity: 'error',
+        code: 'parent-type-forbidden',
+        rule: 'invalid-parent-type',
+        nodePath,
+        ...issueMsg(msgData),
+        messageData: msgData,
+      });
       continue;
     }
 

@@ -16,6 +16,16 @@ export const RELATION_TYPES: readonly RelationType[] = [
 ];
 
 /**
+ * The relation types that sanction a code dependency: a component may import
+ * another's code only through one of these. The event types (`emits`,
+ * `listens`) describe a message exchanged between two components, never a
+ * static reference to the other's code, so declaring one does not sanction an
+ * import — otherwise an event pair would silently stand in for a dependency
+ * the structural types forbid as a cycle.
+ */
+export const STRUCTURAL_RELATION_TYPES: ReadonlySet<RelationType> = new Set<RelationType>(['uses', 'calls', 'extends', 'implements']);
+
+/**
  * Applicability filter. Evaluated by the CLI against the graph before an aspect
  * is considered effective on a node. If the predicate evaluates to false, the
  * aspect is silently skipped on that node regardless of which channel attached it.

@@ -51,7 +51,7 @@ import {
   computeEffectiveAspectStatuses,
   isAggregateAspect,
 } from './graph/aspects.js';
-import { evaluateFileWhen } from './file-when-evaluator.js';
+import { evaluateScopeFiles } from './file-when-evaluator.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { BINARY_EXTENSIONS } from '../utils/binary-extensions.js';
 import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
@@ -141,7 +141,7 @@ export interface UnreadableSubject {
   nodePath?: string;
   aspectId: string;
   path: string;          // repo-relative POSIX
-  reason: string;        // from evaluateFileWhen's unreadableReason (or a clear fallback)
+  reason: string;        // from evaluateScopeFiles's unreadableReason (or a clear fallback)
   messageData: IssueMessage;
 }
 
@@ -346,8 +346,8 @@ export function computeUncomputableNodes(graph: Graph): Set<string> {
  *   2. Skip aggregates (no reviewer, no verdict).
  *   3. Skip draft unless includeDraft.
  *   4. Expand mapping paths (child carve-out applied).
- *   5. Filter by scope.files predicate (evaluateFileWhen) — absent = all files.
- *      Files where evaluateFileWhen reports unreadable: true are EXCLUDED from
+ *   5. Filter by scope.files predicate (evaluateScopeFiles) — absent = all files.
+ *      Files where evaluateScopeFiles reports unreadable: true are EXCLUDED from
  *      the subject set and recorded in the returned `unreadable` array.
  *   6. For LLM aspects: additionally exclude binaries (by extension).
  *   7. Empty subject set → no pair.
@@ -454,7 +454,7 @@ export async function computeExpectedPairs(
       if (scope?.files) {
         const results = await Promise.all(
           nodeFiles.map((p) =>
-            evaluateFileWhen(scope.files!, {
+            evaluateScopeFiles(scope.files!, {
               absPath: path.resolve(projectRoot, p),
               repoRelPath: p,
               projectRoot,
@@ -652,7 +652,7 @@ export async function computeExpectedPairs(
 
       // scope.files content/path predicate, evaluated over this one file.
       if (scope?.files) {
-        const result = await evaluateFileWhen(scope.files, {
+        const result = await evaluateScopeFiles(scope.files, {
           absPath: path.resolve(projectRoot, file),
           repoRelPath: file,
           projectRoot,

@@ -66,6 +66,7 @@ export type CheckCode =
   | 'type-undefined'
   | 'type-undefined-pending'
   | 'type-unknown-parent'
+  | 'type-name-reserved'
   | 'parent-type-forbidden'
   | 'type-when-mismatch'
   | 'type-without-when-with-mapping'

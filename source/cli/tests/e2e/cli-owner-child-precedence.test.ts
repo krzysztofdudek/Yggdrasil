@@ -37,7 +37,7 @@ const ARCHITECTURE = [
   '    log_required: false',
   '    when:',
   '      path: "src/**/*.ts"',
-  '    parents: [module, code]',
+  '    parents: [root, module, code]',
   '    relations:',
   '      calls: [code]',
   '',

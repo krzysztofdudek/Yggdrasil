@@ -59,12 +59,12 @@ One project-level setting changes where it blocks, and only there. When [progres
 
 There are two ways to clear a refusal:
 
-1. **Declare the relation** in the component's `yg-node.yaml`, with a type the architecture allows between the two node types. A relation declared to a *parent* node also sanctions dependencies on any of its descendants, so you can point one relation at a subtree's root instead of at each child.
+1. **Declare the relation** in the component's `yg-node.yaml`, with a structural type (`calls`, `uses`, `extends` or `implements`) the architecture allows between the two node types. An event relation (`emits` / `listens`) does not count: it describes a message the two exchange, not an import of the other's code. A relation declared to a *parent* node also sanctions dependencies on any of its descendants, so you can point one relation at a subtree's root instead of at each child.
 2. **Remove the dependency** if the code should not depend on the other component.
 
-If no relation type is allowed between the two node types, that is an architecture decision. Your agent surfaces it for your confirmation — you either change a node's type so an allowed relation exists, or extend the allowed relations in `yg-architecture.yaml`.
+If no structural relation type is allowed between the two node types, that is an architecture decision. Your agent surfaces it for your confirmation — you either change a node's type so an allowed relation exists, or extend the allowed relations in `yg-architecture.yaml`.
 
-One caveat on declaring the relation: the four structural relation types (`calls`, `uses`, `extends`, `implements`) must form a DAG. If two components depend on each other, declaring both directions creates a cycle, which a separate always-blocking validator rejects with a `structural-cycle` error (a component relating to itself counts too). Break the cycle — extract the shared piece into a third component both depend on — rather than declaring a mutual dependency.
+One caveat on declaring the relation: the four structural relation types (`calls`, `uses`, `extends`, `implements`) must form a DAG. If two components depend on each other, declaring both directions creates a cycle, which a separate always-blocking validator rejects with a `structural-cycle` error (a component relating to itself counts too). Break the cycle — extract the shared piece into a third component both depend on — rather than declaring a mutual dependency. An `emits` / `listens` pair is no way around it: event relations sanction no import.
 
 It also never passes over code it could not read. If a language's parser cannot be loaded, every file in that language would contribute zero detected dependencies — which would look exactly like "this file depends on nothing". Rather than go green over unanalyzed code, the check fails closed with a blocking `relation-parse-failed` naming the language and an affected file.
 

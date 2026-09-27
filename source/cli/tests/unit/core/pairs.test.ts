@@ -221,6 +221,26 @@ describe('computeExpectedPairs', () => {
     expect(pairs[0].subjectFiles).toEqual(['src/handler.ts']);
   });
 
+  it('scope.files filters a mapped .yggdrasil/ file like any other: the classification auto-exempt does not reach it', async () => {
+    writeFile('.yggdrasil/aspects/audit/check.mjs', 'export function check() { return []; }');
+    writeFile('.yggdrasil/aspects/audit/content.md', '# Audit');
+
+    const graph = buildPairsGraph(
+      tmpDir,
+      [{ path: 'rules', mapping: ['.yggdrasil/aspects/audit/check.mjs', '.yggdrasil/aspects/audit/content.md'], aspects: ['code-only', 'fn-only'] }],
+      [
+        { id: 'code-only', kind: 'llm', scope: { per: 'node', files: { path: '**/*.mjs' } } },
+        { id: 'fn-only', kind: 'llm', scope: { per: 'file', files: { content: 'export function' } } },
+      ],
+    );
+
+    const { pairs } = await computeExpectedPairs(graph);
+    expect(pairs.map((p) => [p.aspectId, p.subjectFiles])).toEqual([
+      ['code-only', ['.yggdrasil/aspects/audit/check.mjs']],
+      ['fn-only', ['.yggdrasil/aspects/audit/check.mjs']],
+    ]);
+  });
+
   it('scope.files content filter narrows the subject set', async () => {
     writeFile('src/alpha.ts', 'export function doThing() {}');
     writeFile('src/beta.ts', 'export const x = 1;');

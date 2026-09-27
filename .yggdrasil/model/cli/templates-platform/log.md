@@ -50,3 +50,5 @@ The installer now takes the project choice of which agent-rules artifacts to car
 The scaffolded configuration a fresh project starts from now explains, in the file itself, which agent-rules files the project carries and how to decline one, without showing a commented-out block of the very key the command writes when a user does decline — two stanzas of the same name, one live and one an example, read as a contradiction in a file people are meant to hand-edit.
 ## [2026-09-24T14:24:38.696Z]
 The installed agent-rules digest changed wording to match the Glossary (the reviewer and local scripts verify a change, every rule honors suppressions), so its hash moved and the installed copies here were refreshed with yg init --upgrade to keep them from reading as stale.
+## [2026-09-27T07:39:28.132Z]
+The starter architecture comment names root as the parents entry that allows the top level, so a new project learns the rule where it declares parents.

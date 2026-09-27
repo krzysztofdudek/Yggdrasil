@@ -9,8 +9,8 @@ error[relation-undeclared-dependency] Node 'app/svc-01' has undeclared dependenc
           src/svc-01/index.ts:3 → app/svc-03
   why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
   fix:  Declare the missing relations in .yggdrasil/model/app/svc-01/yg-node.yaml (or remove the dependency if it is not legitimate):
-        app/svc-02: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
-        app/svc-03: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
+        app/svc-02: allowed relation types [uses, calls, extends, implements]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
+        app/svc-03: allowed relation types [uses, calls, extends, implements]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
 
 warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
   at:   .clinerules/yggdrasil.md

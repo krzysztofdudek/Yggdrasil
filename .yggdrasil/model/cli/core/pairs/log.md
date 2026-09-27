@@ -34,3 +34,5 @@ Readability of a component's subject files was probed one awaited call at a time
 Type-only imports now count as dependencies between components, the same as value imports. The expected-pair type moved to the model layer: the impact graph, which pair enumeration calls, named it back through this module, a cycle between the two components. This module re-exports it under its old name.
 ## [2026-09-27T00:25:45.765Z]
 Stopped re-exporting the sentence for an absorbed implies cycle. It was re-exported only so the portal facade could print it without a relation to the cascade module; the sentence now lives in the formatter layer, which the facade may call directly.
+## [2026-09-27T07:54:28.321Z]
+A rule’s scope.files now filters mapped .yggdrasil/ files like any other, so the subject set of a meta rule is what its author wrote rather than every mapped graph file.

@@ -215,6 +215,8 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #       any_of: [...]       OR
                                    #       not: <clause>       negation
                                    #     Top-level path + content imply all_of.
+                                   #     Applies to every mapped file, .yggdrasil/ ones included — the
+                                   #     .yggdrasil/ auto-exempt belongs to type classification only.
                                    #
                                    #     NOTE: path/content are FILE atoms — they belong here in scope.files.
                                    #     The aspect-level when: field uses NODE atoms (node, relations,

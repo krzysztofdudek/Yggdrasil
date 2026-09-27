@@ -24,4 +24,4 @@ node_types:
     log_required: false
     when:
       path: "tests/**"
-    parents: [module]
+    parents: [root, module]

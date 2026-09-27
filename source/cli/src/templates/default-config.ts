@@ -52,7 +52,7 @@ export const DEFAULT_ARCHITECTURE = `# Define your node types below. Each type m
 #                                     types without \`when\` are organizational (parent-only).
 #   aspects: [<aspect-id>...]       — optional. Aspects applied to nodes of this type.
 #   enforce: strict                 — optional. Requires \`when\`. Bidirectional enforcement.
-#   parents: [<type-id>...]         — optional. Allowed parent types.
+#   parents: [<type-id>...]         — optional. Allowed parent types; 'root' allows the top level.
 #
 # Example (commented out):
 #

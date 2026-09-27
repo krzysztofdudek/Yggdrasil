@@ -369,13 +369,14 @@ describe('checkArchitectureParents — parent-type gating', () => {
     expect(issues[0].messageData.what).toContain('library');
   });
 
-  it('a root node (no parent) is never checked even when its type restricts parents', () => {
-    const root = makeNode('p', { type: 'service' });
-    const nodes = new Map<string, GraphNode>([['p', root]]);
+  it('a top-level node is refused when its type restricts parents without root', () => {
+    const top = makeNode('p', { type: 'service' });
+    const nodes = new Map<string, GraphNode>([['p', top]]);
     const architecture: ArchitectureDef = {
       node_types: { service: { description: 's', parents: ['module'] }, module: { description: 'm' } },
     };
-    expect(checkArchitectureParents(makeGraph({ nodes, architecture }))).toEqual([]);
+    const issues = checkArchitectureParents(makeGraph({ nodes, architecture }));
+    expect(issues.map((i) => [i.code, i.nodePath])).toEqual([['parent-type-forbidden', 'p']]);
   });
 });
 

@@ -1,6 +1,6 @@
 import type { AspectStatus, Graph, GraphNode, Relation, RelationType } from '../model/graph.js';
 
-import { DEFAULT_PORT_NAME } from '../model/graph.js';
+import { DEFAULT_PORT_NAME, ROOT_PARENT } from '../model/graph.js';
 import type { WhenEvalOverrides } from './when-evaluator.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, ImpliesCycleError } from './graph/aspects.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
@@ -170,8 +170,8 @@ export interface ChainWalkResult {
 }
 
 /**
- * Walk the implicit parent chain: from `typeId`, follow `parents` while the
- * entry names exactly one type that exists, stopping at a fork (2+ entries),
+ * Walk the implicit parent chain: from `typeId`, follow `parents` (less the
+ * top-level marker ROOT_PARENT) while the entry names exactly one type that exists, stopping at a fork (2+ entries),
  * at absent/empty `parents`, or on revisiting a type already on the chain
  * (cycle). Extracted from `computeTypeAspectCascade` so a caller that needs to
  * report WHERE and WHY the chain stops (not just the reachable prefix, which
@@ -182,9 +182,11 @@ export function walkTypeParentChain(graph: Graph, typeId: string): ChainWalkResu
   const onChain = new Set<string>([typeId]);
   let cur = typeId;
   for (;;) {
-    const parents = graph.architecture.node_types[cur]?.parents;
-    if (!parents) return { chainTypeIds, termination: { reason: 'no-parents', candidates: [cur] } };
-    if (parents.length === 0) return { chainTypeIds, termination: { reason: 'empty-parents', candidates: [cur] } };
+    // ROOT_PARENT names the top level, never a type to inherit from.
+    const declared = graph.architecture.node_types[cur]?.parents;
+    if (!declared) return { chainTypeIds, termination: { reason: 'no-parents', candidates: [cur] } };
+    const parents = declared.filter((p) => p !== ROOT_PARENT);
+    if (parents.length === 0) return { chainTypeIds, termination: { reason: declared.length > 0 ? 'no-parents' : 'empty-parents', candidates: [cur] } };
     if (parents.length >= 2) return { chainTypeIds, termination: { reason: 'fork', candidates: [...parents].sort() } };
     const [parentId] = parents;
     // A dangling parent reference is validated away elsewhere (checkTypeUnknownParent) —

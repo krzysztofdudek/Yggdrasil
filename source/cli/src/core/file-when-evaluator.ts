@@ -53,11 +53,14 @@ export type EvalContext = {
 };
 
 /**
- * Evaluate a FileWhenPredicate against a file. Returns boolean result plus
- * trace structure suitable for rendering predicate evaluation trees in
- * error messages.
+ * Evaluate a type's `when` against a file, for type classification. Returns
+ * boolean result plus trace structure suitable for rendering predicate
+ * evaluation trees in error messages.
  *
- * Auto-exempts paths under `.yggdrasil/` (returns vacuously true).
+ * Auto-exempts paths under `.yggdrasil/` (returns vacuously true), so a graph
+ * file may be mapped to a node of any type without a type-when-mismatch. The
+ * exemption is classification's alone: an aspect's `scope.files` is evaluated
+ * by evaluateScopeFiles, which never exempts.
  */
 export async function evaluateFileWhen(
   predicate: FileWhenPredicate,
@@ -70,6 +73,18 @@ export async function evaluateFileWhen(
     };
   }
 
+  return evaluatePredicate(predicate, ctx);
+}
+
+/**
+ * Evaluate an aspect's `scope.files` against a file. The author's filter holds
+ * for every mapped file, a `.yggdrasil/` one included: a meta rule narrowed to
+ * `check.mjs` stays off the Markdown mapped beside it.
+ */
+export function evaluateScopeFiles(
+  predicate: FileWhenPredicate,
+  ctx: EvalContext,
+): Promise<EvaluationResult> {
   return evaluatePredicate(predicate, ctx);
 }
 

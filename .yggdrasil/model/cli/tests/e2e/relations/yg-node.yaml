@@ -1,8 +1,10 @@
 name: E2E Tests — Relations
 type: test-suite
-description: "Subprocess E2E proving the binary enforces architecture relation rules through yg check — relation-broken, event-unpaired, relation-target-forbidden, high-fan-out — and the structural dependency-metadata cascade onto dependents."
+description: "Subprocess E2E proving the binary enforces architecture relation rules through yg check — relation-broken, event-unpaired, relation-target-forbidden, high-fan-out, the relation default policy (including a dead-end refusal whose next step is the import to remove, not yg-node.yaml) — and the structural dependency-metadata cascade onto dependents."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-relations.test.ts
   - source/cli/tests/e2e/relation-crosslang.test.ts
