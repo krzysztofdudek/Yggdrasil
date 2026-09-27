@@ -19,8 +19,6 @@ aspects:
 relations:
   - target: cli/output
     type: calls
-  - target: cli/templates
-    type: calls
   - target: cli/core/check-coverage-tiers
     type: calls
   - target: cli/io/parsers/config

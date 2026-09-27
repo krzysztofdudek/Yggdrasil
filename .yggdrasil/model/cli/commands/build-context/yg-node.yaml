@@ -42,7 +42,7 @@ description: "Assembles and outputs a context package for a node via yg
 aspects:
   - what-why-next
 max_direct_relations:
-  limit: 26
+  limit: 24
   reason: >-
     Reviewed and accepted at exactly this count. Composition is this command's
     entire purpose: it assembles the complete context package a reader needs
@@ -71,12 +71,13 @@ max_direct_relations:
     excluded by design, a file governed by its type alone, an unmapped file under
     --json) began waiting for stdout to drain before the process ends, through the
     shared drain-then-exit helper, so a long answer read through a pipe is never cut short.
+    Lowered from 26 to 24 when two declared relations with no code behind them were
+    removed: this command reaches the loader and the coverage tiers through the nodes it
+    already declares, and imports neither cli/core/loader nor cli/core/check-coverage-tiers.
 relations:
   - target: cli/core/graph
     type: calls
   - target: cli/output
-    type: calls
-  - target: cli/core/loader
     type: calls
   - target: cli/core/context
     type: calls
@@ -112,8 +113,6 @@ relations:
   - target: cli/preamble
     type: calls
   - target: cli/exit-after-flush
-    type: calls
-  - target: cli/core/check-coverage-tiers
     type: calls
   - target: cli/core/type-visibility
     type: calls

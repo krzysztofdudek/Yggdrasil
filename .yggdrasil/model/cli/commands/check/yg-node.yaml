@@ -22,8 +22,6 @@ relations:
     type: calls
   - target: cli/io/atomic-write
     type: calls
-  - target: cli/core/loader
-    type: calls
   - target: cli/core/check
     type: calls
   - target: cli/tests/unit/cli

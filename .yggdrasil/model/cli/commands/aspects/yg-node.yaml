@@ -18,27 +18,10 @@ description: >-
   --json), never folded into the inventory's, so one schema name never means
   two things.
 aspects: []
-max_direct_relations:
-  limit: 22
-  reason: >-
-    Reviewed at exactly this count. This node owns two commands — the rule
-    inventory with its health projection, and each rule's own history — and the
-    inventory reads every fact a rule has: its reach through the graph and the
-    type tier, the lock and its verifier, the drill corpus, the incident ledger,
-    the suppression scan and the rule's log. The twenty-first edge is the CLI
-    output layer, through which both commands now report their errors like every
-    other command.
-    Raised from 21 to 22 when type-only imports became dependencies in 6.1.0: the
-    commands already named the graph model's types, and that import is now a declared
-    relation to cli/model/graph. No new call was added.
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/loader
-    type: calls
   - target: cli/core/log
-    type: calls
-  - target: cli/core/context
     type: calls
   - target: cli/tests/unit/cli
     type: uses

@@ -3,6 +3,4 @@ type: module
 description: Tree-sitter AST parsing, traversal helpers, and synchronous check runner for AST-based aspect enforcement. Parent grouping for runtime and report sub-nodes.
 aspects:
   - no-buildissuemessage-in-engine
-relations:
-  - target: cli/model
-    type: calls
+relations: []

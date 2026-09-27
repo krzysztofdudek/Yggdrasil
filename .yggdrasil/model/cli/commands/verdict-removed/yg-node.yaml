@@ -5,8 +5,6 @@ aspects: []
 relations:
   - target: cli/output
     type: calls
-  - target: cli/formatters
-    type: calls
   - target: cli/preamble
     type: calls
   - target: cli/tests/unit/cli

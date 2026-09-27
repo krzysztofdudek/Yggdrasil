@@ -81,8 +81,6 @@ aspects:
 relations:
   - target: cli/core/validator
     type: calls
-  - target: cli/core/context
-    type: calls
   - target: cli/core/verify-lock
     type: calls
   - target: cli/io/lock-store

@@ -17,8 +17,6 @@ relations:
     type: calls
   - target: cli/portal/server
     type: calls
-  - target: cli/portal/contract
-    type: uses
   - target: cli/tests/unit/cli
     type: uses
 mapping:

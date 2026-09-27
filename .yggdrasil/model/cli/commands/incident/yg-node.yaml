@@ -13,8 +13,6 @@ relations:
     type: calls
   - target: cli/preamble
     type: calls
-  - target: cli/formatters
-    type: calls
   - target: cli/io/incident-ledger
     type: calls
   - target: cli/core/advise

@@ -13,8 +13,6 @@ description: "Reads and validates the three documents of package consumption: a
   while loading a graph would strand an installed package as unloadable — and
   therefore un-removable — after an upgrade."
 relations:
-  - target: cli/model/graph
-    type: uses
   - target: cli/model/packages
     type: uses
   - target: cli/utils

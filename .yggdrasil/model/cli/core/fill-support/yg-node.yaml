@@ -26,8 +26,6 @@ relations:
     type: calls
   - target: cli/llm/shared
     type: calls
-  - target: cli/structure
-    type: calls
   - target: cli/utils
     type: calls
   - target: cli/model/lock

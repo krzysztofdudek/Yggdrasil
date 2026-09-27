@@ -5,8 +5,6 @@ description: "Migration framework — detects config version, runs sequential
 aspects:
   - posix-paths-output
 relations:
-  - target: cli/model/graph
-    type: uses
   - target: cli/io/stores
     type: calls
   - target: cli/utils

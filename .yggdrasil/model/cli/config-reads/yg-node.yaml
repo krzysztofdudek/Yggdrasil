@@ -22,7 +22,5 @@ aspects: []
 relations:
   - target: cli/ast/runtime
     type: calls
-  - target: cli/ast/report
-    type: calls
 mapping:
   - source/cli/src/structure/config-reads.ts

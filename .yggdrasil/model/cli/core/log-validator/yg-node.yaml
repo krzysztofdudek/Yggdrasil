@@ -5,10 +5,6 @@ aspects: []
 relations:
   - target: cli/core/parsing
     type: calls
-  - target: cli/model/graph
-    type: uses
-  - target: cli/model/when
-    type: uses
 mapping:
   - source/cli/src/core/log-format.ts
   - source/cli/src/core/log-integrity.ts

@@ -39,8 +39,6 @@ relations:
     type: calls
   - target: cli/output
     type: calls
-  - target: cli/core/loader
-    type: calls
   - target: cli/utils
     type: calls
   - target: cli/relations/core
@@ -58,8 +56,6 @@ relations:
   - target: cli/core/type-coverage
     type: calls
   - target: cli/io/file-content-cache
-    type: calls
-  - target: cli/core/check-coverage-tiers
     type: calls
   - target: cli/core/pairs
     type: calls

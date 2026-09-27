@@ -5,8 +5,6 @@ aspects: []
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/loader
-    type: calls
   - target: cli/tests/unit/cli
     type: uses
   - target: cli/io/stores

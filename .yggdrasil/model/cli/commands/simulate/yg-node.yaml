@@ -15,8 +15,6 @@ relations:
     type: calls
   - target: cli/io/stores
     type: calls
-  - target: cli/formatters
-    type: calls
   - target: cli/utils
     type: calls
   - target: cli/preamble
