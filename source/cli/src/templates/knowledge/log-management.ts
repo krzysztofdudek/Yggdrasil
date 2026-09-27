@@ -250,6 +250,16 @@ again; the merge base only checks that neither side lost an entry it had. Then \
 --continue\`, \`git cherry-pick --continue\`); a rebase stops once per replayed
 commit, and each stop resolves the same way.
 
+**Whether the merge owes an entry.** An entry comments on a change to the
+component's own source. When the merge brought the other side's code into the
+component, its source is now a combination no entry has commented on yet, so a
+\`log_required\` component owes one entry of its own: the reason for the merge.
+Only whoever merged knows it — ask the user, never infer it from the diff.
+merge-resolve says so: its \`next:\` is then \`yg log add\` instead of \`git add\`.
+Add the entry before finishing the operation, then \`yg check --approve\`. A
+merge that changed only the log — the component's source is exactly as its
+recorded closure saw it — owes nothing.
+
 On a log that is already whole (the merge commit, or a hand resolution) it only
 verifies: it cannot silently drop or fabricate entries. Do NOT manually
 concatenate the two log histories or keep one side and re-add entries — integrity
@@ -263,7 +273,8 @@ holds for a rewritten history (\`log-integrity\`) and a log that does not parse
 
 When BOTH \`log.md\` and \`yg-lock.logs.json\` conflicted, the order is: resolve the lock
 (take ONE side wholesale — during a rebase \`--ours\` is the upstream) → \`yg log merge-resolve --node <path>\` per conflicted
-log → \`yg check --approve\`. (Lock merge mechanics:
+log → \`yg log add\` for each component whose code the merge combined (merge-resolve
+names them) → \`yg check --approve\`. (Lock merge mechanics:
 \`yg knowledge read verification-and-lock\`.)
 
 A merge that left no merge commit (a merge script, a squash, a finished rebase) names its

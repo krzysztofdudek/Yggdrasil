@@ -909,6 +909,12 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     `git merge-file --union` and `merge=union` join the sides without sorting, so put
     interleaved entries in date order first.
 
+  When the merge brought the other side's code into a `log_required` component, the
+  merged source is a change no entry has commented on, so the merge owes one entry of
+  its own — the reason for the merge, which only whoever merged knows. merge-resolve
+  then prints `next: yg log add --node <path> …` and `then:` staging, finishing the
+  operation and `yg check --approve`. A merge that changed only the log owes nothing.
+
   Never hand-stitch conflict markers out of a log — let merge-resolve write the union.
 
 ---

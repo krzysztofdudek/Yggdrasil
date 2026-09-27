@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
-import { expectIssue, parseJson } from '../support/assert-output.js';
+import { errorCodes, expectIssue, parseJson, textNext } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -231,6 +231,45 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
       const error = parseJson(held.stdout);
       expect(error.code).toBe('lock-environment');
       expect(rerun(error.next?.text ?? '')).toBe('yg check --approve --only-deterministic');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  }, 120_000);
+  // After a merge the documented recipe ends green: a merge that combined both
+  // sides' code in a component owes the merge's own entry, and merge-resolve
+  // names it as the next step; a merge that changed only the log owes nothing.
+  it.each([
+    { label: 'code', bChangesCode: true },
+    { label: 'log-only', bChangesCode: false },
+  ])('the merge recipe ends green — $label', ({ label, bChangesCode }) => {
+    const dir = baseline(`merge-${label}`);
+    const git = (args: string[]): void => { runGitFixture(dir, args); };
+    try {
+      write(dir, 'src/lib/util.ts', 'export const util = 1;\n\n\n\nexport const tail = 1;\n');
+      yg(dir, ['log', 'add', '--node', 'services/lib', '--reason', 'Two exports.']);
+      expect(yg(dir, ['check', '--approve']).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'two exports']);
+      git(['checkout', '-q', '-b', 'b']);
+      if (bChangesCode) write(dir, 'src/lib/util.ts', 'export const util = 1;\n\n\n\nexport const tail = 2;\n');
+      yg(dir, ['log', 'add', '--node', 'services/lib', '--reason', 'Side b.']);
+      expect(yg(dir, ['check', '--approve']).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'b']);
+      git(['checkout', '-q', 'main']);
+      write(dir, 'src/lib/util.ts', 'export const util = 2;\n\n\n\nexport const tail = 1;\n');
+      yg(dir, ['log', 'add', '--node', 'services/lib', '--reason', 'Side a.']);
+      expect(yg(dir, ['check', '--approve']).status).toBe(0);
+      git(['add', '-A']); git(['commit', '-q', '-m', 'a']);
+      spawnSync('git', ['merge', 'b'], { cwd: dir, env: env() });
+      spawnSync('git', ['checkout', '--ours', '--', '.yggdrasil/yg-lock.logs.json'], { cwd: dir, env: env() });
+      const resolved = yg(dir, ['log', 'merge-resolve', '--node', 'services/lib']);
+      expect(resolved.status, resolved.all).toBe(0);
+      const step = textNext(resolved.stdout) ?? '';
+      expect(step.startsWith('yg log add --node services/lib')).toBe(bChangesCode);
+      if (bChangesCode) yg(dir, ['log', 'add', '--node', 'services/lib', '--reason', 'Both sides merged.']);
+      git(['add', '-A']); git(['commit', '-q', '--no-edit']);
+      const after = yg(dir, ['check', '--approve']);
+      expect(after.status, after.all).toBe(0);
+      expect(errorCodes(after.stdout)).not.toContain('log-entry-missing');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
