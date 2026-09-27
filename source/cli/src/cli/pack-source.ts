@@ -66,10 +66,28 @@ import { cliVersion } from './cli-version.js';
  * `.yggdrasil/` every time. Throwing lets the cleanup run first.
  */
 export class PackRefusal extends Error {
-  constructor(public readonly messageData: IssueMessage, public readonly code: IssueCode = 'command-error') {
-    super(messageData.what);
+  public readonly messageData: IssueMessage;
+  constructor(messageData: IssueMessage, public readonly code: IssueCode = 'command-error') {
+    const masked = maskMessageCredentials(messageData);
+    super(masked.what);
+    this.messageData = masked;
     this.name = 'PackRefusal';
   }
+}
+
+/**
+ * `text` with the user:password (or token) part of every URL in it masked. A
+ * source is never recorded with credentials, but the URL typed on the command
+ * line — or one a record from 6.0.0 still holds — is echoed by refusals and
+ * listings, and those land in terminals and CI logs.
+ */
+export function maskCredentials(text: string): string {
+  return text.replace(/\b(https?|ftps?):\/\/[^/@\s'"]+@/g, '$1://***@');
+}
+
+/** A what/why/next with every URL's credentials masked (see {@link maskCredentials}). */
+export function maskMessageCredentials(msg: IssueMessage): IssueMessage {
+  return { ...msg, what: maskCredentials(msg.what), why: maskCredentials(msg.why), next: maskCredentials(msg.next) };
 }
 
 /** Refuse with a what/why/next under `code`. Nothing after this line runs; the cleanup does. */
@@ -392,10 +410,23 @@ export class FetchSession {
 // Reading a marketplace
 // ============================================================
 
+/**
+ * A parser's message about a file of the source, with the file named relative to
+ * the marketplace root. For a git source `rootAbs` is a clone in a temporary
+ * directory that is deleted before the message is read, so an absolute path
+ * would name a file that no longer exists; the path inside the marketplace is
+ * the one its author can open.
+ */
+function inSource(msg: IssueMessage, rootAbs: string): IssueMessage {
+  const prefixes = [...new Set([`${rootAbs}${path.sep}`, `${toPosixPath(rootAbs)}/`])];
+  const strip = (text: string): string => prefixes.reduce((t, p) => t.split(p).join(''), text);
+  return { ...msg, what: strip(msg.what), why: strip(msg.why), next: strip(msg.next) };
+}
+
 export async function readMarketplaceEntry(rootAbs: string, packageName: string): Promise<MarketplaceEntry> {
   const manifestPath = path.join(rootAbs, MARKETPLACE_FILENAME);
   const manifest = await parseMarketplaceManifest(manifestPath);
-  if (!manifest.ok) failWith(manifest.errors[0].messageData, manifest.errors[0].code);
+  if (!manifest.ok) failWith(inSource(manifest.errors[0].messageData, rootAbs), manifest.errors[0].code);
 
   const entry = manifest.value.packages.find((p) => p.name === packageName);
   if (entry === undefined) {
@@ -427,7 +458,7 @@ export async function readPackage(rootAbs: string, entry: MarketplaceEntry): Pro
   }
 
   const manifest = await parsePackageManifest(path.join(packageRootAbs, PACKAGE_FILENAME), presentDirs);
-  if (!manifest.ok) failWith(manifest.errors[0].messageData, manifest.errors[0].code);
+  if (!manifest.ok) failWith(inSource(manifest.errors[0].messageData, rootAbs), manifest.errors[0].code);
 
   // The marketplace says this package is called one thing and the package itself
   // says another. Installing anyway would file it under a name neither document
@@ -578,7 +609,7 @@ export async function resolveIdentity(resolved: ResolvedSource, asOption: string
   if (resolved.local) {
     failWith({
       what: `Cannot tell who published the package at '${typed}'.`,
-      why: 'A package is installed under the identity of the repository it came from, so two sources publishing the same name never collide. A local directory with no git origin says nothing about whose it is, and guessing from the directory name would let two unrelated packages overwrite each other.',
+      why: 'A package is installed under the identity of the repository it came from, so one source\'s rules can never be filed under another\'s name. A local directory with no git origin says nothing about whose it is, and guessing from the directory name would let two unrelated packages overwrite each other.',
       next: 'Re-run with --as <owner>/<repo> to say who it is.',
     });
   }

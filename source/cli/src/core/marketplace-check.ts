@@ -12,6 +12,7 @@ import { isGitRepositoryRoot } from '../utils/git-pack-fetch.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { listDirEntries, readTextFile, statKind } from '../io/graph-fs.js';
 import { collectConfigReads } from '../structure/config-reads.js';
+import { discoverDrillCases } from './drill-runner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -233,7 +234,7 @@ export async function checkMarketplace(root: string, opts: MarketplaceCheckOptio
   }
 
   const entries = manifest.value.packages;
-  const claimed = new Set(entries.map((e) => e.path));
+  const claimed = new Set(entries.map((e) => entryPath(e.path)));
 
   for (const dirName of await subdirectories(path.join(root, PACKAGES_DIR))) {
     const dirPath = `${PACKAGES_DIR}/${dirName}`;
@@ -274,6 +275,17 @@ function ignoredKeyMessage(file: string, sentence: string, schema: 'package' | '
   };
 }
 
+/**
+ * An entry's `path:` as the repository-relative POSIX form every comparison and
+ * message uses: `./packages/demo/` and `packages\\demo` name the directory
+ * `packages/demo`, so neither may be reported as a directory the manifest does
+ * not list.
+ */
+function entryPath(raw: string): string {
+  const normalized = path.posix.normalize(toPosixPath(raw)).replace(/\/+$/, '');
+  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+}
+
 /** Everything asked of one published package. */
 async function checkOnePackage(
   root: string,
@@ -284,7 +296,7 @@ async function checkOnePackage(
 ): Promise<void> {
   // The manifest's path may carry native separators or a trailing slash; every
   // subject and message below names the repository-relative POSIX form.
-  const entry: MarketplaceEntry = { ...declared, path: toPosixPath(declared.path) };
+  const entry: MarketplaceEntry = { ...declared, path: entryPath(declared.path) };
   const pkgDir = path.join(root, entry.path);
   const pkgManifestPath = path.join(pkgDir, PACKAGE_FILENAME);
 
@@ -735,9 +747,14 @@ async function checkDrills(
   record: (i: MarketplaceIssue) => void,
 ): Promise<void> {
   const drillsDir = path.join(dir, 'drills');
+  // A case is what `yg drill` runs: every file whose first segment under drills/
+  // carries the prefix — a file directly under drills/ too, never a .md or a
+  // yg-aspect.yaml — asked of the runner's own discovery, so the two cannot
+  // disagree about what a case is.
+  const found = await discoverDrillCases({ aspectId: aspectDir, projectRoot: dir, dir: drillsDir });
+  const violates = found.filter((c) => c.expect === 'refused');
+  const satisfies = found.filter((c) => c.expect === 'satisfied');
   const cases = await subdirectories(drillsDir);
-  const violates = cases.filter((c) => c.startsWith('violates-'));
-  const satisfies = cases.filter((c) => c.startsWith('satisfies-'));
 
   if (violates.length === 0 || satisfies.length === 0) {
     record(
@@ -745,7 +762,7 @@ async function checkDrills(
         'package-drills-missing',
         'error',
         {
-          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${cases.length === 0 ? 'no drills/ directory' : `drills/ with ${violates.length} case that must be refused and ${satisfies.length} that must pass`}.`,
+          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${(await statKind(drillsDir)) !== 'dir' ? 'no drills/ directory' : `drills/ with ${violates.length} case file${violates.length === 1 ? '' : 's'} that must be refused and ${satisfies.length} that must pass`}.`,
           why: 'A published rule runs somebody else\'s code against somebody else\'s repository. The pair of cases is the only thing that shows what it refuses and what it lets through, and it is the only thing a consumer can run to see the rule work before they trust it.',
           next: `Add ${relDir}/drills/violates-<name>/ and ${relDir}/drills/satisfies-<name>/, each holding one source file, then run 'yg drill --aspect <id>' in a repository that has the rule installed.`,
         },

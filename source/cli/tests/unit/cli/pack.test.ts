@@ -160,7 +160,7 @@ describe('the adaptation stub written beside a copied rule', () => {
   });
 
   it('says which keys are not adaptable, and why', () => {
-    expect(stub).toContain('Not adaptable: name, implies, errs, when');
+    expect(stub).toContain('Not adaptable: name, description, implies, errs, when');
     expect(stub).toContain('the rule IS');
   });
 

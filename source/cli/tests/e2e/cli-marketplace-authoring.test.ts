@@ -504,4 +504,29 @@ describe.skipIf(!distExists)('CLI E2E — authoring a marketplace', () => {
       rmSync(market, { recursive: true, force: true });
     }
   });
+
+  it('22b: yg prime calls a repository a consumer only while its record names a package', () => {
+    // `yg pack remove` of the last package leaves yg-packages.yaml holding
+    // `packages: {}`; such a repository runs nothing from anywhere else.
+    const plain = dir('primeplain2');
+    const emptied = dir('primeemptied');
+    const consuming = dir('primeconsumer');
+    try {
+      mkdirSync(path.join(emptied, '.yggdrasil'), { recursive: true });
+      writeFileSync(path.join(emptied, '.yggdrasil', 'yg-packages.yaml'), 'schema: yg-packages/1\npackages: {}\n', 'utf-8');
+      mkdirSync(path.join(consuming, '.yggdrasil'), { recursive: true });
+      writeFileSync(
+        path.join(consuming, '.yggdrasil', 'yg-packages.yaml'),
+        'schema: yg-packages/1\npackages:\n  demo:\n    source: "https://example.test/acme/law.git"\n    package: acme/law/demo\n    version: 0.1.0\n    installed_at: "2026-09-10T00:00:00.000Z"\n    files: {}\n',
+        'utf-8',
+      );
+      const base = run(['prime'], plain).stdout;
+      expect(run(['prime'], emptied).stdout).toBe(base);
+      const consumer = run(['prime'], consuming).stdout;
+      expect(consumer).not.toBe(base);
+      expect(consumer).toContain('packages-and-marketplaces');
+    } finally {
+      for (const d of [plain, emptied, consuming]) rmSync(d, { recursive: true, force: true });
+    }
+  });
 });

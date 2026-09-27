@@ -1314,7 +1314,7 @@ The first line counts both sections. Each attention item is one indented line; e
 
 The nomination classes, highest priority first. The first five rest on the graph as it stands;
 the next five are read from local history and carry an honesty label while the evidence is thin;
-the last two are whole-codebase observations:
+the next two are whole-codebase observations, and the last is news from outside the repository:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
 2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
@@ -1328,6 +1328,7 @@ the last two are whole-codebase observations:
 10. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
 11. **A look-alike group** — see below.
 12. **An architecture cut** — see below.
+13. **A newer version of an installed package** (`package-update`) — read from what `yg pack list`, `add` or `update` last recorded about its source (the feed itself never reaches outside the repository), with the command that takes it. Ranked below every class the graph derives for itself, just above an [imported proposal](#yg-advise-import).
 
 The lowest-priority suggestions include two whole-codebase observations: a **look-alike
 group** — a tight group of near-identical files with no rule of their own, offered with a
@@ -2250,8 +2251,8 @@ yg pack new <name>
 - `update` — replaces the copy with another published version and carries your
   adaptations across byte for byte. A pinned package stays where it is;
   `--to <version>` takes and pins a version, `--to latest` follows the newest
-  again, and going back needs `--allow-downgrade`. Says what changes for each
-  rule before swapping anything. All or nothing: refuses, naming the reason and
+  again, and going back needs `--allow-downgrade`. Reports, once the copy is
+  replaced, what changed for each rule. All or nothing: refuses, naming the reason and
   changing nothing, on an edited copy, an unreachable source, versions that
   disagree, a source that is no longer the recorded publisher, or a dropped rule
   the graph still names. With no name, a package whose source publishes no
@@ -2608,12 +2609,12 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-manifest-missing` | error | A package directory has no yg-package.yaml. | Point the pack command at a directory that holds yg-package.yaml. |
 | `package-symlink-refused` | error | A package carries a symbolic link; installing refuses it, and yg marketplace check reports it, because a copied link resolves against the consumer's file system. | As the package author, replace the link with the file itself. |
 | `package-binary-file-refused` | error | A package carries a binary file; installing refuses it, and yg marketplace check reports it — a rule is text a reviewer and a consumer can read. | As the package author, remove the binary file from the package. |
-| `packages-lock-invalid` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML or its packages: is not a mapping. | Restore yg-packages.yaml from version control. |
+| `packages-lock-invalid` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML, or it, a record in it or a record's files: is not a mapping. yg check reports every packages-lock-* problem as package-file-modified. | Restore yg-packages.yaml from version control. |
 | `packages-lock-schema-unknown` | error | yg-packages.yaml declares a schema this build does not know. | Upgrade the CLI, or restore the file from version control. |
 | `packages-lock-package-invalid` | error | A record in yg-packages.yaml names an install directory that is not &lt;owner&gt;/&lt;repo&gt;/&lt;package&gt;. | Restore yg-packages.yaml from version control. |
-| `packages-lock-entry-invalid` | error | A record in yg-packages.yaml is not a mapping, or holds a field value of the wrong form. | Restore yg-packages.yaml from version control, or re-run yg pack add for the package. |
-| `packages-lock-entry-incomplete` | error | A record in yg-packages.yaml lacks a field every install writes. | Re-run yg pack add for the package. |
-| `packages-lock-hash-invalid` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest, or a files: that is not a mapping. | Re-run yg pack add for the package. |
+| `packages-lock-entry-invalid` | error | A record in yg-packages.yaml holds a field value of the wrong form. | Restore yg-packages.yaml from version control. |
+| `packages-lock-entry-incomplete` | error | A record in yg-packages.yaml lacks a field every install writes. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
+| `packages-lock-hash-invalid` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
 | `packages-lock-path-escape` | error | A record in yg-packages.yaml names a file outside the package's install directory. | Restore yg-packages.yaml from version control. |
 
 ### Suppression markers (`yg suppressions`) {#codes-suppressions}

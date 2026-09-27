@@ -171,11 +171,11 @@ lets an update be a REPLACEMENT rather than a merge. Publish a new version and
 their copy is replaced and their adaptation carried across untouched. Nothing you
 publish has to reason about what they changed, because they changed nothing.
 
-Two consequences for you:
+Four consequences for you:
 
-- **A setting you remove breaks their repository at load** if they set it,
-  naming the key — so a key you publish is a promise. Prefer leaving one and
-  ignoring it, or bump the major. Their update warns them before it happens.
+- **A setting you remove stops the rule loading in their repository** if they
+  set it (\`yg check\` blocks, naming the key) — so a key you publish is a promise. Prefer leaving one and
+  ignoring it, or bump the major. Their update names it when it takes the version.
 - **A rule you rename or drop is refused by their update** while their graph
   still attaches it (a component, a port, a type, a flow, or an \`implies:\`), and
   its adaptation goes with it once they detach it.
@@ -200,8 +200,8 @@ Two consequences for you:
 
 A consumer following your newest version takes the highest tag on their next
 \`yg pack update\`; one who pinned a version stays there until they move it with
-\`--to\`. Their update tells them, before it swaps anything in, what your version
-changes: rules added and removed, a status change (a draft you made
+\`--to\`. Their update reports, once it has replaced the copy, what your version
+changed: rules added and removed, a status change (a draft you made
 enforced), a change to what a rule implies or to its scope, which files changed,
 and every setting added, removed or given a new default. A rule whose content
 actually changed goes back to unverified in their repository and gets judged

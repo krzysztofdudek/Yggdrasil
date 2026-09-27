@@ -13,6 +13,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import {
   ADAPT_FILENAME,
+  ADAPT_LOG_FILENAME,
   MARKETPLACE_FILENAME,
   PACKAGE_FILENAME,
   PACKAGES_DIR,
@@ -40,6 +41,7 @@ import {
   differingFiles,
   failWith,
   installedRuleDirs,
+  maskCredentials,
   ownerRepoOf,
   parsePackageSpec,
   projectRootOf,
@@ -548,7 +550,7 @@ async function runList(): Promise<number> {
     writeOut(
       `  ${name}  ${entry.version}  ${requested === REQUESTED_LATEST ? 'follows the newest version' : `pinned at ${requested}`}  ` +
         `${intact ? paint.green('copy untouched') : paint.red('copy changed')}\n` +
-        `    from ${entry.source}  (${provenance})\n` +
+        `    from ${maskCredentials(entry.source)}  (${provenance})\n` +
         `    at   .yggdrasil/aspects/${installDirRelative(entry.package)}/\n`,
     );
   }
@@ -789,7 +791,9 @@ async function runRemove(name: string): Promise<number> {
       });
     }
 
-    const adapted = (await readInstalledAdapts(projectRoot, entry.package, [...own].map((id) => id.slice(idPrefix.length + 1)))).size;
+    const ownRules = [...own].map((id) => id.slice(idPrefix.length + 1));
+    const adapted = (await readInstalledAdapts(projectRoot, entry.package, ownRules)).size;
+    const histories = (await readInstalledAdapts(projectRoot, entry.package, ownRules, ADAPT_LOG_FILENAME)).size;
     const strays = (await collectPackagesDrift(projectRoot, lock)).byPackage.get(name)?.unknown ?? [];
     await removePackageFiles(projectRoot, entry.package);
     const rest = { ...lock.packages };
@@ -806,9 +810,13 @@ async function runRemove(name: string): Promise<number> {
         ),
       );
     }
-    if (adapted > 0) {
+    if (adapted > 0 || histories > 0) {
+      const gone = [
+        ...(adapted > 0 ? [`${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME})`] : []),
+        ...(histories > 0 ? [`${histories} rule ${histories === 1 ? 'history' : 'histories'} (${ADAPT_LOG_FILENAME})`] : []),
+      ];
       writeOut(
-        `Its ${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME}) went with it; version control still has ${adapted === 1 ? 'it' : 'them'}.\n`,
+        `Its ${gone.join(' and ')} went with it; version control still has ${adapted + histories === 1 ? 'it' : 'them'}.\n`,
       );
     }
     if (Object.keys(rest).length === 0) {

@@ -144,7 +144,7 @@ A reviewer rule has two ways to bring in supporting material:
 
 The two mechanisms are independent. Static references are identical for every unit; companion files vary per unit. Both count toward the tier's `max_prompt_chars` prompt-size limit. See [Reviewers](/reviewers) for authoring depth on both.
 
-Both are for reviewer rules only. A script rule (a rule with a `check.mjs`) has no reviewer to put supporting material in front of, so `references:` on one is refused. A script rule that needs a value from outside itself takes it through `ctx.config` — see [Packages](/packages#settings-a-rule-reads-ctx-config), where a rule's settings are declared by its package and set by the repository installing it, and where reading one makes it part of that rule's verdict.
+Both are for reviewer rules only. A script rule (a rule with a `check.mjs`) has no reviewer to put supporting material in front of, so `references:` on one is refused. A script rule [installed from a package](/packages#settings-a-rule-reads-ctx-config) that needs a value from outside itself takes it through `ctx.config`: its settings are declared by its package and set by the repository installing it, and reading one makes it part of that rule's verdict. A rule of your own has no settings — `ctx.config` is empty for it, and a setting written under `config:` for it is refused — because its `check.mjs` is yours to edit: write the value there. A `yg-aspect.adapt.yaml` beside a rule of your own is read and merged like one beside an installed rule, but it can only say what the rule's own `yg-aspect.yaml` can; edit that file instead.
 
 A rule can also **name** its companion instead of shipping one beside itself, with a repo-relative `companion:` path in `yg-aspect.yaml`:
 

@@ -28,6 +28,12 @@ The local activity record is safe too: Yggdrasil keeps a record of what each run
 
 **Why.** An entry is added by reading the log, appending to it and replacing the file, and two writers doing that at the same moment would each replace the file with only their own entry added — the second silently dropping the first while both reported success. So every log write holds a short-lived lock file, `.yggdrasil/.yg-log.lock`, for the few milliseconds it takes. A writer that finds it held waits its turn; one still waiting after 10 seconds gives up with an error saying nothing was written, never writing unguarded. Like the fill lock, it is git-ignored (`.yg-*.lock`) and one left by a crashed process is replaced.
 
+## One package command at a time
+
+**Rule.** One `yg pack add`, `update`, `remove` or `verify` runs in a repository at a time. A second one started meanwhile stops at once, naming the process that holds the lock, and changes nothing; run it again once the first is done. `yg pack list` and `yg check` only read the record and are not held back.
+
+**Why.** Each of them reads `.yggdrasil/yg-packages.yaml`, changes the copies under `aspects/packages/` and writes the record back; two at once would each write back the record they read, and one package would silently drop out of it. So a pack command holds `.yggdrasil/pack-command.lock.tmp` for its whole run. A lock whose process is gone (a hard kill) is taken over by the next pack command, which also sweeps any `pack-fetch-<hex>.tmp/` clone such a run left behind.
+
 ## When two agent sessions share one checkout
 
 **Rule.** Serialize any session that changes files in the working tree; run read-only sessions freely in parallel.

@@ -579,7 +579,7 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
     return fail('packages-lock-invalid', {
       what: `${filePath}: 'packages' is not a mapping.`,
       why: 'The lock maps each installed package name to what was copied in for it.',
-      next: 'Write packages: as a mapping of package name to its record, or delete the file and re-run yg pack add.',
+      next: `Restore ${filePath} from version control, or write packages: as a mapping of package name to its record.`,
     });
   }
 
@@ -589,7 +589,7 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
       return fail('packages-lock-invalid', {
         what: `${filePath}: the record for '${pkgName}' is not a mapping.`,
         why: 'Each installed package records its source, install identity, version, install time and file hashes.',
-        next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
+        next: `Restore ${filePath} from version control. If no committed version is right, delete the '${pkgName}' record from it and the copy under .yggdrasil/aspects/packages/, then run yg pack add again (it refuses while the record does not parse).`,
       });
     }
     const entry = entryRaw as Record<string, unknown>;
@@ -598,7 +598,7 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
         return fail('packages-lock-entry-incomplete', {
           what: `${filePath}: the record for '${pkgName}' has no '${field}'.`,
           why: 'Without every field the record cannot say what was installed, from where, or when.',
-          next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
+          next: `Restore ${filePath} from version control. If no committed version is right, delete the '${pkgName}' record from it and the copy under .yggdrasil/aspects/packages/, then run yg pack add again (it refuses while the record does not parse).`,
         });
       }
     }
@@ -630,7 +630,7 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
       return fail('packages-lock-invalid', {
         what: `${filePath}: the record for '${pkgName}' has 'files' that is not a mapping.`,
         why: 'files: maps each copied file to what it hashed to at install time — it is what the file-modified rail compares against.',
-        next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
+        next: `Restore ${filePath} from version control. If no committed version is right, delete the '${pkgName}' record from it and the copy under .yggdrasil/aspects/packages/, then run yg pack add again (it refuses while the record does not parse).`,
       });
     }
 
@@ -641,14 +641,14 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
         return fail('packages-lock-hash-invalid', {
           what: `${filePath}: '${pkgName}' records '${posix}' with hash '${String(hashRaw)}', which is not a sha256 hex digest.`,
           why: 'The rail compares a file against this value byte for byte; a value that is not a digest can never match, and would report every check as tampering.',
-          next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
+          next: `Restore ${filePath} from version control. If no committed version is right, delete the '${pkgName}' record from it and the copy under .yggdrasil/aspects/packages/, then run yg pack add again (it refuses while the record does not parse).`,
         });
       }
       if (!posix.startsWith(installPrefix) || escapesRepo(posix)) {
         return fail('packages-lock-path-escape', {
           what: `${filePath}: '${pkgName}' records the file '${posix}', which is outside its install directory (${installPrefix}).`,
           why: 'A lock entry pointing outside the copy would let the rail claim ownership of a file the package never installed.',
-          next: `Re-run yg pack add for '${pkgName}' to rewrite the record.`,
+          next: `Restore ${filePath} from version control. If no committed version is right, delete the '${pkgName}' record from it and the copy under .yggdrasil/aspects/packages/, then run yg pack add again (it refuses while the record does not parse).`,
         });
       }
       files[posix] = hashRaw;

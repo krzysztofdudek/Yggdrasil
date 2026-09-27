@@ -284,6 +284,32 @@ A waiver skips a rule on specific lines, with a reason. Waived is not verified.
 
 An undeclared code dependency, recomputed live right now — never read from the stored lock.
 
+## Packages
+
+### package {#package}
+
+A set of rules published by one repository for others to install with `yg pack add`. The consumer gets a verbatim copy under `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/` and never edits it; it tunes the rules through adaptations.
+
+More: [Packages](/packages).
+
+### marketplace {#marketplace}
+
+A repository (or directory) that publishes packages: `yg-marketplace.yaml` at its root names each one, and a git tag `pack/<name>@<version>` publishes each version. `yg marketplace check` asks it everything an install would refuse.
+
+More: [Packages](/packages).
+
+### adaptation {#adaptation}
+
+The consumer’s own `yg-aspect.adapt.yaml` beside an installed rule: the settings (`config`) and the adaptable keys (`status`, `scope`, `reviewer`, `review_by`, `references`, `companion`) it sets for this repository. It survives updates; the rule’s history beside it is `yg-aspect.adapt.log.md`.
+
+More: [Packages](/packages#adapting-not-editing).
+
+### package record {#package-record}
+
+`.yggdrasil/yg-packages.yaml`, committed: what is installed, from where, at which version, tag and commit, and the hash of every copied file. `yg check` blocks any copy that no longer matches it (`package-file-modified`).
+
+Not called: package lock (it records installs; it holds no verdicts). More: [Packages](/packages).
+
 ## The family
 
 ### family {#family}

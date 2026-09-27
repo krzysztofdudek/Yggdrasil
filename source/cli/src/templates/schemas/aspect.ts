@@ -244,9 +244,11 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # a script rule has no reviewer to put supporting
                                    # material in front of, so references: on one is refused
                                    # (aspect-references-on-deterministic). A script rule
-                                   # that needs a value from outside itself takes it through
-                                   # ctx.config, where the value it READS becomes part of that
-                                   # rule's verdict — something a reference file cannot offer.
+                                   # installed from a package that needs a value from outside
+                                   # itself takes it through ctx.config, where the value it READS
+                                   # becomes part of that rule's verdict — something a reference
+                                   # file cannot offer. A rule of your own has no settings
+                                   # (ctx.config is empty): write the value in its check.mjs.
                                    #   Permitted on reviewer rules ONLY (forbidden on script rules).
                                    #   Each entry is a string (shorthand) OR an object { path, description? }.
                                    #

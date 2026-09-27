@@ -247,12 +247,12 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`package-manifest-missing\` | error | A package directory has no yg-package.yaml. | Point the pack command at a directory that holds yg-package.yaml. |
 | \`package-symlink-refused\` | error | A package carries a symbolic link; installing refuses it, and yg marketplace check reports it, because a copied link resolves against the consumer's file system. | As the package author, replace the link with the file itself. |
 | \`package-binary-file-refused\` | error | A package carries a binary file; installing refuses it, and yg marketplace check reports it — a rule is text a reviewer and a consumer can read. | As the package author, remove the binary file from the package. |
-| \`packages-lock-invalid\` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML or its packages: is not a mapping. | Restore yg-packages.yaml from version control. |
+| \`packages-lock-invalid\` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML, or it, a record in it or a record's files: is not a mapping. yg check reports every packages-lock-* problem as package-file-modified. | Restore yg-packages.yaml from version control. |
 | \`packages-lock-schema-unknown\` | error | yg-packages.yaml declares a schema this build does not know. | Upgrade the CLI, or restore the file from version control. |
 | \`packages-lock-package-invalid\` | error | A record in yg-packages.yaml names an install directory that is not <owner>/<repo>/<package>. | Restore yg-packages.yaml from version control. |
-| \`packages-lock-entry-invalid\` | error | A record in yg-packages.yaml is not a mapping, or holds a field value of the wrong form. | Restore yg-packages.yaml from version control, or re-run yg pack add for the package. |
-| \`packages-lock-entry-incomplete\` | error | A record in yg-packages.yaml lacks a field every install writes. | Re-run yg pack add for the package. |
-| \`packages-lock-hash-invalid\` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest, or a files: that is not a mapping. | Re-run yg pack add for the package. |
+| \`packages-lock-entry-invalid\` | error | A record in yg-packages.yaml holds a field value of the wrong form. | Restore yg-packages.yaml from version control. |
+| \`packages-lock-entry-incomplete\` | error | A record in yg-packages.yaml lacks a field every install writes. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
+| \`packages-lock-hash-invalid\` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
 | \`packages-lock-path-escape\` | error | A record in yg-packages.yaml names a file outside the package's install directory. | Restore yg-packages.yaml from version control. |
 
 ### Suppression markers (\`yg suppressions\`)

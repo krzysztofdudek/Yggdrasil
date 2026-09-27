@@ -259,7 +259,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
 
       for (const rule of ['rule-a', 'rule-b', 'rule-c']) {
         const stub = read(dir, path.join('.yggdrasil', 'aspects', ...INSTALL.split('/'), rule, 'yg-aspect.adapt.yaml'));
-        expect(stub).toContain('Not adaptable: name, implies, errs, when');
+        expect(stub).toContain('Not adaptable: name, description, implies, errs, when');
         expect(stub).toContain('#   status:');
       }
       // The package's own default, listed where a rule reads one — commented
@@ -875,6 +875,23 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         const leftovers = readdirSync(path.join(dir, '.yggdrasil')).filter((n) => n.includes('pack-fetch'));
         expect(leftovers).toEqual([]);
         expect(existsSync(path.join(dir, LOCK))).toBe(false);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    },
+    10_000,
+  );
+
+  it(
+    '21b: credentials written into a source URL are masked in what the refusal prints',
+    () => {
+      const dir = consumer('masked');
+      try {
+        const added = run(['pack', 'add', `${UNREACHABLE_SOURCE.replace('http://', 'http://user:s3cret@')}#demo`], dir);
+        expect(added.status).toBe(1);
+        expect(added.all).toContain('Could not reach');
+        expect(added.all).toContain('http://***@yg-nothing-here.invalid');
+        expect(added.all).not.toContain('s3cret');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

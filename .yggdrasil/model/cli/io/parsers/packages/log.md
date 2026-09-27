@@ -24,3 +24,5 @@ Issue codes are public names: adopters, CI scripts and sibling tools branch on t
 The record parser now answers whether a recorded package follows the newest version, since it already defines what requested means (latest, a version, or absent from an older record); the attention feed reads it rather than repeating that rule.
 ## [2026-09-27T20:53:46.590Z]
 The parser exposes the keys a manifest carries that its /1 file-format schema does not declare, for the author-side marketplace check only. Reading still ignores them, as the family rule for a versioned document requires; listing them lets the check warn the author about a misspelling that would otherwise be published unnoticed.
+## [2026-09-27T21:14:04.500Z]
+A malformed package record now points at restoring it from version control. It said to re-run yg pack add, which reads the record first and refuses while it does not parse, so the advice could never succeed.

@@ -220,3 +220,5 @@ The walk over installed copies stopped skipping dot-named files: an install neve
 The rule hash stopped at the rule directory, so a helper several rules share (../shared/x.mjs) could change what they decide while their verdicts stayed on record. Imports are now followed anywhere inside the repository, keyed by the path that leads there, with links and spelling asked from the repository root; a file outside the repository is still not followed, since nothing there is pinned.
 ## [2026-09-27T15:40:01.005Z]
 The walk over installed copies left out every dot-named entry directly under packages/, wider than the documented exemptions; it now leaves out only a file named .DS_Store and the install's own .staging- and .replaced- directories, so a dot-named directory dropped there is checked like any other.
+## [2026-09-27T21:14:03.117Z]
+The adaptation stub now lists description among the keys that are not adaptable. The adaptation parser has always refused description, and the stub is the file an adopter actually opens, so leaving it out invited an edit that could only fail at load.
