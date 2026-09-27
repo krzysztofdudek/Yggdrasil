@@ -343,7 +343,7 @@ export async function runCheck(
 
   // 1c'. Law on a node type nobody admitted: a rule standing enforced on a type
   // without a ratification of its current version in its own log. Read-only;
-  // an error or a warning by the committed type_law.ratification setting.
+  // a blocking error, and only where the committed type_law.ratification is on.
   const typeLawIssues = await classifyTypeLaw(graph);
 
   // 1d. A `yg-suppress` marker with no reason waives nothing, and nothing else

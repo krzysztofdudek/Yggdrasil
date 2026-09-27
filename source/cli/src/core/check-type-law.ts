@@ -8,11 +8,12 @@
  * by `yg log add --aspect --ratify`, on the user's word, and the law a graph
  * already had is recorded once by the upgrade that turns the requirement on.
  *
- * Severity follows the committed `type_law.ratification` setting: an error
- * where it is on, a warning where it is not. A graph that has not taken the
- * requirement up yet therefore hears about every such rule without a build
- * turning red on the day the CLI is upgraded, and the message names the one
- * command that takes it up.
+ * Reported only where the committed `type_law.ratification` setting is on,
+ * and then as a blocking error. Absent or false, nothing is asked for and
+ * nothing is reported: a graph that has not taken the requirement up yet does
+ * not turn red, or fill with findings, on the day the CLI is upgraded — it
+ * takes the requirement up with `yg init --upgrade`, which first records the
+ * law it already had.
  */
 
 import type { Graph } from '../model/graph.js';
