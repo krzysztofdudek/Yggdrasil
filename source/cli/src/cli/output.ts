@@ -101,7 +101,7 @@ function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): void {
 // ── Errors ─────────────────────────────────────────────────
 
 /** Schema id of the machine form of a command error. */
-export const ERROR_JSON_SCHEMA = 'yg-error/1';
+const ERROR_JSON_SCHEMA = 'yg-error/1';
 
 /**
  * The machine form of a command error. `next.command` is argv — the same form
@@ -134,7 +134,7 @@ export function setJsonOutput(on: boolean | undefined): void {
  * layer — the argument parser rejects the flag on every other command first —
  * so reading it here is reading the command's own option.
  */
-export function isJsonOutput(): boolean {
+function isJsonOutput(): boolean {
   return jsonOutput ?? process.argv.slice(2).includes('--json');
 }
 
