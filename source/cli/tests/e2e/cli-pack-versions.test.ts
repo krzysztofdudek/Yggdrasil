@@ -17,6 +17,8 @@
 //        uncommitted working tree
 //    V3. a pin stays put; --to moves it; --to latest follows again; going back
 //        needs --allow-downgrade
+//   V3b. a follower is told to take the newest with a plain update, which keeps
+//        it following
 //    V4. a tag whose manifest names another version is refused
 //    V5. a git source that publishes no version is refused, not read at HEAD
 //    V6. verify: a copy matching its tag passes; a moved tag fails, and a
@@ -318,6 +320,28 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(back.status).toBe(1);
     expect(back.all).toContain('older than the installed 0.2.0');
     expect(read(dir, LOCK)).toContain('version: "0.2.0"');
+  }, 90_000);
+
+  // The command pack list and advise name for a newer version must leave the
+  // package following or pinned as it was. Before: both said `--to <version>`,
+  // and running it pinned a package that followed the newest.
+  it('V3b: a package that follows the newest is told to take it with a plain update, and following the advice keeps it following', () => {
+    const dir = consumer('follow-advice');
+    expect(run(['pack', 'add', `${market.bare}#demo@0.1.0`, '--as', 'acme/law'], dir).status).toBe(0);
+    // A follower that has fallen behind: the source published 0.2.0 after it installed 0.1.0.
+    write(dir, LOCK, read(dir, LOCK).replace('requested: "0.1.0"', 'requested: "latest"'));
+
+    // The command each surface names, read out of its line and compared as a command.
+    const listed = run(['pack', 'list'], dir);
+    expect(listed.status, listed.all).toBe(0);
+    expect(/take the newest with: (yg pack update \S+(?: --to \S+)?)/.exec(listed.stdout)?.[1], listed.stdout).toBe('yg pack update demo');
+    const advised = run(['advise', '--all'], dir);
+    expect(/take it with (yg pack update \S+(?: --to \S+)?) \(/.exec(advised.stdout)?.[1], advised.stdout).toBe('yg pack update demo');
+
+    const taken = run(['pack', 'update', 'demo'], dir);
+    expect(taken.status, taken.all).toBe(0);
+    expect(read(dir, LOCK)).toContain('version: "0.2.0"');
+    expect(read(dir, LOCK)).toContain('requested: "latest"');
   }, 90_000);
 
   it('V4: a tag whose manifest names another version is refused, naming all three', () => {

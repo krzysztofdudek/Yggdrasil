@@ -374,7 +374,9 @@ told it, in a small local file beside the graph
 someone else's repository, and it is thrown away and rebuilt freely). `yg advise`
 then reads that and carries it as an attention item, ranked below everything the
 graph works out about your own code, with the command that takes the newest
-version (`yg pack update <name> --to <version>`). Everything in it that came from
+version and leaves the package as it was: `yg pack update <name>` for one that
+follows the newest, `yg pack update <name> --to <version>` for a pinned one
+(which moves the pin). `yg pack list` names the same command. Everything in it that came from
 the package — its name, its versions, its source — is shown as quoted data, never
 as a sentence written in the tool's own voice.
 

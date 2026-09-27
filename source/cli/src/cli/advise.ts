@@ -18,7 +18,7 @@ import {
   type PackageUpdateSignal,
 } from '../core/advise-nominations.js';
 import { newerThanInstalled } from '../core/advise-package-nominations.js';
-import { parsePackagesLock } from '../io/package-manifest-parser.js';
+import { followsNewest, parsePackagesLock } from '../io/package-manifest-parser.js';
 import { packagesLockPath } from '../io/package-store.js';
 import { readPackageVersionsCache } from '../io/package-versions-cache.js';
 import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
@@ -153,11 +153,18 @@ function candidatesSkipReason(raw: unknown): string {
   return 'it has no usable timestamp (ts)';
 }
 
-/** The Attention line for the candidates files this run could not use (empty when none). */
+/**
+ * The Attention entry for each candidates file this run could not use (empty
+ * when none), as a block of the output grammar — `note[candidates-skipped]`
+ * naming the file, then `why:` and `fix:` — joined into one entry, so the JSON
+ * document keeps it together.
+ */
 function skippedCandidatesAttention(skipped: SkippedCandidatesFile[]): string[] {
-  return skipped.map(
-    (s) => `Candidate families in .yggdrasil/${s.file} were not read — ${s.why}. Upgrade yg if the producer that wrote it is newer, or re-run that producer (or delete the file).`,
-  );
+  return skipped.map((s) => [
+    heading('note', 'candidates-skipped', `candidate families in .yggdrasil/${s.file} were not read`, { colour: false }),
+    ...field('why', `${s.why}.`, false),
+    ...field('fix', 'Upgrade yg if the producer that wrote it is newer, or re-run that producer (or delete the file).', false),
+  ].join('\n'));
 }
 
 function readFamilyCandidatesSource(graph: Graph, skipped: SkippedCandidatesFile[] = []): FamilyCandidatesData[] | undefined {
@@ -783,7 +790,13 @@ async function gatherPackageUpdates(graph: Graph, projectRoot: string): Promise<
     if (seen === undefined) continue;
     const newer = newerThanInstalled(seen.published, entry.version);
     if (newer.length > 0) {
-      signals.push({ name, installedVersion: entry.version, newerVersions: newer, source: entry.source });
+      signals.push({
+        name,
+        installedVersion: entry.version,
+        newerVersions: newer,
+        source: entry.source,
+        follows: followsNewest(entry),
+      });
     }
   }
   return signals;
@@ -800,7 +813,7 @@ function renderAdviseVerdict(attention: string[], visible: VisibleNomination[]):
 
 /** The attention section: one aggregate line per class, no ranking. */
 function renderAttention(lines: string[]): string {
-  const body = lines.length === 0 ? ['  none right now'] : lines.map((l) => `  ${l}`);
+  const body = lines.length === 0 ? ['  none right now'] : lines.flatMap((l) => l.split('\n').map((part) => `  ${part}`));
   return [decorated ? paint.bold('attention') : 'attention', ...body].join('\n');
 }
 

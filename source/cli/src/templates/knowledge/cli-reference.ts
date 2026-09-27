@@ -1699,7 +1699,8 @@ yg pack new <name>
   version only when the source answers; an unreachable source produces silence,
   never a claim that you are current. What a reachable source said is also kept
   in a local, never-committed cache, which is what lets \`yg advise\` mention a
-  newer version (and the \`--to\` command that takes it) without reaching outside
+  newer version (and the command that takes it: a plain \`yg pack update <name>\`
+  for a package that follows the newest, \`--to <version>\` for a pinned one) without reaching outside
   the repository.
 - \`verify\` — asks each source whether the recorded tag still points at the
   recorded commit and whether the copy is still exactly what it holds (a file the

@@ -31,7 +31,7 @@ import {
   writePackagesLock,
 } from '../io/package-store.js';
 import { collectPackagesDrift, isCopyIntact, repoRelativePackagePath } from '../core/checks/packages.js';
-import { newerThanInstalled } from '../core/advise-package-nominations.js';
+import { newerThanInstalled, takeNewestCommand } from '../core/advise-package-nominations.js';
 import {
   FetchSession,
   PackRefusal,
@@ -582,8 +582,10 @@ async function runList(): Promise<number> {
     observed[name] = tags;
     const newer = newerThanInstalled(tags, entry.version);
     if (newer.length > 0) {
+      const follows = (entry.requested ?? REQUESTED_LATEST) === REQUESTED_LATEST;
       writeOut(
-        `\n'${name}' also publishes: ${newer.join(', ')}  — take one with: yg pack update ${name} --to ${newer[newer.length - 1]}\n`,
+        `\n'${name}' also publishes: ${newer.join(', ')}  — take the newest with: ${takeNewestCommand({ name, newerVersions: newer, follows })}` +
+          `${follows ? '' : ' (it stays pinned, at that version)'}\n`,
       );
     }
   }
