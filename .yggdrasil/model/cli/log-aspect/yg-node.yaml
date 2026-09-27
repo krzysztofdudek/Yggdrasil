@@ -1,0 +1,29 @@
+name: Rule History Commands
+type: command-support
+description: >-
+  The rule half of the log command: writing an entry into a rule's own history
+  and reading that history back, as prose or as the rule history document. A
+  change of status recorded here is a RECORD, not the change — the rule's own
+  file stays the user's to edit, so a status the file does not carry, one the
+  rule already stood at, or one given without the evidence that justified it is
+  refused, each with its own code. Where the rule moved from is taken from its
+  own history, then from the status the tool last saw, and otherwise the entry
+  says nobody knows rather than guessing. A rule's history is read whole by
+  default, because the tools that read the document expect every entry unless
+  they ask for fewer. Registers no Commander subcommand: the log command names
+  the rule and hands over the entry text and the moment it is written.
+relations:
+  - target: cli/core/log
+    type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/output
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/cli/log-aspect.ts

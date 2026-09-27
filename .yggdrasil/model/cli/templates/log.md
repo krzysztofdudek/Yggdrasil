@@ -234,5 +234,19 @@ The manual and the knowledge topics now say when a merge owes a log entry: a mer
 The manual and the knowledge now say that only a structural relation sanctions an import and that an event pair is no way around a structural cycle, matching what the relation check enforces.
 ## [2026-09-27T07:39:26.992Z]
 The manual, the knowledge and the architecture schema now say that parents: also govern the top level and that root is the reserved entry allowing a type to sit there.
+## [2026-09-27T08:39:48.845Z]
+The agent-facing manual, the log-management knowledge and the CLI reference knowledge now teach yg log add --supersedes as the way to retract a decision, instead of asking the agent to hand-write a Supersedes heading that nothing validated; the hand-written shape is still described because it reads the same way.
+## [2026-09-27T09:08:28.989Z]
+The CLI reference, log-management and lock knowledge now describe the node type decision log: where it lives, that it is never required and re-opens no verdict, the checks it shares with a node log, its baseline section in the committed logs file, and the orphaned-log warning.
+## [2026-09-27T09:37:51.795Z]
+The agent manual and the CLI reference knowledge teach the rule history as yg log with --aspect, drop the removed alias of --top, and describe what differs from the other logs: the whole history by default, the status flags, no merge baseline.
+## [2026-09-27T10:05:54.261Z]
+The lock knowledge and the agent manual describe the committed type baselines file, why it is separate, and that an unknown top-level key in a committed lock file is now ignored rather than lock-invalid.
+## [2026-09-27T10:33:01.223Z]
+The agent manual and the knowledge describe the guard on a type decision (the listing, --supersedes or --adds, the refusal code), the conflict merge-resolve reports when both sides superseded the same entry, and merge-resolve --type in the merge recipe with its own baseline file.
 ## [2026-09-27T10:51:30.217Z]
 Prime, the shared knowledge sentence and the aspect schema said a module imported from outside the rule directory is not folded into the rule hash; the hash now follows any import inside the repository, so the text says that and keeps only the outside-the-repository exclusion.
+## [2026-09-27T14:06:25.220Z]
+The branch that gives node types a decision log and folds the rule history into yg log is brought up to date with the release line, which meanwhile taught the manual and the knowledge that only a structural relation sanctions an import, that parents: govern the top level with root as the reserved entry, and that a scope.files filter applies to mapped graph files. Both sides edited the same agent-facing texts; the merged texts keep every statement from both, since none of the two changes contradicts the other.
+## [2026-09-27T16:03:23.562Z]
+The branch caught up with the release line: the generated issue-code table and the agent knowledge now hold the codes and wording of both sides, this branch's endpoint, package and relation fixes alongside the type decision logs and yg log --aspect brought in with log --type, regenerated from the merged registry rather than stitched by hand.

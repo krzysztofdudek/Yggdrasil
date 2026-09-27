@@ -181,7 +181,7 @@ and an update that changes that default tells you it is shadowing it.
 ### The rule's history
 
 A rule's history — a change of status noticed by `yg check --approve`, an
-entry written with `yg aspects log add` — lives in `log.md` beside a rule of your
+entry written with `yg log add --aspect` — lives in `log.md` beside a rule of your
 own. An installed rule's directory is the package's copy and holds nothing the
 package did not ship, so its history is written beside the adaptation instead,
 as `yg-aspect.adapt.log.md`. Like the adaptation it is yours: the copy rail never

@@ -92,18 +92,18 @@ describe('C1: a three-word command is never cut to two', () => {
     messageData: {
       what: "Rule 'no-todo' now stands at advisory; the last standing recorded for it was enforced.",
       why: 'A standing moved without a word about why.',
-      next: "Record why it moved: yg aspects log add --aspect no-todo --status advisory --evidence '<what justified it>' --reason '<why it moved>'. The next yg check --approve otherwise writes the bare fact.",
+      next: "Record why it moved: yg log add --aspect no-todo --status advisory --evidence '<what justified it>' --reason '<why it moved>'. The next yg check --approve otherwise writes the bare fact.",
     },
   } as CheckIssue;
   const other: CheckIssue = { severity: 'warning', code: 'uncovered-advisory', rule: 'uncovered-advisory', uncoveredFiles: ['docs/a.md'], uncoveredCount: 1, messageData: { what: 'x', why: 'y', next: 'Map these files to a node.' } } as CheckIssue;
 
-  it('keeps `yg aspects log add` whole', () => {
+  it('keeps `yg log add --aspect` whole, flags included', () => {
     const [next] = steps(render(result([statusMoved, other])));
-    expect(next).toMatch(/^next: yg aspects log add --aspect no-todo --status advisory /);
+    expect(next).toMatch(/^next: yg log add --aspect no-todo --status advisory /);
   });
 
   it('the three-word groups are the ones the e2e command-tree walk pins (tests/e2e/cli-next-contract.test.ts)', () => {
-    expect([...THREE_WORD_GROUPS]).toEqual(['aspects log']);
+    expect([...THREE_WORD_GROUPS]).toEqual([]);
   });
 });
 

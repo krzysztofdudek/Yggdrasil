@@ -10,6 +10,11 @@ export const LOCK_NONDET_FILE_NAME = 'yg-lock.nondeterministic.json';
  *  positive closure and by `yg log merge-resolve`; isolated so log churn stays out of the
  *  verdict files. */
 export const LOCK_LOGS_FILE_NAME = 'yg-lock.logs.json';
+/** Committed: the append-only baseline of each node type's decision log. Written only by
+ *  `yg log add --type`, `yg log merge-resolve --type` and a full fill's prune of a type that
+ *  is gone — never by a fill's lock write — and read by no release before 6.1.0, which is why
+ *  it is a file of its own and not a section of the logs file. */
+export const LOCK_TYPES_FILE_NAME = 'yg-lock.types.json';
 /** Gitignored: deterministic-aspect verdicts. Pure local cache — regenerated for free by
  *  `yg check --approve --only-deterministic`; never committed (dot-prefixed per the derived-state
  *  convention). Absent on a fresh clone = those pairs read as unverified until rematerialized. */
@@ -103,6 +108,21 @@ export interface LockNodeEntry {
 }
 
 /**
+ * Per-node-type facts, committed in their own file (`yg-lock.types.json`): the
+ * append-only baseline of the type's own decision log (`.yggdrasil/types/<type>/log.md`),
+ * with exactly the semantics of a node's `log` baseline. Recorded when an entry
+ * is added through the CLI and when a merge of the log is reconciled — a type
+ * has no verdicts, so there is no closure to record it at.
+ *
+ * NOT a verdict ingredient, like everything in the logs file: writing or reading
+ * it invalidates nothing.
+ */
+export interface LockTypeEntry {
+  /** Append-only log baseline (validateAppendOnly semantics, as for a node). */
+  log?: { last_entry_datetime: string; prefix_hash: string };
+}
+
+/**
  * Per-rule facts the tool remembers between runs.
  *
  * Only one so far, and it exists for a single purpose: a rule's STANDING is
@@ -138,6 +158,14 @@ export interface LockFile {
    * reads as "nothing has been seen yet", never as "seen and empty".
    */
   aspects?: Record<string, LockAspectEntry>;
+  /**
+   * typeId → per-type facts. Read from the committed `yg-lock.types.json` and
+   * never written by writeLock: that file is written only by the commands that
+   * move a type baseline (io/lock-store.ts writeTypeLock), so a fill's lock
+   * write can never put a stale copy of it back. Absent reads as "no baseline
+   * recorded".
+   */
+  types?: Record<string, LockTypeEntry>;
 }
 
 /** 'node:<model-relative path>' | 'file:<repo-relative POSIX path>' */

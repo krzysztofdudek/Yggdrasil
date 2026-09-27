@@ -10,3 +10,5 @@ An edited, missing or stray copy of an installed package now hands the report it
 The drift record now attributes a file the package never installed to the package whose directory holds it, and a copy counts as intact only with none, so the pack commands that read isCopyIntact agree with the rail instead of ignoring such files.
 ## [2026-09-27T15:40:00.207Z]
 The drift record separates the unknown files outside every installed package directory (unowned), so the pack commands can report what no per-package view covers.
+## [2026-09-27T16:09:43.200Z]
+The drift comparison now puts every path into its one stored form, forward slashes and no trailing slash, before it compares or stores it, both the paths recorded for a package and the files found on disk. The record and yg pack list read that result directly, so normalizing only where the rail builds its message left raw Windows paths in what the other consumers were handed; one helper now does it for the comparison, the stored lists and the printed path alike.

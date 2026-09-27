@@ -70,11 +70,18 @@ export function isCopyIntact(drift: PackageDrift | undefined): boolean {
   return drift === undefined || (drift.modified.length === 0 && drift.missing.length === 0 && drift.unknown.length === 0);
 }
 
+/**
+ * A path relative to `.yggdrasil/aspects/` in its one stored form: forward
+ * slashes, no trailing slash. A record or a directory walk on Windows can carry
+ * backslashes, so nothing is compared, stored or printed before this.
+ */
+function toPosixAspectsPath(aspectsRelPath: string): string {
+  return aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
 /** Repository-relative POSIX path of a file addressed relative to `.yggdrasil/aspects/`. */
 export function repoRelativePackagePath(aspectsRelPath: string): string {
-  // Normalized here, not assumed: the path is printed and handed over as a step,
-  // and a record or a directory walk on Windows can carry backslashes.
-  return `.yggdrasil/aspects/${aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '')}`;
+  return `.yggdrasil/aspects/${toPosixAspectsPath(aspectsRelPath)}`;
 }
 
 /**
@@ -94,12 +101,12 @@ export async function collectPackagesDrift(
   for (const [packageName, entry] of Object.entries(lock.packages)) {
     byPackage.set(packageName, { modified: [], missing: [], unknown: [] });
     dirs.push({ prefix: `${installDirRelative(entry.package)}/`, packageName });
-    for (const [filePath, hash] of Object.entries(entry.files)) {
-      expected.set(filePath, { hash, packageName });
+    for (const [recordedPath, hash] of Object.entries(entry.files)) {
+      expected.set(toPosixAspectsPath(recordedPath), { hash, packageName });
     }
   }
 
-  const actual = await listAllPackageFiles(projectRoot);
+  const actual = (await listAllPackageFiles(projectRoot)).map(toPosixAspectsPath);
   const actualSet = new Set(actual);
   const unknown: string[] = [];
 

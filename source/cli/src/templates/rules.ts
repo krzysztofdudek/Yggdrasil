@@ -17,7 +17,7 @@ const SYSTEM = `## SYSTEM
 
 Yggdrasil is continuous architecture enforcement. A graph in \`.yggdrasil/\` describes the architecture as rules. Each rule is checked against source code — a reviewer rule by the reviewer (the model configured in \`yg-config.yaml\`), a script rule by its local \`check.mjs\`. If code violates a rule, the verdict is a refusal. Every verdict — the reviewer's judgment and a script's result alike — is stored as a content-addressed entry in the lock; a verdict holds exactly while the inputs that produced it are unchanged. (The lock is a committed/gitignored triad — see Graph Elements.)
 
-The CLI (\`yg\`) never modifies your source files, and during normal review it never modifies your graph files either — you create and edit those manually. Two commands are the deliberate exception: \`yg adopt\` installs an entire proposed \`.yggdrasil/\` graph as a transaction (moving any graph already here aside to \`.yggdrasil.replaced-*\` first), and \`yg drill add\` writes case files into a rule's own \`aspects/<rule>/drills/<case>/\` directory. The lock is written by \`yg check --approve\` (the only writer of verdicts — a reviewer rule is judged by the reviewer configured in \`yg-config.yaml\` and by nothing else) and \`yg log merge-resolve\` (a node's log baseline); the one-time 5.1.0 lock-split migration that \`yg init --upgrade\` runs also rewrites it, once, on upgrade. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry a full fill writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why (\`--approve --only-deterministic\` writes no committed file, so it leaves the warning standing instead). The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run (\`error[code]: …\`, \`why:\`, \`next:\`). A \`yg check\` report ends with a \`next:\` line — the one concrete step to take first. Read it and follow it; \`then:\` names the step after it, and each finding block's \`fix:\` says what to do for that block. For a command's flags, run \`yg <command> --help\`.
+The CLI (\`yg\`) never modifies your source files, and during normal review it never modifies your graph files either — you create and edit those manually. Two commands are the deliberate exception: \`yg adopt\` installs an entire proposed \`.yggdrasil/\` graph as a transaction (moving any graph already here aside to \`.yggdrasil.replaced-*\` first), and \`yg drill add\` writes case files into a rule's own \`aspects/<rule>/drills/<case>/\` directory. The lock is written by \`yg check --approve\` (the only writer of verdicts — a reviewer rule is judged by the reviewer configured in \`yg-config.yaml\` and by nothing else) and \`yg log merge-resolve\` (a node's log baseline); the one-time 5.1.0 lock-split migration that \`yg init --upgrade\` runs also rewrites it, once, on upgrade. Logs are written by \`yg log add\` (a component's) and \`yg log add --aspect\` (a rule's) — plus one entry a full fill writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why (\`--approve --only-deterministic\` writes no committed file, so it leaves the warning standing instead). The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run (\`error[code]: …\`, \`why:\`, \`next:\`). A \`yg check\` report ends with a \`next:\` line — the one concrete step to take first. Read it and follow it; \`then:\` names the step after it, and each finding block's \`fix:\` says what to do for that block. For a command's flags, run \`yg <command> --help\`.
 
 ### Graph Elements
 
@@ -30,6 +30,7 @@ The CLI (\`yg\`) never modifies your source files, and during normal review it n
   flows/               ← flows: business processes with node participation
   yg-lock.nondeterministic.json ← committed: reviewer verdicts; written only by the CLI. Never hand-edit. On a merge conflict take ONE side wholesale, then run yg check --approve.
   yg-lock.logs.json    ← committed: per-node log/closure baseline; written only by the CLI.
+  yg-lock.types.json   ← committed, once a type has a decision log: type-log baselines; written only by the CLI.
   .yg-lock.deterministic.json ← gitignored cache: script verdicts. Rebuilt free by \`yg check --approve --only-deterministic\`. Never commit/hand-edit. (yg knowledge read verification-and-lock)
 \`\`\`
 
@@ -145,11 +146,12 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg impact --node\\|--file\\|--aspect\\|--flow\\|--type <x>\` | Blast radius — which pairs an edit would invalidate, before a change |
 | \`yg tree [--root <path>] [--depth <n>]\` | Browse graph structure |
 | \`yg find "<query>"\` | Locate entry-point nodes/aspects by natural-language query |
-| \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`) |
-| \`yg aspects log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a status change — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
-| \`yg aspects log read --aspect <id>\` [\`--top <n>\` \\| \`--all\`] [\`--json\`] | Read that history, newest first (whole history by default; \`--limit\` is an alias of \`--top\`). |
+| \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`; \`--supersedes <datetime>\` replaces an earlier entry, which stays in the file) |
+| \`yg log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a status change — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
+| \`yg log read --aspect <id>\` [\`--top <n>\` \\| \`--all\`] [\`--json\`] | Read that history, newest first (whole history by default). |
 | \`yg log read --node <path> [--top N \\| --all]\` | Read log entries (default top 10, newest first) |
-| \`yg log merge-resolve --node <path>\` | Reconcile log.md after a git merge, rebase or cherry-pick (writes / validates the union of both sides' entries) |
+| \`yg log add --type <type> --reason <text>\` [\`--supersedes <datetime>\` \\| \`--adds\`] | Record an explicit decision about every node of a type (\`.yggdrasil/types/<type>/log.md\`); never required. It lists the decisions in force for the type and the types above it; when any exists, say whether the new one replaces one (\`--supersedes\`) or adds beside them (\`--adds\`) — with neither it is refused (\`type-log-choice-missing\`). \`yg log read --type <type>\` prints the decisions in force (\`--all\` adds replaced ones) |
+| \`yg log merge-resolve --node <path>\` (or \`--type <type>\`) | Reconcile log.md after a git merge, rebase or cherry-pick (writes / validates the union of both sides' entries) |
 | \`yg suppressions\` | Read-only inventory of active \`yg-suppress\` markers; warns on unknown aspect-id, wildcard, unbounded range, or a waiver aimed at an \`errs: under\` check (one that cannot false-positive, so there is nothing to waive). Exit 0. |
 | \`yg knowledge list\` / \`yg knowledge read <name>\` | Browse deep-reference topics |
 | \`yg advise\` | Read-only attention layer: aggregates signals and proposes rule changes, each with evidence and a human-action NEXT. Never gates \`yg check\`, never writes a verdict, never appears in a \`next:\` line. |
@@ -336,7 +338,10 @@ the diff and present it as the reason.
 
 After a git merge, rebase or cherry-pick: if both sides added log entries
 to the same node, run \`yg log merge-resolve --node <path>\` while git is
-stopped on the conflict (it writes the union) or from the merge commit. The
+stopped on the conflict (it writes the union) or from the merge commit — and
+\`yg log merge-resolve --type <type>\` for a conflicted type decision log
+(\`.yggdrasil/types/<type>/log.md\`; take one side of a conflicted
+\`yg-lock.types.json\` first). The
 tool keeps the entries both sides start with byte-exact and the union of
 every entry after them — it cannot silently drop or fabricate entries. Do NOT manually concatenate the two
 log histories — integrity hashes will break and \`yg check\` will fail. Until the

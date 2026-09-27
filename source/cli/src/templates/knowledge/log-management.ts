@@ -1,5 +1,5 @@
 export const summary =
-  'Log purpose (WHY-first), opt-in gate, positive-closure cycle, source-fingerprint gate, lock as baseline home, format constraints, Supersedes, typo recovery, revert recipe, git-merge resolution, large logs';
+  'Log purpose (WHY-first), opt-in gate, positive-closure cycle, source-fingerprint gate, lock as baseline home, format constraints, Supersedes, type decision logs, typo recovery, revert recipe, git-merge resolution, large logs';
 
 export const content = `# Log management
 
@@ -184,14 +184,42 @@ datetime ordering).
 ## Correcting a previous entry that turned out wrong
 
 Append-only blocks editing historical entries. To supersede an earlier
-entry, append a new entry whose body opens with:
+entry, append a new entry that names it:
 
-\`\`\`
-### Supersedes: <prior ISO datetime>
+\`\`\`bash
+yg log add --node <path> --reason "<what holds now, and why>" --supersedes <prior ISO datetime>
 \`\`\`
 
-Future agents reading the log see the structured supersedes and know which
-entries no longer hold.
+The entry opens with one \`### Supersedes: <prior ISO datetime>\` line per
+replaced entry (repeat the flag to replace several). The flag refuses a datetime
+that is not an entry of this log, and one a later entry already replaced — name
+that later entry instead. Both entries stay in the file; \`yg log read\` marks
+the replaced one, so future agents know which entries no longer hold. An entry
+written by hand in the same \`### Supersedes:\` shape reads the same way when the
+entry it names exists.
+
+## A node type's decision log
+
+\`yg log add --type <type> --reason "<the decision>"\` records an explicit
+decision about the whole area a node type stands for, in
+\`.yggdrasil/types/<type>/log.md\`. It is never required and invalidates no
+verdict. It has the same entry rules, \`--supersedes\`, integrity, format and
+conflict checks and \`yg log merge-resolve --type <type>\` as a node's log; its
+baseline (in the committed \`yg-lock.types.json\`) moves with each add,
+so an add refuses a rewritten or conflicted log. \`yg log read --type <type>\`
+prints the decisions in force; \`--all\` adds the replaced ones. A log whose
+type the architecture no longer defines is reported as \`type-log-orphaned\`.
+
+An add lists the decisions in force for the type and the types above it, and
+when any exists it needs \`--supersedes <datetime>\` (the one it replaces) or
+\`--adds\` (it replaces none); with neither it is refused as
+\`type-log-choice-missing\`.
+
+When both sides of a merge superseded the SAME entry, \`yg log merge-resolve\`
+keeps every entry and records the baseline but exits with
+\`log-merge-supersedes-conflict\`: two successors would both be in force. Finish
+the merge, then add one entry that supersedes both and says which holds — ask
+the user which one that is.
 
 ## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
 

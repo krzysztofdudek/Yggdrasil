@@ -12,6 +12,9 @@ import { computeExpectedPairs, computeUncomputableNodes } from './pairs.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { toPosix } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+import { readTypeLock, writeTypeLock } from '../io/lock-store.js';
+import { withLogWriteLock } from '../io/log-store.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 /**
  * The writer's own report of what it pruned this run — printed by `--approve`
@@ -241,8 +244,36 @@ export async function garbageCollectAndRewrite(
     if (!graph.nodes.has(nodePath)) delete lock.nodes[nodePath];
   }
 
+  // Prune type-log baselines for node types the architecture no longer defines.
+  // A baseline left behind would make a type created later under the same name
+  // read its fresh log as a truncated history (boundary missing). They live in
+  // a committed file of their own that the fill's lock write never touches, so
+  // the prune reads and rewrites that file itself, under the log-write lock a
+  // concurrent `yg log add --type` holds too — and only on a full run, which
+  // is the one allowed to change committed files.
+  if (scope === 'all') await pruneTypeBaselines(graph, lock);
+
   lock.version = LOCK_FORMAT_VERSION;
   await persistLock();
 
   return { entries: prunedEntries, billedCount, freeCount, unknownCount };
+}
+
+/** Drop the baseline of every type the architecture no longer defines, from the file and the in-memory lock. */
+async function pruneTypeBaselines(graph: Graph, lock: LockFile): Promise<void> {
+  const defined = (typeId: string): boolean => Object.prototype.hasOwnProperty.call(graph.architecture.node_types, typeId);
+  const done = await withLogWriteLock(graph.rootPath, async () => {
+    const current = readTypeLock(graph.rootPath);
+    const kept = Object.fromEntries(Object.entries(current).filter(([typeId]) => defined(typeId)));
+    if (Object.keys(kept).length !== Object.keys(current).length) await writeTypeLock(graph.rootPath, kept);
+    return kept;
+  });
+  if (!done.ok) {
+    // Another log writer held the lock past the wait: the stale baseline stays
+    // for the next full run, which is harmless until a type of that name returns.
+    debugWrite(`[fill-gc] type baselines not pruned: ${done.error.what}`);
+    return;
+  }
+  if (Object.keys(done.value).length > 0) lock.types = done.value;
+  else delete lock.types;
 }

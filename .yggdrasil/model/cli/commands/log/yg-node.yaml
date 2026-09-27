@@ -1,9 +1,19 @@
 name: Log Commands
 type: command
-description: CLI commands for managing per-node log.md files — yg log add, read,
-  merge-resolve, and the parent registrar. yg log read --json prints the yg-log/1
-  document (the node's entries with their timestamps; with --with-verdicts also
-  the fill events attributed to it and whether that telemetry is shared). Every
+description: >-
+  CLI commands for the append-only logs — yg log add, read,
+  merge-resolve, and the parent registrar. Every command names exactly one log,
+  a node's (--node), a node type's decision log (--type) or a rule's own history
+  (--aspect, which replaced the separate aspects log command), and a command
+  naming none or more than one is refused as a usage error. A rule's history
+  alone takes the flags that record a change of its standing — a RECORD, not the
+  change: the rule's own file stays the user's to edit, so a standing the file
+  does not carry is refused — and it keeps no merge baseline, so merge-resolve
+  refuses it. yg log read --json prints the yg-log/1
+  document for a node (the node's entries with their timestamps; with
+  --with-verdicts also the fill events attributed to it and whether that
+  telemetry is shared) and the yg-type-log/1 document for a type, whose read
+  shows the decisions in force unless every entry is asked for. Every
   refusal these commands print goes through the CLI output layer, so it reads
   like every other command error and reaches a JSON reader as a yg-error/1
   document.
@@ -29,5 +39,7 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/log-aspect
+    type: calls
 mapping:
   - source/cli/src/cli/log.ts

@@ -222,14 +222,15 @@ export const JSON_DOCUMENTS: ReadonlyArray<{ id: string; title: string; file: st
   { id: 'yg-aspects/1', title: 'Rule list (yg aspects --json)', file: 'src/formatters/aspects-json.ts', type: 'AspectsJsonDocument' },
   { id: 'yg-aspects-health/1', title: 'Rule health (yg aspects --health --json)', file: 'src/formatters/aspects-health-json.ts', type: 'AspectsHealthJsonDocument' },
   { id: 'yg-advise/1', title: 'Attention feed (yg advise --json)', file: 'src/formatters/advise-json.ts', type: 'AdviseJsonDocument' },
-  { id: 'yg-aspect-log/1', title: 'Rule history (yg aspects log read --json)', file: 'src/formatters/aspect-log-json.ts', type: 'AspectLogJsonDocument' },
+  { id: 'yg-aspect-log/1', title: 'Rule history (yg log read --aspect --json)', file: 'src/formatters/aspect-log-json.ts', type: 'AspectLogJsonDocument' },
   { id: 'yg-suppressions/1', title: 'Waiver inventory (yg suppressions --json)', file: 'src/formatters/suppressions-json.ts', type: 'SuppressionsJsonDocument' },
   { id: 'yg-drill/1', title: 'Drill run (yg drill --json)', file: 'src/formatters/drill-json.ts', type: 'DrillJsonDocument' },
   { id: 'yg-error/1', title: 'Command error (any command run with --json that fails)', file: 'src/cli/output.ts', type: 'ErrorDocument' },
   { id: 'yg-tree/1', title: 'Node list (yg tree --json)', file: 'src/cli/tree.ts', type: 'TreeJsonDocument' },
   { id: 'yg-owner/1', title: 'File owner (yg owner --json)', file: 'src/cli/owner.ts', type: 'OwnerJsonDocument' },
   { id: 'yg-find/1', title: 'Search results (yg find --json)', file: 'src/cli/find.ts', type: 'FindJsonDocument' },
-  { id: 'yg-log/1', title: 'Component log (yg log read --json)', file: 'src/cli/log.ts', type: 'LogJsonDocument' },
+  { id: 'yg-log/1', title: 'Component log (yg log read --node --json)', file: 'src/cli/log.ts', type: 'LogJsonDocument' },
+  { id: 'yg-type-log/1', title: 'Type decisions (yg log read --type --json)', file: 'src/cli/log.ts', type: 'TypeLogJsonDocument' },
   { id: 'yg-package-versions/1', title: 'Package versions cache (.yggdrasil/.yg-packages-versions.json)', file: 'src/io/package-versions-cache.ts', type: 'PackageVersionsCache' },
 ];
 

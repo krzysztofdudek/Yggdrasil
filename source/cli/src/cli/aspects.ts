@@ -19,7 +19,6 @@ import {
   formatAspectsHealthJson,
   type AspectsHealthJsonDocument,
 } from '../formatters/aspects-health-json.js';
-import { registerAspectsLogCommand } from './aspects-log.js';
 import { readAspectLog } from '../core/log/aspect-log.js';
 import { parseStatusEntry } from '../core/log/aspect-status.js';
 import type {
@@ -1216,7 +1215,7 @@ async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string):
 }
 
 export function registerAspectsCommand(program: Command): void {
-  const aspects = program
+  program
     .command('aspects')
     .description('List aspects with usage stats')
     .option(
@@ -1270,8 +1269,4 @@ export function registerAspectsCommand(program: Command): void {
         abortOnUnexpectedError(error, 'listing aspects');
       }
     });
-
-  // A rule's own history, written and read through the command that lists the
-  // rules — the same place a reader already goes to ask about them.
-  registerAspectsLogCommand(aspects);
 }
