@@ -1,9 +1,13 @@
 name: Log Commands
 type: command
-description: CLI commands for managing per-node log.md files — yg log add, read,
-  merge-resolve, and the parent registrar. yg log read --json prints the yg-log/1
-  document (the node's entries with their timestamps; with --with-verdicts also
-  the fill events attributed to it and whether that telemetry is shared). Every
+description: CLI commands for the append-only logs — yg log add, read,
+  merge-resolve, and the parent registrar. Every command names exactly one log,
+  a node's (--node) or a node type's decision log (--type), and a command naming
+  none or both is refused as a usage error. yg log read --json prints the yg-log/1
+  document for a node (the node's entries with their timestamps; with
+  --with-verdicts also the fill events attributed to it and whether that
+  telemetry is shared) and the yg-type-log/1 document for a type, whose read
+  shows the decisions in force unless every entry is asked for. Every
   refusal these commands print goes through the CLI output layer, so it reads
   like every other command error and reaches a JSON reader as a yg-error/1
   document.

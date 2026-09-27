@@ -56,3 +56,5 @@ A lock file that cannot be trusted now hands the report its first step as data: 
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
 ## [2026-09-27T05:41:47.805Z]
 The approval lock records, and its refusal names, the command the waiting run was invoked as, instead of always the plain approve command. A free deterministic-only run that found the lock taken used to be told to re-run the paid command.
+## [2026-09-27T09:08:26.792Z]
+The committed logs file gains a types section holding each node type decision-log baseline, validated as strictly as a component baseline. It is written only once a type has a baseline, so a project that never records a type decision keeps a file an earlier release, whose reader refuses unknown keys, still reads.

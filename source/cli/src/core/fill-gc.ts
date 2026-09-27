@@ -241,6 +241,16 @@ export async function garbageCollectAndRewrite(
     if (!graph.nodes.has(nodePath)) delete lock.nodes[nodePath];
   }
 
+  // Prune type-log baselines for node types the architecture no longer defines.
+  // A baseline left behind would make a type created later under the same name
+  // read its fresh log as a truncated history (boundary missing).
+  if (lock.types !== undefined) {
+    for (const typeId of Object.keys(lock.types)) {
+      if (!Object.prototype.hasOwnProperty.call(graph.architecture.node_types, typeId)) delete lock.types[typeId];
+    }
+    if (Object.keys(lock.types).length === 0) delete lock.types;
+  }
+
   lock.version = LOCK_FORMAT_VERSION;
   await persistLock();
 

@@ -27,6 +27,11 @@ description: >-
   still fail-closed — while refusing over it would take the whole gate down on
   any version skew that widens the schema, which is how this actually breaks in
   the field rather than through corruption.
+  The committed logs file also carries, beside the per-component baselines, the
+  append-only baseline of each node type's decision log. That section is written
+  only once a type has one, so a project that never records a type decision
+  keeps a committed file an earlier release still reads, and it is validated as
+  strictly as a component's baseline.
   Writes are cheap to repeat: a caller can narrow a write to the split files it
   changed, and the store remembers a digest of what it last wrote to each file
   together with that file's size and time, so an unchanged file is skipped and

@@ -113,6 +113,10 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'fixture');
     yg(dir, ['log', 'add', '--node', 'services/orders', '--reason', 'Why the orders service exists.']);
+    yg(dir, ['log', 'add', '--type', 'service', '--reason', 'A decision about every service.']);
+    const [decided] = (JSON.parse(yg(dir, ['log', 'read', '--type', 'service', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries;
+    yg(dir, ['log', 'add', '--type', 'service', '--reason', 'The decision that replaced it.', '--supersedes', decided.datetime]);
+    yg(dir, ['log', 'add', '--node', 'services/orders', '--reason', 'A later reason that replaces the first.', '--supersedes', (JSON.parse(yg(dir, ['log', 'read', '--node', 'services/orders', '--json']).stdout) as { entries: Array<{ datetime: string }> }).entries[0].datetime]);
     yg(dir, ['aspects', 'log', 'add', '--aspect', 'no-todo-comments', '--reason', 'Why the rule exists.']);
 
     emitted(dir, ['check', '--json']);
@@ -137,6 +141,8 @@ describe.skipIf(!distExists)('every emitted yg-*/1 document conforms to its publ
     emitted(dir, ['owner', '--file', 'src/services/orders.ts', '--json']);
     emitted(dir, ['find', 'order', '--json']);
     emitted(dir, ['log', 'read', '--node', 'services/orders', '--json']);
+    emitted(dir, ['log', 'read', '--type', 'service', '--json']);
+    emitted(dir, ['log', 'read', '--type', 'service', '--all', '--json']);
     emitted(dir, ['log', 'read', '--node', 'services/orders', '--with-verdicts', '--json']);
     // Command errors.
     emitted(dir, ['context', '--node', 'no/such/node', '--json']);

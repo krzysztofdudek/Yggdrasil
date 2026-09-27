@@ -193,9 +193,10 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 |------|----------|---------|-----|
 | \`log-entry-missing\` | error · a warning outside your change | A log_required node changed its own source without a fresh log entry (a rule, relation, lock or verdict change never owes one). Blocking on plain yg check; stops --approve only when the run would fill a pair of that node. | yg log add --node <node> --reason "<why the change was made>" |
 | \`log-cycle-open\` | warning | A log_required node's source moved past its recorded baseline and its newest entry keeps satisfying the requirement, because no full yg check --approve has recorded a new baseline (--only-deterministic never does). | A full yg check --approve. |
-| \`log-integrity\` | error · stops \`--approve\` · a warning outside your change | A node's recorded log history was rewritten, or entries were inserted before its last recorded one (the shape a merge leaves). | yg log merge-resolve --node <node> after a merge; otherwise restore log.md from version control. |
-| \`log-format\` | error · stops \`--approve\` · a warning outside your change | A node's log.md does not parse as log entries. | Fix the lines the finding names, or restore the file from version control. |
-| \`log-conflict\` | error · stops \`--approve\` · a warning outside your change | A node's log.md still carries git conflict markers. | yg log merge-resolve --node <node> |
+| \`log-integrity\` | error · stops \`--approve\` · a warning outside your change | A node's (or a node type's) recorded log history was rewritten, or entries were inserted before its last recorded one (the shape a merge leaves). | yg log merge-resolve --node <node> (or --type <type>) after a merge; otherwise restore log.md from version control. |
+| \`log-format\` | error · stops \`--approve\` · a warning outside your change | A node's (or a node type's) log.md does not parse as log entries. | Fix the lines the finding names, or restore the file from version control. |
+| \`log-conflict\` | error · stops \`--approve\` · a warning outside your change | A node's (or a node type's) log.md still carries git conflict markers. | yg log merge-resolve --node <node> (or --type <type>) |
+| \`type-log-orphaned\` | warning | A type log under .yggdrasil/types/ belongs to a node type yg-architecture.yaml no longer defines, so no context carries its decisions. | Move the decisions that still hold to the type that replaced it (yg log add --type), then delete the directory — or restore the type. |
 
 ### Reported by a fill only
 
@@ -212,6 +213,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`command-error\` | error | A command refused for a reason no more specific code names; what, why and next say which. | Follow the error's own next: line. |
 | \`internal\` | error | An error the CLI does not classify — a bug. | File an issue with the command and its full output. |
 | \`node-not-found\` | error | The command names a node the graph does not hold. Every command that takes a node answers with it. | yg find "<node>" |
+| \`type-not-found\` | error | The command names a node type yg-architecture.yaml does not define. | Use a type the architecture defines (read .yggdrasil/yg-architecture.yaml). |
 | \`aspect-not-found\` | error | The command names a rule the graph does not hold. Every command that takes a rule id answers with it. | yg aspects lists every rule id. |
 | \`graph-missing\` | error | There is no .yggdrasil/ graph in this directory or above it. | yg init to create one, or run from the repository that has it. |
 | \`graph-load-failed\` | error | The graph could not be loaded at all (an unsupported or malformed schema version, an unreadable graph directory). | Follow the error's next: line — usually yg init --upgrade, or upgrading the CLI. |

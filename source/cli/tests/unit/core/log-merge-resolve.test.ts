@@ -474,7 +474,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'merge' });
     // Theirs (11:00) sorts ahead of ours (12:00) even though ours is HEAD.
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
     expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(RESOLVED_LOG_GOOD));
@@ -503,7 +503,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, theirs);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'merge' });
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
   });
 
@@ -512,7 +512,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, ours, PARENT1_LOG);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'merge' });
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
   });
 
@@ -612,7 +612,7 @@ describe('logMergeResolve — a rebase or cherry-pick still in progress', () => 
     expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'rebase' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'rebase' });
     expect(await readFile(logPath, 'utf-8')).toBe(E0 + A1 + M);
     expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(E0 + A1 + M));
   });
@@ -625,7 +625,7 @@ describe('logMergeResolve — a rebase or cherry-pick still in progress', () => 
     expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
     graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'rebase' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'rebase' });
     expect(await readFile(logPath, 'utf-8')).toBe(E0 + A1 + A2 + M);
   });
 
@@ -633,7 +633,7 @@ describe('logMergeResolve — a rebase or cherry-pick still in progress', () => 
     const { projectRoot, logPath } = await setupReplay('cherry-pick', [E0 + A1, E0 + A1 + A2], E0 + M);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'cherry-pick' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'cherry-pick' });
     expect(await readFile(logPath, 'utf-8')).toBe(E0 + A2 + M);
   });
 
@@ -641,7 +641,7 @@ describe('logMergeResolve — a rebase or cherry-pick still in progress', () => 
     const { projectRoot, logPath } = await setupReplay('rebase', [E0 + A1], E0 + M);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     await writeFile(logPath, E0 + A1 + M);
-    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing', inProgress: 'rebase' });
+    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', inProgress: 'rebase' });
     await writeFile(logPath, E0 + A1 + M + '## [2026-05-11T13:00:00.000Z]\ninvented.\n');
     const bad = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
     expect(bad.ok).toBe(false);
@@ -736,7 +736,7 @@ describe('logMergeResolve — a side whose log an earlier merge reordered by dat
     expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing', wroteUnion: true, inProgress: 'merge' });
     const union = E0 + C1 + M1 + X + Y;
     expect(await readFile(logPath, 'utf-8')).toBe(union);
     expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(union));
@@ -748,7 +748,7 @@ describe('logMergeResolve — a side whose log an earlier merge reordered by dat
     await writeFile(logPath, E0 + C1 + M1 + X + Y);
     r('git add -A && git commit -qm merged');
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
-    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing' });
+    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing', logPath: '.yggdrasil/model/billing/log.md', target: '--node billing' });
     await writeFile(logPath, E0 + M1 + C1 + X + Y);
     const unordered = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
     expect(unordered.ok).toBe(false);

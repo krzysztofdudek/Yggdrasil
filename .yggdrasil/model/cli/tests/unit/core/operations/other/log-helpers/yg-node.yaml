@@ -11,7 +11,15 @@ description: "Unit tests for log helper functions — log entry format parsing,
   reporting run agree days apart; a rule this checkout has never seen is
   remembered silently because there is no change to narrate; and a log that
   cannot be written never advances the memory, which would leave the change
-  neither recorded nor ever noticeable again."
+  neither recorded nor ever noticeable again. And the reader of a node type's
+  decisions: the decisions in force for a type and for the types above it on
+  its parent chain, nearest first, with a replaced decision left out, a type
+  with nothing in force skipped and a log that does not parse reported as
+  unreadable. And the type log below the CLI: the refusals of an add, the
+  baseline it records in the lock's types section and that section refused when
+  malformed, the check findings over it including an orphaned log, a merge of
+  it reconciled, the standing of replaced entries, and a recording run dropping
+  the baseline of a type that is gone."
 aspects: []
 relations:
   [
@@ -22,6 +30,9 @@ relations:
     { target: cli/io/lock-store, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/tests/support, type: uses },
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/core/check, type: uses },
+    { target: cli/core/fill, type: uses },
     { target: cli/model/graph, type: uses }
   ]
 mapping:
@@ -30,3 +41,5 @@ mapping:
   - source/cli/tests/unit/core/log-merge-resolve.test.ts
   - source/cli/tests/unit/core/aspect-history.test.ts
   - source/cli/tests/unit/core/log-write-lock.test.ts
+  - source/cli/tests/unit/core/type-decision-cascade.test.ts
+  - source/cli/tests/unit/core/type-log.test.ts

@@ -15,7 +15,10 @@ description: >-
   per-rule ones: the standing the tool last saw a rule at, so a change made by
   hand is noticed exactly once. That is remembered LOCAL state, never a verdict
   ingredient — recording it invalidates nothing, and it is absent rather than
-  empty until something has been seen.
+  empty until something has been seen. It also carries per-node-type facts: the
+  append-only baseline of each type's decision log, committed beside the
+  per-component ones, never a verdict ingredient, and absent until a type has
+  one.
 aspects: []
 relations: []
 mapping:

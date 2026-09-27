@@ -190,7 +190,9 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 on disk it is partitioned across three files, read back into one and split again
 only at the I/O boundary:
 - \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of reviewer rules.
-- \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines).
+- \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines),
+  and, once a node type has a decision log, the \`types\` section (each type
+  log's append-only baseline, recorded by \`yg log add --type\`).
 - \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of script
   rules, PLUS the whole \`aspects\` section. The remembered statuses ride with
   the rebuildable cache rather than a committed file because they record what

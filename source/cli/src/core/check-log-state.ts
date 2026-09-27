@@ -6,7 +6,8 @@
  * the SAME committed baseline out of the lock and both run over every node:
  *
  *   1. Is the log HONEST — free of conflict markers, append-only against its
- *      recorded baseline, and parseable?
+ *      recorded baseline, and parseable? Asked of every node type's decision
+ *      log too, and of a type log whose type no longer exists (orphaned).
  *   2. Is the log OWED — did a `log_required` node's mapped source change with
  *      no fresh entry to say why?
  *
@@ -20,19 +21,21 @@ import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { readTextFile } from '../io/graph-fs.js';
+import { readTextFile, readSortedDirOrEmpty, statKind } from '../io/graph-fs.js';
 import { validateAppendOnly } from './log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
 import { computeLogGateState, logGateStateBlocks, logCycleOpen, type LogGateState } from './log/log-gate.js';
 import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
+import { TYPE_LOGS_DIR, typeLogNameUsable, typeLogRelPath } from './log/type-log.js';
 import type { CheckIssue } from './check-contract.js';
 
 /**
- * Log integrity + format for ALL nodes, reading the append-only baseline from
- * the LOCK (`lock.nodes[path].log`) instead of per-node drift state (spec §9).
+ * Log integrity + format for ALL nodes, and for every node type's decision log,
+ * reading the append-only baseline from the LOCK (`lock.nodes[path].log`,
+ * `lock.types[type].log`) instead of per-node drift state (spec §9).
  * `validateAppendOnly` / `validateFormat` logic is unchanged. Restore strings
- * reference `.yggdrasil/yg-lock.logs.json` (the committed per-node log baseline).
+ * reference `.yggdrasil/yg-lock.logs.json` (the committed log baselines).
  */
 export async function classifyLogStateFromLock(
   graph: Graph,
@@ -45,97 +48,158 @@ export async function classifyLogStateFromLock(
     // classifyLogRequirement: nodePath is exempt from normalization only for graph-internal
     // lookups, never for values rendered into stdout-facing strings (posix-paths-output).
     const nodePathPosix = toPosixPath(nodePath);
-    const logRel = `.yggdrasil/model/${nodePathPosix}/log.md`;
-    const logAbs = path.join(projectRoot, logRel);
-    let logContent: string | null = null;
-    try {
-      logContent = await readTextFile(logAbs);
-    } catch { /* missing — keep null */ }
+    await classifyOneLog(projectRoot, {
+      logRel: `.yggdrasil/model/${nodePathPosix}/log.md`,
+      flag: `--node ${nodePathPosix}`,
+      baseline: lock.nodes[nodePath]?.log,
+      identity: { nodePath },
+    }, issues);
+  }
+  await classifyTypeLogs(graph, projectRoot, lock, issues);
+}
 
-    const logBaseline = lock.nodes[nodePath]?.log;
+/**
+ * Every node type's decision log, held to the same three checks as a node's, and
+ * every type log left behind by a type the architecture no longer defines.
+ *
+ * A type log's finding has no node to key on; it carries the log file as its
+ * identity (`unitKey`), like any other nodeless per-file finding.
+ */
+async function classifyTypeLogs(graph: Graph, projectRoot: string, lock: LockFileForCheck, issues: CheckIssue[]): Promise<void> {
+  const defined = Object.keys(graph.architecture.node_types);
+  for (const typeId of defined) {
+    if (!typeLogNameUsable(typeId)) continue;
+    const logRel = typeLogRelPath(typeId);
+    await classifyOneLog(projectRoot, {
+      logRel,
+      flag: `--type ${typeId}`,
+      baseline: lock.types?.[typeId]?.log,
+      identity: { unitKey: `file:${logRel}` },
+    }, issues);
+  }
 
-    // Detect git conflict markers FIRST — a conflict-markered log.md cannot be
-    // validated for integrity or format, and hand-stitching the two sides would
-    // break the append-only integrity hashes. Route to `yg log merge-resolve`.
-    //
-    // DEVIATION from the JSON-lock parity check (io/lock-store.ts:145, which keys
-    // off `<<<<<<<` | `=======` | `>>>>>>>`): we match ONLY the unambiguous
-    // open/close markers (7 `<` or 7 `>` at line start). A bare `=======` line is
-    // NOT a trigger here — `log.md` is markdown (unlike the JSON lock), where a
-    // run of `=` at line start is a legitimate setext H1 underline / horizontal
-    // rule and would false-positive. A markdown log body never legitimately starts
-    // a line with seven `<` or `>`.
-    if (logContent !== null && logHasConflictMarkers(logContent)) {
+  // A type renamed or removed in yg-architecture.yaml leaves its log behind:
+  // decisions nobody's context carries any more. A WARNING — nothing about the
+  // code is wrong, and whether to carry the decisions over to the new type or
+  // drop them is the author's call.
+  const definedSet = new Set(defined);
+  for (const entry of await readSortedDirOrEmpty(path.join(projectRoot, '.yggdrasil', TYPE_LOGS_DIR))) {
+    if (!entry.isDirectory() || definedSet.has(entry.name)) continue;
+    const logRel = typeLogRelPath(entry.name);
+    if ((await statKind(path.join(projectRoot, logRel))) !== 'file') continue;
+    issues.push({
+      severity: 'warning',
+      code: 'type-log-orphaned',
+      rule: 'type-log-orphaned',
+      messageData: {
+        what: `Type log ${logRel} belongs to node type '${entry.name}', which yg-architecture.yaml no longer defines`,
+        why: 'A type log carries decisions about the nodes of one type into their context; with the type gone, nothing reads these decisions any more.',
+        next: `Move the entries that still hold to the log of the type that replaced it (yg log add --type <type> --reason '<the decision>'), then delete .yggdrasil/${TYPE_LOGS_DIR}/${entry.name}/ — or restore the type.`,
+      },
+      unitKey: `file:${logRel}`,
+    });
+  }
+}
+
+/** One log to hold to its baseline: where it is, how a command names it, and whose finding it is. */
+interface LogUnderCheck {
+  logRel: string;
+  /** `--node <path>` / `--type <type>` — what `yg log merge-resolve` takes for it. */
+  flag: string;
+  baseline: { last_entry_datetime: string; prefix_hash: string } | undefined;
+  identity: { nodePath: string } | { unitKey: string };
+}
+
+/** Conflict markers, the append-only baseline and the format — for one log. */
+async function classifyOneLog(projectRoot: string, log: LogUnderCheck, issues: CheckIssue[]): Promise<void> {
+  const { logRel, flag, baseline: logBaseline, identity } = log;
+  const logAbs = path.join(projectRoot, logRel);
+  let logContent: string | null = null;
+  try {
+    logContent = await readTextFile(logAbs);
+  } catch { /* missing — keep null */ }
+
+  // Detect git conflict markers FIRST — a conflict-markered log.md cannot be
+  // validated for integrity or format, and hand-stitching the two sides would
+  // break the append-only integrity hashes. Route to `yg log merge-resolve`.
+  //
+  // DEVIATION from the JSON-lock parity check (io/lock-store.ts:145, which keys
+  // off `<<<<<<<` | `=======` | `>>>>>>>`): we match ONLY the unambiguous
+  // open/close markers (7 `<` or 7 `>` at line start). A bare `=======` line is
+  // NOT a trigger here — `log.md` is markdown (unlike the JSON lock), where a
+  // run of `=` at line start is a legitimate setext H1 underline / horizontal
+  // rule and would false-positive. A markdown log body never legitimately starts
+  // a line with seven `<` or `>`.
+  if (logContent !== null && logHasConflictMarkers(logContent)) {
+    issues.push({
+      severity: 'error',
+      code: 'log-conflict',
+      rule: 'log-conflict',
+      messageData: {
+        what: `Log contains git conflict markers at ${logRel}`,
+        why: 'A conflict-markered log.md cannot be validated. While the merge, rebase or cherry-pick is still stopped on the conflict, merge-resolve writes the union of both sides (every entry, in date order) and records its baseline — nothing to edit by hand.',
+        next: `yg log merge-resolve ${flag}`,
+      },
+      ...identity,
+    });
+    return;
+  }
+
+  if (logBaseline) {
+    const check = validateAppendOnly(
+      logContent ?? '',
+      logBaseline.last_entry_datetime,
+      logBaseline.prefix_hash,
+    );
+    if (!check.ok) {
+      // A merge whose entries interleave by date puts whole entries before the
+      // recorded last one: the history survived, only the hash no longer covers
+      // it. Point that shape at the reconciling command, not at a restore that
+      // would throw the other branch's entries away.
+      const interleaved =
+        check.reason === 'prefix_modified' &&
+        logContent !== null &&
+        (await looksLikeInterleavedMerge(projectRoot, logRel, logContent, logBaseline));
+      const logIntegrityMd = interleaved
+        ? {
+            what: `Log integrity broken (prefix_modified) at ${logRel} — whole entries now sit before the last recorded one`,
+            why: 'The recorded history survived unchanged, but entries were added before its last entry — the shape a merge leaves when two branches\' entries interleave by date. The append-only hash covers the log up to that entry, so it no longer matches until the merge is reconciled.',
+            next: `yg log merge-resolve ${flag} on the merge commit, or with --ours <ref> --theirs <ref> naming the two merged branches when the merge left no merge commit.`,
+          }
+        : {
+            what: `Log integrity broken (${check.reason}) at ${logRel}${logContent === null ? ' (file missing)' : ''}`,
+            why: check.reason === 'prefix_modified'
+              ? 'Historical (pre-baseline) log content was modified — append-only violated.'
+              : 'Baseline boundary entry not found — log was deleted or reset.',
+            next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json`,
+          };
       issues.push({
         severity: 'error',
-        code: 'log-conflict',
-        rule: 'log-conflict',
-        messageData: {
-          what: `Log contains git conflict markers at ${logRel}`,
-          why: 'A conflict-markered log.md cannot be validated. While the merge, rebase or cherry-pick is still stopped on the conflict, merge-resolve writes the union of both sides (every entry, in date order) and records its baseline — nothing to edit by hand.',
-          next: `yg log merge-resolve --node ${nodePathPosix}`,
-        },
-        nodePath,
+        code: 'log-integrity',
+        rule: 'log-integrity',
+        messageData: logIntegrityMd,
+        ...identity,
       });
-      continue;
+      return;
     }
+  }
 
-    if (logBaseline) {
-      const check = validateAppendOnly(
-        logContent ?? '',
-        logBaseline.last_entry_datetime,
-        logBaseline.prefix_hash,
-      );
-      if (!check.ok) {
-        // A merge whose entries interleave by date puts whole entries before the
-        // recorded last one: the history survived, only the hash no longer covers
-        // it. Point that shape at the reconciling command, not at a restore that
-        // would throw the other branch's entries away.
-        const interleaved =
-          check.reason === 'prefix_modified' &&
-          logContent !== null &&
-          (await looksLikeInterleavedMerge(projectRoot, logRel, logContent, logBaseline));
-        const logIntegrityMd = interleaved
-          ? {
-              what: `Log integrity broken (prefix_modified) at ${logRel} — whole entries now sit before the last recorded one`,
-              why: 'The recorded history survived unchanged, but entries were added before its last entry — the shape a merge leaves when two branches\' entries interleave by date. The append-only hash covers the log up to that entry, so it no longer matches until the merge is reconciled.',
-              next: `yg log merge-resolve --node ${nodePathPosix} on the merge commit, or with --ours <ref> --theirs <ref> naming the two merged branches when the merge left no merge commit.`,
-            }
-          : {
-              what: `Log integrity broken (${check.reason}) at ${logRel}${logContent === null ? ' (file missing)' : ''}`,
-              why: check.reason === 'prefix_modified'
-                ? 'Historical (pre-baseline) log content was modified — append-only violated.'
-                : 'Baseline boundary entry not found — log was deleted or reset.',
-              next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json`,
-            };
-        issues.push({
-          severity: 'error',
-          code: 'log-integrity',
-          rule: 'log-integrity',
-          messageData: logIntegrityMd,
-          nodePath,
-        });
-        continue;
-      }
-    }
+  if (logContent === null) return;
 
-    if (logContent === null) continue;
-
-    const violations = validateFormat(logContent);
-    if (violations.length > 0) {
-      const logFormatMd = {
-        what: `Log format invalid at ${logRel}:\n${violations.map((v) => `line ${v.line}: ${v.reason} — ${v.detail}`).join('\n')}`,
-        why: 'Log format must be parseable for indexing and integrity.',
-        next: 'Fix format violations (or git checkout) and re-run yg check.',
-      };
-      issues.push({
-        severity: 'error',
-        code: 'log-format',
-        rule: 'log-format',
-        messageData: logFormatMd,
-        nodePath,
-      });
-    }
+  const violations = validateFormat(logContent);
+  if (violations.length > 0) {
+    const logFormatMd = {
+      what: `Log format invalid at ${logRel}:\n${violations.map((v) => `line ${v.line}: ${v.reason} — ${v.detail}`).join('\n')}`,
+      why: 'Log format must be parseable for indexing and integrity.',
+      next: 'Fix format violations (or git checkout) and re-run yg check.',
+    };
+    issues.push({
+      severity: 'error',
+      code: 'log-format',
+      rule: 'log-format',
+      messageData: logFormatMd,
+      ...identity,
+    });
   }
 }
 
@@ -249,4 +313,5 @@ function classifyOpenLogCycle(
 /** Minimal shape of the lock needed by the check live path. */
 export interface LockFileForCheck {
   nodes: Record<string, { log?: { last_entry_datetime: string; prefix_hash: string } }>;
+  types?: Record<string, { log?: { last_entry_datetime: string; prefix_hash: string } }>;
 }

@@ -25,7 +25,8 @@ A check fails when this page and the code disagree — in either direction, in a
 | Node list (`yg tree --json`) | `yg-tree/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | File owner (`yg owner --json`) | `yg-owner/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | Search results (`yg find --json`) | `yg-find/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
-| Component log (`yg log read --json`) | `yg-log/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| Component log (`yg log read --node --json`) | `yg-log/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| Type decisions (`yg log read --type --json`) — a node type's decision log | `yg-type-log/1` | Yggdrasil | no external consumer (Horde writes decisions with `yg log add --type`; it reads none back) | 6.1.0 | [CLI Reference](/cli-reference) |
 | Marketplace manifest (`yg-marketplace.yaml`) | `yg-marketplace/1` | the marketplace author | Yggdrasil — `yg pack add` / `update` / `list`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package manifest (`yg-package.yaml`) | `yg-package/1` | the package author | Yggdrasil — `yg pack`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package record (`.yggdrasil/yg-packages.yaml`) — what is installed, not a verdict lock | `yg-packages/1` | Yggdrasil — `yg pack` | Yggdrasil — the `package-file-modified` rail and `yg advise`; no external consumer | 6.0.0; the optional `requested`, `tag`, `commit` and `identity` fields arrived in 6.1.0, and a record without them is still read | [Packages](/packages) |

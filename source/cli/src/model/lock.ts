@@ -6,9 +6,10 @@ export const LOCK_FILE_NAME = 'yg-lock.json';
 /** Committed: LLM verdicts (includes companion-backed LLM entries, which may carry
  *  `touched`). The bulk of the committed lock; merge-resolved like the old single file. */
 export const LOCK_NONDET_FILE_NAME = 'yg-lock.nondeterministic.json';
-/** Committed: the per-node `nodes` section (source fingerprint + log baseline). Written at
- *  positive closure and by `yg log merge-resolve`; isolated so log churn stays out of the
- *  verdict files. */
+/** Committed: the per-node `nodes` section (source fingerprint + log baseline), and the
+ *  per-type `types` section (the baseline of each node type's own decision log). Written at
+ *  positive closure, by `yg log add --type` and by `yg log merge-resolve`; isolated so log
+ *  churn stays out of the verdict files. */
 export const LOCK_LOGS_FILE_NAME = 'yg-lock.logs.json';
 /** Gitignored: deterministic-aspect verdicts. Pure local cache — regenerated for free by
  *  `yg check --approve --only-deterministic`; never committed (dot-prefixed per the derived-state
@@ -103,6 +104,21 @@ export interface LockNodeEntry {
 }
 
 /**
+ * Per-node-type facts, committed beside the per-node ones: the append-only
+ * baseline of the type's own decision log (`.yggdrasil/types/<type>/log.md`),
+ * with exactly the semantics of a node's `log` baseline. Recorded when an entry
+ * is added through the CLI and when a merge of the log is reconciled — a type
+ * has no verdicts, so there is no closure to record it at.
+ *
+ * NOT a verdict ingredient, like everything in the logs file: writing or reading
+ * it invalidates nothing.
+ */
+export interface LockTypeEntry {
+  /** Append-only log baseline (validateAppendOnly semantics, as for a node). */
+  log?: { last_entry_datetime: string; prefix_hash: string };
+}
+
+/**
  * Per-rule facts the tool remembers between runs.
  *
  * Only one so far, and it exists for a single purpose: a rule's STANDING is
@@ -138,6 +154,15 @@ export interface LockFile {
    * reads as "nothing has been seen yet", never as "seen and empty".
    */
   aspects?: Record<string, LockAspectEntry>;
+  /**
+   * typeId → per-type facts. Lives in the committed logs file beside `nodes`.
+   *
+   * Optional, and written only when it holds something: every lock written
+   * before type logs existed has none, and a project that never records a type
+   * decision never gets the section — so its committed file stays byte for byte
+   * what an earlier release reads. Absent reads as "no baseline recorded".
+   */
+  types?: Record<string, LockTypeEntry>;
 }
 
 /** 'node:<model-relative path>' | 'file:<repo-relative POSIX path>' */

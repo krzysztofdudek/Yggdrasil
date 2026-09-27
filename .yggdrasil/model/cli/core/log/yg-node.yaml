@@ -24,6 +24,15 @@ description: >-
   and only a reader of what is in force skips the replaced one — a reference to
   an entry the log does not hold, or to one already replaced, is refused when
   the entry is written.
+  A node type keeps a decision log of its own, beside the graph under a
+  directory named for the type, for decisions about every node of the type. It
+  is held to what a node's log is held to — the same composer, the same
+  append-only baseline in the committed logs lock, the same merge
+  reconciliation — except that its baseline is recorded by each add, after
+  checking that the history being extended is still the one last recorded,
+  because a type has no verdicts and so no closure. The decisions in force for a
+  type and for the types above it on its parent chain are read in one place, for
+  the context an agent receives.
   Every log append — a component's or a rule's — reads, composes and replaces
   the file under a short repository-wide log-write lock, so two concurrent
   writers take turns instead of the later one silently dropping the earlier
@@ -53,6 +62,8 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/core/type-effective
+    type: calls
 mapping:
   - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/aspect-status.ts
@@ -60,5 +71,6 @@ mapping:
   - source/cli/src/core/log/log-entry.ts
   - source/cli/src/core/log/log-read.ts
   - source/cli/src/core/log/log-supersedes.ts
+  - source/cli/src/core/log/type-log.ts
   - source/cli/src/core/log/log-merge-resolve.ts
   - source/cli/src/core/log/log-gate.ts

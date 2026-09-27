@@ -1098,7 +1098,12 @@ higher-ranked entry instead.
 
 ## yg log
 
-Append and read per-node business-context log entries.
+Append, read and reconcile the append-only logs. Every command names exactly one:
+\`--node <path>\` (a component's log: WHY it is the way it is; a type may require
+an entry per source change with \`log_required\`) or \`--type <type>\` (a node
+type's decision log: explicit decisions about the whole area the type stands
+for, what an agent touching ANY node of the type must know; never required).
+Neither is a verdict input — an entry re-opens no pair.
 
 \`\`\`bash
 yg log add --node orders/handler --reason "Added cancellation at billing cycle end"
@@ -1109,7 +1114,20 @@ yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
 yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
+yg log add --type handler --reason "Handlers validate input at the boundary, never in the service."
+yg log read --type handler                     # the decisions in force, newest first
+yg log read --type handler --all               # replaced decisions too, marked
+yg log merge-resolve --type handler
 \`\`\`
+
+A type's log lives in \`.yggdrasil/types/<type>/log.md\`. It gets the same
+integrity, format and conflict checks as a node's (findings carry the log file
+as \`unit\`), with its baseline in the \`types\` section of
+\`yg-lock.logs.json\`, recorded by each add — so an add refuses a rewritten
+history (\`log-integrity\`) or conflict markers (\`log-conflict\`). An unknown
+type is \`type-not-found\`. A type log whose type is gone from
+\`yg-architecture.yaml\` is the \`type-log-orphaned\` warning. \`--json\` on a
+type read prints \`yg-type-log/1\` (\`type\`, \`inForceOnly\`, \`entries\`).
 
 Use \`--reason-file <path>\` instead of \`--reason\` to supply multi-line entry
 content from a file. On \`yg log read\`, \`--top\` and \`--all\` are mutually

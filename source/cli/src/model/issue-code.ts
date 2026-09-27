@@ -201,6 +201,7 @@ export type CheckCode =
   | 'log-integrity'
   | 'log-format'
   | 'log-conflict'
+  | 'type-log-orphaned'
   // Committed artifacts outside the graph.
   | 'rules-digest-stale'
   | 'incident-ledger-out-of-order';
@@ -218,6 +219,7 @@ export type CommandErrorCode =
   | 'internal'
   | 'node-not-found'
   | 'aspect-not-found'
+  | 'type-not-found'
   | 'graph-missing'
   | 'graph-load-failed'
   | 'lock-environment'

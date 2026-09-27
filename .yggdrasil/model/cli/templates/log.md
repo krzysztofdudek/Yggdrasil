@@ -232,3 +232,5 @@ The operating manual names yg-flow.yaml among the files that accept only the key
 The manual and the knowledge topics now say when a merge owes a log entry: a merge that combined both sides changes in a component changed its source and owes the reason for the merge, which only the person who merged knows, while a merge that changed only the log owes nothing. The documented merge order now includes that entry, since without it the recipe ended on a missing-entry error.
 ## [2026-09-27T08:39:48.845Z]
 The agent-facing manual, the log-management knowledge and the CLI reference knowledge now teach yg log add --supersedes as the way to retract a decision, instead of asking the agent to hand-write a Supersedes heading that nothing validated; the hand-written shape is still described because it reads the same way.
+## [2026-09-27T09:08:28.989Z]
+The CLI reference, log-management and lock knowledge now describe the node type decision log: where it lives, that it is never required and re-opens no verdict, the checks it shares with a node log, its baseline section in the committed logs file, and the orphaned-log warning.

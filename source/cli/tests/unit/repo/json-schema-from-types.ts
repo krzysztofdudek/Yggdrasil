@@ -229,7 +229,8 @@ export const JSON_DOCUMENTS: ReadonlyArray<{ id: string; title: string; file: st
   { id: 'yg-tree/1', title: 'Node list (yg tree --json)', file: 'src/cli/tree.ts', type: 'TreeJsonDocument' },
   { id: 'yg-owner/1', title: 'File owner (yg owner --json)', file: 'src/cli/owner.ts', type: 'OwnerJsonDocument' },
   { id: 'yg-find/1', title: 'Search results (yg find --json)', file: 'src/cli/find.ts', type: 'FindJsonDocument' },
-  { id: 'yg-log/1', title: 'Component log (yg log read --json)', file: 'src/cli/log.ts', type: 'LogJsonDocument' },
+  { id: 'yg-log/1', title: 'Component log (yg log read --node --json)', file: 'src/cli/log.ts', type: 'LogJsonDocument' },
+  { id: 'yg-type-log/1', title: 'Type decisions (yg log read --type --json)', file: 'src/cli/log.ts', type: 'TypeLogJsonDocument' },
   { id: 'yg-package-versions/1', title: 'Package versions cache (.yggdrasil/.yg-packages-versions.json)', file: 'src/io/package-versions-cache.ts', type: 'PackageVersionsCache' },
 ];
 
