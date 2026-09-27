@@ -14,6 +14,7 @@
 import type { CheckResult, CheckIssue, RunCheckOptions } from './check.js';
 import type { ExpectedPair } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckIssueCode } from '../model/issue-code.js';
 import type { FillEventSink } from '../model/fill-event.js';
 
 export interface RunFillOptions {
@@ -226,7 +227,7 @@ export interface RunFillResult {
  */
 export class FillGatingError extends Error {
   constructor(
-    public readonly issues: Array<{ code: string; what: string; why: string; next: string }>,
+    public readonly issues: Array<{ code: CheckIssueCode; what: string; why: string; next: string }>,
     public readonly stage: 'structural' | 'log-gate' = 'structural',
     public readonly gatingIssues: CheckIssue[] = [],
     /** The command the run was invoked as — what to re-run once the gate is cleared. */

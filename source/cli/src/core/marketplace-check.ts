@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import type { IssueMessage, IssueSeverity } from '../model/validation.js';
+import type { MarketplaceCode } from '../model/issue-code.js';
 import type { AspectDef, FileWhenPredicate } from '../model/graph.js';
 import type { PackageManifest, MarketplaceEntry } from '../model/packages.js';
 import { MARKETPLACE_FILENAME, PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
@@ -48,7 +49,7 @@ import { toPosixPath } from '../utils/posix.js';
 
 /** One thing `marketplace check` found. */
 export interface MarketplaceIssue {
-  code: string;
+  code: MarketplaceCode;
   severity: IssueSeverity;
   /** Repository-relative POSIX path of what the finding is about, when there is one. */
   subject?: string;
@@ -96,7 +97,7 @@ export const MARKETPLACE_WARNING_CODES = [
 
 
 function issue(
-  code: string,
+  code: MarketplaceCode,
   severity: IssueSeverity,
   messageData: IssueMessage,
   subject?: string,

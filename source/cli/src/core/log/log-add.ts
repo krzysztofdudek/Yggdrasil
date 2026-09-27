@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
-import type { IssueMessage } from '../../model/validation.js';
+import type { CodedIssueMessage } from '../../model/validation.js';
 import { validateNodePath } from '../../utils/node-path-validator.js';
 import { readLogSafe, statLogFile, withLogWriteLock, writeLogFile } from '../../io/log-store.js';
 import { composeLogEntry } from './log-entry.js';
@@ -15,7 +15,7 @@ export interface LogAddInput {
 
 export type LogAddResult =
   | { ok: true; datetime: string; nodePath: string }
-  | { ok: false; error: IssueMessage };
+  | { ok: false; error: CodedIssueMessage };
 
 export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
   const { graph, reasonText, nowMs } = input;
@@ -25,6 +25,7 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     return {
       ok: false,
       error: {
+        code: 'node-path-invalid',
         what: `Invalid --node value: ${nv.reason}`,
         why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
         next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',
@@ -37,6 +38,7 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     return {
       ok: false,
       error: {
+        code: 'node-not-found',
         what: `node '${nodePath}' is not in the graph`,
         why: 'A log entry belongs to a node, so the node must exist first.',
         next: `yg find "${nodePath}"`,
@@ -52,6 +54,7 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
       return {
         ok: false,
         error: {
+          code: 'command-error',
           what: 'log.md is a symbolic link',
           why: 'Symlinks bypass append-only guarantees and break integrity hashing.',
           next: 'Remove the symlink and let yg log add create a regular file.',
@@ -62,6 +65,7 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
       return {
         ok: false,
         error: {
+          code: 'command-error',
           what: 'log.md has multiple hard links (st_nlink > 1)',
           why: 'Hardlinks would orphan integrity baselines on atomic rename.',
           next: 'Copy to a unique file and replace the hardlink.',
@@ -78,9 +82,9 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     // One composer for every log this tool keeps: entry shape, the guards against a
     // body that would destroy the entry boundary, and the forward-only timestamp.
     const composed = composeLogEntry(existing, reasonText, nowMs);
-    if (!composed.ok) return { ok: false, error: composed.error };
+    if (!composed.ok) return { ok: false, error: { ...composed.error, code: 'command-error' } };
     await writeLogFile(logPath, composed.content);
     return { ok: true, datetime: composed.datetime, nodePath };
   });
-  return locked.ok ? locked.value : { ok: false, error: locked.error };
+  return locked.ok ? locked.value : { ok: false, error: { ...locked.error, code: 'command-error' } };
 }

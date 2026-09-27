@@ -234,3 +234,5 @@ The check command was one callback of more than five hundred lines that parsed t
 The check report renderers moved into the formatter layer, so the command imports its report views from there. They were command-layer support held only to hygiene rules while they word the whole report; as formatters they are held to the message-quality rule that every other formatter meets. Output is unchanged.
 ## [2026-09-27T01:06:13.221Z]
 Imports the change-scope resolution from the engine, where it moved from command-layer support. Nothing the command does or prints changed.
+## [2026-09-27T03:11:51.779Z]
+Issue codes are public names: adopters, CI scripts and sibling tools branch on them, and the reference pages explain them. They used to be free string literals, so a code could be emitted that no page explained, or documented while nothing emitted it. Every code is now a member of one typed vocabulary, and every type that carries a code is typed with it, so an unregistered or misspelled code fails the typecheck instead of shipping. The check command's refusal helper takes its code in that vocabulary rather than as a free string.

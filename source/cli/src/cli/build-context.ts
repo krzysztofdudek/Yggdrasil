@@ -462,14 +462,14 @@ export function registerBuildCommand(program: Command): void {
             what: "No target specified.",
             why: "Either '--node <path>' or '--file <path>' is required.",
             next: "Run: yg context --node <path> or yg context --file <path>",
-          });
+          }, 'command-error');
         }
         if (options.node && options.file) {
           failAndExit({
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
             next: "yg context --node <path>, or yg context --file <path> — one of them, not both",
-          });
+          }, 'command-error');
         }
 
         const graph = await loadGraphOrAbort(process.cwd());
@@ -570,7 +570,7 @@ export function registerBuildCommand(program: Command): void {
                     what: `${displayFile} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                     why: describeCascadeCycle(cascadeCycle),
                     next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
-                  });
+                  }, 'command-error');
                 }
                 const { data, block } = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
                 const attention = await attentionLineIfEnabled(graph, displayFile);
@@ -636,7 +636,7 @@ export function registerBuildCommand(program: Command): void {
             what: `yg context cannot assemble ${nodePath}: ${relevantErrors.length} ${plural(relevantErrors.length, 'error')} in the graph it draws on\n${members.join('\n')}`,
             why: `The context is built from this node, its ancestors and its relation targets, and these errors leave part of that graph unreadable.${skippedErrors > 0 ? ` (${skippedErrors} other ${plural(skippedErrors, 'error')} elsewhere in the repository ${skippedErrors === 1 ? 'does' : 'do'} not affect it.)` : ''}`,
             next: 'yg check',
-          });
+          }, 'command-error');
         }
         // Errors that block the gate but not this context — a key in the
         // committed config, a rule no relevant node uses, a reviewer not yet
@@ -693,7 +693,7 @@ export function registerBuildCommand(program: Command): void {
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `Context can only be built for files tracked inside the project.`,
             next: 'yg context --file <a path inside the repository, relative to its root>',
-          });
+          }, 'command-error');
         }
         abortOnUnexpectedError(error, 'building context');
       }

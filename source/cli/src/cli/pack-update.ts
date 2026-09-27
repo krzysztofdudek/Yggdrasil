@@ -116,7 +116,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       what: '--reinstall cannot be combined with --to or --allow-downgrade.',
       why: 'A reinstall puts back exactly the version the record names; choosing another version is what --to does, as a separate step.',
       next: 'Run the reinstall on its own, then move to another version with --to if you want one.',
-    });
+    }, 'usage');
   }
   if (opts.acceptRepublished === true && opts.reinstall !== true) {
     failWith({

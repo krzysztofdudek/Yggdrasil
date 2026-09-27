@@ -1,4 +1,5 @@
 import { AUTO_APPROVE_READ_ONLY_CASES } from './shared-text.js';
+import { ISSUE_CODES_TABLE } from './issue-codes-table.js';
 
 export const summary =
   'Full yg command reference: check, check --approve, context, node, adopt, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, pack, marketplace, portal';
@@ -1764,44 +1765,23 @@ Running one needs a repository, and a marketplace has no graph — install the
 package somewhere with a graph and run \`yg drill\`, which hands the rule the case
 files and its settings (\`ctx.files\`, \`ctx.subject\`, \`ctx.config\`).
 
-## Validator issue codes — verification and status
+## Issue codes
 
-The validator (\`yg check\`) emits the following issue codes.
+Every code the CLI reports, by where it is emitted: its severity, what it means
+and what to do about it. The same table as the Issue codes section of the docs
+CLI reference, rendered from one registry, so a code listed here exists and a
+code that exists is listed here.
 
-SEVERITY BELOW IS THE WHOLE-PROJECT ANSWER: what \`yg check\` reports on a project
+SEVERITY IS THE WHOLE-PROJECT ANSWER: what \`yg check\` reports on a project
 that names no reference branch (the default), and what \`yg check --full\` reports
-on one that does. With progressive mode on (\`progressive.reference\` set), most of
-these are listed as a non-blocking warning when the current change did not reach
-them, whatever their severity below. The exceptions — the graph's own integrity
-codes, anything that stops a fill before it writes, the log gate at
-fill time, and any finding the run cannot attribute to a file or a
-component — never are; see \`yg knowledge read configuration\` (the \`progressive\`
-section). \`error (always)\` in the column means NOT STATUS-GOVERNED — an error
-whatever a rule's \`draft\`/\`advisory\`/\`enforced\` status says — not "unconditional
-under every configuration".
+on one that does. With progressive mode on (\`progressive.reference\` set), a code
+marked "a warning outside your change" is listed as a non-blocking warning when
+the current change did not reach it, whatever its severity; every other code keeps
+its severity — see \`yg knowledge read configuration\` (the \`progressive\`
+section). "stops \`--approve\`" marks a code that makes a fill stop before it
+writes anything.
 
-| Code | Severity | Meaning |
-|------|----------|---------|
-| \`unverified\` | error (enforced) / warning (advisory) | Expected pair has no valid verdict. Next: \`yg check --approve\`. |
-| \`aspect-violation-enforced\` | error | Enforced aspect refused (valid refused lock entry — cached) |
-| \`aspect-violation-advisory\` | warning | Advisory aspect refused |
-| \`aspect-check-runtime-error\` | error (\`--approve\` report) | \`check.mjs\` failed to import/run at fill time — fail closed; plain check shows the pair as \`unverified\` |
-| \`aspect-companion-without-content\` | error | \`companion.mjs\` present without \`content.md\` — companion files require a reviewer rule |
-| \`aspect-companion-with-check\` | error | \`companion.mjs\` present alongside \`check.mjs\` — companion files are a reviewer-rule add-on only |
-| \`aspect-companion-runtime-error\` | error (\`--approve\` report) | \`companion.mjs\` failed to resolve/run at fill time (hook threw, bad return shape, missing path, path outside allowed-reads, or observations stayed inconsistent) — fail closed; plain check shows the pair as \`unverified\` |
-| \`prompt-too-large\` | error | Assembled prompt exceeds the resolved tier's \`max_prompt_chars\` |
-| \`lock-invalid\` | error | A COMMITTED lock (\`yg-lock.nondeterministic.json\`, \`yg-lock.logs.json\`, or the legacy single-file \`yg-lock.json\`) is unparseable, garbled, conflict-markered, or of an unknown version — fail closed. The DERIVED, gitignored \`.yg-lock.deterministic.json\` is exempt: the same faults there are silently discarded and the file rebuilt from scratch (debug log only, never surfaced as \`lock-invalid\`) — self-healing, not an error, and the pairs it would have covered simply read as \`unverified\` until recomputed. A real I/O failure still propagates from either kind. |
-| \`relation-undeclared-dependency\` | error (always) | Built-in relation-conformance check: node depends on another node's code without a declared, sanctioned relation. Not an aspect — not status-governed, not suppressible. Next: declare the relation in \`yg-node.yaml\` or remove the dependency. |
-| \`type-relation-forbidden\` | error (always) | With \`coverage.type_level\` on: a statically-resolved import between two classified endpoints (an explicit node and/or a type-covered file) has no relation type the architecture allows between their two node TYPES. Additive to \`relation-undeclared-dependency\`, not a replacement — this is the case that check cannot see because a type-covered endpoint has no \`yg-node.yaml\` to declare a relation in. Not an aspect — not status-governed, not suppressible, never cached. Next (cheapest first): allow the type pair in \`yg-architecture.yaml\`, give the target file an explicit node with a curated relation, or remove the dependency. |
-| \`log-entry-missing\` | error | \`--approve\` log gate fired |
-| \`aspect-status-invalid\` | error | Declared status is not one of \`draft\\|advisory\\|enforced\` |
-| \`aspect-review-by-malformed\` | error | Declared \`review_by:\` is present but not a calendar-valid bare ISO date (\`YYYY-MM-DD\`; e.g. \`2027-13-40\` or \`2027-02-30\`). Blocking parse-time error, fired ONLY on the aspect that carries the field. |
-| \`aspect-review-overdue\` | warning | A rule's \`review_by:\` date has passed (compared against the CLI clock) — the rule is running unreviewed. Status-independent. Never writes the lock, changes a verdict, or gates \`--approve\`. Next: ask the user to renew (new \`review_by:\`) or retire (demote) the rule; never change the date without their approval. |
-| \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
-| \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
-| \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. A dead rule is reported once: when nothing references it at all it is not also reported as \`orphaned-aspect\`, which remains for a bundle, a draft rule, or a graph with no code yet. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
-| \`coverage-required-shadowed\` | warning | A plain (non-glob) \`coverage.required\` root sits entirely inside a plain \`coverage.excluded\` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Next: remove the required line, or narrow the excluded root so it no longer contains it. |
-| \`rules-digest-stale\` | warning | The committed agent-rules digest (\`AGENTS.md\` block, \`.clinerules/yggdrasil.md\`, or the \`CLAUDE.md\` \`@AGENTS.md\` import) is missing, was hand-edited, is from an older CLI, or is duplicated. Never cached, never suppressible — recomputed live on every \`yg check\`. Next: \`yg init --upgrade\`. |
+${ISSUE_CODES_TABLE}
 
 For detailed semantics of status: \`yg knowledge read aspect-status\`. For the lock,
 verification, and caching: \`yg knowledge read verification-and-lock\`.

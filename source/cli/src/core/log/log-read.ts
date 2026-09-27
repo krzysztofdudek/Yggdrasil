@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
-import type { IssueMessage } from '../../model/validation.js';
+import type { CodedIssueMessage } from '../../model/validation.js';
 import { validateNodePath } from '../../utils/node-path-validator.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat } from '../log-format.js';
@@ -21,7 +21,7 @@ export interface LogEntry {
 
 export type LogReadResult =
   | { ok: true; entries: LogEntry[] }
-  | { ok: false; error: IssueMessage };
+  | { ok: false; error: CodedIssueMessage };
 
 const DEFAULT_TOP = 10;
 
@@ -32,6 +32,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
+        code: 'command-error',
         what: 'Cannot combine --top with --all',
         why: '--all overrides --top; provide one or the other.',
         next: 'Drop one of the flags and retry.',
@@ -42,6 +43,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
+        code: 'command-error',
         what: `Invalid --top value: ${input.top}`,
         why: '--top must be a positive integer.',
         next: 'Use --top 10 or --all.',
@@ -54,6 +56,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
+        code: 'node-path-invalid',
         what: `Invalid --node value: ${nv.reason}`,
         why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
         next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',
@@ -66,6 +69,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
+        code: 'node-not-found',
         what: `node '${nodePath}' is not in the graph`,
         why: 'A log belongs to a node, so the node must exist before its log can be read.',
         next: `yg find "${nodePath}"`,
@@ -85,6 +89,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
+        code: 'command-error',
         what: `log.md format violation at line ${violations[0].line}: ${violations[0].reason}`,
         why: violations[0].detail,
         next: `Fix log.md for node ${nodePath} and retry.`,

@@ -46,7 +46,7 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
           what: 'Query is required',
           why: 'yg find needs at least one keyword to search.',
           next: 'Usage: yg find "<query keywords>"',
-        });
+        }, 'usage');
     return 1;
   }
 

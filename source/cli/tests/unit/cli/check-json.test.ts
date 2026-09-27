@@ -60,8 +60,8 @@ function pair(overrides: Partial<VerifiedPair> = {}): VerifiedPair {
 function issue(overrides: Partial<CheckIssue> = {}): CheckIssue {
   return {
     severity: 'error',
-    code: 'aspect-violation',
-    rule: 'aspect-violation',
+    code: 'aspect-violation-enforced',
+    rule: 'aspect-violation-enforced',
     messageData: { what: 'w', why: 'y', next: 'n' },
     ...overrides,
   };

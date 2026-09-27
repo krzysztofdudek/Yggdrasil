@@ -74,7 +74,7 @@
     "cli-lock-scope.test.ts": 8,
     "cli-log-gate-scope.test.ts": 2,
     "cli-log-gate-unreadable.test.ts": 2,
-    "cli-log-integrity-extended.test.ts": 15,
+    "cli-log-integrity-extended.test.ts": 14,
     "cli-log-remaining.test.ts": 5,
     "cli-log-with-verdicts-attribution.test.ts": 1,
     "cli-log-with-verdicts.test.ts": 2,

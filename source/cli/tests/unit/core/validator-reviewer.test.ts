@@ -52,7 +52,7 @@ describe('aspect parse errors', () => {
       aspectParseErrors: [
         {
           aspectId: 'bad-aspect',
-          code: 'aspect-parse-error',
+          code: 'aspect-name-missing',
           messageData: {
             what: 'Failed to parse aspect bad-aspect',
             why: 'Invalid YAML',
@@ -63,7 +63,7 @@ describe('aspect parse errors', () => {
     });
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'aspect-parse-error');
+    const issues = result.issues.filter((i) => i.code === 'aspect-name-missing');
 
     expect(issues).toHaveLength(1);
     expect(issues[0].severity).toBe('error');
@@ -74,7 +74,7 @@ describe('aspect parse errors', () => {
     const graph = createGraph({ aspectParseErrors: [] });
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'aspect-parse-error');
+    const issues = result.issues.filter((i) => i.code === 'aspect-name-missing');
 
     expect(issues).toHaveLength(0);
   });
@@ -83,7 +83,7 @@ describe('aspect parse errors', () => {
     const graph = createGraph();
 
     const result = await validate(graph);
-    const issues = result.issues.filter((i) => i.code === 'aspect-parse-error');
+    const issues = result.issues.filter((i) => i.code === 'aspect-name-missing');
 
     expect(issues).toHaveLength(0);
   });

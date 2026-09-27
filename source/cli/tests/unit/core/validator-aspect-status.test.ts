@@ -51,7 +51,7 @@ describe('validator: aspect-status-downgrade', () => {
     });
     const { issues } = await validate(graph);
     expect(issues.some(i => i.code === 'aspect-status-downgrade')).toBe(false);
-    expect(issues.some(i => i.code === 'aspect-status-redundant')).toBe(false);
+    expect(issues.some(i => (i.code as string) === 'aspect-status-redundant')).toBe(false);
   });
 
   it('empty other_sources: anchor falls back to aspect default', async () => {

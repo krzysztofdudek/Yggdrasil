@@ -201,7 +201,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(notThere.status).toBe(1);
-      expectErrorCode(notThere.stderr, 'command-error');
+      expectErrorCode(notThere.stderr, 'aspect-status-not-standing');
       expect(notThere.stderr).toContain('stands at advisory');
 
       // The standing is right, but what justified it is the part nobody can
@@ -211,7 +211,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(noEvidence.status).toBe(1);
-      expectErrorCode(noEvidence.stderr, 'command-error');
+      expectErrorCode(noEvidence.stderr, 'aspect-status-evidence-missing');
       expect(noEvidence.stderr).toContain('no evidence');
 
       const notAStanding = run(
@@ -219,7 +219,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(notAStanding.status).toBe(1);
-      expectErrorCode(notAStanding.stderr, 'command-error');
+      expectErrorCode(notAStanding.stderr, 'aspect-status-value-invalid');
       expect(notAStanding.stderr).toContain("'important'");
 
       // Not one of them wrote anything.
@@ -345,7 +345,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
         dir,
       );
       expect(again.status).toBe(1);
-      expectErrorCode(again.stderr, 'command-error');
+      expectErrorCode(again.stderr, 'aspect-status-unchanged');
       expect(again.stderr).toContain('already stood at enforced');
       expect(readFileSync(logPath(dir), 'utf-8')).not.toContain('enforced → enforced');
       expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(2);

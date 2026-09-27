@@ -1,6 +1,7 @@
 import type { WhenPredicate, RelationType } from './when.js';
 import type { FileWhenPredicate } from './file-when.js';
 import type { IssueMessage } from './validation.js';
+import type { CheckCode } from './issue-code.js';
 
 export type {
   WhenPredicate,
@@ -515,14 +516,14 @@ export interface Graph {
    *  validator code for the validator to emit downstream. */
   aspectParseErrors?: Array<{
     aspectId: string;
-    code: string;
+    code: CheckCode;
     messageData: IssueMessage;
   }>;
 
   /** Structured error code carried alongside `configError`. Used by
    *  validator to suppress dependent checks (e.g., skip aspect-tier-unknown
    *  when the config is invalid). */
-  configErrorCode?: string;
+  configErrorCode?: CheckCode;
   /** All nodes indexed by their path (e.g. "orders/order-service") */
   nodes: Map<string, GraphNode>;
   aspects: AspectDef[];

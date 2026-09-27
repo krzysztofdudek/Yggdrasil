@@ -146,7 +146,7 @@ function buildGraph(yggRoot: string, nodes: NodeSpec[], coverage?: { required: s
 }
 
 function codes(issues: ValidationIssue[]): string[] {
-  return issues.map((i) => i.code).filter((c): c is string => c !== undefined);
+  return issues.flatMap((i) => (i.code !== undefined ? [i.code] : []));
 }
 function overlaps(issues: ValidationIssue[]) {
   return issues.filter((i) => i.code === 'overlapping-mapping');

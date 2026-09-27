@@ -69,7 +69,7 @@ function ensureKnownProvider(provider: string): asserts provider is ReviewerProv
       what: `Unknown provider '${provider}'.`,
       why: 'The --provider value must match one of the supported reviewer providers.',
       next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
-    });
+    }, 'command-error');
   }
 }
 
@@ -882,7 +882,7 @@ export function registerInitCommand(program: Command): void {
             what: '--no-reviewer was combined with reviewer flags (--provider / --model / --endpoint).',
             why: 'They ask for opposite things: --no-reviewer bootstraps with no reviewer at all, while --provider configures one. Honoring both would mean ignoring one silently.',
             next: 'Keep exactly one: yg init --no-reviewer to start without a reviewer, or yg init --provider <name> [--model <m>] to configure one.',
-          });
+          }, 'command-error');
         }
 
         // Non-interactive upgrade: --upgrade [--platform <name>]
@@ -892,14 +892,14 @@ export function registerInitCommand(program: Command): void {
               what: '--no-reviewer was combined with --upgrade.',
               why: '--upgrade only refreshes the agent rules of an existing project; it never touches the reviewer configuration, so --no-reviewer would be silently ignored.',
               next: 'Run the upgrade alone: yg init --upgrade.',
-            });
+            }, 'command-error');
           }
           if (options.provider || options.model || options.endpoint) {
             failAndExit({
                   what: '--upgrade was combined with reviewer flags (--provider / --model / --endpoint).',
                   why: '--upgrade only refreshes the agent rules files; it does not configure a reviewer, so those flags would be silently ignored.',
                   next: 'Run the upgrade alone (yg init --upgrade), then configure the reviewer separately: yg init --provider <name> [--model <m>].',
-                });
+                }, 'command-error');
           }
           noticeDeprecatedPlatform(options.platform);
           // init is the one command that runs before a graph exists; delegate the
@@ -909,14 +909,14 @@ export function registerInitCommand(program: Command): void {
 
           const versionRead = await readSchemaVersion(yggRoot);
           if (versionRead?.kind === 'absent' || versionRead?.kind === 'not-string') {
-            failAndExit(schemaVersionFieldIssue(versionRead));
+            failAndExit(schemaVersionFieldIssue(versionRead), 'command-error');
           }
           if (versionRead === null) {
             failAndExit({
               what: '.yggdrasil/yg-config.yaml could not be read as a YAML mapping.',
               why: '--upgrade reads the version field to choose which migrations to run; a missing, unreadable, or unparseable config file has no version to read.',
               next: 'Restore .yggdrasil/yg-config.yaml from version control, then retry yg init --upgrade.',
-            });
+            }, 'command-error');
           }
           // Flags are resolved against — and written back into — the committed
           // config BEFORE the upgrade installs anything, so `--upgrade
@@ -941,7 +941,7 @@ export function registerInitCommand(program: Command): void {
                     result.migrationWarnings.join('\n'),
                   why: 'A migration step could not be safely applied, so the chain stopped and yg-config.yaml was left at its prior version. Reporting success here would hide an incomplete upgrade from agents and CI.',
                   next: 'Fix the listed configuration problems, then re-run yg init --upgrade.',
-                });
+                }, 'command-error');
           }
 
           if (result.migrationWarnings.length > 0) {
@@ -982,7 +982,7 @@ export function registerInitCommand(program: Command): void {
                   what: '.yggdrasil exists at the project root but is not a directory.',
                   why: 'yg init requires the .yggdrasil path to be a directory it can populate.',
                   next: 'Inspect the path manually; remove or rename the conflicting file, then re-run yg init.',
-                });
+                }, 'command-error');
           }
           exists = true;
         } catch (e: unknown) {
@@ -996,7 +996,7 @@ export function registerInitCommand(program: Command): void {
             what: '--model/--endpoint given without --provider.',
             why: 'A model or endpoint only configures a reviewer; without --provider there is no reviewer to configure.',
             next: 'Add --provider <name>, or drop --model/--endpoint (and pass --no-reviewer to start without one).',
-          });
+          }, 'command-error');
         }
 
         if (exists && noReviewer) {
@@ -1008,7 +1008,7 @@ export function registerInitCommand(program: Command): void {
             what: '--no-reviewer was given, but this project already has a .yggdrasil/ graph.',
             why: 'The flag chooses how to bootstrap a NEW project (with no reviewer); it never removes a reviewer an existing project already configured.',
             next: 'Run yg init with no flags to open the menu, or yg init --provider <name> [--model <m>] to change the reviewer. To go back to no reviewer, delete the reviewer: section from .yggdrasil/yg-config.yaml.',
-          });
+          }, 'command-error');
         }
 
         if (exists) {

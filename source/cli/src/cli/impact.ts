@@ -69,7 +69,7 @@ export function registerImpactCommand(program: Command): void {
               what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
               why: 'yg impact resolves impact only for files tracked inside the project.',
               next: 'Pass a path inside the project root (relative to the repo).',
-            });
+            }, 'command-error');
           }
           debugWrite(`[impact] command failed: ${(error as Error).message}`);
           abortOnUnexpectedError(error, 'running impact');
@@ -155,7 +155,7 @@ function refuseInvalidImpactTargets(options: ImpactOptions, asJson: boolean): vo
           what: 'Multiple targets specified.',
           why: 'yg impact accepts only one of --node/--file, --aspect, --flow, or --type per invocation.',
           next: 'Re-run with a single target form.',
-        });
+        }, 'command-error');
   }
 
   if (asJson && (options.aspect || options.flow || options.type)) {
@@ -163,7 +163,7 @@ function refuseInvalidImpactTargets(options: ImpactOptions, asJson: boolean): vo
           what: `--json is not available for --aspect, --flow, or --type.`,
           why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of ONE component — its subject is a component path, and an aspect, a flow, or a type has no such subject. Emitting one for them would mean a second document shape hiding behind the same schema tag.`,
           next: `For a component's blast radius as a document, run yg impact --node <path> --json (or --file <path> --json). For one rule's reach as a document — every unit it judges, with the effective status there — run yg aspects --json --reach; for what the lock says about each of those units, yg check --json, whose pairs join to it on the same unit. Otherwise drop --json for the aspect/flow/type report.`,
-        });
+        }, 'command-error');
   }
 }
 
@@ -178,7 +178,7 @@ async function readImpactLock(graph: Graph): Promise<LockFile> {
   } catch (err) {
     if (err instanceof LockInvalidError) {
       debugWrite(`[impact] readLock failed: ${err.message}`);
-      fail(err.messageData);
+      fail(err.messageData, 'lock-invalid');
       await exitAfterFlush(1);
     }
     throw err;
@@ -297,7 +297,7 @@ async function renderOwnerlessFile(
       what: `${repoRelative} -> no graph coverage`,
       why: 'file is not mapped to any node, is not referenced by any aspect, and is not observed by any script rule or companion-backed reviewer rule in the graph.',
       next: 'Add the file to an existing node mapping, or create a new node.',
-    });
+    }, 'command-error');
     await exitAfterFlush(1);
     return;
   }

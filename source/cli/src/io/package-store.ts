@@ -8,6 +8,7 @@ import { hashFile } from './hash.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { IssueCode } from '../model/issue-code.js';
 import type { PackageConfigKeyDef, PackageManifest, PackagesLock, PackagesLockEntry } from '../model/packages.js';
 import { ADAPT_FILENAME, ADAPT_LOG_FILENAME, MARKETPLACE_FILENAME, PACKAGES_DIR, PACKAGES_LOCK_FILENAME } from '../model/packages.js';
 
@@ -117,7 +118,7 @@ export function isIgnoredPackageEntry(name: string): boolean {
 
 export type StoreResult<T> =
   | { ok: true; value: T }
-  | { ok: false; code: string; messageData: IssueMessage };
+  | { ok: false; code: IssueCode; messageData: IssueMessage };
 
 /** One file inside a package, relative to the package root, POSIX. */
 export interface PackageFile {

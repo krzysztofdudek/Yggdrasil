@@ -84,7 +84,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
           reasonText: body,
           nowMs: Date.now(),
         });
-        if (!result.ok) failAndExit(result.error);
+        if (!result.ok) failAndExit(result.error, 'command-error');
 
         writeOut(
           `Added a log entry to rule '${aspect.id}'.\nTimestamp: ${result.datetime}\n`,
@@ -116,7 +116,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
             what: `--top ${opts.top} and --limit ${opts.limit} disagree.`,
             why: '--limit is another name for --top; given both with different values, the number of entries shown would be a guess.',
             next: 'Pass one of them: --top <n> (or --limit <n>).',
-          });
+          }, 'command-error');
         }
         const count = opts.top ?? opts.limit;
         const flag = opts.top !== undefined ? '--top' : '--limit';
@@ -125,18 +125,18 @@ export function registerAspectsLogCommand(aspects: Command): void {
             what: `${flag} and --all cannot both be given.`,
             why: `${flag} asks for the newest few entries and --all for every one; the two answers differ.`,
             next: `Pass ${flag} <n> for the newest entries, or --all for the whole history.`,
-          });
+          }, 'command-error');
         }
         if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
           failAndExit({
             what: `${flag} '${count}' is not a positive whole number of entries.`,
             why: 'The limit selects how many of the newest entries to show; zero or a fraction selects nothing anybody asked for.',
             next: `Re-run with ${flag} 5, or drop the flag to see the whole history.`,
-          });
+          }, 'command-error');
         }
 
         const result = await readAspectLog(graph.rootPath, aspect.id, count);
-        if (!result.ok) failAndExit(result.error);
+        if (!result.ok) failAndExit(result.error, 'command-error');
 
         if (opts.json === true) {
           writeOut(formatAspectLogJson(buildDocument(aspect, result.entries)));
@@ -165,7 +165,7 @@ async function resolveReason(reason: string | undefined, reasonFile: string | un
       what: '--reason and --reason-file cannot both be given.',
       why: 'They are two ways to supply the same text; with both, the entry that would be written is whichever one the tool happened to prefer, and the caller cannot tell which.',
       next: 'Pass the text with --reason, or the file that holds it with --reason-file.',
-    });
+    }, 'command-error');
   }
   if (reason !== undefined) return reason;
   if (reasonFile === undefined) {
@@ -173,7 +173,7 @@ async function resolveReason(reason: string | undefined, reasonFile: string | un
       what: 'The entry has no text.',
       why: "A log entry exists to say why something is the way it is; an entry with nothing in it records that something happened and hides what.",
       next: 'Re-run with --reason "<why>" or --reason-file <path>.',
-    });
+    }, 'command-error');
   }
   try {
     return await readFile(path.resolve(process.cwd(), reasonFile), 'utf-8');
@@ -183,7 +183,7 @@ async function resolveReason(reason: string | undefined, reasonFile: string | un
       what: `The file '${reasonFile}' could not be read.`,
       why: 'It was named as the source of the entry text, so without it there is nothing to record.',
       next: 'Check the path, or pass the text directly with --reason "<why>".',
-    });
+    }, 'command-error');
   }
 }
 
@@ -206,7 +206,7 @@ async function statusPrefixFor(
       what: `'${to}' is not a status a rule can have.`,
       why: `A rule stands at one of ${ASPECT_STATUSES.join(', ')} — draft enforces nothing, advisory reports without blocking, enforced refuses. Anything else names no authority at all.`,
       next: `Re-run with --status ${ASPECT_STATUSES.join(' | --status ')}.`,
-    });
+    }, 'aspect-status-value-invalid');
   }
 
   const actual = currentStatus(aspect);
@@ -215,7 +215,7 @@ async function statusPrefixFor(
       what: `Rule '${aspect.id}' stands at ${actual}, not ${to}.`,
       why: "This records a change; it does not make one. The rule's own file is yours to edit, and a history that claimed a change nobody made would be worse than no history at all.",
       next: `Set status: ${to} in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml, then record it here.`,
-    });
+    }, 'aspect-status-not-standing');
   }
 
   if (opts.evidence === undefined || opts.evidence.trim() === '') {
@@ -223,7 +223,7 @@ async function statusPrefixFor(
       what: 'A change of status was recorded with no evidence.',
       why: "A rule's status is the whole of its authority, so what justified moving it is the part of the record that matters most a year later — and the part nobody can reconstruct.",
       next: 'Re-run with --evidence "<what justified it>", e.g. --evidence "two waves clean, no new violations".',
-    });
+    }, 'aspect-status-evidence-missing');
   }
 
   const previous = await previousStatus(graph, aspect);
@@ -232,7 +232,7 @@ async function statusPrefixFor(
       what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of status to record.`,
       why: "A status entry records a move from one status to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
       next: `Record the note without --status (yg aspects log add --aspect ${aspect.id} --reason "..."), or set a different status: in the rule's yg-aspect.yaml first and record that change.`,
-    });
+    }, 'aspect-status-unchanged');
   }
   return statusLine({
     from: previous,

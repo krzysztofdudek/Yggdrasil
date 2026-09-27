@@ -4,6 +4,7 @@ import { rcompare as semverRcompare, valid as validSemver } from 'semver';
 import { toPosixPath } from '../utils/posix.js';
 import { debugWrite } from '../utils/debug-log.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { IssueCode } from '../model/issue-code.js';
 import type { Graph } from '../model/graph.js';
 import type { MarketplaceEntry, PackageManifest, PackagesLock } from '../model/packages.js';
 import type { PackagesLockEntry } from '../model/packages.js';
@@ -65,15 +66,15 @@ import { cliVersion } from './cli-version.js';
  * `.yggdrasil/` every time. Throwing lets the cleanup run first.
  */
 export class PackRefusal extends Error {
-  constructor(public readonly messageData: IssueMessage) {
+  constructor(public readonly messageData: IssueMessage, public readonly code: IssueCode = 'command-error') {
     super(messageData.what);
     this.name = 'PackRefusal';
   }
 }
 
-/** Refuse with a what/why/next. Nothing after this line runs; the cleanup does. */
-export function failWith(msg: IssueMessage): never {
-  throw new PackRefusal(msg);
+/** Refuse with a what/why/next under `code`. Nothing after this line runs; the cleanup does. */
+export function failWith(msg: IssueMessage, code: IssueCode = 'command-error'): never {
+  throw new PackRefusal(msg, code);
 }
 
 export interface PackageSpec {

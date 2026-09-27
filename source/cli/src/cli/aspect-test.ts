@@ -263,7 +263,7 @@ export function registerAspectTestCommand(program: Command): void {
         // throws a runner error, the user sees the real cause, not a CLI-bug
         // message.
         if (e instanceof StructureRunnerError || e instanceof AstRunnerError) {
-          fail(e.messageData);
+          fail(e.messageData, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -317,7 +317,7 @@ async function runAspectTestCommand(opts: AspectTestOptions, projectRoot: string
         what: `More than one of --node, --file, --files was provided.`,
         why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
         next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
-      });
+      }, 'command-error');
   }
 
   const repeatN = resolveRepeat(opts, aspect, modes.hasFiles);
@@ -347,28 +347,28 @@ function resolveRepeat(opts: AspectTestOptions, aspect: AspectDef, hasFiles: boo
         what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
         why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
         next: `Pass --repeat 2 (or higher) with a reviewer rule and --node.`,
-      });
+      }, 'command-error');
   }
   if (opts.dryRun) {
     failAndExit({
         what: `--repeat cannot be combined with --dry-run.`,
         why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
         next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
-      });
+      }, 'usage');
   }
   if (hasFiles) {
     failAndExit({
         what: `--repeat cannot be combined with --files.`,
         why: `--repeat measures reviewer self-consistency, which applies only to reviewer rules; --files runs a script rule, which returns the same result every time.`,
         next: `Use --repeat with a reviewer rule and --node <node-path>.`,
-      });
+      }, 'usage');
   }
   if (aspect.reviewer.type !== 'llm') {
     failAndExit({
         what: `--repeat is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
         why: `A script rule is exactly reproducible — repeating it measures nothing. --repeat measures how consistently a reviewer judges the same prompt.`,
         next: `Run --repeat against a reviewer rule (content.md), or use --check-determinism to re-run a script rule.`,
-      });
+      }, 'command-error');
   }
   return parsed;
 }
@@ -391,14 +391,14 @@ function refuseTierMisuse(opts: AspectTestOptions, aspect: AspectDef, hasFiles: 
         what: `--tier cannot be combined with --files.`,
         why: `--tier re-runs reviewer pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a script rule with no tier.`,
         next: `Use --tier with a reviewer rule and --node <node-path>.`,
-      });
+      }, 'usage');
   }
   if (aspect.reviewer.type !== 'llm') {
     failAndExit({
         what: `--tier is not supported for ${aspect.reviewer.type === 'deterministic' ? 'script rule' : 'bundle'} '${opts.aspect}'.`,
         why: `A script rule runs locally with no reviewer tier — there is no tier to swap. --tier re-runs a reviewer rule under a named reviewer tier.`,
         next: `Run --tier against a reviewer rule (content.md) with --node, or drop --tier for a script rule.`,
-      });
+      }, 'command-error');
   }
 }
 
@@ -411,7 +411,7 @@ function existingNodePath(graph: Graph, rawNode: string): string {
         what: `Node '${nodePath}' not found.`,
         why: `--node requires an existing node path in the graph.`,
         next: `Run 'yg tree' to list nodes.`,
-      });
+      }, 'node-not-found');
   }
   return nodePath;
 }
@@ -431,21 +431,21 @@ async function runLlmPath(
         what: `--files cannot be used with reviewer rule '${opts.aspect}'.`,
         why: `Reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
         next: `Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.`,
-      });
+      }, 'command-error');
   }
   if (!modes.hasNode && !modes.hasFile) {
     failAndExit({
         what: `Neither --node nor --file was provided for reviewer rule '${opts.aspect}'.`,
         why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file), or --files (ad-hoc, script rules only).`,
         next: `Pass --node <node-path> or --file <path> to run a reviewer rule.`,
-      });
+      }, 'command-error');
   }
 
   let target: AspectTestTarget;
   if (modes.hasFile) {
     const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
     if (resolved.kind === 'refused') {
-      failAndExit(resolved.messageData);
+      failAndExit(resolved.messageData, 'command-error');
     }
     target = { kind: 'file', file: resolved.file, typeId: resolved.typeId, typeCoverage: resolved.typeCoverage };
   } else {
@@ -472,7 +472,7 @@ async function runDeterministicPath(
         what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
         why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
         next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
-      });
+      }, 'command-error');
   }
 
   // --dry-run on a deterministic aspect is not meaningful.
@@ -481,7 +481,7 @@ async function runDeterministicPath(
         what: `--dry-run is not supported for script rule '${opts.aspect}'.`,
         why: `Script rules run locally without any provider calls — there is no prompt to print.`,
         next: `Remove --dry-run to run the script rule, or use --node / --files as normal.`,
-      });
+      }, 'command-error');
   }
 
   const modeCount = [modes.hasNode, modes.hasFile, modes.hasFiles].filter(Boolean).length;
@@ -492,7 +492,7 @@ async function runDeterministicPath(
           : `None of --node, --file, --files was provided.`,
         why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a type-covered file, no component), or --files (ad-hoc, no graph attachment).`,
         next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
-      });
+      }, 'command-error');
   }
 
   const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
@@ -514,7 +514,7 @@ async function runDeterministicPath(
   if (modes.hasFile) {
     const resolved = await resolveAspectTestFileTarget(graph, opts.file as string, String(opts.aspect));
     if (resolved.kind === 'refused') {
-      failAndExit(resolved.messageData);
+      failAndExit(resolved.messageData, 'command-error');
     }
     const unit: StructureUnit = { kind: 'file', file: resolved.file, typeId: resolved.typeId, allowedReads: resolved.allowedReads };
     const runOnce = () =>
@@ -621,7 +621,7 @@ function refuseUnusableFiles(projectRoot: string, filePaths: string[]): void {
         : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
       why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
       next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
-    });
+    }, 'command-error');
   }
   const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
   if (notFiles.length > 0) {
@@ -632,7 +632,7 @@ function refuseUnusableFiles(projectRoot: string, filePaths: string[]): void {
         : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
       why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
       next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
-    });
+    }, 'command-error');
   }
   const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
   if (unreadableFiles.length > 0) {
@@ -642,7 +642,7 @@ function refuseUnusableFiles(projectRoot: string, filePaths: string[]): void {
         : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
       why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
       next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
-    });
+    }, 'command-error');
   }
 }
 
@@ -759,7 +759,7 @@ async function resolveSuppressedRangesForTest(
           what: `A yg-suppress marker at ${where} (subject of aspect '${aspectId}') is missing its required reason.`,
           why: `A reasonless suppress marker cannot be resolved into a line range, so the prompt's suppressed-line set is undefined. The live yg check --approve path treats this as a fail-closed infrastructure error.`,
           next: `Add a reason after the marker's closing parenthesis at ${where}, then retry.`,
-        });
+        }, 'command-error');
       return null;
     }
     throw e;
@@ -959,7 +959,7 @@ function resolveTestTier(graph: Graph, aspect: AspectDef, tierOverride: string |
         what: `No reviewer is configured for aspect '${aspect.id}'.`,
         why: `reviewer rules need a reviewer tier in .yggdrasil/yg-config.yaml.`,
         next: `Add a reviewer tier to .yggdrasil/yg-config.yaml (yg init --provider <name> --model <m>), then retry.`,
-      });
+      }, 'command-error');
   }
   if (tierOverride !== undefined) {
     const direct = reviewer.tiers[tierOverride];
@@ -969,13 +969,13 @@ function resolveTestTier(graph: Graph, aspect: AspectDef, tierOverride: string |
           what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
           why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
           next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
-        });
+        }, 'command-error');
     }
     return { tier: direct, tierName: tierOverride };
   }
   const tierResult = selectTierForAspect(aspect, reviewer);
   if (!tierResult.ok) {
-    failAndExit(tierResult.error);
+    failAndExit(tierResult.error, 'command-error');
   }
   return { tier: tierResult.tier, tierName: tierResult.tierName };
 }
@@ -994,7 +994,7 @@ async function loadTestReferences(projectRoot: string, aspect: AspectDef): Promi
           what: `Reference '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read.`,
           why: `The file does not exist or is not readable.`,
           next: `Check the reference path in yg-aspect.yaml.`,
-        });
+        }, 'command-error');
     }
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
@@ -1044,7 +1044,7 @@ async function assembleTestPrompt(
     const resolved = await resolveCompanionsForTest(ctx.graph, ctx.projectRoot, pair, aspect, ctx.typeCoverage);
     if (resolved.kind === 'infra') {
       debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-      fail(resolved.messageData);
+      fail(resolved.messageData, 'command-error');
       return null;
     }
     companions = resolved.companions;
@@ -1128,7 +1128,7 @@ async function reviewTestPairs(
         what: `Reviewer provider '${tier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
         why: `The reviewer failed its availability check. No provider calls were made.`,
         next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
-      });
+      }, 'command-error');
   }
 
   // Diagnostic telemetry sidecar (source:'diag'): one line per reviewer RUN in
@@ -1227,7 +1227,7 @@ async function reviewUnitOnce(
         what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
         why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
         next: `Check the tier's provider settings in .yggdrasil/yg-config.yaml, then run yg aspect-test --aspect ${aspect.id} again.`,
-      });
+      }, 'command-error');
     return 'skipped';
   }
 
@@ -1244,7 +1244,7 @@ async function reviewUnitOnce(
         what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
         why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
         next: `Fix the cause named above, then retry. ${REVIEWER_DEBUG_HINT}`,
-      });
+      }, 'command-error');
     return 'skipped';
   }
 
@@ -1373,7 +1373,7 @@ function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2
       what: `Script rule '${aspectId}' produced non-deterministic results.`,
       why: `Two consecutive runs returned different violations. This indicates the check.mjs has side effects or depends on non-deterministic state.`,
       next: `Review check.mjs to ensure it depends only on its inputs and produces stable output.`,
-    });
+    }, 'command-error');
   writeErr('Run 1:\n');
   writeErr(JSON.stringify(sorted1, null, 2) + '\n');
   writeErr('Run 2:\n');

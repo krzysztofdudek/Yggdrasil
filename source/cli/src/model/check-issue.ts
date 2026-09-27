@@ -5,6 +5,7 @@
  * orchestrator. core/check-contract.ts and core/check-codes.ts re-export them.
  */
 import type { ValidationIssue } from './validation.js';
+import type { CheckIssueCode } from './issue-code.js';
 
 /**
  * Why a pair has no valid verdict. One `unverified` code used to cover every
@@ -38,7 +39,7 @@ export type UnverifiedCause =
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
-  code: string;
+  code: CheckIssueCode;
   /** For unmapped-files: uncovered file paths */
   uncoveredFiles?: string[];
   /** For unmapped-files: total count of uncovered files */

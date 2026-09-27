@@ -163,7 +163,7 @@ export function registerOwnerCommand(program: Command): void {
                 what: '--file is required.',
                 why: 'yg owner resolves which graph node owns a specific source file, so it needs that file path.',
                 next: 'Re-run as: yg owner --file <path>',
-              });
+              }, 'usage');
         }
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
@@ -253,7 +253,7 @@ export function registerOwnerCommand(program: Command): void {
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                 why: describeCascadeCycle(cascadeCycle),
                 next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
-              });
+              }, 'command-error');
             }
             // Enumerates pairs scoped to THIS ONE FILE (a single-entry covered
             // map), never the whole-repo classification map, for the pairs
@@ -376,7 +376,7 @@ export function registerOwnerCommand(program: Command): void {
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `yg owner resolves ownership only for files tracked inside the project.`,
             next: 'yg owner --file <a path inside the repository, relative to its root>',
-          });
+          }, 'command-error');
         }
         abortOnUnexpectedError(error, 'resolving file owner');
       }

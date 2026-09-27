@@ -729,11 +729,11 @@ describe('check render — a grouped block never shows a placeholder or a fake p
 
   it('a why templated over a node path says "the node\'s <file>", never a path with the node substituted', () => {
     const issues: CheckIssue[] = ['a', 'b'].map((n) => ({
-      severity: 'error', code: 'some-code', rule: 'some-code', nodePath: n,
+      severity: 'error', code: 'parent-type-forbidden', rule: 'parent-type-forbidden', nodePath: n,
       messageData: { what: `Node '${n}' is broken`, why: `Node '${n}' reads .yggdrasil/model/${n}/yg-node.yaml.`, next: 'Fix it.' },
     } as CheckIssue));
     const out = blocks(issues);
-    expect(headings(out)).toEqual(['error[some-code] 2 nodes are broken']);
+    expect(headings(out)).toEqual(['error[parent-type-forbidden] 2 nodes are broken']);
     expect(out).toContain("  why:  The node reads the node's yg-node.yaml.");
   });
 
@@ -760,7 +760,7 @@ describe('check render — a grouped block never shows a placeholder or a fake p
 
   it('a fix that differs by more than one path word stays per member', () => {
     const issues: CheckIssue[] = ['a', 'b'].map((n, i) => ({
-      severity: 'warning', code: 'some-code', rule: 'some-code', nodePath: n,
+      severity: 'warning', code: 'high-fan-out', rule: 'high-fan-out', nodePath: n,
       messageData: { what: 'Something is off', why: 'Because.', next: i === 0 ? 'Run yg x --file src/a now.' : 'Run yg y --file src/b now.' },
     } as CheckIssue));
     const out = blocks(issues);
@@ -771,7 +771,7 @@ describe('check render — a grouped block never shows a placeholder or a fake p
     const issues: CheckIssue[] = [
       ...['a', 'b', 'c'].map((n) => ({ severity: 'error', code: 'yaml-invalid', rule: 'yaml-invalid', nodePath: n, messageData: { what: `yg-node.yaml in ${n} does not parse: x`, why: 'w', next: 'f' } } as CheckIssue)),
       ...['d', 'e'].map((n) => ({ severity: 'error', code: 'description-missing', rule: 'description-missing', nodePath: n, messageData: { what: 'Node has no description', why: 'w', next: 'f' } } as CheckIssue)),
-      { severity: 'warning', code: 'some-warning', rule: 'some-warning', nodePath: 'a', messageData: { what: 'One thing', why: 'w', next: 'f' } } as CheckIssue,
+      { severity: 'warning', code: 'high-fan-out', rule: 'high-fan-out', nodePath: 'a', messageData: { what: 'One thing', why: 'w', next: 'f' } } as CheckIssue,
     ];
     expect(report(issues).split('\n')[0]).toBe('yg check: FAIL  5 errors in 2 blocks · 1 warning   1 node');
   });

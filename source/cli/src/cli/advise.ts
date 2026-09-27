@@ -926,7 +926,7 @@ function resolveNominationOrFail(noms: Nomination[], id: string): Nomination {
         knownIds.length > 0
           ? `Name one of the current ids: ${knownIds.join(', ')}.`
           : "Run 'yg advise' to see the current items — nothing needs acting on right now.",
-    });
+    }, 'command-error');
   }
   return nomination;
 }
@@ -950,7 +950,7 @@ async function readImportSource(source: string): Promise<string> {
       what: `The proposal document '${quoteData(source)}' could not be read.`,
       why: 'An import reads one whole document; without it there is nothing to bring into the feed.',
       next: `Check the path, or pipe the producer's own output in with: yg advise import -`,
-    });
+    }, 'command-error');
   }
 }
 
@@ -961,7 +961,7 @@ function requireNonEmptyReason(reason: string, action: 'dismiss' | 'defer'): voi
     what: `A ${action} needs a non-empty --reason.`,
     why: 'Each recorded decision is committed precedent, so it must carry a human-signed justification; an empty reason records nothing meaningful.',
     next: `Re-run with --reason "<why you are choosing to ${action} this item>".`,
-  });
+  }, 'command-error');
 }
 
 /** Append one decision to the committed register and print a success line. */
@@ -998,7 +998,7 @@ export function registerAdviseCommand(program: Command): void {
             what: `${passed} cannot be combined with --json.`,
             why: 'Both shape the feed for a reader: --all lifts the ten-item display cap and --ids prints an id under each item. The machine document already carries every visible item, uncapped, each with its id — so neither flag could change it, and accepting one would suggest it had.',
             next: 'Run: yg advise --json (the whole feed as one document), or drop --json for the reader view.',
-          });
+          }, 'usage');
         }
         // Injected UTC clock at the boundary (Task 1 pattern) — the engine keeps
         // no Date.now of its own.
@@ -1064,7 +1064,7 @@ export function registerAdviseCommand(program: Command): void {
         // parser keeps none of its own.
         const nowIso = new Date().toISOString();
         const parsed = parseGrainAdvice(text, nowIso);
-        if (!parsed.ok) failAndExit(parsed.error);
+        if (!parsed.ok) failAndExit(parsed.error, 'command-error');
 
         const existing = readImported(graph.rootPath).imported;
         const { fresh, alreadyHeld } = partitionNewImports(parsed.records, existing);
@@ -1133,7 +1133,7 @@ export function registerAdviseCommand(program: Command): void {
             what: `--until '${quoteData(opts.until)}' is not a valid calendar date.`,
             why: 'A defer window is a bare ISO calendar day (YYYY-MM-DD); a mis-shaped or impossible date has no defined return point.',
             next: 'Re-run with --until in YYYY-MM-DD form, e.g. --until 2027-01-31.',
-          });
+          }, 'command-error');
         }
         const now = new Date();
         const { sources } = await gatherNominationSources(graph, now);

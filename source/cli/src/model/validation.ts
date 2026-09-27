@@ -1,3 +1,5 @@
+import type { CheckCode, IssueCode } from './issue-code.js';
+
 // ============================================================
 // Validation
 // ============================================================
@@ -35,9 +37,19 @@ export interface IssueMessage {
   retry?: string;
 }
 
+/**
+ * A what/why/next that already names its code — what a module returns when it
+ * refuses and knows which code the refusal is (a node the graph does not hold
+ * is `node-not-found`, a malformed --node value `node-path-invalid`). The
+ * command reporting it passes the code through instead of choosing one.
+ */
+export interface CodedIssueMessage extends IssueMessage {
+  code: IssueCode;
+}
+
 export interface ValidationIssue {
   severity: IssueSeverity;
-  code?: string;
+  code?: CheckCode;
   rule: string;
   messageData: IssueMessage;
   nodePath?: string;

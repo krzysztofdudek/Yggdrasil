@@ -24,7 +24,7 @@ export function registerRemovedVerdictCommand(program: Command): void {
           what: 'yg verdict (package, record, read) was removed in 6.1.0.',
           why: 'A reviewer rule is judged by the reviewer configured in .yggdrasil/yg-config.yaml and by nothing else, so there is no channel for recording a judgement from outside it. Verdicts an earlier release recorded that way are still read and still hold while the code they judged is unchanged.',
           next: 'Record verdicts with: yg check --approve (configure the reviewer first with yg init --provider <name> [--model <m>] if none is set).',
-        });
+        }, 'command-error');
       } catch (error) {
         abortOnUnexpectedError(error, 'reporting the removed verdict command');
       }

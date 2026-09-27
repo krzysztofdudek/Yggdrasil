@@ -1,7 +1,8 @@
 name: ValidationTypes
 type: types
-description: Validation result types — ValidationIssue, ValidationResult
+description: Validation result types — ValidationIssue, ValidationResult — and the issue-code vocabulary every type that carries a code is typed with (the codes of check findings, command errors, suppression warnings and marketplace findings, and the outside twin of a finding), so an emitter cannot put an unregistered code in front of a reader.
 aspects: []
 relations: []
 mapping:
   - source/cli/src/model/validation.ts
+  - source/cli/src/model/issue-code.ts

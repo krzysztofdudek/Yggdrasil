@@ -20,6 +20,7 @@ import { parseArchitecture } from '../io/architecture-parser.js';
 import { WhenPredicateInvalidError } from '../utils/file-when-parser.js';
 import type { ArchitectureLoadError } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckCode } from '../model/issue-code.js';
 import { findYggRoot } from '../io/paths.js';
 import { readSchemaVersion } from './migrator.js';
 import { toPosixPath } from '../utils/posix.js';
@@ -184,7 +185,7 @@ export async function loadGraph(
   }
 
   let configError: string | undefined;
-  let configErrorCode: string | undefined;
+  let configErrorCode: CheckCode | undefined;
   let configErrorMessage: IssueMessage | undefined;
   let configUnknownKeys: Graph['configUnknownKeys'];
   const withMessages = (keys: UnknownConfigKey[]): Graph['configUnknownKeys'] =>
@@ -391,9 +392,9 @@ async function scanModelDirectory(
 async function loadAspects(
   aspectsDir: string,
   projectRoot: string,
-): Promise<{ aspects: AspectDef[]; parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }> }> {
+): Promise<{ aspects: AspectDef[]; parseErrors: Array<{ aspectId: string; code: CheckCode; messageData: IssueMessage }> }> {
   const aspects: AspectDef[] = [];
-  const parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }> = [];
+  const parseErrors: Array<{ aspectId: string; code: CheckCode; messageData: IssueMessage }> = [];
   try {
     await scanAspectsDirectory(aspectsDir, aspectsDir, aspects, parseErrors);
     // Installed packages are scanned separately, because a rule that arrived
@@ -419,7 +420,7 @@ async function scanAspectsDirectory(
   dirPath: string,
   aspectsRoot: string,
   aspects: AspectDef[],
-  parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }>,
+  parseErrors: Array<{ aspectId: string; code: CheckCode; messageData: IssueMessage }>,
 ): Promise<void> {
   const entries = await readSortedDir(dirPath);
   const hasAspectYaml = entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml');
@@ -493,7 +494,7 @@ async function scanInstalledPackages(
   aspectsDir: string,
   projectRoot: string,
   aspects: AspectDef[],
-  parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }>,
+  parseErrors: Array<{ aspectId: string; code: CheckCode; messageData: IssueMessage }>,
 ): Promise<void> {
   const packagesRoot = path.join(aspectsDir, PACKAGES_DIR);
   const owners = await readSortedDirOrEmpty(packagesRoot);

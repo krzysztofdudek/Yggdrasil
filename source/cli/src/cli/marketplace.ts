@@ -112,7 +112,7 @@ async function runMarketplaceInit(): Promise<void> {
       what: `${toPosixPath(cwd)} is not inside a git repository.`,
       why: 'A marketplace IS a git repository: consumers install from its URL and pin a version by its tags, so there is nowhere for a package to be published from until one exists.',
       next: 'Run `git init` here (or change to a repository you have already created), then run `yg marketplace init` again.',
-    });
+    }, 'command-error');
   }
 
   const manifestPath = path.join(gitRoot, MARKETPLACE_FILENAME);
@@ -121,7 +121,7 @@ async function runMarketplaceInit(): Promise<void> {
       what: `${toPosixPath(gitRoot)} already has a ${MARKETPLACE_FILENAME}.`,
       why: 'That file is the whole record of what this repository publishes. Rewriting it would drop every entry in it, and nothing else here would notice.',
       next: `Add a package with \`yg pack new <name>\`, or check what is there with \`yg marketplace check\`. To start over, delete ${MARKETPLACE_FILENAME} first.`,
-    });
+    }, 'command-error');
   }
 
   await atomicWriteFile(manifestPath, initialMarketplaceManifest());

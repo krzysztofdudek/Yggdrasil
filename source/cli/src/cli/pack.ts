@@ -107,14 +107,14 @@ async function runPackAction(body: () => Promise<number>): Promise<void> {
       debugWrite(`[pack] command refused: ${error.message}`);
     }
     if (error instanceof PackRefusal) {
-      fail(error.messageData);
+      fail(error.messageData, error.code);
       code = 1;
     } else if (error instanceof PackCommandBusyError) {
       fail({
             what: `Another yg pack command${error.holderPid === null ? '' : ` (process ${error.holderPid})`} is changing this repository's packages right now.`,
             why: `Two commands changing .yggdrasil/${PACKAGES_LOCK_FILENAME} at once would each write back the record they read, and one package would silently drop out of it. Nothing was changed.`,
             next: `Wait for it to finish and run this again. If no pack command is running, delete ${toPosixPath(error.lockPath)} and run this again.`,
-          });
+          }, 'command-error');
       code = 1;
     } else {
       handleError(error);

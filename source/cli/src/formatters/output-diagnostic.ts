@@ -10,14 +10,22 @@
  * one way everywhere, and so the JSON form carries the same parts the text
  * does.
  *
- * The registry answers, per issue code, the questions every renderer used to
- * answer on its own: the short label a report heads the finding with, the
- * tier it sorts into, the noun its members are counted in. One table, so a
- * label, a count and an ordering cannot disagree between two views of the same
- * run.
+ * The code registry (utils/issue-code-registry.ts) answers, per issue code,
+ * the questions every renderer used to answer on its own: the short label a
+ * report heads the finding with, the tier it sorts into, the noun its members
+ * are counted in. One table, so a label, a count and an ordering cannot
+ * disagree between two views of the same run — and the same table the docs
+ * code tables are rendered from, so what a report calls a code and what the
+ * reference says it means cannot drift apart either.
  */
 
 import type { IssueMessage } from '../model/validation.js';
+import type { IssueCode, OutsideTwinCode } from '../model/issue-code.js';
+import { CONFIGURE_REVIEWER_STEP, ISSUE_CODES, issueCodeEntry, type Tier } from '../utils/issue-code-registry.js';
+
+// Re-exported so the report renderers keep reaching them where they always did.
+export { CONFIGURE_REVIEWER_STEP };
+export type { Tier };
 
 /** How a diagnostic weighs: `error` blocks, `warning` never does, `note` is context. */
 export type Severity = 'error' | 'warning' | 'note';
@@ -35,8 +43,8 @@ export interface Fix {
 /** One thing the CLI tells its reader. */
 export interface Diagnostic {
   severity: Severity;
-  /** Stable machine identity — an issue code, or `usage` / `internal` for a command error. */
-  code: string;
+  /** Stable machine identity — a registered issue code (a check finding's, or a command error's such as `usage`), or a finding's outside twin. */
+  code: IssueCode | OutsideTwinCode;
   /** Short heading word; defaults to the registry label for `code`. */
   label?: string;
   /** What the diagnostic is about — a node, a file, a rule — when it is about one thing. */
@@ -50,16 +58,6 @@ export interface Diagnostic {
   /** What to do about it. */
   fix?: Fix;
 }
-
-/**
- * Where a code sorts in a report, most urgent first.
- *   - T0: the graph itself did not load as written — every other finding in
- *     the run was computed on a fallback and may be a symptom of this one.
- *   - T1: code and graph errors — a refusal, a relation, coverage, structure.
- *   - T2: gate prerequisites — what must exist before verdicts can be recorded.
- *   - T3: pending — pairs a recording run fills.
- */
-export type Tier = 'T0' | 'T1' | 'T2' | 'T3';
 
 /** What the registry knows about one code. */
 export interface CodeInfo {
@@ -78,20 +76,12 @@ export interface CodeInfo {
 }
 
 /**
- * The step that configures a reviewer, as a report names it: configuring one
- * sends code to that provider on the user's account, so it is always asked
- * for, never run. `--model` is required by every provider but claude-code, and
- * the draft alternative stays in view.
- */
-export const CONFIGURE_REVIEWER_STEP = 'ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft';
-
-/**
  * Codes whose failure means the graph did not load as written: a
  * configuration, architecture, component or lock file that does not parse or
  * does not validate. While one is present, the rest of a report describes a
  * graph with parts missing or replaced by defaults.
  */
-export const GRAPH_INVALID_CODES: ReadonlySet<string> = new Set([
+export const GRAPH_INVALID_CODES: ReadonlySet<string> = new Set<IssueCode>([
   'config-invalid',
   'architecture-invalid',
   'yaml-invalid',
@@ -99,32 +89,15 @@ export const GRAPH_INVALID_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The codes whose label, tier or noun differs from the default (label = the
- * code itself, tier T1, noun "issue"). The label is the word in a report's
- * heading brackets — `error[refused]` — and the same word the JSON document
- * carries as `label` beside the full `code`, so a reader can match one to the
- * other without a table. A Map, never an object literal, so a lookup of an
- * arbitrary code string can never land on an inherited Object.prototype key.
+ * Every code whose label, tier, noun or decision differs from the default
+ * (label = the code itself, tier T1, noun "issue") — the codes a report ranks
+ * and labels specially; a test holds each one's step to the Next contract. Read
+ * off the registry, so a code gains or loses special treatment in one place.
  */
-const REGISTRY: ReadonlyMap<string, CodeInfo> = new Map<string, CodeInfo>([
-  ['config-invalid', { label: 'config-invalid', tier: 'T0', noun: 'issue' }],
-  ['architecture-invalid', { label: 'architecture-invalid', tier: 'T0', noun: 'issue' }],
-  ['yaml-invalid', { label: 'yaml-invalid', tier: 'T0', noun: 'file' }],
-  ['lock-invalid', { label: 'lock-invalid', tier: 'T0', noun: 'issue' }],
-  ['aspect-violation-enforced', { label: 'refused', tier: 'T1', noun: 'pair' }],
-  ['aspect-violation-advisory', { label: 'refused', tier: 'T1', noun: 'pair' }],
-  ['prompt-too-large', { label: 'prompt-too-large', tier: 'T1', noun: 'pair' }],
-  ['aspect-companion-runtime-error', { label: 'aspect-companion-runtime-error', tier: 'T1', noun: 'pair' }],
-  ['unmapped-files', { label: 'unmapped', tier: 'T1', noun: 'file' }],
-  ['uncovered-advisory', { label: 'uncovered', tier: 'T1', noun: 'file' }],
-  ['log-conflict', { label: 'log-conflict', tier: 'T2', noun: 'node' }],
-  ['log-entry-missing', { label: 'log-entry-missing', tier: 'T2', noun: 'node' }],
-  ['config-reviewer-missing', { label: 'config-reviewer-missing', tier: 'T2', noun: 'issue', decision: CONFIGURE_REVIEWER_STEP }],
-  ['unverified', { label: 'unverified', tier: 'T3', noun: 'pair' }],
-]);
-
-/** Every code the registry names — the codes a report ranks and labels specially; a test holds each one's step to the Next contract. */
-export const REGISTERED_CODES: readonly string[] = [...REGISTRY.keys()];
+export const REGISTERED_CODES: readonly string[] = ISSUE_CODES.filter((code) => {
+  const e = issueCodeEntry(code);
+  return e !== undefined && (e.label !== undefined || e.tier !== undefined || e.noun !== undefined || e.decision !== undefined);
+});
 
 const DEFAULT_TIER: Tier = 'T1';
 
@@ -138,13 +111,25 @@ const OUTSIDE_SUFFIX = '-outside';
  * same suffix on its label, in its mirror's tier.
  */
 export function codeInfo(code: string): CodeInfo {
-  const own = REGISTRY.get(code);
+  const own = presentation(code);
   if (own !== undefined) return own;
   if (code.endsWith(OUTSIDE_SUFFIX)) {
-    const base = REGISTRY.get(code.slice(0, -OUTSIDE_SUFFIX.length));
+    const base = presentation(code.slice(0, -OUTSIDE_SUFFIX.length));
     if (base !== undefined) return { ...base, label: `${base.label}${OUTSIDE_SUFFIX}` };
   }
   return { label: code, tier: DEFAULT_TIER, noun: 'issue' };
+}
+
+/** How a registered code renders, with the defaults filled in; undefined for an unregistered one. */
+function presentation(code: string): CodeInfo | undefined {
+  const e = issueCodeEntry(code);
+  if (e === undefined) return undefined;
+  return {
+    label: e.label ?? code,
+    tier: e.tier ?? DEFAULT_TIER,
+    noun: e.noun ?? 'issue',
+    ...(e.decision !== undefined ? { decision: e.decision } : {}),
+  };
 }
 
 /** Sort key for a tier: T0 first. */
@@ -159,7 +144,7 @@ export function tierRank(tier: Tier): number {
  * whole: it starts with `yg `, and carries no placeholder, no trailing prose
  * and no second clause to strip — so a machine consumer can run it as given.
  */
-export function fromIssueMessage(msg: IssueMessage, opts: { code: string; severity?: Severity; subject?: string }): Diagnostic {
+export function fromIssueMessage(msg: IssueMessage, opts: { code: IssueCode | OutsideTwinCode; severity?: Severity; subject?: string }): Diagnostic {
   const [summary, ...detail] = msg.what.split('\n');
   const firstNext = msg.next.split('\n')[0].trim();
   const command = /^yg [^\s]/.test(firstNext) && !/[<>—;(]|,\s/.test(firstNext) && !firstNext.endsWith('.') ? firstNext : undefined;

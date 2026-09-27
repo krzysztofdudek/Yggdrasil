@@ -358,7 +358,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
 
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('not a merge commit');
+      expect(all).toMatch(/^error\[log-merge-not-in-progress\]:/m);
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }
@@ -372,7 +372,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toMatch(/^error\[command-error\]:/m);
+      expect(all).toMatch(/^error\[log-merge-history-rewritten\]:/m);
       expect(all).toContain('history both sides share');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
