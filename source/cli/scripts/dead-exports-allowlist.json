@@ -93,7 +93,6 @@
         "src/core/graph-loader.ts#MalformedSchemaVersionError",
         "src/core/graph-loader.ts#OutdatedSchemaVersionError",
         "src/core/graph-loader.ts#UnsupportedSchemaVersionError",
-        "src/core/log/aspect-log.ts#aspectLogPath",
         "src/core/log/aspect-status.ts#driftLine",
         "src/core/log/aspect-status.ts#lastRecordedStatus",
         "src/core/log/log-gate.ts#hasFreshLogEntry",

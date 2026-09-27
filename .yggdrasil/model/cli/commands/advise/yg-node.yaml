@@ -30,6 +30,8 @@ relations:
     type: calls
   - target: cli/core/advise
     type: calls
+  - target: cli/core/log
+    type: calls
   - target: cli/core/check
     type: calls
   - target: cli/core/aspect-health-signals

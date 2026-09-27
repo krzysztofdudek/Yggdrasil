@@ -23,7 +23,8 @@ description: "Pure advise engine — turns the graph's live attention signals in
   rule installed from another repository has moved on (which, like imported,
   carries somebody else's words and so belongs visibly apart): the engine file is the
   one this repository's own reviewer prompt runs closest to its ceiling on, and a
-  source with a single entry point is the cheapest thing to move."
+  source with a single entry point is the cheapest thing to move.
+  Two more sources live beside it for the same reason, both about the decisions the logs hold in force, read at the CLI boundary and handed in as plain data: an entry that two entries still in force each replaced, ranked with the structural classes because it is a contradiction the graph holds now, and a type whose nodes read more than seven type decisions in force, or more than about two thousand tokens of them estimated from characters, ranked last among the structural classes because it is a matter of weight rather than of anything being wrong."
 relations:
   - target: cli/utils
     type: calls
@@ -53,5 +54,6 @@ mapping:
   - source/cli/src/core/advise-import.ts
   - source/cli/src/core/advise-imported-nominations.ts
   - source/cli/src/core/advise-package-nominations.ts
+  - source/cli/src/core/advise-log-nominations.ts
   - source/cli/src/core/advise-shared.ts
   - source/cli/src/core/node-churn.ts

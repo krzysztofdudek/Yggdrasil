@@ -11,7 +11,8 @@ description: "Unit tests for the advise engine — buildNominations over a real
   twice adds nothing while the same proposal measured at a later commit is a new
   one), and the items it becomes — ranked below everything the graph derives for
   itself, rendered as quoted data under the producer's name, and every next step
-  an act for the user to approve, because importing was never accepting."
+  an act for the user to approve, because importing was never accepting.
+  And the two items about decisions the logs hold in force: an entry replaced twice names every successor and the one command that settles it, and a type's load fires past seven decisions or past about two thousand estimated tokens, never at either line, bound to the decisions in force."
 aspects: []
 relations:
   [
@@ -27,4 +28,5 @@ mapping:
   - source/cli/tests/unit/core/advise-import.test.ts
   - source/cli/tests/unit/core/advise-imported-nominations.test.ts
   - source/cli/tests/unit/core/advise-package-nominations.test.ts
+  - source/cli/tests/unit/core/advise-log-nominations.test.ts
   - source/cli/tests/unit/core/node-churn.test.ts

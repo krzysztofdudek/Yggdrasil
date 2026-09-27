@@ -37,6 +37,7 @@ description: >-
   the file under a short repository-wide log-write lock, so two concurrent
   writers take turns instead of the later one silently dropping the earlier
   entry.
+  What every log holds in force is also read once, for the attention feed: which entries two entries still in force each replaced (the shape two branches leave when each superseded the same decision), across component, type and rule logs, and how many type decisions, and how much text of them, the nodes of each type read through their parent chain. A log that is missing reads as empty; one that does not parse or still carries conflict markers is skipped, since the check reports it under codes of its own.
 aspects:
   - what-why-next
   - posix-paths-output
@@ -74,3 +75,4 @@ mapping:
   - source/cli/src/core/log/type-log.ts
   - source/cli/src/core/log/log-merge-resolve.ts
   - source/cli/src/core/log/log-gate.ts
+  - source/cli/src/core/log/log-standing-scan.ts

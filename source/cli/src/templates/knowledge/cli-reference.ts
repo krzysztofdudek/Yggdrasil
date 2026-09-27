@@ -1223,11 +1223,13 @@ yg advise --json     # the same feed as one machine-readable document
     is not counted). It is a bare count that points you at \`yg context\` for the
     per-file note; it lists no files, names no measures, and ranks nothing.
 - **Nominations** — up to ten ranked, evidence-backed suggestions in a fixed
-  priority order: a regression case a rule no longer catches, a risky waiver, a
-  rule effective nowhere (\`aspect-effective-nowhere\`, the same code \`yg check\`
+  priority order: a regression case a rule no longer catches, a risky waiver, two
+  decisions in force that each replaced the same log entry
+  (\`log-supersedes-conflict\`), a rule effective nowhere (\`aspect-effective-nowhere\`, the same code \`yg check\`
   reports), an orphaned rule (\`orphaned-aspect\` — only where the class before it
   does not already cover it: a bundle, a draft rule, or a graph with no code yet, so
-  a dead rule is one nomination), a rule past its review-by date, and —
+  a dead rule is one nomination), a rule past its review-by date, a node type
+  whose nodes read too many decisions in force (\`type-decision-budget\`), and —
   below all of those — history-derived suggestions such as promoting a clean-record
   advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
   never once caught a violation, and flagging an **unguarded hot spot**
@@ -1238,6 +1240,8 @@ yg advise --json     # the same feed as one machine-readable document
   itself the moment a rule starts guarding it or the churn ages out of the
   window; the churn is read from git history, so a shallow or non-git checkout simply
   omits the class rather than guessing.
+
+  The two log classes read the graph's own logs. \`log-supersedes-conflict\` is an entry of a node's, a type's or a rule's log that two entries still in force each replaced — what two branches leave when each superseded the same decision; \`yg log merge-resolve\` reports it once at the merge, and the feed keeps listing it, with the \`yg log add … --supersedes <a> --supersedes <b>\` that settles it, until one entry replaces both. \`type-decision-budget\` fires when a node of a type reads more than 7 decisions in force from the type decision logs (its type's and every type's above it), or more than about 2,000 tokens of them, estimated as characters / 4; it is reported once, at the type with decisions of its own, and proposes folding decisions that say one thing into one entry.
 
   Once a project turns on type-level coverage (\`coverage.type_level\`) — so a file no
   node maps can still be a type-covered file, enforced through its matched architecture

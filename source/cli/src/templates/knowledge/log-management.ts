@@ -221,6 +221,8 @@ keeps every entry and records the baseline but exits with
 the merge, then add one entry that supersedes both and says which holds — ask
 the user which one that is.
 
+Until that entry is written, \`yg advise\` lists the clash as \`log-supersedes-conflict\`, for a node's, a type's and a rule's log alike. It also lists \`type-decision-budget\` when a type's nodes read more than 7 decisions in force (the type's and every type's above it), or more than about 2,000 tokens of them: fold decisions that say one thing into one entry that supersedes them.
+
 ## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
 
 If you just ran \`yg log add\` and notice a typo, and the node has NOT reached

@@ -58,6 +58,7 @@ import {
 } from '../core/graph-metrics.js';
 import { isValidReviewByDate } from '../io/aspect-parser.js';
 import { countLiveDeviationFiles } from '../core/feature-index-read.js';
+import { scanLogStanding } from '../core/log/log-standing-scan.js';
 import type { Graph } from '../model/graph.js';
 import { failAndExit, count, field, heading, decorated, paint, writeOut } from './output.js';
 
@@ -753,6 +754,16 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const packageUpdates = await gatherPackageUpdates(graph, projectRoot);
   if (packageUpdates.length > 0) {
     sources.packageUpdates = packageUpdates;
+  }
+  // The decisions the logs hold in force. The logs are the graph's own committed
+  // files, so a read failure is a bug to see in the debug log, never a reason to
+  // fail the feed: it degrades to silence for both classes.
+  try {
+    const { clashes, typeLoads } = await scanLogStanding(graph);
+    if (clashes.length > 0) sources.supersedeClashes = clashes;
+    if (typeLoads.length > 0) sources.typeDecisionLoads = typeLoads;
+  } catch (error) {
+    debugWrite(`[advise] log standing omitted: ${(error as Error).message}`);
   }
   return { sources, tunnelCount, skippedCandidates };
 }
