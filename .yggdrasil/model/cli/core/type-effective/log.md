@@ -20,3 +20,5 @@ The reserved default port name is now imported from the one constant the model d
 Three facts the cascade reports (why an attached rule drops, an absorbed implies cycle, and where a type parent chain stops) moved into the model layer, and this module now only re-exports them. They appear inside the type-level coverage report the check renders, and a renderer is a formatter that may not depend on the engine. Re-exporting keeps every engine caller unchanged.
 ## [2026-09-27T00:25:46.230Z]
 The sentence for an absorbed implies cycle moved to the formatter layer with the other type-level coverage sentences. The check report that prints it is a formatter and may not call the engine; the cascade keeps computing the cycle and hands it over as data.
+## [2026-09-27T07:39:24.997Z]
+The reserved parents entry root marks the top level, not a type to inherit from, so the inherited type chain ignores it: a type listing root beside one parent keeps inheriting from that parent, and a type listing only root has no parent type.

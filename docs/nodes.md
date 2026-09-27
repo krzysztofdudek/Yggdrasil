@@ -107,7 +107,7 @@ Every node declares a `type`, and every type is defined once in `.yggdrasil/yg-a
 
 - **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly. It is also enforced forward: every file a node of this type maps must match the type's `when`, or `yg check` reports a `type-when-mismatch`.
 - **set default rules** — list aspects every node of the type must satisfy, so you attach a cross-cutting rule once instead of on every node.
-- **constrain structure** — `parents` limits where a node of this type may nest; `relations` limits which types it may depend on, and through which relation type.
+- **constrain structure** — `parents` limits where a node of this type may nest (with no `parents`, anywhere; with a list, only under those types, and at the top level only when the list names the reserved entry `root`); `relations` limits which types it may depend on, and through which relation type.
 - **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add`. The requirement is measured from the last full `yg check --approve`; a project that only ever runs `--only-deterministic` never advances that baseline, so one entry keeps covering every later edit (plain `yg check` warns with `log-cycle-open`). See [the log gate](/the-lock#the-log-gate).
 - **close the type-shopping gap** — `enforce: strict` makes the classification bite in *both* directions. See below.
 
@@ -233,7 +233,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `node_types.<type>.aspects[].id` | string | yes | The rule id — its directory path under aspects/. |
 | `node_types.<type>.aspects[].when` | node predicate | no | Attach the rule here only where this node predicate holds (yg knowledge read conditional-aspects). |
 | `node_types.<type>.aspects[].status` | `draft` \| `advisory` \| `enforced` | no | Raise the rule's status at this site; lowering it is refused. |
-| `node_types.<type>.parents` | list of string | no | Node types a node of this type may sit under. |
+| `node_types.<type>.parents` | list of string | no | Node types a node of this type may sit under; `root` allows the top level. Absent: anywhere. |
 | `node_types.<type>.relations` | mapping | no | Which node types each relation type from this type may target. |
 | `node_types.<type>.relations.calls` | list of string | no | Node types a calls relation may target (`*` for any); an empty list allows none. |
 | `node_types.<type>.relations.uses` | list of string | no | Node types a uses relation may target (`*` for any); an empty list allows none. |

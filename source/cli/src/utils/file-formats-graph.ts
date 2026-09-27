@@ -120,7 +120,7 @@ export const ARCHITECTURE_NODE_TYPE: ObjectType = {
   fields: {
     description: { type: { kind: 'string', nonEmpty: true }, required: true, description: 'What a node of this type is.' },
     aspects: { type: ATTACHMENTS, description: 'Rules every node of this type carries (channel 3).' },
-    parents: { type: stringList(), description: 'Node types a node of this type may sit under.' },
+    parents: { type: stringList(), description: 'Node types a node of this type may sit under; `root` allows the top level. Absent: anywhere.' },
     relations: { type: ARCHITECTURE_RELATIONS, description: 'Which node types each relation type from this type may target.' },
     log_required: { type: { kind: 'boolean' }, description: 'Whether a node of this type needs a log entry when its files change.' },
     when: { type: { kind: 'predicate', grammar: 'file' }, description: 'The files this type classifies (path and content atoms).' },

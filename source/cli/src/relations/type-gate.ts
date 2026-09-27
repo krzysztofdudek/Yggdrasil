@@ -1,5 +1,6 @@
 import type { ArchitectureDef } from '../model/graph.js';
 import { allowedRelationTypes } from '../utils/allowed-relation-types.js';
+import { STRUCTURAL_RELATION_TYPES } from '../model/when.js';
 import type { TypedEdgeIndex } from './pass.js';
 
 export interface TypeGateFinding {
@@ -32,8 +33,9 @@ export function computeTypeGateFindings(
   for (const [fromFile, fromType] of fileOwnerType) {
     for (const edge of typedEdges.edgesFrom(fromFile)) {
       const toType = edge.toOwner.type;
-      const allowed = allowedRelationTypes(architecture, fromType, toType);
-      if (allowed.length > 0) continue; // at least one relation type sanctions this pair
+      // At least one STRUCTURAL relation type sanctions this pair; an event
+      // type alone never sanctions an import (see STRUCTURAL_RELATION_TYPES).
+      if (allowedRelationTypes(architecture, fromType, toType).some((t) => STRUCTURAL_RELATION_TYPES.has(t))) continue;
       const key = `${fromType}->${toType}`;
       let finding = byPair.get(key);
       if (!finding) {

@@ -16,7 +16,7 @@ node_types:
 
   module:
     description: "Domain grouping — organizes children under shared domain responsibility."
-    parents: [project, module]
+    parents: [root, project, module]
 
   # ── Classifying types (have when; most enforce: strict) ──
 
@@ -454,7 +454,7 @@ node_types:
         status: enforced
       - id: repo-check-gate-steps
         status: advisory
-    parents: [module]
+    parents: [root, module]
     relations:
       default: deny
 
@@ -464,7 +464,7 @@ node_types:
       path: "examples/**"
     aspects:
       - id: example-self-contained
-    parents: [module]
+    parents: [root, module]
     relations:
       default: deny
 
@@ -540,7 +540,7 @@ node_types:
             - path: "source/cli/tests/**/.gitkeep"
             - not:
                 path: "source/cli/tests/fixtures/**"
-    parents: [project, module]
+    parents: [root, project, module]
     relations:
       default: deny
 
@@ -570,7 +570,7 @@ node_types:
       - no-nondeterminism-direct
       - no-direct-fs
       - no-side-effects-on-import
-    parents: [module]
+    parents: [root, module]
     relations:
       default: deny
 

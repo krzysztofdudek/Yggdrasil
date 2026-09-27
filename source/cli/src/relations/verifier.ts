@@ -1,7 +1,7 @@
 export interface ResolvedDep { fromFile: string; line: number; ownerNode: string }
 export interface RelationGraphView {
   isAncestorOf(a: string, b: string): boolean;     // true if a is a STRICT ancestor of b
-  declaredTargets(nodeId: string): Set<string>;     // relation targets declared on nodeId
+  declaredTargets(nodeId: string): Set<string>;     // targets of the STRUCTURAL relations declared on nodeId
   parentChain(nodeId: string): string[];            // ancestors of nodeId
 }
 export interface Violation { fromFile: string; line: number; ownerNode: string }

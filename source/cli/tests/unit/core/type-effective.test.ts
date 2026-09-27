@@ -155,6 +155,20 @@ describe('walkTypeParentChain — where and why the chain stops', () => {
     expect(termination).toEqual({ reason: 'empty-parents', candidates: ['emptyparents'] });
   });
 
+  it('root: the top-level marker is never a step in the chain — [root, mid] inherits from mid alone, [root] ends it', () => {
+    const graph = {
+      architecture: {
+        node_types: {
+          mid: { description: '' },
+          nested: { description: '', parents: ['root', 'mid'] },
+          toponly: { description: '', parents: ['root'] },
+        },
+      },
+    } as unknown as Parameters<typeof walkTypeParentChain>[0];
+    expect(walkTypeParentChain(graph, 'nested')).toEqual({ chainTypeIds: ['mid'], termination: { reason: 'no-parents', candidates: ['mid'] } });
+    expect(walkTypeParentChain(graph, 'toponly')).toEqual({ chainTypeIds: [], termination: { reason: 'no-parents', candidates: ['toponly'] } });
+  });
+
   it('cycle: a two-type parents cycle stops on revisit, keeping the reachable prefix', async () => {
     const graph = await loadGraph(FIXTURE);
     const { chainTypeIds, termination } = walkTypeParentChain(graph, 'cyc-a');

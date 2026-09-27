@@ -68,6 +68,9 @@ node_types:
                                              # These also cascade to children (channel 4).
 
     parents: [<type-id>, ...]                # optional — allowed parent node types in the hierarchy.
+                                             # Absent: a node of this type may sit anywhere. Present:
+                                             # only under a listed type; the reserved entry 'root'
+                                             # allows the top level of model/ as well.
 
     relations:                               # optional — per-relation-type allow-list.
       # A relation type is constrained by listing its allowed target node types.

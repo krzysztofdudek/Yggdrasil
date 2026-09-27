@@ -9,6 +9,7 @@ node_types:
     # organizational grouping; no `when`, classifies nothing
     description: Domain grouping — organizes children under shared domain responsibility.
     parents:
+      - root
       - project
       - module
       - src
@@ -21,5 +22,6 @@ node_types:
       - grain/src/no-todo-comments
       - grain/src/named-export
     parents:
+      - root
       - project
       - module

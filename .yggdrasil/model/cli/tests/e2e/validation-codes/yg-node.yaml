@@ -1,7 +1,9 @@
 name: E2E Tests — Validation Code Matrix
 type: test-suite
-description: "Subprocess E2E proving yg check surfaces structural validation codes not covered by the check-validation suite — aspect references escape/duplicate/invalid-form/blank-path/empty-array/too-large, reviewer-spec missing/legacy-string/type-invalid/tier-on-deterministic, parent-type-forbidden, type-strict-orphan, and structural-cycle."
+description: "Subprocess E2E proving yg check surfaces structural validation codes not covered by the check-validation suite — aspect references escape/duplicate/invalid-form/blank-path/empty-array/too-large, reviewer-spec missing/legacy-string/type-invalid/tier-on-deterministic, parent-type-forbidden (under a forbidden parent, and at the top level unless the type lists root), type-strict-orphan, and structural-cycle."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-validation-codes.test.ts

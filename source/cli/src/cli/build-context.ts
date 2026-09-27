@@ -101,6 +101,7 @@ const CONTEXT_CHANGING_CODES: ReadonlySet<string> = new Set([
   'when-predicate-invalid',
   'relation-target-type-unknown',
   'type-unknown-parent',
+  'type-name-reserved',
   'type-undefined',
   'yaml-invalid',
   'duplicate-aspect-id',

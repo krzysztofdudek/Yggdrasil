@@ -69,23 +69,20 @@ graph citizens, with the obligations that implies:
   it. Keep mapped checks self-contained, or declare the relations their imports imply.
 - **Aspect cascade reaches the mapped files.** Every aspect effective on the node
   (its own, ancestors', architecture-type defaults, flow-attached) now reviews those
-  rule files as subjects. Choose the node's type deliberately, and do not map a
-  \`check.mjs\` and a Markdown rule file into one node expecting a predicate to keep a
-  code-oriented aspect off the Markdown — no predicate can (next point).
-- **Neither \`when\` nor \`scope.files\` filters a graph-directory file.** File
-  classification AUTO-EXEMPTS every path under the graph directory: the predicate
-  returns true without evaluating, so a graph-directory file may be mapped to a node
-  of ANY type without tripping \`type-when-mismatch\`. Convenient — but the SAME
-  evaluator runs an aspect's \`scope.files\`, and it applies the SAME auto-exempt
-  short-circuit before reading that predicate. So a mapped graph-directory file
-  vacuously passes \`scope.files\` too, whatever path or content atoms it names: a
-  meta aspect you believe you narrowed to \`check.mjs\` fires on every mapped
-  \`.yggdrasil/\` subject of the node. The two filters that DO still bite are (a) the
-  mapping itself — name exact rule-file globs in the node's \`mapping:\` rather than a
-  broad directory glob — and (b) node placement, attaching the aspect at the narrowest
-  node. An aspect-level \`when:\` can exclude the file's whole node from the aspect,
-  but it matches on nodes (relations, descendants, node clauses) and has no file-path
-  atom, so it cannot separate two files mapped to the same node.
+  rule files as subjects. Choose the node's type deliberately; where a \`check.mjs\`
+  and a Markdown rule file share one node, give a code-oriented aspect a
+  \`scope.files\` filter to keep it off the Markdown (next point).
+- **A type's \`when\` does not filter a graph-directory file; \`scope.files\` does.**
+  File classification AUTO-EXEMPTS every path under the graph directory: the type's
+  \`when\` returns true without evaluating, so a graph-directory file may be mapped
+  to a node of ANY type without tripping \`type-when-mismatch\`. The exemption is
+  classification's alone. An aspect's \`scope.files\` is evaluated on every mapped
+  file, a graph-directory one included, exactly as on source: a meta aspect narrowed
+  to \`path: "**/check.mjs"\` reviews only the mapped \`check.mjs\` files and stays
+  off the Markdown beside them. An aspect-level \`when:\` can exclude the file's
+  whole node from the aspect, but it matches on nodes (relations, descendants, node
+  clauses) and has no file-path atom, so within one node \`scope.files\` is the
+  file-level filter.
 - **Self-reference fans out invalidation.** A meta aspect that reviews another
   aspect's check means editing that check re-verifies BOTH the check's own pairs and
   the meta aspect's verdict over it. Density of invalidation grows; keep the meta
@@ -107,11 +104,11 @@ narrowly you map. Keep it tight:
 - **Attach at the leaf, not a broad ancestor.** An aspect on a high parent cascades
   to every descendant. Put the meta aspect on the narrowest node that owns the files
   it judges.
-- **Filter with \`when\` and \`scope.files\` — but only off the graph directory.**
-  These are deterministic and free, and on ordinary source they target exactly the
-  units you mean. On a mapped \`.yggdrasil/\` file BOTH are bypassed by the
-  auto-exempt above, so neither narrows a meta aspect at all; for those files the
-  mapping and the attachment node are the whole of your control.
+- **Filter with \`when\` and \`scope.files\`.** These are deterministic and free.
+  An aspect's \`when:\` picks the nodes; its \`scope.files\` picks the files within
+  them, graph-directory files included. (Only a TYPE's \`when\` skips a mapped
+  \`.yggdrasil/\` file, and that governs classification, not which files a rule
+  reviews.)
 - **Organize the meta aspects hierarchically.** Aspect ids may be nested in
   directories (a directory with no rule file is a pure organizational grouper), so a
   meta layer can live under its own id prefix and stay legible. See

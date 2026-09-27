@@ -82,4 +82,13 @@ describe('computeTypeGateFindings — pure gate decision', () => {
     const findings = computeTypeGateFindings(arch(), typedEdges, new Map()); // nothing resolves a fromType
     expect(findings).toEqual([]);
   });
+
+  it('blocks an edge whose type pair allows only event relations: an event sanctions no import', () => {
+    const a = arch({ svc: { description: 'svc', relations: { emits: ['util'], listens: ['util'] }, relationDefault: 'deny' } } as any);
+    const typedEdges = indexOf({
+      'src/a.ts': [{ toFile: 'src/b.ts', toOwner: { kind: 'type-covered', type: 'util' } }],
+    });
+    const findings = computeTypeGateFindings(a, typedEdges, new Map([['src/a.ts', 'svc']]));
+    expect(findings).toEqual([{ fromType: 'svc', toType: 'util', edges: [{ fromFile: 'src/a.ts', toFile: 'src/b.ts' }] }]);
+  });
 });

@@ -143,6 +143,15 @@ describe('relationRefusedMessage', () => {
     expect(m.next).not.toContain('target: g');
   });
 
+  it('a refusal whose every target is a dead end steps to the importing line, never to the node file', () => {
+    const graph = makeGraph([
+      ['a', 'service'],
+      ['g', 'gateway'],
+    ]);
+    const m = relationRefusedMessage(graph, 'a', [viol('src/a/foo.ts', 9, 'g')]);
+    expect(m.step).toEqual({ file: 'src/a/foo.ts', text: 'edit src/a/foo.ts:9' });
+  });
+
   it('falls back to (unknown type) wording when a target node is not in the graph', () => {
     // The violation names a target node 'ghost' that the graph does not contain
     // → its type is unknown → the message cannot compute an allow-list and emits
@@ -282,8 +291,7 @@ describe('relationRefusedMessage — architecture with no node types yet', () =>
     g.architecture = { node_types: {} };
     const msg = relationRefusedMessage(g, 'users', [viol('src/users/index.js', 1, 'payments')]);
     expect(msg.next).not.toContain('no relation type is allowed');
-    expect(msg.next).toContain('allowed relation types [uses, calls, extends, implements, emits, listens]');
+    expect(msg.next).toContain('allowed relation types [uses, calls, extends, implements]');
     expect(msg.next).toContain('- { target: payments, type: uses }');
   });
 });
-

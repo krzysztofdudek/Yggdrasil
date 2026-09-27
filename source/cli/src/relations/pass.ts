@@ -24,6 +24,7 @@ import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
 import { guardedResolve } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
+import { STRUCTURAL_RELATION_TYPES } from './allowed-types.js';
 import type {
   DependencyExtractor,
   ParsedFile,
@@ -731,7 +732,13 @@ function makeGraphView(graph: Graph): RelationGraphView {
       return b.startsWith(a + '/');
     },
     declaredTargets(nodeId) {
-      return new Set((graph.nodes.get(nodeId)?.meta.relations ?? []).map((r) => r.target));
+      // Only a structural relation sanctions a code dependency; an event
+      // relation to the same target does not (see STRUCTURAL_RELATION_TYPES).
+      return new Set(
+        (graph.nodes.get(nodeId)?.meta.relations ?? [])
+          .filter((r) => STRUCTURAL_RELATION_TYPES.has(r.type))
+          .map((r) => r.target),
+      );
     },
     parentChain(nodeId) {
       const chain: string[] = [];

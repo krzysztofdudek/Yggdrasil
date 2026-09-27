@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, m
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expectIssue, parseJson } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -229,9 +230,30 @@ mapping:
         'utf-8',
       );
 
+      // An event relation describes a message, never an import, so the
+      // consumer here reaches the provider by the event alone: its import of
+      // the provider's code would need a structural relation.
+      writeFileSync(path.join(dir, 'src', 'services', 'orders.ts'), 'export function placeOrder(amount: number): boolean {\n  return amount > 0;\n}\n', 'utf-8');
+
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(0);
       expect(stdout).toContain('PASS');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('5b: an emits/listens pair does not sanction an import of the other side\'s code', () => {
+    const dir = copyFixture('emits-import');
+    try {
+      // The consumer still imports the provider's code, and declares only an
+      // event pair to it: an event is a message, never an import, so the
+      // import stays undeclared.
+      writeFileSync(consumerNodeYaml(dir), 'name: OrdersService\ndescription: Places orders.\ntype: consumer\nrelations:\n  - target: services/payments\n    type: emits\n    event_name: OrderPlaced\nmapping:\n  - src/services/orders.ts\n', 'utf-8');
+      writeFileSync(providerNodeYaml(dir), 'name: PaymentsService\ndescription: Captures payments.\ntype: provider\nrelations:\n  - target: services/orders\n    type: listens\n    event_name: OrderPlaced\nmapping:\n  - src/services/payments.ts\n', 'utf-8');
+      const { status, stdout } = run(['check', '--json'], dir);
+      expect(status).toBe(1);
+      expectIssue(parseJson(stdout), { code: 'relation-undeclared-dependency', node: 'services/orders' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

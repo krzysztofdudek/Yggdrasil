@@ -375,6 +375,8 @@
         "type-log-choice-missing",
         "type-log-orphaned",
         "type-log-orphaned-outside",
+        "type-name-reserved",
+        "type-name-reserved-outside",
         "type-not-found",
         "type-relation-forbidden",
         "type-relation-forbidden-outside",
