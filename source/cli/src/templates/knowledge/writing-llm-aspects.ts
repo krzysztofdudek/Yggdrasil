@@ -392,10 +392,11 @@ const data = ctx.parseYaml('docs/config.yaml');
 
 ### Validator errors
 
-- \`aspect-companion-without-content\` — \`companion.mjs\` is present but
-  \`content.md\` is absent. Companion files require a reviewer rule.
-- \`aspect-companion-with-check\` — \`companion.mjs\` is present alongside
-  \`check.mjs\`. Companion files are a reviewer-rule add-on only.
+- \`aspect-companion-without-content\` — a companion (\`companion.mjs\`, or the
+  \`companion:\` key of \`yg-aspect.yaml\`) is present but \`content.md\` is
+  absent — a bundle included. Companions require a reviewer rule.
+- \`aspect-companion-with-check\` — a companion (the file or the key) is present
+  alongside \`check.mjs\`. Companions are a reviewer-rule add-on only.
 
 ### Testing companion hooks
 

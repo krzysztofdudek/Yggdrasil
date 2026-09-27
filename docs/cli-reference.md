@@ -2500,8 +2500,8 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-missing-rule-source` | error | A rule's declared reviewer.type has no matching rule source (llm without content.md, deterministic without check.mjs). | Add the rule source its type needs, or change reviewer.type. |
 | `aspect-both-rule-sources` | error | A rule ships both content.md and check.mjs. | Remove the rule source that does not match its kind. |
 | `aspect-empty` | error | A rule has no content.md, no check.mjs and no implies — it does nothing. | Add a rule source or implies:, or remove the rule. |
-| `aspect-companion-without-content` | error | A rule ships companion.mjs without content.md; a companion is an add-on to a reviewer rule. | Add content.md, or remove companion.mjs. |
-| `aspect-companion-with-check` | error | A rule ships companion.mjs beside check.mjs; companions apply to reviewer rules only. | Remove companion.mjs, or make the rule a reviewer rule. |
+| `aspect-companion-without-content` | error | A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) without content.md; a companion is an add-on to a reviewer rule. | Add content.md, or remove companion.mjs. |
+| `aspect-companion-with-check` | error | A rule has a companion (companion.mjs, or the companion: key in yg-aspect.yaml) beside check.mjs; companions apply to reviewer rules only. | Remove the companion, or make the rule a reviewer rule. |
 | `aspect-references-empty-array` | warning | A rule declares references: [] — an empty list that does nothing. | Fill the list, or remove the references: line. |
 | `aspect-reference-broken` | error | A references: entry names a file that does not exist. | Create the file, fix the path, or remove the entry. |
 | `aspect-reference-symlink` | error · stops `--approve` | A references: entry runs through a symbolic link; no fill runs until it is replaced by the file itself. | Reference the file itself instead of the link, or remove the entry. |

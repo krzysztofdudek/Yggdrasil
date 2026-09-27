@@ -235,3 +235,45 @@ describe('validator — companion.mjs validation', () => {
     expect(codes).toContain('aspect-companion-without-content');
   });
 });
+
+describe('validator — the companion: key is refused wherever companion.mjs is', () => {
+  function withKey(aspect: AspectDef): AspectDef {
+    return { ...aspect, companionPath: 'tools/my-companion.mjs' };
+  }
+
+  it('a script rule with a companion: key → aspect-companion-with-check naming the key', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createAspectDir(rootPath, 'script-with-key', ['check.mjs']);
+    const graph = makeGraph(rootPath, { aspects: [withKey(makeAspect('script-with-key', 'deterministic'))] });
+    const issue = (await validate(graph)).issues.find((i) => i.code === 'aspect-companion-with-check');
+    expect(issue).toBeDefined();
+    expect(issue!.messageData?.what).toContain("companion: 'tools/my-companion.mjs'");
+    expect(issue!.messageData?.next).toContain('the companion: key');
+  });
+
+  it('a bundle with a companion: key → aspect-companion-without-content', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createAspectDir(rootPath, 'bundle-with-key', []);
+    const bundle = { ...makeAspect('bundle-with-key', { type: 'aggregate' } as AspectDef['reviewer']), implies: ['other'] };
+    const graph = makeGraph(rootPath, { aspects: [withKey(bundle)] });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).toContain('aspect-companion-without-content');
+  });
+
+  it('a reviewer rule with no content.md and a companion: key → aspect-companion-without-content', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createAspectDir(rootPath, 'llm-key-no-content', []);
+    const graph = makeGraph(rootPath, { aspects: [withKey(makeAspect('llm-key-no-content', 'llm'))] });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).toContain('aspect-companion-without-content');
+  });
+
+  it('a reviewer rule with content.md and a companion: key → no companion error', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createAspectDir(rootPath, 'llm-key-ok', ['content.md']);
+    const graph = makeGraph(rootPath, { aspects: [withKey(makeAspect('llm-key-ok', 'llm'))] });
+    const codes = (await validate(graph)).issues.map((i) => i.code);
+    expect(codes).not.toContain('aspect-companion-without-content');
+    expect(codes).not.toContain('aspect-companion-with-check');
+  });
+});

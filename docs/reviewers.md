@@ -132,7 +132,7 @@ reviewer:
 
 A reviewer rule may ship an optional `companion.mjs` alongside `content.md`. For each verification unit, the runner executes the hook to resolve 0–N read-only companion files from other nodes, and injects those files into that unit's reviewer prompt only. This lets the reviewer see exactly one paired counterpart per unit — a scenario document with its matching test spec, a migration with its schema, a handler with its contract — without embedding the entire related node's source in every prompt.
 
-`companion.mjs` is an **add-on to a reviewer rule, not a new rule kind**. Rule kind inference is unchanged: `companion.mjs` without `content.md` is a validator error (`aspect-companion-without-content`). `companion.mjs` alongside `check.mjs` is also a validator error (`aspect-companion-with-check`) — companions apply to reviewer rules only. Both codes are blocking errors that prevent `yg check` from passing.
+`companion.mjs` is an **add-on to a reviewer rule, not a new rule kind**. Rule kind inference is unchanged: `companion.mjs` without `content.md` is a validator error (`aspect-companion-without-content`). `companion.mjs` alongside `check.mjs` is also a validator error (`aspect-companion-with-check`) — companions apply to reviewer rules only. The same two codes refuse a `companion:` key in `yg-aspect.yaml` (or its adaptation) on a script rule, on a bundle or on a rule without `content.md`. Both codes are blocking errors that prevent `yg check` from passing.
 
 ### Directory structure
 

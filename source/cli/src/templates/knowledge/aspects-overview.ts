@@ -99,7 +99,9 @@ into the reviewer prompt for each unit individually. Presence of
 is forbidden alongside \`check.mjs\`. The resolver may also live elsewhere in the
 repository: the \`companion:\` key of \`yg-aspect.yaml\` names it by its
 repository-relative path, and then it takes the place of a sibling
-\`companion.mjs\` (the named module is what runs and what is hashed). It is the
+\`companion.mjs\` (the named module is what runs and what is hashed), and it is
+refused wherever \`companion.mjs\` is: on a script rule, on a bundle and on a
+rule without \`content.md\`. It is the
 way to give a rule installed from a package a resolver that knows your layout,
 set in that rule's \`yg-aspect.adapt.yaml\`. See
 \`yg knowledge read writing-llm-aspects\` for the full contract.

@@ -279,7 +279,10 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # surface as an infrastructure failure mid-review instead of a
                                    # graph error. Its bytes are folded into the verdict exactly as a
                                    # sibling companion.mjs would be, so editing YOUR module
-                                   # invalidates the verdicts it helped produce.
+                                   # invalidates the verdicts it helped produce. Reviewer rules
+                                   # only: refused, like companion.mjs, on a script rule
+                                   # (aspect-companion-with-check), a bundle or a rule without
+                                   # content.md (aspect-companion-without-content).
                                    #
                                    # Written for a rule you did NOT write: a rule installed from a
                                    # package cannot know your repository's layout, so this key in that
