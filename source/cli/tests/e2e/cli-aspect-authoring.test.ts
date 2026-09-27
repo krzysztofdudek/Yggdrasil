@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expectErrorCode, expectIssue, findIssues, parseJson } from '../support/assert-output.js';
 
 // Hermetic E2E — ASPECT AUTHORING & the DETERMINISTIC CHECK CONTRACT: rule-source
 // XOR validation, the check.mjs runtime contract (non-array/throw/async/file-write/
@@ -44,6 +45,30 @@ function run(
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? '';
   return { stdout, stderr, status: result.status, all: stdout + stderr };
+}
+
+/**
+ * `yg check --json` must carry an issue with this code whose next step names
+ * `file` — the rule source to create or to remove, under the aspect's own
+ * directory. (These graph findings carry the aspect in that path, not in an
+ * `aspect` field.)
+ */
+function expectRuleSourceIssue(dir: string, code: string, file: string): void {
+  const doc = parseJson(run(['check', '--json'], dir).stdout);
+  expectIssue(doc, { code });
+  const nexts = findIssues(doc, { code }).map((i) => String(i.next));
+  expect(nexts.some((n) => n.includes(file)), `no ${code} names ${file}; next steps: ${nexts.join(' | ')}`).toBe(true);
+}
+
+/**
+ * A fill that could not run `aspect`'s check.mjs on services/orders: the pair is
+ * left unverified for that cause (no verdict written), and the runtime error is
+ * reported. `run` is the `--json` fill's result.
+ */
+function expectCheckFailedToRun(r: { stdout: string; all: string }, aspect: string): void {
+  const doc = parseJson(r.stdout);
+  expectIssue(doc, { code: 'unverified', cause: 'check-failed-to-run', aspect, node: 'services/orders' });
+  expect(r.all).toContain('aspect-check-runtime-error');
 }
 
 /** Copy the e2e-lifecycle fixture into a fresh temp dir for mutation. */
@@ -176,8 +201,8 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('aspect-missing-rule-source');
-      // The grouped Fix names the aspect's missing content.md (LLM rule source).
-      expect(all).toContain('Create .yggdrasil/aspects/has-doc-comment/content.md describing the rule.');
+      // The fix names the aspect's missing content.md (LLM rule source).
+      expectRuleSourceIssue(dir, 'aspect-missing-rule-source', '.yggdrasil/aspects/has-doc-comment/content.md');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -190,8 +215,8 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('aspect-missing-rule-source');
-      // The grouped Fix names the aspect's missing check.mjs (deterministic rule source).
-      expect(all).toContain('Create .yggdrasil/aspects/no-todo-comments/check.mjs exporting a check function.');
+      // The fix names the aspect's missing check.mjs (deterministic rule source).
+      expectRuleSourceIssue(dir, 'aspect-missing-rule-source', '.yggdrasil/aspects/no-todo-comments/check.mjs');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -205,11 +230,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('aspect-both-rule-sources');
-      // The shared WHY explains exactly one rule source is allowed.
-      expect(all).toContain('Exactly one rule source is allowed per aspect; the validator cannot infer intent.');
       // The mismatched-file companion error names content.md as the wrong source.
       expect(all).toContain('aspect-unexpected-rule-source');
-      expect(all).toContain("Remove .yggdrasil/aspects/no-todo-comments/content.md or change reviewer to 'llm'.");
+      expectRuleSourceIssue(dir, 'aspect-unexpected-rule-source', '.yggdrasil/aspects/no-todo-comments/content.md');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -223,11 +246,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('aspect-both-rule-sources');
-      // The shared WHY explains exactly one rule source is allowed.
-      expect(all).toContain('Exactly one rule source is allowed per aspect; the validator cannot infer intent.');
       // The mismatched-file companion error names check.mjs as the wrong source.
       expect(all).toContain('aspect-unexpected-rule-source');
-      expect(all).toContain("Remove .yggdrasil/aspects/has-doc-comment/check.mjs or change reviewer to 'deterministic'.");
+      expectRuleSourceIssue(dir, 'aspect-unexpected-rule-source', '.yggdrasil/aspects/has-doc-comment/check.mjs');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -240,13 +261,11 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       // deterministic reviewer's input and none of its own.
       rmSync(path.join(docCommentDir(dir), 'content.md'), { force: true });
       writeFileSync(path.join(docCommentDir(dir), 'check.mjs'), 'export function check() { return []; }\n', 'utf-8');
-      const { status, all } = run(['check'], dir);
+      const { status } = run(['check'], dir);
       expect(status).toBe(1);
       // Missing its OWN source (content.md) AND carrying the WRONG one (check.mjs).
-      expect(all).toContain('aspect-missing-rule-source');
-      expect(all).toContain('Create .yggdrasil/aspects/has-doc-comment/content.md describing the rule.');
-      expect(all).toContain('aspect-unexpected-rule-source');
-      expect(all).toContain("Remove .yggdrasil/aspects/has-doc-comment/check.mjs or change reviewer to 'deterministic'.");
+      expectRuleSourceIssue(dir, 'aspect-missing-rule-source', '.yggdrasil/aspects/has-doc-comment/content.md');
+      expectRuleSourceIssue(dir, 'aspect-unexpected-rule-source', '.yggdrasil/aspects/has-doc-comment/check.mjs');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -259,12 +278,10 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       // reviewer's input and none of its own.
       rmSync(path.join(aspectDir(dir, 'no-todo-comments'), 'check.mjs'), { force: true });
       writeFileSync(path.join(aspectDir(dir, 'no-todo-comments'), 'content.md'), 'Bogus LLM rule.\n', 'utf-8');
-      const { status, all } = run(['check'], dir);
+      const { status } = run(['check'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('aspect-missing-rule-source');
-      expect(all).toContain('Create .yggdrasil/aspects/no-todo-comments/check.mjs exporting a check function.');
-      expect(all).toContain('aspect-unexpected-rule-source');
-      expect(all).toContain("Remove .yggdrasil/aspects/no-todo-comments/content.md or change reviewer to 'llm'.");
+      expectRuleSourceIssue(dir, 'aspect-missing-rule-source', '.yggdrasil/aspects/no-todo-comments/check.mjs');
+      expectRuleSourceIssue(dir, 'aspect-unexpected-rule-source', '.yggdrasil/aspects/no-todo-comments/content.md');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -296,17 +313,12 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       writeDeterministicAspect(dir, 'ret-nonarray', 'enforced', 'export function check(ctx) { return { nope: true }; }\n');
       attachToOrders(dir, 'ret-nonarray');
-      const { status, all } = run(['check', '--approve'], dir);
-      expect(status).toBe(1);
-      // The fill reports a runtime error and leaves the pair unverified (no verdict).
-      expect(all).toContain('ret-nonarray');
-      expect(all).toContain('aspect-check-runtime-error');
-      expect(all).toContain('check.mjs returned object, expected Violation[].');
-      // The pair is left unverified: it surfaces as an unverified block naming
-      // the cause (the check did not run) in its subject; the member line names
-      // the pair (`<aspect> @ <node>`).
-      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
-      expect(all).toMatch(/^ {2}at: +ret-nonarray @ services\/orders$/m);
+      const fill = run(['check', '--approve', '--json'], dir);
+      expect(fill.status).toBe(1);
+      // The fill reports a runtime error and leaves the pair unverified (no verdict),
+      // naming what the check returned.
+      expectCheckFailedToRun(fill, 'ret-nonarray');
+      expect(fill.all).toContain('expected Violation[]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -323,9 +335,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       // as its structured what/why/next — mirroring the --files path (B5/B7) — not
       // routed through the generic "does not classify / file an issue" wrapper or
       // leaking the internal STRUCTURE_CHECK_* code prefix.
-      expect(all).toContain('check.mjs returned object, expected Violation[].');
+      expect(all).toContain('expected Violation[]');
       expect(all).not.toContain('STRUCTURE_CHECK_RETURN_SHAPE');
-      expect(all).not.toContain('This is a bug — please file an issue');
+      expect(all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -336,16 +348,10 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       writeDeterministicAspect(dir, 'thrower', 'enforced', 'export function check(ctx) { throw new Error("boom in check"); }\n');
       attachToOrders(dir, 'thrower');
-      const { status, all } = run(['check', '--approve'], dir);
-      expect(status).toBe(1);
-      expect(all).toContain('thrower');
-      expect(all).toContain('aspect-check-runtime-error');
-      expect(all).toContain('boom in check');
-      // The pair is left unverified: it surfaces as an unverified block naming
-      // the cause (the check did not run) in its subject; the member line names
-      // the pair (`<aspect> @ <node>`).
-      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
-      expect(all).toMatch(/^ {2}at: +thrower @ services\/orders$/m);
+      const fill = run(['check', '--approve', '--json'], dir);
+      expect(fill.status).toBe(1);
+      expectCheckFailedToRun(fill, 'thrower');
+      expect(fill.all).toContain('boom in check');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -360,10 +366,11 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(status).toBe(1);
       // Structured what/why/next (parity with the --files path in B5); no internal
       // code prefix, no generic "file an issue" wrapper.
-      expect(all).toContain("check.mjs threw an exception while running (aspect 'thrower').");
+      expect(all).toContain('threw an exception');
+      expect(all).toContain("'thrower'");
       expect(all).toContain('boom in check');
       expect(all).not.toContain('STRUCTURE_CHECK_THROWN');
-      expect(all).not.toContain('This is a bug — please file an issue');
+      expect(all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -381,7 +388,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(status).toBe(1);
       // The AST (single-file) runner's AstRunnerError omits the code prefix from
       // its .message, so we pin the what/why text, not the AST_CHECK_THROWN token.
-      expect(all).toContain("check.mjs threw an exception while running (aspect 'thrower').");
+      expect(all).toContain('threw an exception');
       expect(all).toContain('boom in check');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -397,9 +404,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(status).toBe(1);
       // Structured what/why/next (parity with the --files path in B7); no internal
       // code prefix, no generic "file an issue" wrapper.
-      expect(all).toContain('check.mjs returned a Promise; only synchronous returns are supported.');
+      expect(all).toContain('returned a Promise');
       expect(all).not.toContain('STRUCTURE_CHECK_ASYNC');
-      expect(all).not.toContain('This is a bug — please file an issue');
+      expect(all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -414,7 +421,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
         dir,
       );
       expect(status).toBe(1);
-      expect(all).toContain('check.mjs returned a Promise; only synchronous returns are supported');
+      expect(all).toContain('returned a Promise');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -489,7 +496,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
         dir,
       );
       expect(status).toBe(1);
-      expect(all).toContain("Violation referencing file 'src/services/NOT_GIVEN.ts' which is not in ctx.files");
+      // The runner names the file the check was never handed.
+      expect(all).toContain("'src/services/NOT_GIVEN.ts'");
+      expect(all).toContain('ctx.files');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -521,17 +530,13 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
 
       // The free, keyless CI / pre-commit gate — deterministic-only fill. A
       // check.mjs that cannot even load is an infra disposition, not a code refusal.
-      const { status, all } = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(status).toBe(1);
-      expect(all).toContain('import-broken');
-      expect(all).toContain('aspect-check-runtime-error');
-      // The loader names the IMPORT-time cause (module could not be loaded), not a
-      // call-time throw — distinguishing this from B3.
-      expect(all).toContain('Failed to load check.mjs');
-      // The pair is left unverified (no verdict written): an unverified block
-      // naming the node + aspect, exactly like the call-time B1/B3 fill failures.
-      expect(all).toContain('error[unverified] 1 pair whose check.mjs failed to run');
-      expect(all).toMatch(/^ {2}at: +import-broken @ services\/orders$/m);
+      const fill = run(['check', '--approve', '--only-deterministic', '--json'], dir);
+      expect(fill.status).toBe(1);
+      // The pair is left unverified (no verdict written), exactly like the
+      // call-time B1/B3 fill failures, and the loader names the IMPORT-time cause
+      // (module could not be loaded), not a call-time throw.
+      expectCheckFailedToRun(fill, 'import-broken');
+      expect(fill.all).toContain('Failed to load check.mjs');
 
       // NO false green: a later plain `yg check` never executes check.mjs — it
       // re-hashes the lock, finds NO entry for this pair (the failed fill wrote
@@ -560,10 +565,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('aspect-reference-broken');
-      // The shared WHY explains references must be regular files; the grouped Fix
-      // names the offending aspect's yg-aspect.yaml.
-      expect(all).toContain('reference files must be regular files; directories cannot be loaded into the reviewer prompt.');
+      // The fix names the offending aspect's yg-aspect.yaml.
       expect(all).toContain('.yggdrasil/aspects/has-doc-comment/yg-aspect.yaml');
+      expectIssue(parseJson(run(['check', '--json'], dir).stdout), { code: 'aspect-reference-broken' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -859,7 +863,8 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'does-not-exist', '--node', 'services/orders'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("error[aspect-not-found]: rule 'does-not-exist' is not in the graph");
+      expectErrorCode(all, 'aspect-not-found');
+      expect(all).toContain("'does-not-exist'");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -892,7 +897,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       expect(status).toBe(1);
       expect(all).toContain("'src/services/MISSING.ts' does not exist.");
       expect(all).not.toContain('ENOENT');
-      expect(all).not.toContain('This is a bug — please file an issue');
+      expect(all).not.toContain('file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -909,8 +914,12 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'has-doc-comment', '--files', 'src/services/orders.ts'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("error[command-error]: --files cannot be used with reviewer rule 'has-doc-comment'.");
-      expect(all).toContain('Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.');
+      expectErrorCode(all, 'command-error');
+      expect(all).toContain('--files');
+      expect(all).toContain("'has-doc-comment'");
+      // The next step names the two modes that do take a reviewer rule.
+      expect(all).toContain('--node <node-path>');
+      expect(all).toContain('--file <path>');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

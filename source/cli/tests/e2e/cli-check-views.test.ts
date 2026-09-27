@@ -23,6 +23,7 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expectBlock, expectErrorCode, expectVerdict } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -251,7 +252,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate: 5 errors total (3 aspect-one + 1 aspect-two + 1 mapping-path-missing).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · 1 warning .* {3}view: details$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 5, warnings: 1 });
+    expect(out).toMatch(/ {3}view: details$/m);
 
     // --details keeps one block per rule-and-cause but lists EVERY pair: the
     // default capped view summarises aspect-one as "3 pairs · 3 nodes".
@@ -275,12 +277,13 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).toMatch(/^ +(at: +)?aspect-two @ alpha$/m);
 
     // The mapping-path-missing issue renders as its own block, naming its node.
-    expect(out).toMatch(/^error\[mapping-path-missing\] Mapping path 'src\/does-not-exist\.ts' does not exist on disk\n {2}at: {3}broken$/m);
+    expect(expectBlock(out, { label: 'mapping-path-missing', severity: 'error' }).subject).toContain('src/does-not-exist.ts');
+    expect(out).toMatch(/^error\[mapping-path-missing\] .*\n {2}at: {3}broken$/m);
 
     // NO capped summary line ("N pairs · M nodes") in --details output.
     expect(out).not.toMatch(/\d+ pairs · \d+ nodes/);
     // …while the default view does summarise it.
-    expect(strip(run(['check'], dir).stdout)).toMatch(/^ {2}at: {3}aspect-one {2}3 pairs · 3 nodes · reviewer$/m);
+    expect(strip(run(['check'], dir).stdout)).toMatch(/^ {2}at: {3}aspect-one {2}3 pairs · 3 nodes\b/m);
   });
 
   it('--aspect aspect-one: only that aspect\'s issues, K of N header, exit 1', () => {
@@ -291,9 +294,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
     // The verdict line keeps the TRUE total N = 5 and names the view; the one
     // block shown carries K = 3 (alpha, beta, gamma for aspect-one).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: aspect aspect-one$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 5 });
+    expect(out).toMatch(/ {3}view: aspect aspect-one$/m);
     expect(countBlocks(out)).toBe(1);
-    expect(out).toMatch(/^error\[unverified\] 3 pairs with no verdict yet$/m);
+    expect(out).toMatch(/^error\[unverified\] 3 pairs /m);
 
     // Only aspect-one's issues are shown.
     expect(out).toContain('aspect-one @ alpha');
@@ -317,8 +321,9 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // K = 1 (alpha only for aspect-two); N = 5 (true total).
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: aspect aspect-two$/m);
-    expect(out).toMatch(/^error\[unverified\] 1 pair with no verdict yet$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 5 });
+    expect(out).toMatch(/ {3}view: aspect aspect-two$/m);
+    expect(out).toMatch(/^error\[unverified\] 1 pair /m);
 
     // Only alpha listed (it has aspect-two attached).
     expect(out).toMatch(/^ {2}at: {3}aspect-two @ alpha$/m);
@@ -339,7 +344,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True aggregate header is always shown: 5 errors.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: top 1$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 5 });
+    expect(out).toMatch(/ {3}view: top 1$/m);
 
     // --top 1 renders only 1 block, and says how many it hid.
     const blockCount = countBlocks(out);
@@ -360,7 +366,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // GUARDRAIL: the narrowed view never hides the true aggregate counts.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · /m);
+    expectVerdict(out, { status: 'FAIL', errors: 5 });
 
     // Bare --top = --top 1: exactly ONE block renders.
     expect(countBlocks(out)).toBe(1);
@@ -390,7 +396,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(status).toBe(1);
 
     // True total still visible.
-    expect(out).toMatch(/^yg check: FAIL {2}5 errors in 2 blocks · .* {3}view: top 2$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 5 });
+    expect(out).toMatch(/ {3}view: top 2$/m);
 
     // Both error blocks (mapping-path-missing + unverified) render; only the
     // rules-digest-stale warning is left behind the footer.
@@ -449,7 +456,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     const out = strip(stdout);
     expect(status).toBe(1);
     // Error names the unknown id and says it is unknown.
-    expect(err).toContain("error[aspect-not-found]: rule 'totally-bogus-aspect' is not in the graph");
+    expectErrorCode(err, 'aspect-not-found');
+    expect(err).toContain("'totally-bogus-aspect'");
     // It must NOT render the misleading drill-in "0 of N errors" FAIL.
     expect(out).not.toContain('0 of');
     expect(out).not.toContain("aspect 'totally-bogus-aspect'");
@@ -571,7 +579,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     // CLAUDE.md/.clinerules digest artifacts, and the committed-digest
     // staleness gate (`rules-digest-stale`) always fires here alongside
     // `aspect-soft`'s unverified warning.
-    expect(out).toMatch(/^yg check: FAIL {2}1 error · 2 warnings {3}.*view: top 1$/m);
+    expectVerdict(out, { status: 'FAIL', errors: 1, warnings: 2 });
+    expect(out).toMatch(/ {3}view: top 1$/m);
     // Pin WHICH warning contributes the 2nd count. `--top 1` hides every
     // warning block, so `rules-digest-stale` cannot appear in `out` above —
     // cross-check the untruncated listing instead, so a future change that
@@ -579,11 +588,11 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     // `2 warnings` count silently.
     const untruncated = strip(run(['check'], dir).stdout);
     expect(untruncated).toContain('warning[rules-digest-stale]');
-    expect(untruncated).toMatch(/^warning\[unverified\] 1 pair with no verdict yet\n {2}at: {3}aspect-soft @ solo$/m);
+    expect(untruncated).toMatch(/^warning\[unverified\] 1 pair .*\n {2}at: {3}aspect-soft @ solo$/m);
 
     // Exactly ONE block (the error block).
     expect(countBlocks(out)).toBe(1);
-    expect(out).toMatch(/^error\[unverified\] 1 pair with no verdict yet\n {2}at: {3}aspect-hard @ solo$/m);
+    expect(out).toMatch(/^error\[unverified\] 1 pair .*\n {2}at: {3}aspect-hard @ solo$/m);
     expect(out).not.toMatch(/^warning\[/m);
 
     // The two hidden warning blocks are announced by the footer, not dropped.
@@ -601,7 +610,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     expect(status).toBe(1);
     // True warning count is 2 (aspect-soft + rules-digest-stale) — see the
     // comment on the --top 1 case above.
-    expect(out).toMatch(/^yg check: FAIL {2}1 error · 2 warnings {3}/m);
+    expectVerdict(out, { status: 'FAIL', errors: 1, warnings: 2 });
     // Pin WHICH warning contributes the 2nd count — see the --top 1 case
     // above for why the cross-check is against the untruncated listing.
     const untruncated = run(['check'], dir);
@@ -730,16 +739,18 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top block === the rule next
 
     const topOut = strip(top.stdout);
     const fullOut = strip(full.stdout);
-    expect(topOut).toMatch(/^yg check: FAIL {2}3 errors · /m);
+    expectVerdict(topOut, { status: 'FAIL', errors: 3 });
 
     // Sanity: BOTH structural codes AND coverage are present in the full wall.
     // flow-node-broken names a FLOW, not a node — it carries no node path, so
     // its block has no `at:` node line (one would be fabricated).
     // relation-broken does name a node. Neither carries a pair count: they
     // are issues, not a pair's verdict.
-    expect(fullOut).toMatch(/^error\[flow-node-broken\] Flow 'broken-flow' references non-existent node 'phantom'\n {2}why: {2}/m);
-    expect(fullOut).toMatch(/^error\[relation-broken\] Relation target 'ghost' does not exist\n {2}at: {3}alpha$/m);
-    expect(fullOut).toMatch(/^error\[unmapped\] 1 file belongs to no node$/m);
+    expect(expectBlock(fullOut, { label: 'flow-node-broken', severity: 'error' }).subject).toContain("'phantom'");
+    expect(fullOut).toMatch(/^error\[flow-node-broken\] .*\n {2}why: {2}/m);
+    expect(expectBlock(fullOut, { label: 'relation-broken', severity: 'error' }).subject).toContain("'ghost'");
+    expect(fullOut).toMatch(/^error\[relation-broken\] .*\n {2}at: {3}alpha$/m);
+    expect(expectBlock(fullOut, { label: 'unmapped', severity: 'error' }).subject).toMatch(/^1 file\b/);
     expect(fullOut).not.toMatch(/^error\[(flow-node-broken|relation-broken)\].*\bpairs?\b/m);
 
     // The rule bare --top renders: the first block heading's label.

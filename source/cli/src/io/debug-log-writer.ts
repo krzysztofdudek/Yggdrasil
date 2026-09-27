@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { debugWrite } from '../utils/debug-log.js';
 
@@ -31,6 +31,51 @@ export function appendWithRotation(filePath: string, text: string, maxBytes: num
     }
   }
   appendFileSync(filePath, text, 'utf-8');
+}
+
+/**
+ * The first line of a file, read from at most its first `maxBytes` bytes —
+ * without reading the rest, so a caller that appends to a large log can look at
+ * where the log begins on every append. Undefined when the file is absent,
+ * empty, unreadable, or its first line is longer than `maxBytes`.
+ */
+export function readFirstLine(filePath: string, maxBytes = 4096): string | undefined {
+  let fd: number | undefined;
+  try {
+    fd = openSync(filePath, 'r');
+    const buf = Buffer.alloc(maxBytes);
+    const n = readSync(fd, buf, 0, maxBytes, 0);
+    const text = buf.subarray(0, n).toString('utf-8');
+    const nl = text.indexOf('\n');
+    if (nl <= 0) return undefined;
+    return text.slice(0, nl);
+  } catch {
+    // Absent or unreadable: there is no first line to report.
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/**
+ * Move a finished log file to `sealedPath`. When nothing is there yet this is a
+ * rename; when a file of that name already exists (another branch sealed the
+ * same period and git merged it in), the log's content is appended to it and
+ * the log removed. Not safe on its own against a concurrent writer: a line
+ * appended to the log between the read and the removal here would be lost. The
+ * one caller, the committed events stream, is written only by a fill, and a fill
+ * holds the approve lock (`.yg-approve.lock`) for its whole run, so no second
+ * writer can be sealing or appending at the same time.
+ */
+export function sealFile(filePath: string, sealedPath: string): void {
+  if (!existsSync(sealedPath)) {
+    renameSync(filePath, sealedPath);
+    return;
+  }
+  const existing = readFileSync(sealedPath, 'utf-8');
+  const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  appendFileSync(sealedPath, sep + readFileSync(filePath, 'utf-8'), 'utf-8');
+  rmSync(filePath, { force: true });
 }
 
 /**

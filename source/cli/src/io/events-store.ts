@@ -4,7 +4,8 @@
  * disposition under `.yggdrasil/`, to one of two homes (single-home switch, see
  * appendVerdictEvent): the LOCAL gitignored sidecar `.yg-events.jsonl` (default,
  * and the ONLY home for det/drill/diag events), or the COMMITTED shared stream
- * `yg-events.llm.jsonl` (opt-in; LLM-fill events only, `reason` stripped).
+ * `yg-events.llm.jsonl` (opt-in; LLM-fill events only, `reason` stripped),
+ * which is sealed into one committed file per month as it goes.
  *
  * Nothing in the engine reads either file back — the sole reader is the
  * quarantined io/events-reader.ts. A failed append must never affect a fill's
@@ -12,7 +13,7 @@
  */
 
 import path from 'node:path';
-import { appendToDebugLog, appendWithRotation } from './debug-log-writer.js';
+import { appendToDebugLog, appendWithRotation, readFirstLine, sealFile } from './debug-log-writer.js';
 
 /** The LOCAL events sidecar's filename, relative to the `.yggdrasil/` graph root. Gitignored — never committed. */
 export const EVENTS_FILENAME = '.yg-events.jsonl';
@@ -21,8 +22,9 @@ export const EVENTS_FILENAME = '.yg-events.jsonl';
  * Size at which the local sidecar is rotated to `<sidecar>.1` (one previous
  * generation is kept, and events-reader reads it before the current file), so
  * the local record stays at about twice this size however many runs append to
- * it. The committed shared stream is NOT rotated: it is merged across branches
- * by git, and a rotation there would be a rewrite of a committed file.
+ * it. The committed shared stream is sealed by month instead (see
+ * {@link committedSegmentFilename}): a size-based rotation there would drop a
+ * committed generation, and the history is what its readers need.
  */
 export const EVENTS_ROTATE_BYTES = 5 * 1024 * 1024;
 
@@ -34,6 +36,61 @@ export const EVENTS_ROTATE_BYTES = 5 * 1024 * 1024;
  * Det/drill/diag NEVER land here (the keyless-CI zero-churn invariant).
  */
 export const COMMITTED_EVENTS_FILENAME = 'yg-events.llm.jsonl';
+
+/**
+ * A sealed month of the committed stream: `yg-events.llm.<YYYY-MM>.jsonl`, the
+ * month its first line was written in. When an event of a later month is
+ * appended, the current file is sealed under that name and a new current file
+ * begins, so the file every fill appends to holds about one month, and no line
+ * of the history is dropped: every sealed month stays committed, and the reader
+ * reads them all, oldest first, before the current file. A sealed file is never
+ * written again except to take in the lines of the same month that a merge from
+ * a branch sealing it separately brings in.
+ */
+export const COMMITTED_EVENTS_SEGMENT_RE = /^yg-events\.llm\.(\d{4}-\d{2})\.jsonl$/;
+
+/** The filename of the committed stream's sealed month `month` (`YYYY-MM`). */
+function committedSegmentFilename(month: string): string {
+  return `yg-events.llm.${month}.jsonl`;
+}
+
+/** `YYYY-MM` of an ISO timestamp, or undefined when it does not start with one. */
+function monthOf(ts: unknown): string | undefined {
+  return typeof ts === 'string' && /^\d{4}-\d{2}/.test(ts) ? ts.slice(0, 7) : undefined;
+}
+
+/** Per committed-stream path: the month its first line was last seen to carry. */
+const headMonthSeen = new Map<string, string>();
+
+/**
+ * Seal the committed stream at `headPath` when its first line was written in an
+ * earlier month than `eventMonth`. Reads only the first line, and only when the
+ * month seen last time differs, so a fill appending thousands of events reads it
+ * once. A first line that does not parse is left alone: nothing is sealed under
+ * a month that cannot be read.
+ */
+function sealCommittedStreamIfOlder(yggRootPath: string, headPath: string, eventMonth: string): void {
+  if (headMonthSeen.get(headPath) === eventMonth) return;
+  const first = readFirstLine(headPath);
+  if (first === undefined) {
+    // No current file yet: the line about to be appended starts it.
+    headMonthSeen.set(headPath, eventMonth);
+    return;
+  }
+  let headMonth: string | undefined;
+  try {
+    headMonth = monthOf((JSON.parse(first) as { ts?: unknown }).ts);
+  } catch {
+    // An unparseable first line names no month; see the doc comment above.
+    headMonth = undefined;
+  }
+  if (headMonth === undefined || headMonth >= eventMonth) {
+    if (headMonth !== undefined) headMonthSeen.set(headPath, headMonth);
+    return;
+  }
+  sealFile(headPath, path.join(yggRootPath, committedSegmentFilename(headMonth)));
+  headMonthSeen.set(headPath, eventMonth);
+}
 
 /**
  * One line of the append-only verdict-events sidecar. `v` is the line-schema
@@ -114,8 +171,9 @@ export interface AppendVerdictEventOptions {
  * Best-effort, write-only telemetry. MUST NEVER throw into the fill: a failed
  * append loses one event line and nothing else. Single-home switch: when
  * `opts.committedLlm` is set AND this is an LLM-fill event, the line goes to the
- * committed shared stream (`reason` stripped for privacy); everything else goes
- * to the local sidecar.
+ * committed shared stream (`reason` stripped for privacy), which is first sealed
+ * into its month's file when it began in an earlier month than this event;
+ * everything else goes to the local sidecar.
  */
 export function appendVerdictEvent(
   yggRootPath: string,
@@ -127,7 +185,10 @@ export function appendVerdictEvent(
       // Privacy: the shared copy never records `reason` (present only on refusals).
       const shared: VerdictEvent = { ...event };
       delete shared.reason;
-      appendToDebugLog(path.join(yggRootPath, COMMITTED_EVENTS_FILENAME), JSON.stringify(shared) + '\n');
+      const headPath = path.join(yggRootPath, COMMITTED_EVENTS_FILENAME);
+      const eventMonth = monthOf(event.ts);
+      if (eventMonth !== undefined) sealCommittedStreamIfOlder(yggRootPath, headPath, eventMonth);
+      appendToDebugLog(headPath, JSON.stringify(shared) + '\n');
       return;
     }
     appendWithRotation(path.join(yggRootPath, EVENTS_FILENAME), JSON.stringify(event) + '\n', EVENTS_ROTATE_BYTES);

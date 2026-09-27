@@ -2,6 +2,8 @@ name: E2E Tests — Aspect Authoring
 type: test-suite
 description: "Subprocess E2E proving aspect authoring and the deterministic check contract — rule-source XOR (missing content.md, missing check.mjs, both present, type/file mismatch), runner enforcement of a check returning a non-array, throwing, returning a Promise, or referencing a file not in context, the not-sandboxed file-write behavior pinned as documented trust model, implies-with-when, and the deterministic-test command error paths (unknown aspect, missing node/file, llm aspect rejected, tier ignored)."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-aspect-authoring.test.ts

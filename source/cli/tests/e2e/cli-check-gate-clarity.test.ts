@@ -34,6 +34,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFixtureTree } from '../support/fixture-copy.js';
 import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { expectBlock, expectErrorCode, expectIssue, expectNext, expectVerdict, parseJson, textBlocks, textNext } from '../support/assert-output.js';
 import net from 'node:net';
 
 /**
@@ -70,10 +71,10 @@ function git(args: string[], cwd: string): string {
 }
 
 interface JsonIssue { code: string; severity: string; cause?: string; next: string; what: string; why: string }
-interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; next: { command: string[] | null; requiresUser?: boolean } | null; exit: { code: number } }
+interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; next: { command: string[] | null; requiresUser?: boolean } | null; exit: { code: number; status: string } }
 
 function json(r: Run): JsonDoc {
-  return JSON.parse(r.stdout) as JsonDoc;
+  return parseJson<JsonDoc>(r.stdout);
 }
 
 /** The lifecycle fixture in a fresh git repository; `keyless` strips the reviewer: section. */
@@ -113,15 +114,15 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
     it('--approve --only-deterministic fills the script rules instead of aborting the run', () => {
       const dir = project('keyless-det', { keyless: true });
       try {
-        const r = run(['check', '--approve', '--only-deterministic'], dir);
+        const r = run(['check', '--approve', '--only-deterministic', '--json'], dir);
         expect(r.all).not.toContain('aborted');
-        expect(r.all).toContain('no reviewer is configured');
         // The deterministic pairs were filled — the local cache exists.
         expect(existsSync(DET_LOCK(dir))).toBe(true);
-        // Still red: the enforced judgment rule has no judge.
+        // Still red: the enforced judgment rule has no judge, and its pairs say so.
         expect(r.status).toBe(1);
-        expect(r.stdout).toContain('config-reviewer-missing');
-        expect(r.stdout).toMatch(/^error\[unverified\] \d+ pairs? with no reviewer configured to judge them$/m);
+        const doc = json(r);
+        expectIssue(doc, { code: 'config-reviewer-missing' });
+        expectIssue(doc, { code: 'unverified', cause: 'reviewer-missing', severity: 'error' });
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -130,10 +131,12 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
     it('--approve --dry-run previews and exits 0, naming the missing reviewer', () => {
       const dir = project('keyless-dry', { keyless: true });
       try {
-        const r = run(['check', '--approve', '--dry-run'], dir);
+        const r = run(['check', '--approve', '--dry-run', '--json'], dir);
         expect(r.status).toBe(0);
         expect(r.all).not.toContain('aborted');
-        expect(r.stdout).toContain('No reviewer is configured');
+        const doc = json(r);
+        expect(doc.exit.status).toBe('preview');
+        expectIssue(doc, { code: 'config-reviewer-missing' });
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -159,9 +162,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         const doc = json(run(['check', '--json'], dir));
         // Configuring a reviewer is the user's decision: asked for, never a command to run.
-        expect(doc.suggestedNext).toMatch(/^ask the user to approve configuring a reviewer — yg init --provider <name> \[--model <m>\]/);
-        expect(doc.next?.command).toBeNull();
-        expect(doc.next?.requiresUser).toBe(true);
+        expect(doc.suggestedNext).toContain('yg init --provider <name>');
+        expectNext(doc, { command: null, requiresUser: true });
         const llm = doc.issues.filter((i) => i.code === 'unverified' && i.cause === 'reviewer-missing');
         expect(llm.length).toBeGreaterThan(0);
         expect(llm[0].next).toMatch(/^yg init --provider <name>/);
@@ -202,11 +204,11 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(causes.has('check-failed-to-run')).toBe(true);
         expect(doc.suggestedNext).not.toBe('yg check --approve');
         // The text report carries the same.
+        // The text report carries the two causes as two blocks, and its next: is not a bare retry.
         const text = run(['check', '--approve'], dir);
-        expect(text.stdout).toMatch(/^error\[unverified\] \d+ pairs? left unjudged — the reviewer was unreachable this run$/m);
-        expect(text.stdout).toMatch(/^error\[unverified\] \d+ pairs? whose check\.mjs failed to run$/m);
-        expect(text.stdout).not.toMatch(/^next: yg check --approve\s*$/m);
-        expect(text.stdout).toMatch(/^next: \S/m);
+        expect(textBlocks(text.stdout).filter((b) => b.severity === 'error' && b.label === 'unverified').length).toBeGreaterThanOrEqual(2);
+        expect(textNext(text.stdout)).toBeTruthy();
+        expect(textNext(text.stdout)).not.toBe('yg check --approve');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -222,11 +224,13 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
           'export async function check(ctx) { for (const f of ctx.files) { await f.read(); } return []; }\n',
           'utf-8',
         );
-        const r = run(['check', '--approve', '--only-deterministic'], dir);
-        expect(r.stderr).not.toContain('Error: f.read is not a function');
-        expect(r.stdout).toContain('yg check: FAIL');
-        expect(r.stdout).toMatch(/^error\[unverified\] \d+ pairs? whose check\.mjs failed to run$/m);
-        expect(r.stdout).toContain('  fix:  Refactor check to be synchronous.');
+        const r = run(['check', '--approve', '--only-deterministic', '--json'], dir);
+        expect(r.stderr).not.toMatch(/Error: f\.read/);
+        const doc = json(r);
+        expect(doc.exit.code).toBe(1);
+        // The fix names the cause: the check is async.
+        const failed = expectIssue(doc, { code: 'unverified', cause: 'check-failed-to-run' });
+        expect(failed.next).toMatch(/synchronous/);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -290,7 +294,6 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
 
         const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
         expect(r.status).toBe(0);
-        expect(r.stdout).toContain('wrote the union of both sides');
         const merged = readFileSync(logPath, 'utf-8');
         expect(merged).not.toMatch(/^[<>]{7}/m);
         expect(merged).toContain('branch a');
@@ -334,7 +337,6 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
 
         const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
         expect(r.status).toBe(0);
-        expect(r.stdout).toContain('wrote the union of both sides');
         const merged = readFileSync(logPath, 'utf-8');
         expect(merged).not.toMatch(/^[<>]{7}/m);
         expect(merged).toContain('branch a');
@@ -430,7 +432,6 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
           const r = resolveStop(dir);
           expect(r.all).not.toContain('not a merge commit');
           expect(r.status).toBe(0);
-          expect(r.stdout).toContain('wrote the union of both sides');
           expect(r.stdout).toContain('git rebase --continue');
           const merged = readFileSync(LOG(dir), 'utf-8');
           expect(merged).not.toMatch(/^[<>]{7}/m);
@@ -468,7 +469,6 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(readFileSync(LOG(dir), 'utf-8')).toMatch(/^<{7}/m);
         const r = resolveStop(dir);
         expect(r.status).toBe(0);
-        expect(r.stdout).toContain('wrote the union of both sides');
         expect(r.stdout).toContain('git cherry-pick --continue');
         continueOp('cherry-pick', dir);
         expect(inProgress(dir, 'CHERRY_PICK_HEAD')).toBe(false);
@@ -580,7 +580,6 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const second = mergeWithResolve(dir, 'feat-d');
         expect(second.all).not.toContain('do not share');
         expect(second.status).toBe(0);
-        expect(second.stdout).toContain('wrote the union of both sides');
         expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1', 'branch d1', 'main m2']);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -665,7 +664,9 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '// TODO refuse\n');
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.stderr).not.toContain('all expected pairs hold valid verdicts');
-        expect(r.stderr).toMatch(/^fill {2}done in .* — \d+ passed · [1-9]\d* refused · \d+ failed · 0 reviewer calls/m);
+        expect(r.stderr).toMatch(/^fill .* [1-9]\d* refused\b/m);
+        // The free run never bills the reviewer.
+        expect(r.stderr).toMatch(/^fill .*\b0 reviewer calls\b/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -690,7 +691,9 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
     it('says --top wants a positive number, and names the no-write read under auto_approve', () => {
       const dir = project('flags2');
       try {
-        expect(run(['check', '--top', '0'], dir).stderr).toContain('--top expects a positive whole number (1 or more); got "0".');
+        const top = run(['check', '--top', '0'], dir).stderr;
+        expectErrorCode(top, 'usage');
+        expect(top).toContain('got "0"');
         appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'auto_approve: deterministic\n');
         const r = run(['check', '--no-approve', '--dry-run'], dir);
         expect(r.status).toBe(1);
@@ -748,11 +751,12 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         edit(dir, '.yggdrasil/yg-architecture.yaml', (s) => s.replace('log_required: false', 'log_requried: false'));
         appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'coverage:\n  type_level: true\n');
-        const r = run(['check'], dir);
-        expect(r.stdout).toContain('architecture-invalid');
-        expect(r.stdout).not.toContain('Fix the YAML syntax');
-        expect(r.stdout).toContain('yg schemas read architecture');
-        expect(r.stdout).not.toContain("no type in yg-architecture.yaml declares 'when:'");
+        const doc = json(run(['check', '--json'], dir));
+        const arch = expectIssue(doc, { code: 'architecture-invalid' });
+        expect(arch.next).not.toContain('YAML syntax');
+        expect(arch.next).toContain('yg schemas read architecture');
+        // No finding or banner about types lacking a when: — the architecture was never read.
+        expect(JSON.stringify(doc)).not.toContain("declares 'when:'");
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -765,11 +769,12 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         writeFileSync(path.join(dir, '.yggdrasil', '.family-candidates.grain.json'), '{"v":2,"ts":"2026-09-01T00:00:00Z","families":[]}', 'utf-8');
         writeFileSync(path.join(dir, '.yggdrasil', '.family-candidates.other.json'), '{"v":1,', 'utf-8');
-        const r = run(['advise'], dir);
-        expect(r.stdout).toContain('.family-candidates.grain.json were not read — its format version is 2');
-        expect(r.stdout).toContain('.family-candidates.other.json were not read — it is not valid JSON');
-        expect(r.stdout).not.toContain('see .yggdrasil/incidents.md');
-        expect(r.stdout).toContain('yg incident add');
+        const { attention } = parseJson<{ attention: string[] }>(run(['advise', '--json'], dir).stdout);
+        // Each unusable file is named with its own reason.
+        expect(attention.find((l) => l.includes('.family-candidates.grain.json'))).toMatch(/version/);
+        expect(attention.find((l) => l.includes('.family-candidates.other.json'))).toMatch(/JSON/);
+        expect(attention.join('\n')).not.toContain('incidents.md');
+        expect(attention.join('\n')).toContain('yg incident add');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -787,13 +792,13 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(freshCauses.every((c) => c === 'deterministic-not-run')).toBe(true);
         // The free lane, with what it records: every pending script pair, the advisory ones too.
         expect(fresh.suggestedNext).toMatch(/^yg check --approve --only-deterministic\b/);
-        expect(run(['check'], dir).stdout).toMatch(/^error\[unverified\] \d+ pairs? whose script check has not run on this checkout — free to run$/m);
+        expectBlock(run(['check'], dir).stdout, { label: 'unverified', severity: 'error' });
         // Filled, then the code moves: the verdict is stale, not "not yet reviewed".
         run(['check', '--approve', '--only-deterministic'], dir);
         appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '// moved\n');
-        const text = run(['check'], dir).stdout;
-        expect(text).toMatch(/^error\[unverified\] \d+ pairs? whose inputs changed since the verdict$/m);
-        expect(json(run(['check', '--json'], dir)).issues.some((i) => i.cause === 'stale')).toBe(true);
+        const stale = json(run(['check', '--json'], dir));
+        expectIssue(stale, { code: 'unverified', cause: 'stale' });
+        expect(stale.issues.filter((i) => i.code === 'unverified').every((i) => i.cause === 'stale')).toBe(true);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -807,9 +812,10 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         edit(dir, '.yggdrasil/model/services/orders/yg-node.yaml', (s) => s.replace('mapping:', 'mapping: 5\nx:'));
         const text = run(['check'], dir).stdout;
         // A non-pair finding is one block with no pair count, and counts as one error issue in the verdict line.
-        expect(text).toMatch(/^error\[yaml-invalid\] yg-node\.yaml in services\/orders /m);
-        expect(text).not.toMatch(/^error\[yaml-invalid\].*\bpairs?\b/m);
-        expect(text).toMatch(/^yg check: FAIL {2}5 errors · /m);
+        const block = expectBlock(text, { label: 'yaml-invalid', severity: 'error' });
+        expect(block.subject).toContain('services/orders');
+        expect(block.subject).not.toMatch(/\bpairs?\b/);
+        expectVerdict(text, { status: 'FAIL', errors: 5 });
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

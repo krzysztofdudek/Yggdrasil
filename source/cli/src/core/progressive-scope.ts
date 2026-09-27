@@ -8,7 +8,7 @@ import {
   LOCK_LOGS_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
 } from '../model/lock.js';
-import { COMMITTED_EVENTS_FILENAME, EVENTS_FILENAME } from '../io/events-store.js';
+import { COMMITTED_EVENTS_FILENAME, COMMITTED_EVENTS_SEGMENT_RE, EVENTS_FILENAME } from '../io/events-store.js';
 import type { ExpectedPair } from './pairs.js';
 import { collectAncestors, collectDescendants } from './graph/traversal.js';
 import { touchedReferencesFile } from './graph/impact-graph.js';
@@ -184,6 +184,18 @@ const IGNORED_OUTPUTS: ReadonlySet<string> = new Set(
     EVENTS_FILENAME,
   ].map((name) => `${YGG_DIR}/${name}`),
 );
+
+/**
+ * True for an engine output named by the events module's own pattern rather
+ * than a fixed name: a sealed month of the committed LLM-fill stream
+ * (`.yggdrasil/yg-events.llm.<YYYY-MM>.jsonl`). The pattern is that exact
+ * shape, not a prefix, so a new output file still fails closed as above.
+ */
+function isIgnoredOutput(file: string): boolean {
+  if (IGNORED_OUTPUTS.has(file)) return true;
+  const prefix = `${YGG_DIR}/`;
+  return file.startsWith(prefix) && COMMITTED_EVENTS_SEGMENT_RE.test(file.slice(prefix.length));
+}
 
 /**
  * The identity of one expected pair inside a {@link BurnSet}: `<aspectId> <unitKey>`.
@@ -561,7 +573,7 @@ export function computeBurnSet(input: BurnInput): BurnSet {
   burnKeys(removedVerdictPairKeys);
 
   for (const file of touched) {
-    if (IGNORED_OUTPUTS.has(file)) continue;
+    if (isIgnoredOutput(file)) continue;
     files.add(file);
 
     // Owner row — pattern-only resolution, so a deleted path still lands.

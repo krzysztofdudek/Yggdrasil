@@ -21,16 +21,18 @@
  * merged event stream stays in chronological (append) order.
  *
  * Union reader: the returned set is union(local, local `.1`, committed) deduped
- * by FULL line. The committed shared stream (`yg-events.llm.jsonl`) carries only
+ * by FULL line. The committed shared stream (`yg-events.llm.jsonl`, plus its
+ * sealed months `yg-events.llm.<YYYY-MM>.jsonl`, read oldest first) carries only
  * LLM-fill events; older CLIs write ONLY the local sidecar, so they do not
  * contribute. Full-line dedupe collapses the byte-identical duplicates a git
- * `merge=union` can leave on the committed stream.
+ * `merge=union` can leave on the committed stream, and a line two branches each
+ * sealed into the same month.
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { EVENTS_FILENAME, COMMITTED_EVENTS_FILENAME, type VerdictEvent } from './events-store.js';
+import { EVENTS_FILENAME, COMMITTED_EVENTS_FILENAME, COMMITTED_EVENTS_SEGMENT_RE, type VerdictEvent } from './events-store.js';
 
 /** Verbatim honesty label for the committed contribution — older CLIs write only
  *  the local sidecar, so the shared record is never assumed complete. */
@@ -83,6 +85,19 @@ function isGitTracked(filePath: string): boolean {
   }
 }
 
+/** The committed stream's sealed months under `yggRootPath`, oldest first. An unreadable directory has none. */
+function committedSegmentPaths(yggRootPath: string): string[] {
+  try {
+    return readdirSync(yggRootPath)
+      .filter((name) => COMMITTED_EVENTS_SEGMENT_RE.test(name))
+      .sort()
+      .map((name) => path.join(yggRootPath, name));
+  } catch {
+    // Missing graph root or any read error → no sealed months.
+    return [];
+  }
+}
+
 /** Type guard: a parsed JSON value that is a non-null, non-array object. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -95,7 +110,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function readVerdictEvents(yggRootPath: string): EventsReadResult {
   const currentPath = path.join(yggRootPath, EVENTS_FILENAME);
   // Rotation: the previous generation `<sidecar>.1` is read first so the merged
-  // stream stays in append order; the opt-in committed stream is read last.
+  // stream stays in append order; the opt-in committed stream is read last, its
+  // sealed months oldest first and then the current file.
   const rotatedPath = `${currentPath}.1`;
   const committedPath = path.join(yggRootPath, COMMITTED_EVENTS_FILENAME);
 
@@ -112,6 +128,7 @@ export function readVerdictEvents(yggRootPath: string): EventsReadResult {
   const sources: Array<{ filePath: string; committed: boolean }> = [
     { filePath: rotatedPath, committed: false },
     { filePath: currentPath, committed: false },
+    ...committedSegmentPaths(yggRootPath).map((filePath) => ({ filePath, committed: true })),
     { filePath: committedPath, committed: true },
   ];
 

@@ -505,6 +505,13 @@ When ON, the committed stream is:
   \`merge=union\` in the repo-root \`.gitattributes\`, so events appended on
   different branches combine on merge instead of conflicting. The committed file
   is NOT gitignored; the local \`.yg-events.jsonl*\` stays gitignored.
+- **Sealed by month.** The first event of a new month renames the file to
+  \`.yggdrasil/yg-events.llm.<YYYY-MM>.jsonl\` (the month its first line was
+  written in) and starts a new one, so the file each fill appends to holds about
+  a month. Sealed months stay committed and are read with it, oldest first — no
+  history is dropped. The \`.gitattributes\` line init writes covers them too
+  (\`yg-events.llm*.jsonl merge=union linguist-generated=true\`), so a review
+  diff collapses them like the lock.
 - **Rationale-stripped.** The refusal \`reason\` is omitted from the shared copy
   (refusal prose can carry code fragments); the local copy keeps it.
 

@@ -242,10 +242,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
       expect(doc.dryRunBudget).toBeDefined();
       const b = doc.dryRunBudget!;
       // The human header still goes to stderr, and it states the same numbers.
-      expect(preview.stderr).toContain('fill  dry run — a cost preview; nothing is filled or written');
-      expect(preview.stderr).toContain(
-        `fill  ${b.pairs} pairs · ${b.deterministic} script (free) · ${b.reviewerCalls} reviewer call`,
-      );
+      expect(preview.stderr).toMatch(/^fill .*\bdry run\b/m);
+      expect(preview.stderr).toContain(`${b.pairs} pairs`);
+      expect(preview.stderr).toContain(`${b.deterministic} script`);
+      expect(preview.stderr).toContain(`${b.reviewerCalls} reviewer call`);
       expect(b.pairs).toBeGreaterThan(0);
       // A document from a run that previewed nothing carries no budget.
       const plain = JSON.parse(run(['check', '--json'], dir).stdout) as Record<string, unknown>;
@@ -262,9 +262,12 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
         const result = run(['check', '--json', ...flag], dir);
         expect(result.status).toBe(1);
         // A refusal under --json also answers on stdout: the yg-error/1 document.
-        expect(JSON.parse(result.stdout).schema).toBe('yg-error/1');
-        expect(result.stderr).toContain(`${flag[0]} cannot be combined with --json.`);
-        expect(result.stderr).toContain('always carries the whole run');
+        const refusal = JSON.parse(result.stdout) as { schema: string; code: string; what: string; why: string };
+        expect(refusal.schema).toBe('yg-error/1');
+        expect(refusal.code).toBe('usage');
+        expect(refusal.what).toContain(flag[0]);
+        expect(refusal.what).toContain('--json');
+        expect(refusal.why.length).toBeGreaterThan(0);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
