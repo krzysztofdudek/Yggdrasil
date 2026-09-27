@@ -103,15 +103,27 @@ async function exactSpelling(dirPath: string, rel: string): Promise<boolean> {
   return true;
 }
 
-/** Where a relative specifier leads inside the rule directory. */
+/** Where a relative specifier leads. `rel` is relative to the rule directory, POSIX; it starts with `../` for a file outside it. */
 type Resolved = { kind: 'file'; rel: string } | { kind: 'link'; rel: string } | null;
+
+/** A path relative to `root` that stays strictly inside it. */
+function inside(rel: string): boolean {
+  return rel !== '' && rel !== '..' && !rel.startsWith('../') && !path.isAbsolute(rel);
+}
 
 /**
  * The file a relative specifier in `fromRel` names, as a POSIX path relative to
- * the rule directory, or null when it names nothing there: a file outside the
- * directory, one under `node_modules`, or no file under its exact spelling. The
- * exact name is tried first, then the extensions and directory index files
- * CommonJS resolution also tries.
+ * the rule directory, or null when it names nothing the rule can pin: a file
+ * outside the repository (or, with no `repoRoot`, outside the rule directory),
+ * one under `node_modules`, or no file under its exact spelling. The exact name
+ * is tried first, then the extensions and directory index files CommonJS
+ * resolution also tries.
+ *
+ * A file elsewhere in the repository counts like one inside the rule directory
+ * — a helper shared by several rules (`../shared/x.mjs`) runs exactly like one
+ * beside `check.mjs`, so an edit to it must re-open the rule's verdicts. Its
+ * path keeps the `../` that leads to it, and its links and spelling are asked
+ * of the path from the repository root.
  *
  * A candidate whose path runs through a symbolic link is never followed: it is
  * returned as a link, the first linked component named, and the rule is refused
@@ -119,7 +131,7 @@ type Resolved = { kind: 'file'; rel: string } | { kind: 'link'; rel: string } | 
  * fold a file from wherever the link points — outside the repository, different
  * on every machine, possibly unreadable — into the rule's hash.
  */
-async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string): Promise<Resolved> {
+async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string, repoRoot?: string): Promise<Resolved> {
   const base = path.resolve(path.dirname(path.join(dirPath, fromRel)), spec.split(/[?#]/)[0]);
   const candidates = [
     base,
@@ -128,11 +140,24 @@ async function resolveInRuleDir(dirPath: string, fromRel: string, spec: string):
   ];
   for (const abs of candidates) {
     const rel = toPosixPath(path.relative(dirPath, abs));
-    if (rel === '' || rel.startsWith('../') || rel === '..' || path.isAbsolute(rel)) return null;
-    if (rel.split('/').some(skippedDirName)) return null;
-    const linked = symlinkOnPath(dirPath, rel);
-    if (linked !== null) return (await exactSpelling(dirPath, linked)) ? { kind: 'link', rel: linked } : null;
-    if ((await isRegularFile(abs)) && (await exactSpelling(dirPath, rel))) return { kind: 'file', rel };
+    // Where links and spelling are asked from: the rule directory for a file in
+    // it, the repository root for one elsewhere in the repository.
+    let root = dirPath;
+    let rootRel = rel;
+    if (!inside(rel)) {
+      if (repoRoot === undefined) return null;
+      rootRel = toPosixPath(path.relative(repoRoot, abs));
+      if (!inside(rootRel)) return null;
+      root = repoRoot;
+    }
+    if (rootRel.split('/').some(skippedDirName)) return null;
+    const linked = symlinkOnPath(root, rootRel);
+    if (linked !== null) {
+      return (await exactSpelling(root, linked))
+        ? { kind: 'link', rel: toPosixPath(path.relative(dirPath, path.join(root, linked))) }
+        : null;
+    }
+    if ((await isRegularFile(abs)) && (await exactSpelling(root, rootRel))) return { kind: 'file', rel };
   }
   return null;
 }
@@ -170,10 +195,13 @@ export interface SupportFiles {
  *    nobody changed — but a dot-named module the rule imports runs exactly like
  *    any other.
  * 3. Any file the rule's code names by a literal relative specifier, wherever in
- *    the directory it sits — a helper kept under `drills/`, or in a nested rule's
- *    directory, is part of every rule that imports it — followed from module to
- *    module. Starting points: `check.mjs`, `companion.mjs` and every code file
- *    the first two ways found. A specifier built at run time is not seen.
+ *    the repository it sits — a helper kept under `drills/`, in a nested rule's
+ *    directory, or beside the rule (`../shared/x.mjs`, keyed by that path) is part
+ *    of every rule that imports it — followed from module to module. Starting
+ *    points: `check.mjs`, `companion.mjs` and every code file the first two ways
+ *    found. A specifier built at run time is not seen, and a file outside the
+ *    repository (or, with no `projectRoot`, outside the rule directory) is not
+ *    followed: nothing in the repository pins it.
  *
  * `node_modules` and `.git` are never walked or followed, and neither is a
  * symbolic link: one the rule's code names is returned in `linked` for the
@@ -230,7 +258,7 @@ export async function readSupportFileHashes(
     const source = await readFileOrDefault(path.join(dirPath, rel), null, '[artifact-reader] rule code');
     if (source === null) continue;
     for (const spec of relativeSpecifiers(source)) {
-      const target = await resolveInRuleDir(dirPath, rel, spec);
+      const target = await resolveInRuleDir(dirPath, rel, spec, projectRoot);
       if (target === null) continue;
       if (target.kind === 'link') {
         linked.add(target.rel);

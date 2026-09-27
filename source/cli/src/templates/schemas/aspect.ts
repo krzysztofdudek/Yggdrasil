@@ -23,6 +23,8 @@ export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # of the rule. Left out of the hash: this file, log.md, an adaptation and its
 # log, provenance.json, node_modules, non-code files under a dot-named entry, and
 # drills/ or a nested rule's directory unless the rule's code imports the file.
+# A file the rule's code imports from elsewhere in the repository (a helper
+# shared by several rules, ../shared/x.mjs) is folded in too.
 # To show the reviewer another file, list it under references:.
 
 name: CrossCuttingRequirementName  # required — display name

@@ -234,3 +234,5 @@ The manual and the knowledge topics now say when a merge owes a log entry: a mer
 The manual and the knowledge now say that only a structural relation sanctions an import and that an event pair is no way around a structural cycle, matching what the relation check enforces.
 ## [2026-09-27T07:39:26.992Z]
 The manual, the knowledge and the architecture schema now say that parents: also govern the top level and that root is the reserved entry allowing a type to sit there.
+## [2026-09-27T10:51:30.217Z]
+Prime, the shared knowledge sentence and the aspect schema said a module imported from outside the rule directory is not folded into the rule hash; the hash now follows any import inside the repository, so the text says that and keeps only the outside-the-repository exclusion.
