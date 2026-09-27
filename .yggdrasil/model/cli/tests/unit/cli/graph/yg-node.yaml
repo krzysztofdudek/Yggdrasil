@@ -24,13 +24,13 @@ max_direct_relations:
     out of the portal; the count is unchanged.
 relations:
   [
+    { target: cli/core/impact, type: uses },
     { target: cli/core/suppressions, type: uses },
     { target: cli/commands/aspects, type: uses },
     { target: cli/commands/find, type: uses },
     { target: cli/commands/flows, type: uses },
     { target: cli/commands/node, type: uses },
     { target: cli/commands/owner, type: uses },
-    { target: cli/impact-handlers, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/preamble, type: uses },
     { target: cli/core/loader, type: uses },

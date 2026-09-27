@@ -1,0 +1,9 @@
+name: ImpactTypes
+type: types
+description: "What an edit costs to re-verify, as data: why a pair is invalidated, a unit whose cost could not be worked out, the per-component rows and totals of a file edit, the cost of a component, of a type-covered file given a component of its own, of a rule and of a type, and the blast radius of a rule, a flow and a type (the rows, the dependents, the covered files and a strict type's coverage gap). Pure types in the model layer, so the engine that computes them and the formatter that words them name the same shapes without depending on each other; core/graph/impact-graph.ts re-exports the invalidation reason and the unresolved unit."
+aspects: []
+relations:
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/model/impact.ts

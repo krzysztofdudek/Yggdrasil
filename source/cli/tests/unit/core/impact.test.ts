@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { collectDescendants, handleTypeImpact } from '../../../src/cli/impact-handlers.js';
+import { handleTypeImpact } from '../../../src/cli/impact-handlers.js';
+import { descendantPaths } from '../../../src/core/impact-cost.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   collectReverseDependents,
@@ -218,7 +219,7 @@ describe('handleTypeImpact — Object.prototype key guard', () => {
   });
 });
 
-describe('collectDescendants', () => {
+describe('descendantPaths', () => {
   it('returns all descendants of a parent node', () => {
     const parent = makeNode('mod');
     const child1 = makeNode('mod/a', { parent });
@@ -227,14 +228,14 @@ describe('collectDescendants', () => {
     parent.children = [child1, child2];
     child1.children = [grandchild];
     const graph = makeGraph([parent, child1, child2, grandchild]);
-    const result = collectDescendants(graph, 'mod');
+    const result = descendantPaths(graph, 'mod');
     expect(result.sort()).toEqual(['mod/a', 'mod/a/x', 'mod/b']);
   });
 
   it('returns empty for leaf node', () => {
     const leaf = makeNode('leaf');
     const graph = makeGraph([leaf]);
-    expect(collectDescendants(graph, 'leaf')).toEqual([]);
+    expect(descendantPaths(graph, 'leaf')).toEqual([]);
   });
 });
 
