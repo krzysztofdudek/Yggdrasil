@@ -14,6 +14,8 @@ import {
 } from '../../src/portal/engine-api.js';
 import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
 import type { LockFile } from '../../src/model/lock.js';
+import { runFill } from '../../src/core/fill.js';
+import { extractPortalData } from '../../src/portal/extract.js';
 
 /**
  * Branch coverage for the Phase-5 facade provenance + freshness readers, against REAL on-disk
@@ -236,6 +238,67 @@ describe('computePortalFreshness — the baseline branches (real graph)', () => 
     const fresh = await computePortalFreshness(graph, lock);
     const apiNode = fresh.find((f) => f.nodePath === 'api')!;
     expect(apiNode.sourceChanged).toBe(false);
+  });
+});
+
+describe('a node whose type just turned log_required, on a baseline recorded before the switch (issue 387)', () => {
+  // Every full fill records every node's bytes whatever its verdicts say, so a switch to
+  // log_required finds a baseline that attests no reading. The portal must never read that
+  // baseline as "fresh": the marker only ever pushes a node down, and the node's state
+  // still comes from its pairs — exactly what `yg check` reports.
+  async function switchedAfterFill(todo: boolean): Promise<{ root: string; lock: LockFile }> {
+    const root = tmp('yg-portal-switch-');
+    cpSync(BASIC_FIXTURE, root, { recursive: true });
+    // The same rule without the AST import, which a copy outside the package cannot resolve.
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'aspects', 'no-todo-comments', 'check.mjs'),
+      "export function check(ctx) {\n  return ctx.files.filter((f) => /\\/\\/ TODO/.test(f.content)).map((f) => ({ file: f.path, line: 1, column: 0, message: 'TODO marker' }));\n}\n",
+    );
+    const orders = path.join(root, 'src', 'orders', 'orders.service.ts');
+    if (todo) writeFileSync(orders, readFileSync(orders, 'utf-8') + '\n// TODO: ship later\n');
+    await runFill(await loadGraph(root), { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
+    const lock = JSON.parse(readFileSync(path.join(root, '.yggdrasil', 'yg-lock.logs.json'), 'utf-8')) as LockFile;
+    const arch = path.join(root, '.yggdrasil', 'yg-architecture.yaml');
+    writeFileSync(arch, readFileSync(arch, 'utf-8').replace(/(service:\n {4}description: '[^']*'\n {4}log_required: )false/, '$1true'));
+    return { root, lock };
+  }
+
+  it('a pair refused before the switch keeps the node refused — in the portal and in yg check', async () => {
+    const { root, lock } = await switchedAfterFill(true);
+    // The pre-switch fill recorded the node's bytes although its rule refused them.
+    expect(lock.nodes['api/orders']?.source).toBeDefined();
+    const graph = await loadGraph(root);
+    expect(graph.architecture.node_types.service.log_required).toBe(true);
+    const data = await extractPortalData(root, { writeEnabled: false });
+    const node = data.nodes.find((n) => n.path === 'api/orders')!;
+    expect(node.fresh).toBe(false);
+    expect(node.state).toBe('refused');
+    const check = await runCheck(graph, [], { runCompanionHooks: false });
+    expect(check.issues.some((i) => i.severity === 'error' && i.nodePath === 'api/orders')).toBe(true);
+  });
+
+  it('a node all of whose pairs passed reads verified in the portal and blocks nothing in yg check', async () => {
+    const { root } = await switchedAfterFill(false);
+    const graph = await loadGraph(root);
+    const data = await extractPortalData(root, { writeEnabled: false });
+    const node = data.nodes.find((n) => n.path === 'api/orders')!;
+    expect(node.fresh).toBe(false);
+    expect(node.state).toBe('verified');
+    const check = await runCheck(graph, [], { runCompanionHooks: false });
+    expect(check.issues.filter((i) => i.severity === 'error' && i.nodePath === 'api/orders')).toEqual([]);
+  });
+
+  it('bytes moved since that baseline: the portal marks the node and yg check asks for a log entry', async () => {
+    const { root } = await switchedAfterFill(false);
+    const orders = path.join(root, 'src', 'orders', 'orders.service.ts');
+    writeFileSync(orders, readFileSync(orders, 'utf-8') + '\nexport const later = 1;\n');
+    const graph = await loadGraph(root);
+    const data = await extractPortalData(root, { writeEnabled: false });
+    const node = data.nodes.find((n) => n.path === 'api/orders')!;
+    expect(node.fresh).toBe(true);
+    expect(node.state).not.toBe('verified');
+    const check = await runCheck(graph, [], { runCompanionHooks: false });
+    expect(check.issues.some((i) => i.severity === 'error' && i.nodePath === 'api/orders')).toBe(true);
   });
 });
 
