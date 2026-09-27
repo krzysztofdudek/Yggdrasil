@@ -19,6 +19,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "node scripts/runes-pin.mjs --publish",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -79,6 +80,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@chrisdudek/runes": "0.1.1",
     "@clack/prompts": "^1.8.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
@@ -87,7 +89,7 @@
     "minisearch": "^7.2.0",
     "semver": "^7.8.1",
     "smol-toml": "^1.8.0",
-    "web-tree-sitter": "^0.27.0",
+    "web-tree-sitter": "0.27.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {

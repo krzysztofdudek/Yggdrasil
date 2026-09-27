@@ -22,8 +22,8 @@ import { runStructureAspect, StructureRunnerError } from './runner.js';
 import type { RunStructureAspectResult, StructureUnit } from './runner.js';
 import type { Graph } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
-import type { ParseCache } from '../ast/parse-cache.js';
-import { destroyParseCache } from '../ast/parse-cache.js';
+import type { ParseCache } from '@chrisdudek/runes/ast';
+import { destroyParseCache } from '@chrisdudek/runes/ast';
 
 /** One unit of deterministic work dispatched to a worker. `id` correlates the
  *  reply back to the awaiting caller; the rest mirror the non-graph inputs of

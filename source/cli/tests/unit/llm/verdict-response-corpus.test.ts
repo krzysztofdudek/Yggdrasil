@@ -1,6 +1,6 @@
 /**
- * verdict-response corpus runner — the reviewer-reply analog of the relations
- * reference-case-runner. Its SOLE input is the reference catalogue
+ * verdict-response corpus runner — the reviewer-reply analog of the relation
+ * catalogue runner (in @chrisdudek/runes). Its SOLE input is the reference catalogue
  * `reference/llm-aspect-verdict-responses/<id>.md`: each doc is ONE raw reviewer
  * reply (the `## Input` fence, verbatim) plus its asserted parse outcome
  * (`## Expect`). Drive parseAspectResponse over every case — add a `.md`, get a

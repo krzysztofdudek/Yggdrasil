@@ -111,7 +111,7 @@ Like the built-in relation-conformance check, this is not an aspect (no status, 
 
 ### Known grammar limits
 
-Each language is parsed by a pinned tree-sitter grammar. The CLI's language registry records the version, the upstream commit and the sha256 of every grammar it ships, and the build refuses a grammar whose bytes differ from its pin. A construct a grammar does not know becomes an `ERROR` node in the tree. A rule that reads the AST (`ctx.parseAst`, a file's `.ast`) sees that `ERROR`. The relation check never adds an edge from inside one, but it can miss a declaration or an import that the error swallowed.
+Each language is parsed by a pinned tree-sitter grammar. The grammar manifest of `@chrisdudek/runes` (the relation code Yggdrasil and Grain share, which the CLI installs at an exact version) records the version, the upstream commit and the sha256 of every grammar the CLI ships, and the build refuses a grammar whose bytes differ from its pin. A construct a grammar does not know becomes an `ERROR` node in the tree. A rule that reads the AST (`ctx.parseAst`, a file's `.ast`) sees that `ERROR`. The relation check never adds an edge from inside one, but it can miss a declaration or an import that the error swallowed.
 
 These gaps are known in the shipped grammars, checked on 2026-09-24:
 

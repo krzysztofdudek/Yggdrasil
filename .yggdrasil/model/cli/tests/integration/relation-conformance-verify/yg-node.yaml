@@ -1,16 +1,10 @@
 name: Integration Tests — Relation Conformance (TypeScript anti-false-positive)
 type: test-suite
-description: "Integration tests for the live relation-conformance pass on
-  TypeScript: the anti-false-positive suite asserting dynamic/reflective/external/
-  unmapped dependencies stay silent. (The former parse-free re-validation suites
-  were removed when relations moved to live computation on every yg check.)"
+description: "Integration tests for the live relation-conformance pass on TypeScript: the anti-false-positive suite asserting dynamic/reflective/external/ unmapped dependencies stay silent. (The former parse-free re-validation suites were removed when relations moved to live computation on every yg check.)"
 aspects: []
 relations:
-  [
-    { target: cli/ast/runtime, type: uses },
-    { target: cli/core/loader, type: uses },
-    { target: cli/relations/core, type: uses },
-    { target: cli/relations/extractors, type: uses }
-  ]
+  - { target: cli/ast/runtime, type: uses }
+  - { target: cli/core/loader, type: uses }
+  - { target: cli/relations/core, type: uses }
 mapping:
   - source/cli/tests/integration/relation-ts-antifp.test.ts

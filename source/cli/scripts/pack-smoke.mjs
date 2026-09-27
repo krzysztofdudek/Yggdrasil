@@ -89,8 +89,26 @@ try {
   // ("Cannot read properties of null (reading 'edgesOut')") building peer sets across the full
   // graph — devDependencies included, since --omit=dev only limits what gets reified, not what
   // the ideal tree walks for peer conflicts.
-  log('npm install --omit=dev…');
-  execSync('npm install --omit=dev --no-audit --no-fund --legacy-peer-deps', { cwd: pkgDir, stdio: 'inherit' });
+  //
+  // @chrisdudek/runes is a runtime dependency at an exact version. Until that version is on npm,
+  // the lock takes it from the GitHub archive of the tagged Runes commit (scripts/runes-pin.mjs),
+  // and a real install of this tarball, which has no lock, could not resolve it. The smoke then
+  // installs that same archive explicitly (--no-save leaves package.json as published), so every
+  // other dependency still resolves the way a user's install does. Once the lock takes Runes from
+  // the registry, the install is the plain one.
+  const lock = JSON.parse(readFileSync(path.join(CLI_ROOT, 'package-lock.json'), 'utf-8'));
+  const runesResolved = lock.packages?.['node_modules/@chrisdudek/runes']?.resolved ?? '';
+  const runesFromArchive = runesResolved.startsWith('https://codeload.github.com/');
+  const installCmd = `npm install --omit=dev --no-audit --no-fund --legacy-peer-deps${runesFromArchive ? ` --no-save ${runesResolved}` : ''}`;
+  log(`${installCmd}…`);
+  execSync(installCmd, { cwd: pkgDir, stdio: 'inherit' });
+  const installedRunes = JSON.parse(readFileSync(path.join(pkgDir, 'node_modules/@chrisdudek/runes/package.json'), 'utf-8')).version;
+  if (installedRunes !== pkgJson.dependencies['@chrisdudek/runes']) {
+    fail(`prod install holds @chrisdudek/runes ${installedRunes}, the package pins ${pkgJson.dependencies['@chrisdudek/runes']}`);
+  }
+  if (JSON.parse(readFileSync(path.join(pkgDir, 'package.json'), 'utf-8')).dependencies['@chrisdudek/runes'] !== pkgJson.dependencies['@chrisdudek/runes']) {
+    fail('the prod install rewrote the @chrisdudek/runes dependency of package.json');
+  }
   if (existsSync(path.join(pkgDir, 'node_modules/tree-sitter-typescript'))) {
     fail('tree-sitter-typescript present in prod install — smoke would not exercise dist/grammars');
   }

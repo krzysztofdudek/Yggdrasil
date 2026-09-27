@@ -8,8 +8,8 @@ import { withParsedFile } from '../../../src/ast/parser.js';
 import {
   extractCsharpRefs,
   assembleCsharpCandidates,
-} from '../../../src/relations/extractors/csharp.js';
-import type { ParsedFile } from '../../../src/relations/extractors/types.js';
+} from '@chrisdudek/runes/relations';
+import type { ParsedFile } from '@chrisdudek/runes/relations';
 import type { FeatureVector } from '../../../src/relations/feature-vector.js';
 
 /** A representative non-trivial feature vector for round-trip assertions. */
@@ -34,7 +34,7 @@ describe('facts-cache', () => {
     dir = astCacheDir(root);
   });
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });
-  const key = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g1', rev: 1 });
+  const key = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g1', rev: 1, runes: '0.0.0-test' });
 
   /** Locate the single .json shard writeFacts created under `base` (recursive). */
   function shardFile(base: string): string {
@@ -58,9 +58,17 @@ describe('facts-cache', () => {
   it('produces a 128-bit (32 hex char) key', () => {
     expect(key).toMatch(/^[0-9a-f]{32}$/);
     // Distinct inputs still produce distinct keys at the wider width.
-    const other = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g2', rev: 1 });
+    const other = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g2', rev: 1, runes: '0.0.0-test' });
     expect(other).toMatch(/^[0-9a-f]{32}$/);
     expect(other).not.toBe(key);
+  });
+
+  // The extractors live in @chrisdudek/runes: a Runes upgrade can change the facts of an unchanged
+  // file under an unchanged grammar and extractor rev, so the Runes version is part of the key and
+  // an upgrade re-extracts instead of serving a shard the old extractors wrote.
+  it('keys on the Runes version, so a Runes upgrade re-extracts', () => {
+    const upgraded = factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g1', rev: 1, runes: '0.0.1-test' });
+    expect(upgraded).not.toBe(key);
   });
 
   it('round-trips facts (including the v2 features vector)', async () => {
@@ -92,11 +100,11 @@ describe('facts-cache', () => {
     expect(await loadFacts(dir, 'typescript', key)).toBeNull();
   });
   it('returns null on miss', async () => {
-    expect(await loadFacts(dir, 'typescript', factsKey({ contentHash: 'zzz', language: 'typescript', grammarHash: 'g1', rev: 1 }))).toBeNull();
+    expect(await loadFacts(dir, 'typescript', factsKey({ contentHash: 'zzz', language: 'typescript', grammarHash: 'g1', rev: 1, runes: '0.0.0-test' }))).toBeNull();
   });
   it('returns null on a different schema version directory', async () => {
     // a key built with a different rev/grammar must not collide
-    expect(await loadFacts(dir, 'typescript', factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g2', rev: 1 }))).toBeNull();
+    expect(await loadFacts(dir, 'typescript', factsKey({ contentHash: 'abc', language: 'typescript', grammarHash: 'g2', rev: 1, runes: '0.0.0-test' }))).toBeNull();
   });
 
   // #1 TRAP guard — a `CsharpExtract` carries two JS `Map`s (`scope.aliases` / `globalAliases`).
@@ -123,7 +131,7 @@ describe('facts-cache', () => {
     expect(extract.scope.aliases.size).toBeGreaterThan(0);
     expect(extract.scope.globalAliases.size).toBeGreaterThan(0);
 
-    const cKey = factsKey({ contentHash: 'csharp1', language: 'csharp', grammarHash: 'g1', rev: 2 });
+    const cKey = factsKey({ contentHash: 'csharp1', language: 'csharp', grammarHash: 'g1', rev: 2, runes: '0.0.0-test' });
     await writeFacts(dir, 'csharp', cKey, { declarations: [], uses: [], features: FV, csharp: extract });
     const loaded = await loadFacts(dir, 'csharp', cKey);
     expect(loaded).not.toBeNull();

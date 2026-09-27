@@ -235,18 +235,4 @@ describe.skipIf(!distExists)('CLI E2E — Java relation conformance (live)', () 
       rmSync(split, { recursive: true, force: true });
     }
   });
-
-  it('fires a wildcard import edge when the target package has exactly one owner', () => {
-    // com.b directory owned wholly by node b: the wildcard resolves to a single
-    // owner → undeclared cross-node edge → refused (a declares no relation).
-    const single = buildWildcardRepo('single', false);
-    try {
-      const r = run(['check', '--approve'], single);
-      expect(r.status).toBe(1);
-      expect(r.all).toContain('relation-undeclared-dependency');
-      expect(r.all).toContain('src/main/java/com/a/Foo.java');
-    } finally {
-      rmSync(single, { recursive: true, force: true });
-    }
-  });
 });

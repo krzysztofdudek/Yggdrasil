@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
 
 // ---------------------------------------------------------------------------
 // D8 (no-waiver) soundness gate for the live RUST relation pass.

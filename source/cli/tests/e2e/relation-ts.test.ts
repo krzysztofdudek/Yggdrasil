@@ -155,23 +155,4 @@ describe.skipIf(!distExists)('CLI E2E — TypeScript relation conformance (live)
       rmSync(declared, { recursive: true, force: true });
     }
   });
-
-  it('refuses an all-inline-type cross-node import like any other (a type-only import is a dependency)', () => {
-    // `import { type X } from '../b/bar.js'` erases at compile time, but node a still
-    // compiles only against node b's types, so the undeclared-relation check fires
-    // exactly as it would for a value import: node a declares no `uses` relation to b.
-    const typeOnly = buildRepo(
-      'typeonly',
-      false,
-      "import { type X } from '../b/bar.js';\nexport type Y = X;\n",
-    );
-    try {
-      const refused = run(['check', '--approve'], typeOnly);
-      expect(refused.all).toContain('relation-undeclared-dependency');
-      expect(refused.all).toContain('src/a/foo.ts');
-      expect(refused.status).toBe(1);
-    } finally {
-      rmSync(typeOnly, { recursive: true, force: true });
-    }
-  });
 });

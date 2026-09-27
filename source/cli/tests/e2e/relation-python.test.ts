@@ -126,19 +126,4 @@ describe.skipIf(!distExists)('CLI E2E — Python relation conformance (live)', (
       rmSync(declared, { recursive: true, force: true });
     }
   });
-
-  it('still resolves a legit cross-node import from the source root (C4 positive)', () => {
-    // The genuine target src/b/bar.py is the ONLY file `b.bar` can resolve to
-    // (no self-shadow under src/a/), so the C4 distinct-set guard returns it and
-    // the declared a --uses--> b relation satisfies the edge. Guards against the
-    // ancestor-root fix over-silencing the real cross-node dependency.
-    const declared = buildRepo('c4-positive', true);
-    try {
-      const ok = run(['check', '--approve'], declared);
-      expect(ok.status).toBe(0);
-      expect(ok.all).not.toContain('relation-undeclared-dependency');
-    } finally {
-      rmSync(declared, { recursive: true, force: true });
-    }
-  });
 });

@@ -9,21 +9,12 @@ describe('language registry', () => {
     ]);
   });
 
-  it('each entry id matches its key and has a wasmFile + a complete grammar pin', () => {
+  // Each language's grammar pin (repository, commit, ABI, both sha256) lives in the Runes grammar
+  // manifest; tests/unit/ast/grammar-pins.test.ts checks every language here has one.
+  it('each entry id matches its key and has a wasmFile', () => {
     for (const [key, def] of Object.entries(LANGUAGES)) {
       expect(def.id).toBe(key);
       expect(def.wasmFile).toMatch(/\.wasm$/);
-      const pin = def.grammar;
-      expect(pin.repo).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
-      expect(pin.commit).toMatch(/^[0-9a-f]{40}$/);
-      expect(pin.version.length).toBeGreaterThan(0);
-      expect(pin.cli.length).toBeGreaterThan(0);
-      expect([13, 14, 15]).toContain(pin.abi);
-      expect(pin.wasmSha256).toMatch(/^[0-9a-f]{64}$/);
-      expect(pin.nodeTypesSha256).toMatch(/^[0-9a-f]{64}$/);
-      // A grammar this repository builds names the exact CLI, never a range.
-      if (pin.source.kind === 'source') expect(pin.cli).toMatch(/^\d+\.\d+\.\d+$/);
-      if (pin.source.kind === 'github-release') expect(pin.source.wasmUrl).toMatch(/^https:\/\/github\.com\/.+\/releases\/download\//);
     }
   });
 

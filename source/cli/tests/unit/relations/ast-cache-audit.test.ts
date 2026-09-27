@@ -28,8 +28,8 @@
  *    alias map would silently drop the cross-node edge; the audit catches it.
  *
  * The reference snippets are taken READ-ONLY from the existing catalogue:
- *   reference/relations/csharp/csharp-global-using-sibling-file.md
- *   reference/relations/csharp/csharp-global-using-alias.md
+ *   the Runes relation catalogue, reference/relations/csharp/csharp-global-using-sibling-file.md
+ *   the Runes relation catalogue, reference/relations/csharp/csharp-global-using-alias.md
  *
  * ## Gate wiring
  *
@@ -52,8 +52,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { extractorForLanguage } from '../../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../../src/relations/resolve-path.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
 import { astCacheDir } from '../../../src/relations/facts-cache.js';
 import type { Graph } from '../../../src/model/graph.js';
 import { runRelationPass, type RelationPassDeps, type FileFacts, type NodeViolations } from '../../../src/relations/pass.js';
@@ -229,8 +229,8 @@ function buildProject(root: string, files: ProjectFile[]): void {
 // ---------------------------------------------------------------------------
 // Corpus — C# files covering the two cross-file global-using seams
 // Taken READ-ONLY from:
-//   reference/relations/csharp/csharp-global-using-sibling-file.md
-//   reference/relations/csharp/csharp-global-using-alias.md
+//   the Runes relation catalogue, reference/relations/csharp/csharp-global-using-sibling-file.md
+//   the Runes relation catalogue, reference/relations/csharp/csharp-global-using-alias.md
 // ---------------------------------------------------------------------------
 
 /**

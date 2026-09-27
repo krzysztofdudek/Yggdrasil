@@ -1,51 +1,11 @@
 name: Repo-Wide Regression Guards
 type: test-suite
-description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
-  today's cleanup against silent rot. One greps the source-of-truth files (CLI
-  source + templates, docs, examples, tools, top-level READMEs, config schemas)
-  and fails if a removed CLI command name reappears as a runnable command. The
-  other re-asserts the false-green invariant over this repo's own dogfood graph:
-  every covered, readable, git-tracked file is in at least one expected
-  verification pair OR legitimately accounted for (no rule applies, binary
-  excluded from an LLM-only subject set, or scope-excluded), so no mapped file
-  silently leaves the review set and passes a rule vacuously. A third holds the
-  family-contracts register to the code both ways: every schema constant
-  declared under src/formatters/ appears on docs/family-contracts.md, and every
-  schema id on that page is either such a constant or a whitelisted document
-  produced elsewhere — so neither a new machine document nor a retired one can
-  leave the page saying something a consumer in another repository would
-  believe. A fourth fails when an adopter-facing surface (the docs site, the
-  READMEs, the templates the CLI prints, the examples) describes a removed
-  feature, such as the port contract baseline, as if it still existed. A fifth
-  holds one word to one meaning: it fails when a retired synonym the Glossary
-  lists as not used (LLM aspect, judgment rule, enforcement level, drill into
-  for a check view, and the like) comes back in adopter-facing prose or in a
-  non-comment line of CLI source. A sixth evaluates the portal glossary module
-  in a sandbox and fails when docs/glossary.md is not exactly the page rendered
-  from its entries, when an entry's docs link or anchor does not exist, or when
-  the Glossary page leaves the Start here group of the docs sidebar. Two more
-  hold the graph's self-governance to the files it claims: every rule script
-  this graph defines, at any nesting depth, is owned by the rule-script node
-  and no drill fixture is; no tracked file matches the when of two
-  architecture types; no description still names a review channel that has
-  been removed, and no enforced rule says it never blocks. The rules that need
-  graph context a single-file drill cannot give (sibling-test-file, the portal
-  count-parity rule) are driven here with a hand-built context over their real
-  rule scripts. One more is a ratchet on how end-to-end tests assert: it counts,
-  per end-to-end file, the assertions that pin a sentence of CLI prose, and
-  fails when a file holds more than its committed baseline (so a new test
-  asserts on codes and JSON fields) or fewer (so a conversion lowers the
-  baseline and the count only goes down). Files whose subject is the wording
-  itself, the golden corpus and the docs samples, are not counted. The last
-  renders the issue-code tables of the docs CLI reference and of the knowledge
-  cli-reference topic from the code registry and fails on any difference, so
-  neither can list a code the CLI does not register or miss one it does; it
-  also fails when any Code-headed table of the docs or the knowledge topics
-  names an unregistered code."
+description: "Repo-wide meta-tests (in-process, no spawned binary) that guard today's cleanup against silent rot. One greps the source-of-truth files (CLI source + templates, docs, examples, tools, top-level READMEs, config schemas) and fails if a removed CLI command name reappears as a runnable command. The other re-asserts the false-green invariant over this repo's own dogfood graph: every covered, readable, git-tracked file is in at least one expected verification pair OR legitimately accounted for (no rule applies, binary excluded from an LLM-only subject set, or scope-excluded), so no mapped file silently leaves the review set and passes a rule vacuously. A third holds the family-contracts register to the code both ways: every schema constant declared under src/formatters/ appears on docs/family-contracts.md, and every schema id on that page is either such a constant or a whitelisted document produced elsewhere — so neither a new machine document nor a retired one can leave the page saying something a consumer in another repository would believe. A fourth fails when an adopter-facing surface (the docs site, the READMEs, the templates the CLI prints, the examples) describes a removed feature, such as the port contract baseline, as if it still existed. A fifth holds one word to one meaning: it fails when a retired synonym the Glossary lists as not used (LLM aspect, judgment rule, enforcement level, drill into for a check view, and the like) comes back in adopter-facing prose or in a non-comment line of CLI source. A sixth evaluates the portal glossary module in a sandbox and fails when docs/glossary.md is not exactly the page rendered from its entries, when an entry's docs link or anchor does not exist, or when the Glossary page leaves the Start here group of the docs sidebar. Two more hold the graph's self-governance to the files it claims: every rule script this graph defines, at any nesting depth, is owned by the rule-script node and no drill fixture is; no tracked file matches the when of two architecture types; no description still names a review channel that has been removed, and no enforced rule says it never blocks. The rules that need graph context a single-file drill cannot give (sibling-test-file, the portal count-parity rule) are driven here with a hand-built context over their real rule scripts. One more is a ratchet on how end-to-end tests assert: it counts, per end-to-end file, the assertions that pin a sentence of CLI prose, and fails when a file holds more than its committed baseline (so a new test asserts on codes and JSON fields) or fewer (so a conversion lowers the baseline and the count only goes down). Files whose subject is the wording itself, the golden corpus and the docs samples, are not counted. The last renders the issue-code tables of the docs CLI reference and of the knowledge cli-reference topic from the code registry and fails on any difference, so neither can list a code the CLI does not register or miss one it does; it also fails when any Code-headed table of the docs or the knowledge topics names an unregistered code. One holds the @chrisdudek/runes pin together: the exact version package.json names is the one the lock records, node_modules holds and the code loads, the lock fetches it only from the npm registry or (until Runes is on npm) the GitHub archive of a Runes commit, publishing refuses the latter, and the built CLI imports Runes instead of bundling it (scripts/runes-pin.mjs)."
 aspects: []
 relations:
   [
     { target: cli/check-codes, type: uses },
+    { target: cli/config/quality, type: uses },
     { target: cli/core/check, type: uses },
     { target: cli/core/file-when-evaluator, type: uses },
     { target: cli/core/graph, type: uses },
@@ -71,3 +31,4 @@ mapping:
   - source/cli/tests/unit/repo/e2e-prose-ratchet.test.ts
   - source/cli/tests/unit/repo/e2e-prose-baseline.json
   - source/cli/tests/unit/repo/issue-code-tables.test.ts
+  - source/cli/tests/unit/repo/runes-pin.test.ts

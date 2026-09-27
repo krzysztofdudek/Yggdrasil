@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
 import { guardedResolve } from '../../src/relations/resolve-path.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

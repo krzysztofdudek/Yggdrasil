@@ -16,3 +16,5 @@ The public shape describing a source file handed to a deterministic check now re
 The language-registry module — the pure extension-to-grammar lookup table with no imports of its own — was relocated from the core layer to the utility leaf so that lower layers (AST parsing, relation extraction, structural checks) no longer declare a dependency that points back up into core. This node's import path to that module was updated to the new leaf location. Pure structural relocation: no behavior changes, the lookup table and its helpers are byte-identical.
 ## [2026-09-23T20:30:50.531Z]
 A drill now hands a deterministic rule the two context members it can honestly supply — the case files as its subject and the rule's settled settings as its configuration — so the check-context type describes them as members present only under a drill.
+## [2026-09-27T17:15:52.103Z]
+walk and closest now come from @chrisdudek/runes/ast, the AST helpers the shared relation extractors use, so the public @chrisdudek/yg/ast barrel re-exports them instead of keeping a second identical copy that could drift from the one the extractors traverse with.

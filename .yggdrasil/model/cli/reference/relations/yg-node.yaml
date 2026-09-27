@@ -1,7 +1,0 @@
-name: Relations Reference Kind
-type: reference-catalogue
-description: "The relations name-resolution case catalogue — kind root. Owns the
-  kind descriptor (_reference-schema.yaml) that the generic reference aspects
-  consume; the per-language case docs live in child nodes (one per language)."
-mapping:
-  - reference/relations/_reference-schema.yaml

@@ -4,7 +4,7 @@ import { extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parse as parseTomlSmol } from 'smol-toml';
 import { parseFile as parseAstFile, loadedParserFor, grammarDigestForLanguage } from '../ast/parser.js';
-import type { ParseCache } from '../ast/parse-cache.js';
+import type { ParseCache } from '@chrisdudek/runes/ast';
 import type { Tree } from 'web-tree-sitter';
 import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';

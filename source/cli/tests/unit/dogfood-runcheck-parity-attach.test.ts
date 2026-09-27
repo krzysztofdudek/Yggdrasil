@@ -6,7 +6,7 @@ import { loadGraph } from '../../src/core/graph-loader.js';
 import { buildOwnerIndex } from '../../src/relations/owner-index.js';
 import { computeEffectiveAspects } from '../../src/core/graph/aspects.js';
 import { withParsedFile } from '../../src/ast/parser.js';
-import { walk } from '../../src/ast/walk.js';
+import { walk } from '@chrisdudek/runes/ast';
 
 /**
  * Dogfood invariant — the ATTACH SET of `runcheck-injected-input-parity`.

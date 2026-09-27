@@ -35,7 +35,7 @@ const FV: FeatureVector = {
 describe('facts-cache — corrupt shard guards', () => {
   let root: string;
   let dir: string;
-  const key = factsKey({ contentHash: 'abc', language: 'csharp', grammarHash: 'g1', rev: 1 });
+  const key = factsKey({ contentHash: 'abc', language: 'csharp', grammarHash: 'g1', rev: 1, runes: '0.0.0-test' });
 
   beforeEach(() => {
     root = mkdtempSync(path.join(os.tmpdir(), 'astc-bc-'));

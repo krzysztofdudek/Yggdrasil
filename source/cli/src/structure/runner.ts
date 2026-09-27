@@ -8,8 +8,8 @@ import type { SuppressedRange } from '../ast/suppress.js';
 import { validateCheckModuleExport } from '../utils/validate-check-module.js';
 import type { Graph } from '../model/graph.js';
 import type { Violation } from './types.js';
-import type { ParseCache } from '../ast/parse-cache.js';
-import { destroyParseCache } from '../ast/parse-cache.js';
+import type { ParseCache } from '@chrisdudek/runes/ast';
+import { destroyParseCache } from '@chrisdudek/runes/ast';
 import { StructureRunnerError, loadHookModule, buildUnitCtx } from './hook-loader.js';
 import type { StructureUnit } from './hook-loader.js';
 

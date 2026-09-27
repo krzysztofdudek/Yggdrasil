@@ -1,25 +1,20 @@
 name: Test Helpers
 type: test-suite
-description: "Shared test-fixture builders used across unit test suites (e.g.
-  buildTestGraph for graph resolver tests, seedLock for lock-backed verdict
-  tests)"
+description: "Shared test-fixture builders used across unit test suites (e.g. buildTestGraph for graph resolver tests, seedLock for lock-backed verdict tests)"
 aspects: []
 relations:
-  [
-    { target: cli/ast/runtime, type: uses },
-    { target: cli/core/log, type: uses },
-    { target: cli/core/pair-hash, type: uses },
-    { target: cli/core/pair-inputs, type: uses },
-    { target: cli/core/pairs, type: uses },
-    { target: cli/core/reviewer-tiers, type: uses },
-    { target: cli/io/lock-store, type: uses },
-    { target: cli/tests/support, type: uses },
-    { target: cli/io/stores, type: uses },
-    { target: cli/language-registry, type: uses },
-    { target: cli/model/lock, type: uses },
-    { target: cli/relations/extractors, type: uses },
-    { target: cli/model/graph, type: uses }
-  ]
+  - { target: cli/ast/runtime, type: uses }
+  - { target: cli/core/log, type: uses }
+  - { target: cli/core/pair-hash, type: uses }
+  - { target: cli/core/pair-inputs, type: uses }
+  - { target: cli/core/pairs, type: uses }
+  - { target: cli/core/reviewer-tiers, type: uses }
+  - { target: cli/io/lock-store, type: uses }
+  - { target: cli/tests/support, type: uses }
+  - { target: cli/io/stores, type: uses }
+  - { target: cli/language-registry, type: uses }
+  - { target: cli/model/lock, type: uses }
+  - { target: cli/model/graph, type: uses }
 mapping:
   - source/cli/tests/unit/helpers/build-test-graph.ts
   - source/cli/tests/unit/helpers/build-test-graph-structure.ts

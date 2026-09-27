@@ -45,6 +45,16 @@ function writeFile(root: string, rel: string, content: string): void {
   writeFileSync(abs, content, 'utf-8');
 }
 
+const FOO_KT = 'package com.x.a\nimport com.x.b.Bar\nclass Foo {\n  val bar: Bar? = null\n}\n';
+
+// The same file with a syntax error (`val x = ( }` leaves an ERROR in the tree; the import and the
+// declarations around it are intact). The Kotlin extractor from @chrisdudek/runes reads such a file by
+// re-parsing spans of it with a parser the caller hands it (ParsedFile.newParser), because Runes never
+// imports the tree-sitter runtime itself. Only a damaged file takes that path, so only a damaged file
+// proves the relation pass wires it: without it the extractor throws and the check reports a parse
+// failure instead of the edge.
+const DAMAGED_FOO_KT = 'package com.x.a\nimport com.x.b.Bar\nclass Foo {\n  fun f() { val x = ( }\n  val bar: Bar? = null\n}\n';
+
 /**
  * Build a temp repo with two component nodes a, b under src/, where a/Foo.kt
  * imports b's class across the node boundary (`import com.x.b.Bar`). The single
@@ -53,7 +63,7 @@ function writeFile(root: string, rel: string, content: string): void {
  * needed). Packages are decoupled from directories to exercise the SymbolTable.
  * `withRelation` controls whether a declares the relation to b.
  */
-function buildRepo(label: string, withRelation: boolean): string {
+function buildRepo(label: string, withRelation: boolean, fooSource = FOO_KT): string {
   const root = mkdtempSync(path.join(tmpdir(), `yg-rel-kotlin-${label}-`));
 
   writeFile(
@@ -106,11 +116,7 @@ function buildRepo(label: string, withRelation: boolean): string {
   writeFile(root, '.yggdrasil/model/a/yg-node.yaml', aNode);
 
   // Source — a/Foo.kt depends on b/Bar.kt by FQN import. Note: src dir != package.
-  writeFile(
-    root,
-    'src/a/Foo.kt',
-    'package com.x.a\nimport com.x.b.Bar\nclass Foo {\n  val bar: Bar? = null\n}\n',
-  );
+  writeFile(root, 'src/a/Foo.kt', fooSource);
   writeFile(
     root,
     'src/b/Bar.kt',
@@ -148,6 +154,32 @@ describe.skipIf(!distExists)('CLI E2E — Kotlin relation conformance (live, sym
       expect(plain.status, plain.all).toBe(0);
       expect(plain.all).not.toContain('unverified');
       expect(plain.all).not.toContain('relation-undeclared-dependency');
+    } finally {
+      rmSync(declared, { recursive: true, force: true });
+    }
+  });
+
+  it('reads a Kotlin file with a syntax error through the parser the pass hands the Runes extractor', () => {
+    const codes = (root: string): { status: number | null; codes: string[]; all: string } => {
+      const r = run(['check', '--approve', '--json'], root);
+      const doc = JSON.parse(r.stdout) as { issues: Array<{ code: string }> };
+      return { status: r.status, codes: doc.issues.map((i) => i.code), all: r.all };
+    };
+    const undeclared = buildRepo('damaged-undeclared', false, DAMAGED_FOO_KT);
+    try {
+      const refused = codes(undeclared);
+      expect(refused.status, refused.all).toBe(1);
+      expect(refused.codes).toContain('relation-undeclared-dependency');
+      expect(refused.codes).not.toContain('relation-parse-failed');
+    } finally {
+      rmSync(undeclared, { recursive: true, force: true });
+    }
+    const declared = buildRepo('damaged-declared', true, DAMAGED_FOO_KT);
+    try {
+      const ok = codes(declared);
+      expect(ok.status, ok.all).toBe(0);
+      expect(ok.codes).not.toContain('relation-undeclared-dependency');
+      expect(ok.codes).not.toContain('relation-parse-failed');
     } finally {
       rmSync(declared, { recursive: true, force: true });
     }

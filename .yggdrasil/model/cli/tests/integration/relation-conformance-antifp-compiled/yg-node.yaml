@@ -1,17 +1,10 @@
 name: Integration Tests — Relation Conformance Anti-False-Positive (Compiled)
 type: test-suite
-description: "Anti-false-positive integration suites for the compiled/systems
-  languages — C/C++, Go, Java, Kotlin. Each asserts that dynamic, reflective,
-  external, or unmapped-target dependencies produce NO
-  relation-undeclared-dependency, guarding the check's zero-false-positive
-  contract."
+description: "Anti-false-positive integration suites for the compiled/systems languages — C/C++, Go, Java, Kotlin. Each asserts that dynamic, reflective, external, or unmapped-target dependencies produce NO relation-undeclared-dependency, guarding the check's zero-false-positive contract."
 aspects: []
 relations:
-  [
-    { target: cli/core/loader, type: uses },
-    { target: cli/relations/core, type: uses },
-    { target: cli/relations/extractors, type: uses }
-  ]
+  - { target: cli/core/loader, type: uses }
+  - { target: cli/relations/core, type: uses }
 mapping:
   - source/cli/tests/integration/relation-c-cpp-antifp.test.ts
   - source/cli/tests/integration/relation-go-antifp.test.ts

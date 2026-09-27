@@ -9,9 +9,9 @@ import { validateCheckModuleExport } from '../utils/validate-check-module.js';
 import { getLanguageForExtension } from '../utils/language-registry.js';
 import type { Tree } from 'web-tree-sitter';
 import type { CheckContext, SourceFile, Violation } from './types.js';
-import type { ParseCache } from './parse-cache.js';
+import type { ParseCache } from '@chrisdudek/runes/ast';
 
-export { type ParseCache } from './parse-cache.js';
+export { type ParseCache } from '@chrisdudek/runes/ast';
 
 export interface RunAstAspectParams {
   aspectDir: string;

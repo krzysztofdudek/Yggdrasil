@@ -1,35 +1,22 @@
 name: Relations Unit Tests
 type: test-suite
-description: "Unit tests for the relation-conformance engine modules: the symbol
-  table, owner index, path resolution, the extractor registry, agent-facing
-  messages, the verifier, and the live type-relation gate's pure decision
-  function (computeTypeGateFindings). The resolver's own unit tests live in the
-  resolver-unit child node; per-language extractor tests in the extractors child node."
+description: "Unit tests for the relation-conformance modules Yggdrasil keeps: the owner index, the extraction cache and its audit (including the Runes version in the cache key), the feature vector, agent-facing messages, the verifier, the index directory, and the live type-relation gate's pure decision function (computeTypeGateFindings). The extractors, symbol table, resolver and path resolvers are tested in @chrisdudek/runes, with the 460-case relation catalogue."
 aspects: []
 relations:
-  [
-    { target: cli/relations/core, type: uses },
-    { target: cli/relations/extractors, type: uses },
-    { target: cli/io/parsers/graph, type: uses },
-    { target: cli/ast/runtime, type: uses },
-    { target: cli/core/loader, type: uses },
-    { target: cli/language-registry, type: uses },
-    { target: cli/tests/unit/helpers, type: uses },
-    { target: cli/utils, type: uses },
-    { target: cli/model/graph, type: uses }
-  ]
+  - { target: cli/relations/core, type: uses }
+  - { target: cli/io/parsers/graph, type: uses }
+  - { target: cli/ast/runtime, type: uses }
+  - { target: cli/core/loader, type: uses }
+  - { target: cli/language-registry, type: uses }
+  - { target: cli/tests/unit/helpers, type: uses }
+  - { target: cli/utils, type: uses }
+  - { target: cli/model/graph, type: uses }
 mapping:
-  - source/cli/tests/unit/relations/symbol-table.test.ts
   - source/cli/tests/unit/relations/owner-index.test.ts
-  - source/cli/tests/unit/relations/resolve-path.test.ts
-  - source/cli/tests/unit/relations/registry.test.ts
   - source/cli/tests/unit/relations/messages.test.ts
   - source/cli/tests/unit/relations/verifier.test.ts
-  - source/cli/tests/unit/relations/candidate-parity.test.ts
   - source/cli/tests/unit/relations/index-dir.test.ts
-  - source/cli/tests/unit/relations/extractor-rev.test.ts
   - source/cli/tests/unit/relations/facts-cache.test.ts
-  - source/cli/tests/unit/relations/csharp-parity.test.ts
   - source/cli/tests/unit/relations/ast-cache-audit.test.ts
   - source/cli/tests/unit/relations/facts-cache-branch-coverage.test.ts
   - source/cli/tests/unit/relations/feature-vector.test.ts

@@ -1,32 +1,45 @@
 /**
- * The grammars that ship are exactly the pinned ones. The build (scripts/grammars.mjs)
- * refuses to write a grammar whose bytes differ from its pin in the language registry;
- * this test re-checks the result the tests themselves parse with (dist/grammars/, the
- * only place the parser loads grammars from) and that each pin's recorded ABI is the
- * one the loaded Language reports on the current web-tree-sitter runtime — so a pin
- * edited without rebuilding, or a stale dist, fails here rather than in a user's run.
+ * The grammars that ship are exactly the pinned ones, on the pinned runtime. The pins live in
+ * the grammar manifest of @chrisdudek/runes; the build (scripts/grammars.mjs) refuses to write a
+ * grammar whose bytes differ from its pin. This test re-checks the result the tests themselves
+ * parse with (dist/grammars/, the only place the parser loads grammars from), that each pin's
+ * recorded ABI is the one the loaded Language reports, and that the web-tree-sitter runtime and
+ * the npm grammar packages installed here are the versions (and the runtime the engine bytes) the
+ * manifest pins. Runes' own CI runs the 460-case relation catalogue on that pinned runtime, so a
+ * drift here would mean the catalogue passing there says nothing about the trees Yggdrasil gets.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Parser, Language } from 'web-tree-sitter';
+import { loadGrammarManifest, verifyGrammarFiles } from '@chrisdudek/runes/grammars';
+import { checkRuntimePins, formatRuntimePinReport } from '@chrisdudek/runes/testkit';
 import { LANGUAGES } from '../../../src/utils/language-registry.js';
 
-const GRAMMARS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dist/grammars');
-const sha256 = (p: string) => createHash('sha256').update(readFileSync(p)).digest('hex');
+const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const GRAMMARS_DIR = path.join(CLI_ROOT, 'dist/grammars');
+const TABLE = Object.keys(LANGUAGES);
 
 describe('shipped grammars match their pins', () => {
-  for (const def of Object.values(LANGUAGES)) {
-    it(`${def.id}: wasm and node-types.json bytes equal the pinned sha256`, () => {
-      expect(sha256(path.join(GRAMMARS_DIR, def.wasmFile))).toBe(def.grammar.wasmSha256);
-      expect(sha256(path.join(GRAMMARS_DIR, def.wasmFile.replace(/\.wasm$/, '.node-types.json')))).toBe(def.grammar.nodeTypesSha256);
-    });
-    it(`${def.id}: loads on the current runtime with the pinned ABI`, async () => {
+  it('every language of the table has a pin in the Runes grammar manifest', () => {
+    const pinned = new Map(loadGrammarManifest().grammars.map((g) => [g.language, g.wasmFile]));
+    for (const def of Object.values(LANGUAGES)) expect(pinned.get(def.id), def.id).toBe(def.wasmFile);
+  });
+
+  it('dist/grammars holds exactly the pinned bytes (wasm and node-types.json) of every language', () => {
+    expect(verifyGrammarFiles(GRAMMARS_DIR, { only: TABLE })).toEqual([]);
+  });
+
+  for (const pin of loadGrammarManifest().grammars.filter((g) => TABLE.includes(g.language))) {
+    it(`${pin.language}: loads on the current runtime with the pinned ABI`, async () => {
       await Parser.init();
-      const lang = await Language.load(path.join(GRAMMARS_DIR, def.wasmFile));
-      expect(lang.abiVersion).toBe(def.grammar.abi);
+      const lang = await Language.load(path.join(GRAMMARS_DIR, pin.wasmFile));
+      expect(lang.abiVersion).toBe(pin.abi);
     });
   }
+
+  it('the installed web-tree-sitter (version and engine bytes) and npm grammar packages are the pinned ones', () => {
+    const problems = checkRuntimePins({ resolveFrom: CLI_ROOT, languages: TABLE, cli: true });
+    expect(problems, formatRuntimePinReport(problems)).toEqual([]);
+  });
 });

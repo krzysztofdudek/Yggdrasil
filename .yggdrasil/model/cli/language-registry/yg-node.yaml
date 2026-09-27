@@ -1,5 +1,5 @@
 name: Language Registry
-description: "The single source of truth mapping a source-file extension to its tree-sitter grammar (the wasm filename and the grammar pin: repository, commit, version, tree-sitter CLI, ABI, where the build takes it from, and the sha256 of the shipped wasm and node-types.json) and to the AST comment node-type names and delimiters that comment-based deterministic rules and the yg-suppress scanner depend on. Covers TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, JSON, Kotlin, YAML and TOML. Pure data plus extension-lookup helpers — no I/O, no imports."
+description: "The language table Yggdrasil parses with: a re-export of the one in @chrisdudek/runes/grammars (the table Yggdrasil and Grain share), mapping a source-file extension to its tree-sitter grammar file and to the AST comment node-type names and delimiters that comment-based deterministic rules and the yg-suppress scanner depend on, plus the extension, relation-language and display-name lookups. Covers TypeScript/TSX/JavaScript, Python, Go, Rust, Java, C#, C, C++, PHP, Ruby, JSON, Kotlin, YAML and TOML. The grammar pins (repository, commit, ABI, the sha256 of each wasm and node-types.json) live in the Runes grammar manifest. No I/O."
 type: utility
 mapping:
   - source/cli/src/utils/language-registry.ts

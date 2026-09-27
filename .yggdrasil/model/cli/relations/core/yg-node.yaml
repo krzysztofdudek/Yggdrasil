@@ -1,13 +1,6 @@
 name: Relations Core
 type: relations-adapter
-description: Relation-conformance engine — the live pass orchestration, symbol
-  table and owner index, path resolution, the resolver, allowed-type lookup,
-  the content-addressed per-file extraction cache and its on/off audit, and the
-  verifier. Deterministic static dependency analysis over the graph, computed
-  live on every check. Also runs the live type-relation gate for
-  coverage.type_level — a new phase of the same live pass that checks
-  statically-resolved import edges reaching a classified endpoint (an explicit
-  node or a type-covered file) against the architecture's relation allow-list.
+description: Relation-conformance engine — the live pass orchestration, the owner index, the graph-bound path resolution (guardedResolve over the graph exclusion set), allowed-type lookup, the content-addressed per-file extraction cache (keyed on the Runes version too) and its on/off audit, and the verifier. The per-language extractors, the symbol table, the three-state resolver, the per-language path resolvers and the repository layout come from @chrisdudek/runes/relations, installed at an exact version; this node is where the graph comes in (Runes groups files by an injected owner lookup and knows no nodes). Deterministic static dependency analysis over the graph, computed live on every check. Also runs the live type-relation gate for coverage.type_level — a new phase of the same live pass that checks statically-resolved import edges reaching a classified endpoint (an explicit node or a type-covered file) against the architecture's relation allow-list.
 mapping:
   - source/cli/src/relations/allowed-types.ts
   - source/cli/src/relations/facts-cache.ts
@@ -15,15 +8,10 @@ mapping:
   - source/cli/src/relations/messages.ts
   - source/cli/src/relations/owner-index.ts
   - source/cli/src/relations/pass.ts
-  - source/cli/src/relations/repo-layout.ts
   - source/cli/src/relations/resolve-path.ts
-  - source/cli/src/relations/resolver.ts
-  - source/cli/src/relations/symbol-table.ts
   - source/cli/src/relations/type-gate.ts
   - source/cli/src/relations/verifier.ts
 relations:
-  - target: cli/relations/extractors
-    type: calls
   - target: cli/ast/runtime
     type: calls
   - target: cli/language-registry
