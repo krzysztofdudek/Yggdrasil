@@ -6,3 +6,5 @@ Parser errors read on one line: the parser's "Did you mean" suggestion joins the
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
 ## [2026-09-27T22:19:05.655Z]
 Two help examples failed when run (yg incident list, a path given to yg simulate), and type-suggest was summarised as designing a type when it only reports which existing type a file fits.
+## [2026-09-27T22:26:31.547Z]
+A help flag after a mistyped command printed the root help and exited 0, so an agent's typo read as a finished request. The help flag is now dropped when the command it follows does not exist, and the parser reports the unknown command exactly as it does without the flag: a usage error naming the nearest command, exit 1.
