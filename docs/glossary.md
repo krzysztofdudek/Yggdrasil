@@ -194,6 +194,24 @@ The rule was checked against the current code and it passed. The only green.
 
 No verdict matches the current code yet — it changed, or it was never checked. Not a pass — just “we don’t know”.
 
+### stale {#stale}
+
+An unverified pair that has a verdict, recorded over inputs that have since changed. The report calls it unverified, with cause `stale`; the JSON counts it apart from the pairs never judged, so the unverified pairs are `totals.verdicts.unverified` plus `totals.verdicts.stale`.
+
+Machine token: `stale` — `verdict` in the JSON `pairs[]` and `totals.verdicts`, `cause` on an `unverified` finding.
+
+### finding {#finding}
+
+One thing a check reports — about a node, a pair, a file or a repository fact. The error and warning counts on the verdict line count findings, as `totals` in the JSON does.
+
+More: [CLI Reference](/cli-reference#yg-check).
+
+### block {#block}
+
+Findings the report prints together, under one heading with one `why:` and one `fix:`. Where the two numbers differ, the verdict line says how many blocks hold the findings (`5 errors in 2 blocks`).
+
+More: [CLI Reference](/cli-reference#yg-check).
+
 ### warning {#warning}
 
 An advisory rule flagged this. It does not block — it is signal worth a look, not a failure.

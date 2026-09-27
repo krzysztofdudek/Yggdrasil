@@ -412,7 +412,7 @@ type-level classifier could not decide a type for this run (reported
 ambiguous). Every entry in that set keeps its stored result untouched.
 \`--approve\` and \`--dry-run\` (a preview, computed over a disposable copy — it
 writes nothing) both print a summary whenever something is actually pruned:
-\`fill  pruned 3 stale verdicts (1 reviewer · 2 script)\`, then one
+\`fill  pruned 3 verdicts no longer expected (1 reviewer · 2 script)\`, then one
 \`  <aspect> @ <unit> — <reason>\` line per entry; nothing prints when nothing
 was pruned.
 

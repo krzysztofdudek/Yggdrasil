@@ -154,7 +154,7 @@
               "type": "number"
             },
             "verdicts": {
-              "description": "Pair counts by what the lock says, summing to `pairs.length`.",
+              "description": "Pair counts by what the lock says, summing to `pairs.length`. `unverified` counts the pairs no verdict was ever recorded for and `stale` those whose verdict was recorded over inputs that have since changed. The report and `issues` call both unverified (a `stale` one is an `unverified` finding with cause `stale`), so the unverified pairs are `unverified` + `stale`.",
               "type": "object",
               "properties": {
                 "approved": {
@@ -955,7 +955,7 @@
               "type": "number"
             },
             "verdicts": {
-              "description": "Pair counts by what the lock says, summing to `pairs.length`.",
+              "description": "Pair counts by what the lock says, summing to `pairs.length`. `unverified` counts the pairs no verdict was ever recorded for and `stale` those whose verdict was recorded over inputs that have since changed. The report and `issues` call both unverified (a `stale` one is an `unverified` finding with cause `stale`), so the unverified pairs are `unverified` + `stale`.",
               "type": "object",
               "properties": {
                 "approved": {

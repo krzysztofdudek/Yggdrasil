@@ -225,6 +225,14 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
       expect(staleOne!.hash).toMatch(/^[0-9a-f]{64}$/);
       const neverSeen = after.pairs.find((p) => p.verdict === 'unverified');
       expect(neverSeen!.hash).toBeNull();
+      // The two JSON words are one finding code: the report calls both
+      // unverified, a stale one carrying cause `stale`. A reader summing
+      // totals.verdicts.unverified alone would under-count, so the unverified
+      // pairs are the two counts together, one finding each.
+      const unverifiedFindings = after.issues.filter((i) => i.code === 'unverified') as Array<{ cause?: string }>;
+      expect(after.totals.verdicts.unverified).toBeGreaterThan(0);
+      expect(unverifiedFindings.length).toBe(after.totals.verdicts.unverified + after.totals.verdicts.stale);
+      expect(unverifiedFindings.filter((i) => i.cause === 'stale').length).toBe(after.totals.verdicts.stale);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

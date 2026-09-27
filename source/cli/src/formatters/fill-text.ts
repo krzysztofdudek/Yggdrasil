@@ -122,7 +122,7 @@ const DRY_RUN_CAP = 12;
 function renderPrune(e: Extract<FillEvent, { type: 'prune' }>): string {
   if (e.entries.length === 0) return '';
   const parts = [`${e.billedCount} reviewer`, `${e.freeCount} script`, e.unknownCount > 0 ? `${e.unknownCount} unknown` : ''].filter((p) => p !== '');
-  let out = `${FILL}pruned ${count(e.entries.length, 'stale verdict')} (${parts.join(' · ')})\n`;
+  let out = `${FILL}pruned ${count(e.entries.length, 'verdict')} no longer expected (${parts.join(' · ')})\n`;
   for (const entry of e.entries) out += `  ${pairName(entry.aspectId, entry.unitKey)} — ${entry.reason}\n`;
   return out;
 }

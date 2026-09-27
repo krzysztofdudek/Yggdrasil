@@ -236,6 +236,27 @@
       def: 'No verdict matches the current code yet — it changed, or it was never checked. Not a pass — just “we don’t know”.',
     },
     {
+      id: 'stale',
+      term: 'stale',
+      group: 'Judging',
+      def: 'An unverified pair that has a verdict, recorded over inputs that have since changed. The report calls it unverified, with cause `stale`; the JSON counts it apart from the pairs never judged, so the unverified pairs are `totals.verdicts.unverified` plus `totals.verdicts.stale`.',
+      token: '`stale` — `verdict` in the JSON `pairs[]` and `totals.verdicts`, `cause` on an `unverified` finding',
+    },
+    {
+      id: 'finding',
+      term: 'finding',
+      group: 'Judging',
+      def: 'One thing a check reports — about a node, a pair, a file or a repository fact. The error and warning counts on the verdict line count findings, as `totals` in the JSON does.',
+      see: '/cli-reference#yg-check',
+    },
+    {
+      id: 'block',
+      term: 'block',
+      group: 'Judging',
+      def: 'Findings the report prints together, under one heading with one `why:` and one `fix:`. Where the two numbers differ, the verdict line says how many blocks hold the findings (`5 errors in 2 blocks`).',
+      see: '/cli-reference#yg-check',
+    },
+    {
       id: 'warning',
       term: 'warning',
       group: 'Judging',

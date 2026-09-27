@@ -256,7 +256,14 @@ export interface CheckJsonDocument {
      * the description said pairs until 6.1.0).
      */
     draftSkipped: number;
-    /** Pair counts by what the lock says, summing to `pairs.length`. */
+    /**
+     * Pair counts by what the lock says, summing to `pairs.length`.
+     * `unverified` counts the pairs no verdict was ever recorded for and
+     * `stale` those whose verdict was recorded over inputs that have since
+     * changed. The report and `issues` call both unverified (a `stale` one is
+     * an `unverified` finding with cause `stale`), so the unverified pairs
+     * are `unverified` + `stale`.
+     */
     verdicts: Record<CheckJsonVerdict, number>;
     /** Verified pairs split by reviewer kind, as the header reports them. */
     verified: { deterministic: number; llm: number };

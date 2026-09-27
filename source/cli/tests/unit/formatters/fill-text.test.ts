@@ -156,9 +156,9 @@ describe('renderFillEvent', () => {
   it('prune: nothing when nothing was pruned, the noun agreeing with the count otherwise', () => {
     expect(renderFillEvent({ type: 'prune', entries: [], billedCount: 0, freeCount: 0, unknownCount: 0 })).toBe('');
     expect(renderFillEvent({ type: 'prune', entries: [{ aspectId: 'a', unitKey: 'node:x', kind: 'llm', reason: 'detached' }], billedCount: 1, freeCount: 0, unknownCount: 0 }))
-      .toBe('fill  pruned 1 stale verdict (1 reviewer · 0 script)\n  a @ x — detached\n');
+      .toBe('fill  pruned 1 verdict no longer expected (1 reviewer · 0 script)\n  a @ x — detached\n');
     expect(renderFillEvent({ type: 'prune', entries: [{ aspectId: 'a', unitKey: 'node:x', kind: 'deterministic', reason: 'detached' }, { aspectId: 'b', unitKey: 'file:src/y.ts', kind: 'unknown', reason: 'gone' }], billedCount: 0, freeCount: 1, unknownCount: 1 }))
-      .toBe('fill  pruned 2 stale verdicts (0 reviewer · 1 script · 1 unknown)\n  a @ x — detached\n  b @ src/y.ts — gone\n');
+      .toBe('fill  pruned 2 verdicts no longer expected (0 reviewer · 1 script · 1 unknown)\n  a @ x — detached\n  b @ src/y.ts — gone\n');
   });
 
   it('textFillSink writes nothing for an event that reads as nothing', () => {
