@@ -43,3 +43,7 @@ export const GRAPHLESS_SCRIPT_CTX =
 /** What an enforced script refusal skips in the same run: the det gate. */
 export const DET_GATE_SKIP =
   "An ENFORCED script-rule refusal — fresh in this run or cached — skips the paid reviewer fills of the same node for the rest of that run (of the same unit when the unit has no node, as a type-covered file has none, so one refusing file never skips another's); an advisory refusal skips nothing. The skipped reviewer pairs stay unverified, and a later run fills them once the refusal is gone.";
+
+/** When a decision belongs in a node type's log rather than a node's, and who admits it. */
+export const TYPE_DECISION_TEST =
+  "A decision goes into a type's log (`yg log add --type <type>`) only when it passes one test: must an agent touching ANOTHER file of this type know it? If it concerns only the component in front of you, it is that component's WHY and goes in its node log (`yg log add --node`), which you write freely. A type decision reaches every file of the type and of every type below it, and `yg context` puts it in front of every agent working there, so it is the user's to admit, not yours: propose the one-sentence decision and the type it would sit on, and write it only after the user agrees. Keep it to the coarse decisions that shape the whole area; a detail of one change never belongs there.";

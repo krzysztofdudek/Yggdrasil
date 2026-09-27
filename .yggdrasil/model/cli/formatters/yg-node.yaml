@@ -6,7 +6,9 @@ description: >-
   Ten machine forms live here, each owning its own schema constant, its
   document types and its serializer: the context package (every rule with its
   effective status, reviewer kind, cascade channel and the node/type chain it
-  inherits along), the blast radius of one component (the ports it publishes
+  inherits along, plus the decisions in force for its type and the types above
+  it and the owning component's own log, each present only when it holds
+  something), the blast radius of one component (the ports it publishes
   with their consumers, its direct and indirect dependents, and the path each
   indirect one is reached through), the structure of one component (what it
   is, what it owns, what it depends on, the ports it publishes, and where it
@@ -78,7 +80,11 @@ description: >-
   report and yg init. And it words yg impact's text answer: the blast radius
   of a change to a rule, a flow or a type, what an edit to a file or a
   component costs to re-verify, and the recording run that re-verifies it,
-  named and priced the way yg check names it.
+  named and priced the way yg check names it. And it words the logs a context
+  package carries, as one block both context views print: the decisions in
+  force per type, nearest type first, each under a heading of its own, then
+  the component's log under its own heading, with the count of entries a trim
+  left out and the command that reads them.
 relations:
   - target: cli/model/graph
     type: uses
@@ -98,6 +104,8 @@ relations:
     type: uses
   - target: cli/model/impact
     type: uses
+  - target: cli/model/context-logs
+    type: uses
 mapping:
   - source/cli/src/formatters/advise-json.ts
   - source/cli/src/formatters/aspect-log-json.ts
@@ -115,6 +123,7 @@ mapping:
   - source/cli/src/formatters/type-visibility-text.ts
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
+  - source/cli/src/formatters/context-logs.ts
   - source/cli/src/formatters/context-node.ts
   - source/cli/src/formatters/drill-json.ts
   - source/cli/src/formatters/fill-text.ts

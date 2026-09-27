@@ -129,6 +129,17 @@
     "attention": {
       "description": "The advisory structural-attention sentence, when the text view would print one.",
       "type": "string"
+    },
+    "typeDecisions": {
+      "description": "The decisions in force for the subject's type and every type above it, nearest first; absent when none is in force.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContextJsonTypeDecisions"
+      }
+    },
+    "nodeLog": {
+      "description": "The owning component's own log; absent for a file with no component and for a component whose log has no entry.",
+      "$ref": "#/$defs/ContextJsonNodeLog"
     }
   },
   "required": [
@@ -261,6 +272,110 @@
         "number",
         "kind",
         "origin"
+      ],
+      "additionalProperties": false
+    },
+    "ContextJsonLogEntry": {
+      "type": "object",
+      "properties": {
+        "datetime": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "datetime",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "ContextJsonLogUnreadable": {
+      "type": "object",
+      "properties": {
+        "what": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "what",
+        "why",
+        "next"
+      ],
+      "additionalProperties": false
+    },
+    "ContextJsonNodeLog": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "log": {
+          "description": "The node log's path, repo-relative.",
+          "type": "string"
+        },
+        "entries": {
+          "description": "The entries given, oldest first; replaced entries are never among them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextJsonLogEntry"
+          }
+        },
+        "trimmed": {
+          "description": "True when the node's type sets `log_required`, so only the newest entries in force are given.",
+          "type": "boolean"
+        },
+        "omitted": {
+          "description": "Entries in force the trim left out.",
+          "type": "number"
+        },
+        "unreadable": {
+          "description": "Why the log could not be read entry by entry, when it could not.",
+          "$ref": "#/$defs/ContextJsonLogUnreadable"
+        }
+      },
+      "required": [
+        "node",
+        "log",
+        "entries",
+        "trimmed",
+        "omitted"
+      ],
+      "additionalProperties": false
+    },
+    "ContextJsonTypeDecisions": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "log": {
+          "description": "The type log's path, repo-relative.",
+          "type": "string"
+        },
+        "entries": {
+          "description": "Entries no later entry replaced, oldest first. Empty when `unreadable` is set.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextJsonLogEntry"
+          }
+        },
+        "unreadable": {
+          "description": "Why the log could not be read entry by entry, when it could not.",
+          "$ref": "#/$defs/ContextJsonLogUnreadable"
+        }
+      },
+      "required": [
+        "type",
+        "log",
+        "entries"
       ],
       "additionalProperties": false
     }

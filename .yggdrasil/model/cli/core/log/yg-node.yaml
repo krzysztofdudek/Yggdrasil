@@ -32,7 +32,11 @@ description: >-
   checking that the history being extended is still the one last recorded,
   because a type has no verdicts and so no closure. The decisions in force for a
   type and for the types above it on its parent chain are read in one place, for
-  the context an agent receives.
+  the context an agent receives. That context also gets the component's own
+  log, whole, or only its newest entries in force when the component's type
+  requires an entry for every change, with a count of the ones left out;
+  entries a later one replaced are left out of both, and a rule's own log is
+  never read for it. Nothing in that read writes a log, a lock or a verdict.
   A rule's log also records that the user admitted it as law over whole node
   types. Which types a rule reaches is read from the architecture (a type that
   lists it, or a rule such a type lists that implies it, at the status the
@@ -79,6 +83,8 @@ relations:
     type: calls
   - target: cli/core/pair-inputs
     type: calls
+  - target: cli/model/context-logs
+    type: uses
 mapping:
   - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/aspect-status.ts
@@ -91,3 +97,4 @@ mapping:
   - source/cli/src/core/log/log-gate.ts
   - source/cli/src/core/log/type-law.ts
   - source/cli/src/core/log/log-standing-scan.ts
+  - source/cli/src/core/log/context-logs.ts

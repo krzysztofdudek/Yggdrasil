@@ -70,6 +70,8 @@ set (including `0 files — vacuous` when a `scope.files` filter excludes everyt
 and a log-state line — whether a fresh log entry is required before `yg check
 --approve` and whether one is present.
 
+Both views also carry what was decided about the code, under headings of their own, before the log-state line. First the decisions in force for the subject's type and for every type above it along its parent chain, nearest type first — a decision recorded with `yg log add --type` holds for the whole subtree of types below it — each given in full. Then, for a subject a component owns, that component's own log: why it is the way it is. The node log is given whole, except on a node whose type sets `log_required`: that log grows with every change, so only its newest 10 entries are given, with a count of the ones left out and `yg log read --node <path> --all` to read them. An entry a later one replaced with `--supersedes` stays in its file as history and is never shown here, and a rule's own log (`yg log read --aspect`) never enters the context. A file governed by its type alone carries its type's decisions and no node log. A subject with no log gets neither heading. Reading the logs changes nothing: no entry is part of any pair's hash.
+
 The `--file` view may also end with a single advisory line when the file looks
 structurally unusual among its node's other same-language files — a hint to read
 it more carefully, never a rule and never blocking (the command still exits 0).
@@ -90,7 +92,7 @@ It is narrower than the text view rather than a parallel of it. The document has
 no field for the node's own source files, the per-aspect subject-file counts
 (including the `0 files — vacuous` case), the log-state line described just
 above, or the file view's dependency list: `--json --node` builds the document
-alone, without computing the mapped files or reading the lock. When you need the
+alone, without computing the mapped files or reading the lock (it does read the log files, for the log fields below). When you need the
 log gate's answer before `yg check --approve`, read the text `--node` view.
 
 The document names the subject, what its rules are anchored to (`owner`), the
@@ -141,6 +143,8 @@ with `reason: "excluded"` (and still exits 0) — so a consumer can tell an
 exemption from a coverage gap instead of guessing from an empty rule list. With `--json`,
 stdout carries that document and nothing else: the owner line is suppressed and
 the structural-attention sentence becomes an `attention` field.
+
+The logs described above arrive as two fields, each present only when it has something in it, so a document for a subject without logs is exactly what it was before 6.1.0. `typeDecisions` lists the subject's type and each type above it that has a decision in force, nearest first: the `type`, its `log` path, and its `entries` in force, oldest first, each with its `datetime` and its `body` verbatim (a replacing entry's body opens with its `### Supersedes:` lines). `nodeLog` is the owning component's log: the `node`, its `log` path, the `entries` given, `trimmed` (true when the node's type sets `log_required`, so only the newest 10 entries in force are given) and `omitted` (how many entries in force the trim left out). Either carries `unreadable` and no entries when its log file does not parse or still holds conflict markers: its `what`, `why` and `next`, the step that repairs the file.
 
 New fields may appear within `yg-context/1`; only a change to an existing
 field's shape takes a new schema number.

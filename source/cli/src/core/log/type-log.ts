@@ -252,17 +252,30 @@ export type TypeLogReadResult =
 
 /**
  * A type's log, every entry with its standing, oldest first. A type nobody has
- * written a decision for reads as no entries. A log whose format is broken is
- * refused rather than half-read.
+ * written a decision for reads as no entries. A log whose format is broken, or
+ * that still holds git conflict markers, is refused rather than half-read.
  */
 export async function readTypeLog(graph: Graph, typeId: string): Promise<TypeLogReadResult> {
   const refused = typeLogTargetRefusal(graph, typeId);
   if (refused !== null) return { ok: false, error: refused };
   const content = await readLogSafe(typeLogAbsPath(graph.rootPath, typeId));
   if (content === '') return { ok: true, entries: [] };
+  const logRel = typeLogRelPath(typeId);
+  if (logHasConflictMarkers(content)) {
+    // Both sides of a merge still sit in the file: which decisions hold cannot
+    // be told until they are reconciled, so none is given as in force.
+    return {
+      ok: false,
+      error: {
+        code: 'log-conflict',
+        what: `${logRel} still contains git conflict markers`,
+        why: 'A merge left both sides of the log in the file, so which decisions hold cannot be told until the two sides are reconciled.',
+        next: `yg log merge-resolve --type ${typeId}`,
+      },
+    };
+  }
   const violations = validateFormat(content);
   if (violations.length > 0) {
-    const logRel = typeLogRelPath(typeId);
     return {
       ok: false,
       error: {
@@ -281,8 +294,8 @@ export interface TypeDecisions {
   typeId: string;
   /** Its log's entries that no later entry replaced, oldest first. */
   entries: EntryStanding[];
-  /** Set when the log exists but cannot be read entry by entry (broken format). */
-  unreadable?: string;
+  /** Set when the log exists but cannot be read entry by entry (broken format or conflict markers): what is wrong, why, and the step that repairs it. */
+  unreadable?: { what: string; why: string; next: string };
 }
 
 /**
@@ -301,7 +314,7 @@ export async function typeDecisionCascade(graph: Graph, typeId: string): Promise
     if (!typeLogNameUsable(id)) continue;
     const read = await readTypeLog(graph, id);
     if (!read.ok) {
-      out.push({ typeId: id, entries: [], unreadable: read.error.what });
+      out.push({ typeId: id, entries: [], unreadable: { what: read.error.what, why: read.error.why, next: read.error.next } });
       continue;
     }
     const inForce = read.entries.filter((e) => e.supersededBy === undefined);

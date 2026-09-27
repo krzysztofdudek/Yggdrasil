@@ -39,6 +39,7 @@ import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
 import { computeLogGateState } from '../core/log/log-gate.js';
+import { collectContextLogs } from '../core/log/context-logs.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
 import type { ValidationIssue } from '../model/validation.js';
@@ -340,6 +341,44 @@ function buildNoOwnerContextJson(file: string, reason: 'unmapped' | 'excluded', 
   };
 }
 
+/** The logs one context carries, as `collectContextLogs` reads them. */
+type ContextLogsRead = Awaited<ReturnType<typeof collectContextLogs>>;
+
+/** Whether there is any log to show at all — a subject without one reads exactly as it did before logs were carried. */
+function hasLogs(logs: ContextLogsRead): boolean {
+  return logs.typeDecisions.length > 0 || logs.nodeLog !== undefined;
+}
+
+/**
+ * The machine form of the same logs the text view prints, folded into a
+ * context document as fields of their own. Each field is present only when it
+ * has something in it, so a document for a subject without logs is
+ * byte-identical to the one an older CLI wrote.
+ */
+function withJsonLogs(doc: ContextJsonDocument, logs: ContextLogsRead): ContextJsonDocument {
+  const out: ContextJsonDocument = { ...doc };
+  if (logs.typeDecisions.length > 0) {
+    out.typeDecisions = logs.typeDecisions.map((t) => ({
+      type: t.typeId,
+      log: t.logPath,
+      entries: t.entries.map((e) => ({ datetime: e.datetime, body: e.body })),
+      ...(t.unreadable !== undefined && { unreadable: t.unreadable }),
+    }));
+  }
+  const n = logs.nodeLog;
+  if (n !== undefined) {
+    out.nodeLog = {
+      node: n.nodePath,
+      log: n.logPath,
+      entries: n.entries.map((e) => ({ datetime: e.datetime, body: e.body })),
+      trimmed: n.trimmed,
+      omitted: n.omitted,
+      ...(n.unreadable !== undefined && { unreadable: n.unreadable }),
+    };
+  }
+  return out;
+}
+
 /**
  * Populate the node-view's read-only lock observability fields (spec §8):
  *   - aspectSubjects: per-aspect subject-file count (or unit count for per:file),
@@ -584,10 +623,14 @@ export function registerBuildCommand(program: Command): void {
                 }
                 const { data, block } = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
                 const attention = await attentionLineIfEnabled(graph, displayFile);
+                // A file with no component carries its type's decisions only:
+                // there is no node log to give.
+                const logs = await collectContextLogs(graph, { typeId: typeMatch.typeId });
                 if (asJson) {
-                  const doc = buildTypeCoveredContextJson(graph, displayFile, typeMatch.typeId, block, edges);
+                  const doc = withJsonLogs(buildTypeCoveredContextJson(graph, displayFile, typeMatch.typeId, block, edges), logs);
                   emitJson(attention !== undefined ? { ...doc, attention } : doc);
                 } else {
+                  if (hasLogs(logs)) data.logs = logs;
                   writeOut(formatFileContext(data));
                   if (attention !== undefined) writeOut(`\n${attention}\n`);
                 }
@@ -599,7 +642,7 @@ export function registerBuildCommand(program: Command): void {
             if (candidates.length > 0) {
               let candidatesList = '';
               for (const c of candidates) {
-                candidatesList += `  - ${c.nodePath} (${count(c.fileCount, 'file')} in same dir)\n`;
+                candidatesList += `  - ${toPosixPath(c.nodePath)} (${count(c.fileCount, 'file')} in same dir)\n`;
               }
               uncoveredWhy = `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`;
               fail({
@@ -624,8 +667,8 @@ export function registerBuildCommand(program: Command): void {
           // Suppressed under --json: stdout carries exactly one machine document
           // there, and a bare owner line ahead of it would make the stream
           // unparseable for the caller the flag exists for.
-          if (!asJson) writeOut(`${displayFile} -> ${result.nodePath}\n`);
-          nodePath = result.nodePath;
+          nodePath = toPosixPath(result.nodePath);
+          if (!asJson) writeOut(`${displayFile} -> ${nodePath}\n`);
           resolvedFilePath = toPosixPath(result.file);
         } else {
           nodePath = toPosixPath(options.node!.trim().replace(/\/$/, ''));
@@ -662,23 +705,28 @@ export function registerBuildCommand(program: Command): void {
           });
         }
 
+        // The owning component's log and its type's decisions in force, read
+        // once for whichever view is rendered below.
+        const logs = await collectContextLogs(graph, { nodePath });
         if (resolvedFilePath) {
           // Advisory structural-attention note. Default ON; the off-switch is
           // signals.attention: false (absent `signals` ⇒ ON). Read-only,
           // best-effort, non-blocking — yg context --file stays exit 0.
           const attention = await attentionLineIfEnabled(graph, resolvedFilePath);
           if (asJson) {
-            const doc = buildFileContextJson(graph, resolvedFilePath, nodePath);
+            const doc = withJsonLogs(buildFileContextJson(graph, resolvedFilePath, nodePath), logs);
             emitJson(attention !== undefined ? { ...doc, attention } : doc);
           } else {
             const data = buildFileContextData(graph, resolvedFilePath, nodePath);
+            if (hasLogs(logs)) data.logs = logs;
             writeOut(formatFileContext(data));
             if (attention !== undefined) writeOut(`\n${attention}\n`);
           }
         } else if (asJson) {
-          emitJson(buildNodeContextJson(graph, nodePath));
+          emitJson(withJsonLogs(buildNodeContextJson(graph, nodePath), logs));
         } else {
           const data = buildNodeContextData(graph, nodePath);
+          if (hasLogs(logs)) data.logs = logs;
           // Show the node's OWNED files — the child-precedence carve-out applied —
           // so `yg context` agrees with `yg owner` and with what the node's aspects
           // actually review: a file claimed by a descendant node is NOT listed here.

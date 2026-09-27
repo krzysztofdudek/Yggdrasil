@@ -16,6 +16,8 @@ export interface NodeContextData {
   aspectSubjects?: Record<string, NodeAspectSubjects>;
   /** Read-only log-gate state (spec §8/§9). */
   logState?: NodeLogState;
+  /** The decisions in force for the node's type and the types above it, and the node's own log. */
+  logs?: ContextLogs;
   /**
    * Reviewed-seam override of the built-in high-fan-out ceiling, when declared on
    * this node. Surfaces both the raised number and its recorded justification so
@@ -72,6 +74,8 @@ export interface NodeContextDep {
 
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
+import { formatContextLogs } from './context-logs.js';
+import type { ContextLogs } from '../model/context-logs.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 import { count } from '../utils/count.js';
@@ -228,6 +232,10 @@ export function formatNodeContext(data: NodeContextData): string {
     }
     lines.push('');
   }
+
+  // Area decisions and the node's own WHY, right before the log-gate line that
+  // says whether this change owes the node log another entry.
+  if (data.logs) lines.push(...formatContextLogs(data.logs));
 
   // Log-gate state (spec §8/§9) — read-only, computed from the fingerprint+lock.
   if (data.logState) {

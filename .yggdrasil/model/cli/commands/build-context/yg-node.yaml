@@ -38,7 +38,13 @@ description: "Assembles and outputs a context package for a node via yg
   governed by its type alone, a file nothing governs, and a path excluded from
   coverage by design; stdout then carries that document ALONE (the owner line
   and the structural-attention sentence are folded in or suppressed), while
-  every guided error and every exit code stays exactly what it was."
+  every guided error and every exit code stays exactly what it was. Every
+  view also carries the logs of what it describes: the decisions in force for
+  the governing type and each type above it, and, when a component owns the
+  subject, that component's own log, read once per invocation from the log
+  engine and folded into the text view as its own block and into the machine
+  document as two optional fields that are left out when empty, so a document
+  for a subject without logs is exactly what an older CLI wrote."
 aspects:
   - what-why-next
 max_direct_relations:

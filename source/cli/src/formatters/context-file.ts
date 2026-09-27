@@ -1,5 +1,7 @@
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
+import { formatContextLogs } from './context-logs.js';
+import type { ContextLogs } from '../model/context-logs.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -26,6 +28,11 @@ export interface FileContextData {
    * what the type attaches: what runs and what does not, with the reason.
    */
   typeCoverage?: FileTypeCoverageView;
+  /**
+   * The decisions in force for the governing type and the types above it, and
+   * — for a file a component owns — that component's own log.
+   */
+  logs?: ContextLogs;
 }
 
 export interface FileTypeCoverageView {
@@ -110,6 +117,7 @@ export function formatFileContext(data: FileContextData): string {
       }
       lines.push('');
     }
+    if (data.logs) lines.push(...formatContextLogs(data.logs, '  '));
     lines.push(`  ${DERIVED_RELATIONS_NOTE}`);
     lines.push('');
     lines.push(`  ${GRADUATION_NEXT}`);
@@ -185,6 +193,8 @@ export function formatFileContext(data: FileContextData): string {
     lines.push(`next: yg impact --file ${posixPath(data.filePath)}`);
     lines.push('');
   }
+
+  if (data.logs) lines.push(...formatContextLogs(data.logs));
 
   // Back-pointer
   lines.push(`then: yg context --node ${posixPath(data.ownerPath!)}  (the owning node's whole context)`);

@@ -181,12 +181,6 @@
       "exports": [
         "src/utils/file-schema.ts#fieldRows"
       ]
-    },
-    {
-      "reason": "The reader yg context calls to carry a node type's decisions, and those of the types above it, into a node's context (issue 432 wires it). It is written with the type log it reads so the cascade rule lives in one place; until the context reads it, its unit test (tests/unit/core/type-decision-cascade.test.ts) is its only reader.",
-      "exports": [
-        "src/core/log/type-log.ts#typeDecisionCascade"
-      ]
     }
   ]
 }
