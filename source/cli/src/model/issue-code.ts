@@ -203,6 +203,7 @@ export type CheckCode =
   | 'log-format'
   | 'log-conflict'
   | 'type-log-orphaned'
+  | 'type-law-unratified'
   // Committed artifacts outside the graph.
   | 'rules-digest-stale'
   | 'incident-ledger-out-of-order';
@@ -247,6 +248,8 @@ export type CommandErrorCode =
   | 'aspect-status-not-standing'
   | 'aspect-status-evidence-missing'
   | 'aspect-status-unchanged'
+  | 'aspect-ratify-no-type'
+  | 'aspect-ratify-by-missing'
   | PackageCode;
 
 /**

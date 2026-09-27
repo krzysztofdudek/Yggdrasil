@@ -768,8 +768,11 @@ describe.skipIf(!distExists)('universal install (E1-E9, E12) + committed-digest 
       expect(res.stdout).toContain('  excluded:');
       expect(res.stdout).toContain('    - AGENTS.md');
       expect(res.stdout).toContain('    - .gitattributes');
-      // Reports only — the user's configuration is never edited for them.
-      expect(readFileSync(configPath, 'utf-8')).toBe(wholeTree);
+      // Reports only — the coverage settings are never edited for them. (The one
+      // block an upgrade adds is type_law, which takes up ratification once.)
+      const after = readFileSync(configPath, 'utf-8');
+      expect(after).toMatch(/\ntype_law:\n {2}ratification: true\n/);
+      expect(after.replace(/(?:#[^\n]*\n)*type_law:\n {2}ratification: true\n/, '')).toBe(wholeTree);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

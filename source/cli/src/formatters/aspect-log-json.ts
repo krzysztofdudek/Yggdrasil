@@ -28,6 +28,20 @@ export interface AspectLogJsonStatus {
   to: string;
 }
 
+/**
+ * What a ratification entry admitted: the rule, at one version, on these node
+ * types, by this person. Present only on an entry that opens with the fixed
+ * ratification line.
+ */
+export interface AspectLogJsonRatification {
+  /** The node types the admission covers. */
+  types: string[];
+  /** The rule version admitted — a fingerprint of what the rule demanded then. */
+  version: string;
+  /** Who admitted it, as the entry names them. */
+  by: string;
+}
+
 /** One entry of a rule's history, newest first in the document. */
 export interface AspectLogJsonEntry {
   /** ISO 8601 UTC timestamp — the entry header, verbatim. */
@@ -36,6 +50,8 @@ export interface AspectLogJsonEntry {
   body: string;
   /** Present only on an entry that recorded a change of standing. */
   status?: AspectLogJsonStatus;
+  /** Present only on an entry that recorded the user admitting the rule on the node types it reaches. */
+  ratified?: AspectLogJsonRatification;
   /** Present when the entry replaces earlier entries of the rule's log: their datetimes. */
   supersedes?: string[];
   /** Present when a later entry replaced this one: that entry's datetime. */

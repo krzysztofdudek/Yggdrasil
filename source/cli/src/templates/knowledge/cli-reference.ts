@@ -1027,15 +1027,25 @@ SAME entry composer and guards (an empty reason refused, a body carrying its own
 \`## \` header or an unclosed fence refused, timestamps that only move forward,
 \`--supersedes\`). What differs: a rule read shows the WHOLE history by default
 (\`--top <n>\` or \`--all\`), \`--json\` prints \`yg-aspect-log/1\`, and only a
-rule's log takes \`--status\` / \`--evidence\` / \`--by\` (\`usage\` elsewhere). A
+rule's log takes \`--status\` / \`--evidence\` / \`--by\` and \`--ratify\` (\`usage\` elsewhere). A
 rule's log has no merge baseline and no \`--with-verdicts\`.
 
 \`\`\`bash
 yg log add --aspect <id> --reason "<why the rule exists / what changed>"
 yg log add --aspect <id> --status <draft|advisory|enforced> \\
   --evidence "<what justified it>" --by "<who decided>" --reason "<why>"
+yg log add --aspect <id> --ratify --by "<who admitted it>" --reason "<what was admitted>"
 yg log read --aspect <id> [--top <n> | --all] [--json]
 \`\`\`
+
+\`--ratify\` records that the USER admitted the rule as law over every node
+type it reaches; the types and the rule's version are read from the graph, and
+the entry opens with \`Ratified for type <t>: rule version <v>, admitted by
+<who>.\` It is refused without \`--by\` (\`aspect-ratify-by-missing\`) and for a
+rule no type reaches (\`aspect-ratify-no-type\`). It changes no status and
+re-opens no verdict; \`yg check\` stops reporting \`type-law-unratified\` for
+that version on those types. Record one only on the user's word
+(\`yg knowledge read aspect-status\`, "Type law").
 
 \`--status\` RECORDS a status change; it does NOT make one. The rule's file
 stays the user's to edit, so a status the file does not already carry is

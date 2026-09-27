@@ -1,6 +1,7 @@
 name: InitCommand
 type: command
-description: Bootstraps Yggdrasil graph structure in a project or refreshes
+description: >-
+  Bootstraps Yggdrasil graph structure in a project or refreshes
   the universal agent rules (AGENTS.md digest + CLAUDE.md import +
   .clinerules) via yg init. Reviewer setup is optional — --no-reviewer (and
   the wizard's "None for now") bootstraps keyless, and the same keyless path
@@ -13,11 +14,19 @@ description: Bootstraps Yggdrasil graph structure in a project or refreshes
   identically for every agent. A fresh bootstrap turns coverage.type_level on
   by default and, since the fresh architecture template starts with no
   classifying types, prints the same zero-classifying-types notice yg check
-  shows for that state.
+  shows for that state. An upgrade also takes up type-law ratification once:
+  when the committed configuration says nothing about it, every rule standing
+  enforced on a node type is recorded in its own log as the law the graph
+  already had, and only then is the requirement turned on, so an upgrade never
+  turns a build red over law nobody changed; a configuration that already says
+  on or off is the owner's answer and is left alone. A fresh bootstrap starts
+  with the requirement on.
 aspects:
   - reviewer-secrets-not-from-flags
 relations:
   - target: cli/output
+    type: calls
+  - target: cli/core/log
     type: calls
   - target: cli/templates
     type: calls

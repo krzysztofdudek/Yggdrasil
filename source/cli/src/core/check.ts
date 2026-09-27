@@ -77,6 +77,7 @@ import { forceInScopeOnByteMismatch, keptByByteGuard } from './progressive-scope
 import { collectFindingByteGuardCandidates } from './check-byte-guard.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
+import { classifyTypeLaw } from './check-type-law.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
 // ── Relation-conformance (computed live, parse + resolve every run) ──
 import { runProjectRelationPass } from '../relations/pass.js';
@@ -340,6 +341,11 @@ export async function runCheck(
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];
 
+  // 1c'. Law on a node type nobody admitted: a rule standing enforced on a type
+  // without a ratification of its current version in its own log. Read-only;
+  // a blocking error, and only where the committed type_law.ratification is on.
+  const typeLawIssues = await classifyTypeLaw(graph);
+
   // 1d. A `yg-suppress` marker with no reason waives nothing, and nothing else
   // notices it until a violation lands in its range and the fill rejects the
   // marker. Warned here, where every surface that reports a check — the
@@ -438,6 +444,7 @@ export async function runCheck(
     ...validationIssues,
     ...reviewOverdueIssues,
     ...digestGateIssues,
+    ...typeLawIssues,
     ...coverageIssues,
     ...reasonlessMarkerIssues,
   ];

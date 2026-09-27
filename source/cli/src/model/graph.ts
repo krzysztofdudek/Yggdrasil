@@ -145,6 +145,17 @@ export interface YggConfig {
    */
   progressive?: { reference: string };
   /**
+   * Type-law ratification. `ratification: true` makes a rule that stands
+   * enforced on a node type without a ratification of its current version a
+   * blocking `type-law-unratified` error; absent or false, no ratification is
+   * asked for. `yg init` writes it on for a new project, and `yg init --upgrade`
+   * turns it on once, after recording the law the graph already had.
+   *
+   * COMMITTED-ONLY, like `progressive`: whether law must be admitted is a
+   * decision the whole team shares, so a gitignored overlay cannot switch it.
+   */
+  typeLaw?: { ratification: boolean };
+  /**
    * The reviewer settings the COMMITTED yg-config.yaml itself states, read
    * before the gitignored yg-secrets.yaml overlay is merged: which tiers carry
    * a `config.api_key` there. `yg check` warns about a committed credential by it

@@ -314,6 +314,42 @@ export async function writeRulesArtifactsConfig(
   await writeFile(configPath, doc.toString(), 'utf-8');
 }
 
+/**
+ * Whether the committed `.yggdrasil/yg-config.yaml` already says anything
+ * about type-law ratification — on or off. Either answer is the owner's, and an
+ * upgrade leaves it alone.
+ */
+export async function typeLawSettingPresent(yggRoot: string): Promise<boolean> {
+  const doc = parseDocument(await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8'));
+  return doc.has('type_law');
+}
+
+/**
+ * Turn type-law ratification on in the committed configuration, with a comment
+ * saying what it does. Edits the YAML document, like the writers above, so
+ * every comment the owner kept survives.
+ *
+ * The block goes right after `version:`, not at the end: the last block of a
+ * configuration is usually the reviewer's, and a key someone later appends to
+ * the end of the file (a tier's setting) must still land where it was meant to.
+ */
+export async function writeTypeLawOn(yggRoot: string): Promise<void> {
+  const configPath = path.join(yggRoot, 'yg-config.yaml');
+  const doc = parseDocument(await readFile(configPath, 'utf-8'));
+  if (!isMap(doc.contents)) {
+    doc.setIn(['type_law', 'ratification'], true);
+  } else {
+    const pair = doc.createPair('type_law', { ratification: true });
+    if (isScalar(pair.key)) {
+      pair.key.commentBefore = ' A rule standing enforced on a node type needs a ratification of its current\n version in its own log (yg log add --aspect <id> --ratify); without one it\n is a blocking type-law-unratified finding. false asks for no ratification.';
+    }
+    const items = doc.contents.items;
+    const afterVersion = items.findIndex((i) => isScalar(i.key) && i.key.value === 'version') + 1;
+    items.splice(afterVersion, 0, pair as (typeof items)[number]);
+  }
+  await writeFile(configPath, doc.toString(), 'utf-8');
+}
+
 // ---------------------------------------------------------------------------
 // Retired keys — removed by `yg init --upgrade`
 // ---------------------------------------------------------------------------

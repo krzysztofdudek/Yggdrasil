@@ -18,6 +18,7 @@ import {
   type AspectLogJsonDocument,
   type AspectLogJsonEntry,
 } from '../formatters/aspect-log-json.js';
+import { parseRatification, ratificationLine, ruleVersion, typeLawReach } from '../core/log/type-law.js';
 import type { AspectDef, Graph } from '../model/graph.js';
 import { aspectNotFound, failAndExit, writeOut } from './output.js';
 
@@ -55,6 +56,8 @@ interface AspectStatusOpts {
   status?: string;
   evidence?: string;
   by?: string;
+  /** Record that the user admitted the rule, as it stands now, on the node types it reaches. */
+  ratify?: boolean;
 }
 
 /** Append an entry to a rule's log; with --status, one that records its change of standing. */
@@ -65,9 +68,11 @@ export async function addAspectLogEntry(
   opts: AspectStatusOpts & { supersedes?: string[]; nowMs: number },
 ): Promise<void> {
   const aspect = resolveAspect(graph, aspectId);
-  const body = opts.status === undefined
-    ? reasonText
-    : `${await statusPrefixFor(graph, aspect, opts)}\n\n${reasonText}`;
+  const opening = [
+    ...(opts.ratify === true ? [ratificationPrefixFor(graph, aspect, opts.by)] : []),
+    ...(opts.status !== undefined ? [await statusPrefixFor(graph, aspect, opts)] : []),
+  ];
+  const body = opening.length === 0 ? reasonText : `${opening.join('\n')}\n\n${reasonText}`;
 
   const result = await appendAspectLogEntry({
     yggRootPath: graph.rootPath,
@@ -169,6 +174,35 @@ async function statusPrefixFor(graph: Graph, aspect: AspectDef, opts: AspectStat
 }
 
 /**
+ * The opening line of a ratification — after checking there is type law to
+ * admit and someone named who admitted it.
+ *
+ * The types and the version are read from the graph, never from a flag: the
+ * entry admits exactly what stands now, so a caller cannot admit a version it
+ * has not seen or a type the rule does not reach. Every type the rule reaches
+ * is covered, advisory ones included — admitting a rule while it runs as advice
+ * is what lets it be hardened to enforced afterwards without asking again.
+ */
+function ratificationPrefixFor(graph: Graph, aspect: AspectDef, by: string | undefined): string {
+  const types = [...(typeLawReach(graph).get(aspect.id)?.keys() ?? [])].sort();
+  if (types.length === 0) {
+    failAndExit({
+      what: `Rule '${aspect.id}' reaches no node type — no type lists it or implies it — so there is no type law to admit.`,
+      why: 'A ratification records that the user admitted a rule on every file of the node types it reaches. Law raised on one component is the agent\'s own and needs none.',
+      next: `Record the note without --ratify: yg log add --aspect ${aspect.id} --reason '<why>'.`,
+    }, 'aspect-ratify-no-type');
+  }
+  if (by === undefined || by.trim() === '') {
+    failAndExit({
+      what: 'A ratification was recorded without naming who admitted the rule.',
+      why: 'A ratification is the record of a person\'s consent to law over every file of a type; without a name it is an agent vouching for itself.',
+      next: `Re-run with --by '<who admitted it>', e.g. yg log add --aspect ${aspect.id} --ratify --by 'Jane Doe' --reason '<what was admitted>'.`,
+    }, 'aspect-ratify-by-missing');
+  }
+  return ratificationLine({ types, version: ruleVersion(aspect), by: by.trim() });
+}
+
+/**
  * Where the rule stood before this entry.
  *
  * Three sources, in order of how much they know: what the rule's own history
@@ -209,6 +243,8 @@ function buildDocument(aspect: AspectDef, entries: readonly AspectLogEntry[]): A
     const status = parseStatusEntry(entry.body);
     const item: AspectLogJsonEntry = { at: entry.datetime, body: entry.body };
     if (status !== null) item.status = status;
+    const ratified = parseRatification(entry.body);
+    if (ratified !== null) item.ratified = ratified;
     if (entry.supersedes.length > 0) item.supersedes = entry.supersedes;
     if (entry.supersededBy !== undefined) item.supersededBy = entry.supersededBy;
     return item;

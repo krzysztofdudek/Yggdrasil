@@ -41,8 +41,11 @@ import {
   writeRulesArtifactsConfig,
   stripRetiredKeys,
   type RetiredKeysResult,
+  typeLawSettingPresent,
+  writeTypeLawOn,
 } from './init-scaffold.js';
 import { next, thenStep, paint, writeOut, failAndExit } from './output.js';
+import { grandfatherTypeLaw } from '../core/log/type-law.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
@@ -493,6 +496,13 @@ export interface VersionUpgradeResult {
   /** True when a migration withheld the version bump (incomplete upgrade). */
   withheld: boolean;
   /**
+   * What this run did about type-law ratification: null when the committed
+   * configuration already says (on or off), which is the owner's answer and is
+   * left alone; otherwise the rules it recorded as the law the graph had, and
+   * whether it could turn the requirement on.
+   */
+  typeLaw: TypeLawTakeUp | null;
+  /**
    * Repo-plumbing files this command maintains that the project's own coverage
    * settings will now report as blocking unmapped-file errors. Empty in the
    * ordinary case; non-empty only for a project that requires its whole tree
@@ -507,6 +517,84 @@ export interface VersionUpgradeResult {
    * Null otherwise: nothing new for this run to say about exclusion.
    */
   exclusionNotice: string | null;
+}
+
+/** One upgrade's taking up of type-law ratification (see takeUpTypeLaw). */
+export interface TypeLawTakeUp {
+  /** Rules recorded as ratified because they already stood enforced on a type, with those types. */
+  recorded: Array<{ aspectId: string; types: string[] }>;
+  /** Rules whose log refused the entry, with the reason. */
+  failed: Array<{ aspectId: string; reason: string }>;
+  /** True when type_law.ratification: true was written. */
+  armed: boolean;
+  /** Why nothing was done, when the graph could not be read. */
+  skipped?: string;
+}
+
+/**
+ * Take up type-law ratification, once: record every rule standing enforced on a
+ * node type without a ratification as the law the graph already had, then turn
+ * the requirement on in the committed configuration.
+ *
+ * Once, by construction: the configuration key is the marker. A graph whose
+ * configuration already says anything about it — on, or deliberately off — is
+ * left alone, so re-running the upgrade can never record a rule written since
+ * as admitted. The requirement is turned on only when every such rule was
+ * recorded; a rule whose log refused the entry would otherwise turn the build
+ * red on a rule nobody changed.
+ */
+async function takeUpTypeLaw(projectRoot: string, yggRoot: string): Promise<TypeLawTakeUp | null> {
+  try {
+    if (await typeLawSettingPresent(yggRoot)) return null;
+  } catch (e: unknown) {
+    debugWrite(`[init] type-law setting unreadable: ${e instanceof Error ? e.message : String(e)}`);
+    return { recorded: [], failed: [], armed: false, skipped: 'yg-config.yaml could not be read' };
+  }
+  let graph;
+  try {
+    graph = await loadGraph(projectRoot);
+  } catch (e: unknown) {
+    const reason = e instanceof Error ? e.message.split('\n')[0] : String(e);
+    debugWrite(`[init] type-law take-up skipped, graph did not load: ${reason}`);
+    return { recorded: [], failed: [], armed: false, skipped: `the graph did not load (${reason})` };
+  }
+  if (graph.configError !== undefined || graph.architectureError !== undefined) {
+    return { recorded: [], failed: [], armed: false, skipped: 'the configuration or the architecture did not load as written' };
+  }
+  const { recorded, failed } = await grandfatherTypeLaw(graph, Date.now());
+  if (failed.length > 0) return { recorded, failed, armed: false };
+  await writeTypeLawOn(yggRoot);
+  return { recorded, failed, armed: true };
+}
+
+/** What an upgrade says about taking up type-law ratification, or null when it did nothing. */
+function renderTypeLawTakeUp(t: TypeLawTakeUp | null): string | null {
+  if (t === null) return null;
+  if (t.skipped !== undefined) {
+    return buildIssueMessage({
+      what: `Type-law ratification was not taken up: ${t.skipped}.`,
+      why: 'Taking it up records the rules standing enforced on a node type as the law this graph had, which needs the graph as it stands.',
+      next: 'Fix what yg check reports, then run yg init --upgrade again.',
+    });
+  }
+  const lines: string[] = [];
+  if (t.recorded.length > 0) {
+    lines.push(`Recorded ${t.recorded.length === 1 ? 'one rule' : `${t.recorded.length} rules`} standing enforced on a node type as the law this graph had, in each rule's own log:`);
+    for (const r of t.recorded) {
+      const types = r.types.length > 4 ? `${r.types.slice(0, 3).join(', ')} and ${r.types.length - 3} more types` : r.types.join(', ');
+      lines.push(`  ${r.aspectId}  (${types})`);
+    }
+  }
+  if (t.armed) {
+    lines.push('Type-law ratification is on (type_law.ratification: true in .yggdrasil/yg-config.yaml): a rule enforced on a node type from now on needs the user\'s ratification — yg log add --aspect <id> --ratify --by \'<who>\' — or it blocks. Review and commit the entries and the setting.');
+    return lines.join('\n');
+  }
+  lines.push(buildIssueMessage({
+    what: `Type-law ratification was not turned on: the log of ${t.failed.map((f) => `'${f.aspectId}'`).join(', ')} refused the entry (${t.failed[0].reason}).`,
+    why: 'Turning it on with a rule left unrecorded would make yg check block on law nobody changed.',
+    next: 'Fix the rule\'s log.md, then run yg init --upgrade again; the rules already recorded are not recorded twice.',
+  }));
+  return lines.join('\n');
 }
 
 /**
@@ -686,7 +774,12 @@ export async function runVersionUpgrade(
   // the scan names only what is the owner's to correct.
   const retiredKeys = await stripRetiredKeys(projectRoot, yggRoot);
 
+  // After the migrations and the key clean-up, so the graph it reads is the one
+  // the upgrade leaves behind.
+  const typeLaw = await takeUpTypeLaw(projectRoot, yggRoot);
+
   return {
+    typeLaw,
     retiredKeys,
     unknownConfigKeys: await readUnknownConfigKeys(yggRoot),
     rulesPaths: report.written,
@@ -795,6 +888,8 @@ async function existingInit(projectRoot: string): Promise<void> {
     for (const unknown of result.unknownConfigKeys) {
       p.log.warning(buildIssueMessage(unknown));
     }
+    const typeLawText = renderTypeLawTakeUp(result.typeLaw);
+    if (typeLawText !== null) p.log.info(typeLawText);
 
     const landedVersion = (await detectVersion(yggRoot)) ?? currentVersion;
     p.log.info(next('yg check  (verify the graph)'));
@@ -826,6 +921,8 @@ async function existingInit(projectRoot: string): Promise<void> {
       if (result.exclusionNotice) {
         p.log.warning(result.exclusionNotice);
       }
+      const typeLawText = renderTypeLawTakeUp(result.typeLaw);
+      if (typeLawText !== null) p.log.info(typeLawText);
       p.outro(paint.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })));
       break;
     }
@@ -971,6 +1068,8 @@ export function registerInitCommand(program: Command): void {
             writeOut(paint.yellow(`${result.exclusionNotice}\n`));
           }
           if (result.retiredKeys.removed.length + result.retiredKeys.untouched.length > 0) writeOut(`${renderRetiredKeysRemoved(result.retiredKeys)}\n`);
+          const typeLawText = renderTypeLawTakeUp(result.typeLaw);
+          if (typeLawText !== null) writeOut(`${typeLawText}\n`);
           for (const unknown of result.unknownConfigKeys) {
             writeOut(paint.yellow(`${buildIssueMessage(unknown)}\n`));
           }

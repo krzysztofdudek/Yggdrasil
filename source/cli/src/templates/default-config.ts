@@ -26,6 +26,15 @@ debug: false
 
 auto_approve: false
 
+# Law that reaches a whole node type is admitted by you, not by the agent that
+# wrote it. With ratification on, a rule standing enforced on a node type needs
+# a ratification of its current version in its own log — recorded with
+# \`yg log add --aspect <id> --ratify --by '<who>'\` — or yg check blocks on it
+# (type-law-unratified). Until you admit it, keep such a rule at status:
+# advisory. false asks for no ratification.
+type_law:
+  ratification: true
+
 # Which agent-rules files this project carries — all three unless you say
 # otherwise, and the rules are identical in each: the AGENTS.md digest block
 # (agents_md), the @AGENTS.md import line in CLAUDE.md (claude_md, needs

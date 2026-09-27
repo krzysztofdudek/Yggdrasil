@@ -57,6 +57,8 @@ Every aspect has a status that controls how its results show up. You move a rule
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 
+A rule on a node type governs every file of that type, so it is the user who admits it: it runs `advisory` until they do, and `yg log add --aspect <id> --ratify --by '<who>'` records their admission — see [Law on a node type](/aspect-status#type-law).
+
 ## A rule keeps its own history
 
 Beside the rule's files sits `log.md` — the same log a component has, for the same

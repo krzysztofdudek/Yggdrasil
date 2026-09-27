@@ -52,3 +52,5 @@ The scaffolded configuration a fresh project starts from now explains, in the fi
 The installed agent-rules digest changed wording to match the Glossary (the reviewer and local scripts verify a change, every rule honors suppressions), so its hash moved and the installed copies here were refreshed with yg init --upgrade to keep them from reading as stale.
 ## [2026-09-27T07:39:28.132Z]
 The starter architecture comment names root as the parents entry that allows the top level, so a new project learns the rule where it declares parents.
+## [2026-09-27T19:32:15.098Z]
+A new project's configuration starts with type-law ratification on, with a comment saying what it does, so a fresh graph never needs the one-time upgrade that records existing law and never has law on a type nobody admitted.

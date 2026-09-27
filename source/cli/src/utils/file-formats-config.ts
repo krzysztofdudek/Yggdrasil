@@ -88,6 +88,13 @@ export const CONFIG_PROGRESSIVE: ObjectType = {
   },
 };
 
+const CONFIG_TYPE_LAW: ObjectType = {
+  kind: 'object',
+  fields: {
+    ratification: { type: { kind: 'boolean' }, description: 'A rule enforced on a node type must carry a ratification of its current version in its own log, or type-law-unratified blocks; false or absent asks for none. Read from the committed file only.', default: 'false' },
+  },
+};
+
 const CONFIG_RULES_ARTIFACTS: ObjectType = {
   kind: 'object',
   fields: {
@@ -117,6 +124,7 @@ export const CONFIG_ROOT: ObjectType = {
     coverage: { type: CONFIG_COVERAGE, description: 'Which files must be mapped to a node.' },
     progressive: { type: CONFIG_PROGRESSIVE, description: 'Progressive mode: block only on what a change reaches. Absent means off.' },
     rules_artifacts: { type: CONFIG_RULES_ARTIFACTS, description: 'Which agent-rules artifacts are written and kept in sync. Read from the committed file only.' },
+    type_law: { type: CONFIG_TYPE_LAW, description: 'Whether law that reaches a whole node type must be admitted before it blocks. Read from the committed file only.' },
   },
 };
 

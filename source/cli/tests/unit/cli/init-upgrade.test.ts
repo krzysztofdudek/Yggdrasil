@@ -298,11 +298,12 @@ describe('runVersionUpgrade', () => {
     // there is no version-lift fallback involved here. On a project with no
     // lock file and no node YAML the migration has nothing to strip or warn
     // about, so it reports zero actions and zero warnings, but the runner
-    // still advances the version to its target. The config diff is still
-    // version-line only.
+    // still advances the version to its target. Besides the version line, the
+    // one block the upgrade adds is type_law, which takes up ratification once.
     expect(after).not.toContain('5.1.0');
     expect(after).toContain('6.0.0');
-    expect(after.replace(/^version:.*$/m, 'version: PLACEHOLDER')).toBe(
+    expect(result.typeLaw).toEqual({ recorded: [], failed: [], armed: true });
+    expect(after.replace(/(?:#[^\n]*\n)*type_law:\n {2}ratification: true\n/, '').replace(/^version:.*$/m, 'version: PLACEHOLDER')).toBe(
       before.replace(/^version:.*$/m, 'version: PLACEHOLDER'),
     );
     expect(result.migrationActions).toHaveLength(0);

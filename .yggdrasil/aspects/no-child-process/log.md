@@ -1,2 +1,6 @@
 ## [2026-09-23T20:10:36.851Z]
 The engine and utility type contracts promised no I/O while utility's git helpers and reviewer-binary probe start child processes, one of them cloning a remote over the network, and an engine module drives git through them and rewrites the lock through the store. Rather than move working code, the contracts were rewritten to say what is actually allowed: the engine reaches the file system only through the persistence layer and git only through utility's process adapters, utility is pure except those adapters, and the persistence layer is the fs home for the layers barred from fs, not for the whole codebase. This rule gives the rewritten contract teeth: nothing in engine or utility except the named process adapters may import the child-process module, so the set of places that spawn a program stays short and named.
+## [2026-09-27T19:43:06.144Z]
+Ratified for types engine, utility: rule version 8606039c76e24c38, admitted by the graph as it stood when it took up type-law ratification (yg init --upgrade).
+
+This rule already stood enforced on these types before this graph asked for type law to be admitted. The upgrade records it as the law the graph had, so it keeps blocking; nobody re-decided it now. A later change to the rule needs a ratification of its own.
