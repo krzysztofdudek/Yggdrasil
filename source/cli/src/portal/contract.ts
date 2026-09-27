@@ -614,8 +614,9 @@ export interface PortalResidue {
 /**
  * One entry in the structure panel's "tunnels" list — a structural dependency ranked by how far
  * it reaches across the component hierarchy. `span` is the number of hierarchy hops the edge
- * traverses (0 for an edge between siblings' shared parent, larger for edges that reach across
- * distant subtrees). `viaContract` is true when a declared port contract backs the edge; `origin`
+ * traverses (an edge between siblings spans 2 and is not listed — it crosses one boundary; larger
+ * spans reach across distant subtrees). `viaContract` is true when a relation between the two names a
+ * port other than the implicit `default` one (the panel says "through a named port"); `origin`
  * records whether the pair is declared-only, statically-detected-only, or both. Plain data only —
  * the frontend renders `span` in words ("spans N levels across the tree"), never as jargon.
  */

@@ -55,11 +55,15 @@
     stage.appendChild(unk);
   }
 
-  function renderTunnels(stage, tunnels) {
+  function renderTunnels(stage, tunnels, edgeCount) {
     var sect = dom.el('section', 'str-sect str-tunnels');
     sect.appendChild(dom.el('h3', 'str-h', 'Tunnels — the dependencies that reach farthest across the tree'));
     if (!tunnels.length) {
-      sect.appendChild(dom.el('p', 'str-empty', 'No structural dependencies between components yet.'));
+      // An edge between siblings crosses one boundary and is no tunnel (graph-metrics isSiblingEdge),
+      // so an empty list with edges present says that, as `yg structure` does.
+      sect.appendChild(dom.el('p', 'str-empty', edgeCount > 0
+        ? 'None — no dependency reaches past a sibling.'
+        : 'No structural dependencies between components yet.'));
       stage.appendChild(sect);
       return;
     }
@@ -68,7 +72,7 @@
       var t = tunnels[i];
       var row = dom.el('div', 'str-tunnel');
       row.appendChild(dom.el('span', 'str-edge mono', t.from + ' → ' + t.to));
-      var contract = t.viaContract ? 'via a declared contract' : 'no declared contract';
+      var contract = t.viaContract ? 'through a named port' : 'no named port';
       row.appendChild(dom.el('span', 'str-span', 'spans ' + levels(t.span) + ' across the tree · ' + contract));
       list.appendChild(row);
     }
@@ -176,7 +180,7 @@
         structure.edgeCount + ' structural dependencies across ' + structure.nodeCount + ' components.',
       ),
     );
-    renderTunnels(stage, structure.tunnels || []);
+    renderTunnels(stage, structure.tunnels || [], structure.edgeCount || 0);
     renderModules(stage, structure.layers || []);
     renderReach(stage, structure);
   };
