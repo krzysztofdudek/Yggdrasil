@@ -138,6 +138,6 @@ export function typeGateForbiddenMessage(finding: TypeGateFinding): IssueMessage
   return {
     what: `${finding.edges.length} import${finding.edges.length === 1 ? '' : 's'} from type '${finding.fromType}' to type '${finding.toType}' — no relation type is allowed between them that sanctions an import (only uses, calls, extends and implements do):\n${sampleText}${rest > 0 ? `\n... and ${rest} more` : ''}`,
     why: `The architecture's relation allow-list governs every dependency between classified files, not just ones an explicit node declared — an unsanctioned import erodes the same boundary a declared relation protects.`,
-    next: `Cheapest first:\n1. Allow it: add a relations entry for '${finding.fromType}' -> '${finding.toType}' in yg-architecture.yaml (clears this whole group).\n2. Graduate the target: create an explicit node for the imported code with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n3. Remove the dependency.`,
+    next: `Cheapest first:\n1. Allow it: add '${finding.toType}' under a structural relation type (uses, calls, extends or implements) of '${finding.fromType}' in yg-architecture.yaml — an emits/listens entry does not count (clears this whole group).\n2. Graduate the target: create an explicit node for the imported code with a curated relation (restores declared-edge semantics; run yg impact --type ${finding.toType} to preview the cost).\n3. Remove the dependency.`,
   };
 }

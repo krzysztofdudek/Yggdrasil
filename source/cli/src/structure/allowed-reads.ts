@@ -154,13 +154,18 @@ export interface ArchitectureReachInput {
 /**
  * The files a rule running on one file — with no component of its own — may
  * read. The subject file itself, plus every file whose TRUE OWNER's type the
- * subject's type is permitted to depend on under the architecture's relation
- * allow-list — whether that owner is a declared component or the file is
- * itself enforced by its type alone. There is no per-component narrowing to
- * apply here (there is no component), so the architecture's allow-list is the
- * ONLY statement of what may reach what — the SAME authority
- * {@link allowedRelationTypes} gives the live type-relation gate over derived
- * edges.
+ * subject's type may relate to under the architecture's relation allow-list —
+ * whether that owner is a declared component or the file is itself enforced
+ * by its type alone. There is no per-component narrowing to apply here (there
+ * is no component), so the architecture's allow-list is the ONLY statement of
+ * what may reach what, read through {@link allowedRelationTypes}.
+ *
+ * This is READ reach, not the import gate, and deliberately wider than it: the
+ * live type-relation gate admits an import only through a STRUCTURAL relation
+ * type (STRUCTURAL_RELATION_TYPES), while here an event type (`emits` /
+ * `listens`) admits the read too. A rule judging one side of an event edge may
+ * legitimately read the other side's contract — the message it emits or
+ * listens for — without either side importing the other's code.
  *
  * Ownership of a declared component's mapped files is resolved with the SAME
  * child-wins authority the gate's own `fileOwnerType` is built from
@@ -175,8 +180,8 @@ export interface ArchitectureReachInput {
  *
  * `allowedRelationTypes(architecture, fromType, toType) !== []` is the
  * membership test for both a file's true-owner component type and a
- * type-covered file's matched type — any ONE permitted relation kind admits
- * the read; the exact kind is never inspected.
+ * type-covered file's matched type — any ONE permitted relation kind, event
+ * kinds included, admits the read; the exact kind is never inspected.
  *
  * `fromType` unknown to the architecture makes `allowedRelationTypes` return
  * `[]` for every target, so the reach degrades to `{ subjectFile }` alone —
@@ -220,14 +225,14 @@ export async function collectArchitectureReach(subjectFile: string, input: Archi
       const ownerNode = ownerPath !== undefined ? graph.nodes.get(ownerPath) : undefined;
       if (!ownerNode) continue;
       if (allowedRelationTypes(architecture, fromType, ownerNode.meta.type).length === 0) continue;
-      // Mirror the live dependency gate's own enumeration (relations/pass.ts):
-      // a mapped file it cannot read is skipped BEFORE it ever earns an
-      // owner-type entry in fileOwnerType, so the gate treats it as though it
-      // does not exist. Admitting it into this allowance anyway would be a
-      // needless divergence from the one authority (child-wins ownership +
-      // the architecture's relations:) this allowance exists to mirror — even
-      // though an actual ctx.fs.read would fail regardless (conservative
-      // either way).
+      // Enumerate files the way the live dependency gate does
+      // (relations/pass.ts): a mapped file it cannot read is skipped BEFORE it
+      // ever earns an owner-type entry in fileOwnerType, so the gate treats it
+      // as though it does not exist. Admitting it here anyway would diverge
+      // from the shared child-wins ownership for no gain — an actual
+      // ctx.fs.read would fail regardless (conservative either way). Only the
+      // enumeration is shared: which relation kinds admit the read is this
+      // allowance's own rule (see above).
       try {
         await readFile(path.join(projectRoot, file), 'utf-8');
       } catch {

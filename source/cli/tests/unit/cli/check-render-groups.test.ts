@@ -496,8 +496,8 @@ describe('check render — a per-node fix surfaces EACH node\'s command', () => 
     expect(out).toContain("from type 'svc' to type 'owner-type'");
     expect(out).toContain("from type 'web' to type 'db'");
     const fix = fieldLines(out, 'fix').join('\n');
-    expect(fix).toContain("add a relations entry for 'svc' -> 'owner-type'");
-    expect(fix).toContain("add a relations entry for 'web' -> 'db'");
+    expect(fix).toContain("add 'owner-type' under a structural relation type (uses, calls, extends or implements) of 'svc'");
+    expect(fix).toContain("add 'db' under a structural relation type (uses, calls, extends or implements) of 'web'");
   });
 
   // type-strict-orphan (core/checks/mapping.ts) carries neither nodePath nor

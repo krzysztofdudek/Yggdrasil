@@ -2436,7 +2436,7 @@ severity says so — see [Aspect Status](/aspect-status).
 
 | Code | Severity | Meaning | Fix |
 |------|----------|---------|-----|
-| `relation-undeclared-dependency` | error · a warning outside your change | A node depends on another node's code without a declared relation. Built in, not an aspect: no status, not suppressible, never cached. | Declare the relation in the node's yg-node.yaml, or remove the dependency. |
+| `relation-undeclared-dependency` | error · a warning outside your change | A node depends on another node's code without a declared relation. Built in, not an aspect: no status, not suppressible, never cached. | Declare a structural relation (uses, calls, extends or implements) in the node's yg-node.yaml, or remove the dependency. |
 | `type-relation-forbidden` | error · a warning outside your change | With coverage.type_level on, a statically resolved import between two classified endpoints (a node and/or a type-covered file) has no structural relation type (uses, calls, extends, implements) the architecture allows between their types; an event type alone sanctions no import. | Allow the type pair in yg-architecture.yaml (the user's decision), give the target an explicit node with a relation, or remove the dependency. |
 | `relation-parse-failed` | error | A language parser the relation check needs could not be loaded, so the dependencies of the files it covers cannot be checked. | Reinstall the CLI to restore its bundled language support, then run yg check. |
 
