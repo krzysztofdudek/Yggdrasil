@@ -3,11 +3,11 @@
 // diagnostics around it (issue 228), on the built binary:
 //
 //   - `yg context` refuses only over errors that affect that node's context; a
-//     repository-wide error it does not depend on (a key in the committed
-//     config, no reviewer configured, a rule no node here uses) is named on
-//     stderr and the context is given.
-//   - config-committed-api-key says the truth per case: a key only typed into
-//     the working copy has leaked nowhere; one in HEAD must be revoked.
+//     repository-wide error it does not depend on (an unknown config key, no
+//     reviewer configured, a rule no node here uses) is named on stderr and
+//     the context is given.
+//   - config-committed-api-key (a warning) says the truth per case: a key only
+//     typed into the working copy has leaked nowhere; one in HEAD is in history.
 //   - a symlinked rule directory is refused as a link, never reported as a
 //     rule nobody defined.
 //   - a run prints one `next:`: the fill's stderr never carries its own.
@@ -180,12 +180,12 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
       const local = run(dir, ['check']);
       expect(local.stdout).toContain('in your working copy — not committed yet');
       expect(local.stdout).toContain('before you commit');
-      expect(local.stdout).not.toContain('already been exposed');
+      expect(local.stdout).not.toContain('already in this history');
       expect(run(dir, ['context', '--node', 'app/svc-01']).status).toBe(0);
       commitAll(dir);
       const committed = run(dir, ['check']);
       expect(committed.stdout).toContain('The committed .yggdrasil/yg-config.yaml sets reviewer.tiers.standard.config.api_key');
-      expect(committed.stdout).toContain('it has already been exposed to everyone who can read this history');
+      expect(committed.stdout).toContain('it is already in this history');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -20,7 +20,7 @@ reviewer:
         api_key: "sk-..."       # outranks the provider's environment variable
         model: "claude-sonnet-4-5"
         # endpoint: "https://gateway.example.com/v1"
-        #   An anthropic/openai/google key goes to an endpoint other than the
-        #   provider's own only when the endpoint is named here; one named only
-        #   in yg-config.yaml gets no key.
+        #   Naming an endpoint here makes it this machine's own choice: yg check
+        #   no longer warns (reviewer-endpoint-committed) that the key goes to
+        #   an endpoint named only in yg-config.yaml.
 `;

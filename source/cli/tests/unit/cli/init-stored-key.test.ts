@@ -217,16 +217,16 @@ describe('the wizard settles the stored key the same way', () => {
     expect(await keyTheReviewerSends(ygg)).toBe('sk-typed');
   });
 
-  it('a typed key is not stored when yg-secrets.yaml sends the tier to another provider or endpoint', async () => {
+  it('a typed key is stored even when yg-secrets.yaml sends the tier to another provider or endpoint, with a warning naming where it goes', async () => {
     const { ygg } = await project('wizard-overridden');
     await writeSecrets(ygg, { reviewer: { tiers: { standard: { provider: 'openai-compatible', config: { endpoint: 'http://elsewhere.example/v1' } } } } });
     const prev = await readReviewerTarget(ygg);
     await writeReviewerConfig(ygg, { provider: 'anthropic', model: 'claude-x' });
     const outcome = await settleStoredKey(ygg, prev, { provider: 'anthropic', apiKey: 'sk-typed-for-anthropic', keyAnswered: true });
-    expect(outcome).toBe('withheld');
-    expect(JSON.stringify(await readSecrets(ygg))).not.toContain('sk-typed-for-anthropic');
-    expect(await keyTheReviewerSends(ygg)).toBeUndefined();
+    expect(outcome).toBe('stored-overridden');
+    expect(await keyTheReviewerSends(ygg)).toBe('sk-typed-for-anthropic');
     const notice = storedKeyNotice(outcome, prev, undefined, await readReviewerTarget(ygg));
+    expect(notice?.what).toContain('Stored the API key you typed');
     expect(notice?.what).toContain('openai-compatible at http://elsewhere.example/v1');
   });
 
@@ -240,35 +240,31 @@ describe('the wizard settles the stored key the same way', () => {
   });
 });
 
-// An endpoint a key may reach only as a local choice is written where it is
-// one. Before: `--endpoint` for a first-party provider went to the committed
-// file (whose endpoint no key may reach), and a key typed for an
-// openai-compatible server was stored without its endpoint, so a committed
-// change of the endpoint moved the key.
-describe('init writes an endpoint a key needs locally to yg-secrets.yaml', () => {
-  it('--endpoint for a first-party provider lands in yg-secrets.yaml, says so, and the exported key goes there', async () => {
+// An endpoint init is given goes to the committed yg-config.yaml, whatever the
+// provider: a key goes to a committed endpoint, and yg check only warns about
+// it (reviewer-endpoint-committed). Nothing is moved into yg-secrets.yaml.
+describe('init writes the endpoint it is given to yg-config.yaml', () => {
+  it('--endpoint for a first-party provider lands in yg-config.yaml, and the exported key goes there', async () => {
     const { root, ygg } = await project('first-party-endpoint');
     process.env.ANTHROPIC_API_KEY = 'sk-ant-env';
     await existingInitNonInteractive(root, ygg, { provider: 'anthropic', model: 'claude-x', endpoint: 'http://proxy.example/v1' });
-    expect(await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8')).not.toContain('proxy.example');
-    expect(JSON.stringify(await readSecrets(ygg))).toContain('http://proxy.example/v1');
-    expect(out).toContain('Wrote config.endpoint (http://proxy.example/v1)');
+    expect(await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8')).toContain('http://proxy.example/v1');
+    expect(existsSync(secretsPath(ygg))).toBe(false);
+    expect(out).not.toContain('Wrote config.endpoint');
+    expect((await parseConfig(path.join(ygg, 'yg-config.yaml'))).reviewer?.tiers.standard.endpoint).toBe('http://proxy.example/v1');
     expect(await keyTheReviewerSends(ygg)).toBe('sk-ant-env');
   });
 
-  it('a key typed for an openai-compatible server is stored with that endpoint, so a later committed endpoint does not move it', async () => {
-    const { ygg } = await project('compat-bound');
+  it('a key typed for an openai-compatible server is stored, and its endpoint stays in yg-config.yaml', async () => {
+    const { ygg } = await project('compat-typed');
     const prev = await readReviewerTarget(ygg);
     await writeReviewerConfig(ygg, { provider: 'openai-compatible', model: 'm', endpoint: 'http://gw.example/v1' });
-    await settleStoredKey(ygg, prev, { provider: 'openai-compatible', endpoint: 'http://gw.example/v1', apiKey: 'sk-gw', keyAnswered: true });
-    const cfgPath = path.join(ygg, 'yg-config.yaml');
-    await writeFile(cfgPath, (await readFile(cfgPath, 'utf-8')).replace('http://gw.example/v1', 'http://elsewhere.example/v1'), 'utf-8');
-    const tier = (await parseConfig(cfgPath)).reviewer?.tiers.standard;
-    expect(tier?.endpoint).toBe('http://gw.example/v1');
+    expect(await settleStoredKey(ygg, prev, { provider: 'openai-compatible', endpoint: 'http://gw.example/v1', apiKey: 'sk-gw', keyAnswered: true })).toBe('stored');
+    expect(JSON.stringify(await readSecrets(ygg))).not.toContain('gw.example');
     expect(await keyTheReviewerSends(ygg)).toBe('sk-gw');
   });
 
-  it('re-pointing the tier at another server drops the endpoint yg-secrets.yaml held for the previous one', async () => {
+  it('re-pointing the tier at another server removes the key stored for the previous one', async () => {
     const { root, ygg } = await project('compat-switch');
     const prev = await readReviewerTarget(ygg);
     await writeReviewerConfig(ygg, { provider: 'openai-compatible', model: 'm', endpoint: 'http://a.example/v1' });

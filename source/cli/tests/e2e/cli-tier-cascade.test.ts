@@ -318,7 +318,7 @@ reviewer:
     const mock = await startMockReviewer({ respond: OK });
     try {
       // The key lives where keys belong — the gitignored overlay (a key in the
-      // committed yg-config.yaml is a blocking config-committed-api-key error).
+      // committed yg-config.yaml works too, with a config-committed-api-key warning).
       writeFileSync(
         path.join(dir, '.yggdrasil', 'yg-secrets.yaml'),
         'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: "secret-old-key-aaaa"\n',

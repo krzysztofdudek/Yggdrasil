@@ -2,39 +2,38 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import type { CheckCode } from '../../model/issue-code.js';
-import { firstPartyProvider, withheldCommittedEndpoint } from '../../utils/known-providers.js';
+import { firstPartyProvider, committedKeyEndpoint } from '../../utils/known-providers.js';
 import { parse as parseYaml } from 'yaml';
 import { isTrackedByGit, readHeadFile } from '../../utils/git.js';
 import { issueMsg } from './shared.js';
 
 /**
- * Reviewer credentials and where they are sent.
+ * Reviewer credentials and where they are sent — warnings only.
  *
- * yg-config.yaml is committed and yg-secrets.yaml is not; the docs have always
- * said a key belongs only in the second (or in the environment). Nothing
- * enforced it, so a key committed by accident kept `yg check` — the
- * repository's own guardrail — green. Now:
+ * yg-config.yaml is committed and yg-secrets.yaml is not; the docs say a key
+ * belongs in the second (or in the environment). Where a key actually sits,
+ * and where it goes, is the repository owner's call: Yggdrasil never refuses a
+ * configuration over it and never withholds a key. It says what it sees:
  *
- *   - config-committed-api-key (error): a tier in the committed yg-config.yaml
- *     carries `config.api_key`.
- *   - secrets-file-tracked (error): .yggdrasil/yg-secrets.yaml is tracked by git
- *     (force-added past its .gitignore entry).
- *   - reviewer-endpoint-committed (warning): a first-party provider's tier
- *     names, in the committed file only, an endpoint that is not the
- *     provider's own. The provider withholds its key from such an endpoint
- *     (utils/known-providers.ts), so the tier cannot review until the developer names
- *     the endpoint locally in yg-secrets.yaml; the warning says so on every
- *     check instead of leaving it to a fill's unavailable reviewer. An
- *     endpoint set in yg-secrets.yaml is the developer's own choice and is not
- *     flagged. Whether a key happens to be set on this machine is not asked:
- *     the finding is about the committed file, so it reads the same everywhere.
+ *   - config-committed-api-key (warning): a tier in yg-config.yaml carries
+ *     `config.api_key`. The key works; the warning says who can read it.
+ *   - secrets-file-tracked (warning): .yggdrasil/yg-secrets.yaml is tracked by
+ *     git (force-added past its .gitignore entry). Its keys still work.
+ *   - reviewer-endpoint-committed (warning): a tier sends the developer's key to
+ *     an endpoint named in the committed file only — a first-party provider's
+ *     endpoint that is not its own, or an openai-compatible server receiving a
+ *     stored config.api_key (see committedKeyEndpoint). The key is sent; the
+ *     warning makes the destination visible on every check. An endpoint set
+ *     in yg-secrets.yaml is the developer's own choice and is not flagged.
+ *     Whether a key happens to be set on this machine is not asked: the finding
+ *     is about the committed file, so it reads the same everywhere.
  *
- * Neither message ever repeats the key itself.
+ * None of these messages ever repeats the key itself.
  */
 export function checkReviewerCredentials(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const push = (severity: 'error' | 'warning', code: CheckCode, md: IssueMessage): void => {
-    issues.push({ severity, code, rule: code, ...issueMsg(md), messageData: md });
+  const push = (code: CheckCode, md: IssueMessage): void => {
+    issues.push({ severity: 'warning', code, rule: code, ...issueMsg(md), messageData: md });
   };
 
   const keyTiers = graph.config.committedReviewer?.apiKeyTiers ?? [];
@@ -43,44 +42,44 @@ export function checkReviewerCredentials(graph: Graph): ValidationIssue[] {
   // owner to revoke it teaches them to ignore the finding.
   const inHistory = keyTiers.length > 0 ? apiKeyTiersAtHead(graph) : new Set<string>();
   for (const tier of keyTiers) {
-    push('error', 'config-committed-api-key', inHistory.has(tier)
+    push('config-committed-api-key', inHistory.has(tier)
       ? {
         what: `The committed .yggdrasil/yg-config.yaml sets reviewer.tiers.${tier}.config.api_key — a credential in a file every clone and every fork receives.`,
-        why: 'yg-config.yaml is shared through version control; a key in it is readable by anyone with the repository and stays in its history after it is removed.',
-        next: `Remove api_key from yg-config.yaml and put it in the gitignored .yggdrasil/yg-secrets.yaml (or the provider's environment variable), then revoke and replace the key — it has already been exposed to everyone who can read this history.`,
+        why: 'yg-config.yaml is shared through version control; a key in it is readable by anyone with the repository and stays in its history after it is removed. The reviewer still uses it — this is a warning, not a refusal.',
+        next: `If the repository is private and sharing the key is intended, nothing to do. Otherwise move api_key into the gitignored .yggdrasil/yg-secrets.yaml (or the provider's environment variable) and replace the key — it is already in this history.`,
       }
       : {
         what: `.yggdrasil/yg-config.yaml sets reviewer.tiers.${tier}.config.api_key in your working copy — not committed yet, but the file is shared, so the next commit would publish the key.`,
-        why: 'yg-config.yaml is shared through version control; a key committed in it is readable by anyone with the repository and stays in its history after it is removed.',
-        next: `Move api_key from yg-config.yaml into the gitignored .yggdrasil/yg-secrets.yaml (or the provider's environment variable) before you commit — the key is not in this repository's history, so there is nothing to revoke unless it was shared some other way.`,
+        why: 'yg-config.yaml is shared through version control; a key committed in it is readable by anyone with the repository and stays in its history after it is removed. The reviewer still uses it — this is a warning, not a refusal.',
+        next: `If sharing the key with everyone who can read this repository is intended, commit it as it is. Otherwise move api_key into the gitignored .yggdrasil/yg-secrets.yaml (or the provider's environment variable) before you commit — it is not in this history yet.`,
       });
   }
 
   if (isTrackedByGit(path.dirname(graph.rootPath), path.relative(path.dirname(graph.rootPath), path.join(graph.rootPath, 'yg-secrets.yaml')))) {
-    push('error', 'secrets-file-tracked', {
+    push('secrets-file-tracked', {
       what: '.yggdrasil/yg-secrets.yaml is tracked by git.',
-      why: 'yg-secrets.yaml is the local, never-committed overlay that holds reviewer keys; tracked, it travels with every push and clone like the committed config does.',
-      next: 'Run `git rm --cached .yggdrasil/yg-secrets.yaml` and commit, keep the file listed in .yggdrasil/.gitignore, and replace any key it held — it has already been exposed to everyone who can read this history.',
+      why: 'yg-secrets.yaml is meant as the local overlay that holds reviewer keys; tracked, it travels with every push and clone like the committed config does. Its keys still work — this is a warning, not a refusal.',
+      next: 'If sharing it is intended, nothing to do. Otherwise run `git rm --cached .yggdrasil/yg-secrets.yaml` and commit, keep the file listed in .yggdrasil/.gitignore, and replace any key it held — it is already in this history.',
     });
   }
 
   for (const [tierName, tier] of Object.entries(graph.config.reviewer?.tiers ?? {})) {
-    const withheld = withheldCommittedEndpoint(tier);
-    if (withheld === undefined) continue;
+    const endpoint = committedKeyEndpoint(tier);
+    if (endpoint === undefined) continue;
     const firstParty = firstPartyProvider(tier.provider);
     if (firstParty === undefined) {
-      push('warning', 'reviewer-endpoint-committed', {
-        what: `Tier '${tierName}' (${tier.provider}) names ${withheld} as its endpoint in the committed yg-config.yaml only, so the api_key it holds in yg-secrets.yaml is not sent there.`,
-        why: 'A committed endpoint is set by whoever last changed the shared file, while a key in yg-secrets.yaml belongs to whoever runs yg check --approve — often stored for another reviewer; it goes to an endpoint only when that person names it locally.',
-        next: `If this endpoint is yours, name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint); otherwise remove the api_key there (OPENAI_COMPATIBLE_API_KEY still reaches the committed endpoint).`,
+      push('reviewer-endpoint-committed', {
+        what: `Tier '${tierName}' (${tier.provider}) sends the api_key it holds in yg-secrets.yaml to ${endpoint}, an endpoint named in the committed yg-config.yaml only.`,
+        why: 'A committed endpoint is set by whoever last changed the shared file, while a key in yg-secrets.yaml belongs to whoever runs yg check --approve — often stored for another reviewer. The key is sent; this warning only shows where.',
+        next: `If this endpoint is yours, name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint) and the warning goes away; otherwise remove the api_key there (OPENAI_COMPATIBLE_API_KEY is the variable meant for this server).`,
       });
       continue;
     }
-    const plainHttp = /^http:\/\//i.test(withheld);
-    push('warning', 'reviewer-endpoint-committed', {
-      what: `Tier '${tierName}' (${tier.provider}) names ${withheld}${plainHttp ? ', over plain http,' : ''} as its endpoint in the committed yg-config.yaml — not ${firstParty.endpoint} — so no API key is sent to it and the tier's reviewer pairs stay unverified.`,
-      why: `A committed endpoint is set by whoever last changed the shared file, while the key ($${firstParty.envVar}, or config.api_key in yg-secrets.yaml) belongs to whoever runs yg check --approve; the key goes to an endpoint other than ${tier.provider}'s own only when that person names it locally.`,
-      next: `If this endpoint is yours (a proxy or gateway you run), name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint) and the key goes there; otherwise remove config.endpoint from yg-config.yaml.`,
+    const plainHttp = /^http:\/\//i.test(endpoint);
+    push('reviewer-endpoint-committed', {
+      what: `Tier '${tierName}' (${tier.provider}) sends its API key and the reviewed source to ${endpoint}${plainHttp ? ', over plain http,' : ''} — an endpoint named in the committed yg-config.yaml only, not ${firstParty.endpoint}.`,
+      why: `A committed endpoint is set by whoever last changed the shared file, while the key ($${firstParty.envVar}, or config.api_key) belongs to whoever runs yg check --approve${plainHttp ? ', and over http the key crosses the network unencrypted' : ''}. The key is sent; this warning only shows where.`,
+      next: `If this endpoint is yours (a proxy or gateway you run), nothing to do — or name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint) and the warning goes away; otherwise remove config.endpoint from yg-config.yaml.`,
     });
   }
   return issues;

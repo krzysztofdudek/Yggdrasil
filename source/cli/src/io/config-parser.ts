@@ -1,4 +1,3 @@
-import { isTrackedByGit } from '../utils/git.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml, parseDocument, isScalar } from 'yaml';
@@ -458,7 +457,7 @@ async function parseConfigInner(
       // reviewer: is a mapping — let parseReviewer validate the tiers structure
       // and emit specific errors (config-tiers-missing, config-tiers-empty, etc.)
       reviewer = parseReviewer(raw.reviewer as Record<string, unknown>, filename);
-      markEndpointSources(reviewer, overlay, overlay !== undefined && secretsFileTracked(filePath));
+      markEndpointSources(reviewer, overlay);
     } else {
       throw new ConfigParseError({
         what: `${filename} has unrecognized reviewer: shape`,
@@ -709,31 +708,17 @@ function refuseSchemaProblems(raw: Record<string, unknown>, filename: string): v
   }, 'config-invalid');
 }
 
-/** Whether the yg-secrets.yaml beside `configPath` is tracked by git (false outside a repository). */
-function secretsFileTracked(configPath: string): boolean {
-  const yggRoot = path.dirname(configPath);
-  const repoRoot = path.dirname(yggRoot);
-  return isTrackedByGit(repoRoot, path.relative(repoRoot, path.join(yggRoot, 'yg-secrets.yaml')));
-}
-
 /**
  * Record, on each tier that has an endpoint, which file set it. The overlay
  * sets it when its own copy of the tier names `config.endpoint`; the value
- * does not matter — naming the committed URL there is exactly how a developer
- * says "send my key to this endpoint" (see LlmConfig.endpointSource).
+ * does not matter — naming the committed URL there is how a developer makes
+ * the endpoint their own choice and silences reviewer-endpoint-committed (see
+ * LlmConfig.endpointSource). It never decides whether a key is sent.
  */
-function markEndpointSources(reviewer: ReviewerConfig, overlay: Record<string, unknown> | undefined, overlayTracked: boolean): void {
+function markEndpointSources(reviewer: ReviewerConfig, overlay: Record<string, unknown> | undefined): void {
   const overlayTiers = (overlay?.reviewer as { tiers?: unknown } | undefined)?.tiers;
   for (const [name, tier] of Object.entries(reviewer.tiers)) {
-    // A tracked overlay is shared like the committed file: nothing in it is
-    // this developer's choice, so it can neither accept an endpoint nor hold a
-    // key that may be sent (see LlmConfig.secretsTracked).
-    if (overlayTracked) tier.secretsTracked = true;
     if (tier.endpoint === undefined) continue;
-    if (overlayTracked) {
-      tier.endpointSource = 'committed';
-      continue;
-    }
     const overlayTier = overlayTiers && typeof overlayTiers === 'object' && !Array.isArray(overlayTiers)
       ? (overlayTiers as Record<string, unknown>)[name]
       : undefined;
@@ -941,7 +926,7 @@ function tierConfigTypeError(c: Record<string, unknown>): { key: string; problem
     return { key: 'endpoint', problem: 'must be a URL string', fix: 'to a URL string' };
   }
   if (c.api_key !== undefined && c.api_key !== null && typeof c.api_key !== 'string') {
-    return { key: 'api_key', problem: 'must be a string', fix: 'to the key as a string (in yg-secrets.yaml, never the committed file)' };
+    return { key: 'api_key', problem: 'must be a string', fix: 'to the key as a string (best kept in the gitignored yg-secrets.yaml; in the committed file every clone receives it)' };
   }
   return null;
 }

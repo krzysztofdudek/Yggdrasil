@@ -147,7 +147,7 @@ export interface YggConfig {
   /**
    * The reviewer settings the COMMITTED yg-config.yaml itself states, read
    * before the gitignored yg-secrets.yaml overlay is merged: which tiers carry
-   * a `config.api_key` there. `yg check` refuses a committed credential by it
+   * a `config.api_key` there. `yg check` warns about a committed credential by it
    * (where each tier's endpoint was set is on the tier itself:
    * LlmConfig.endpointSource). Never a verdict input — no hash reads it.
    */
@@ -263,19 +263,11 @@ export interface LlmConfig {
   /**
    * Which file set the effective `endpoint`: 'local' when the gitignored
    * yg-secrets.yaml overlay sets it for this tier, 'committed' when only the
-   * committed yg-config.yaml does; absent when no endpoint is set. A
-   * first-party provider sends no key to a committed endpoint other than its
-   * own (see withheldCommittedEndpoint): whoever changes the committed file must not be
-   * able to point a developer's key somewhere new. Never a verdict input.
+   * committed yg-config.yaml does; absent when no endpoint is set. The key is sent either
+   * way; `yg check` warns when a developer's key goes to an endpoint only the
+   * shared file names (see committedKeyEndpoint). Never a verdict input.
    */
   endpointSource?: 'committed' | 'local';
-  /**
-   * True when .yggdrasil/yg-secrets.yaml is tracked by git. Its contents are
-   * then shared like the committed file, so nothing in it is a local choice:
-   * no endpoint counts as local and no key is sent for any tier until the file
-   * is untracked (`secrets-file-tracked` says so). Never a verdict input.
-   */
-  secretsTracked?: boolean;
 }
 
 export interface NodeMeta {
