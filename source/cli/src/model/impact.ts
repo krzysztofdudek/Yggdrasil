@@ -126,8 +126,12 @@ export interface TypeCoveredFileRow {
   label: string;
 }
 
-/** The files a strict type's `when` matches that sit outside a node of that type. */
+/** The files a type's `when` matches that sit outside a node of that type, as `enforce: strict` sees them. */
 export interface StrictCoverageGap {
+  /** The type is not `enforce: strict` yet: this is what setting it would report. */
+  preview: boolean;
   orphans: string[];
   misplaced: Array<{ file: string; owner: string; ownerType: string }>;
+  /** Files another strict type's `when` also matches — a `strict-overlap-conflict` each. */
+  conflicts: Array<{ file: string; types: string[] }>;
 }

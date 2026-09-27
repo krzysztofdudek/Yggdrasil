@@ -79,8 +79,10 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
     writeOut(renderTypeVerdictImpact(await computeTypeVerdictImpact(graph, typeId, typeCoverage!, lock)));
   }
 
-  if (def.enforce === 'strict' && def.when) {
-    writeOut(renderStrictCoverageGap(typeId, await strictCoverageGapOf(graph, typeId, def.when)));
+  // Any type that classifies files has a strict gap to show: after the flag
+  // is set it is what `yg check` reports, before it the preview of that.
+  if (def.when) {
+    writeOut(renderStrictCoverageGap(typeId, await strictCoverageGapOf(graph, typeId)));
   }
   writeOut(renderTypeNext(typeCoveredPaths.length > 0));
 }

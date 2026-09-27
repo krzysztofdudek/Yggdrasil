@@ -108,10 +108,10 @@ describe('a type', () => {
   });
 
   it('words a strict coverage gap, capped at ten per list', () => {
-    expect(renderStrictCoverageGap('svc', { orphans: [], misplaced: [] })).toContain('Strict coverage gap (0 files): None');
+    expect(renderStrictCoverageGap('svc', { preview: false, orphans: [], misplaced: [], conflicts: [] })).toContain('Strict coverage gap (0 files): None');
     const orphans = Array.from({ length: 11 }, (_, i) => `o${i}.ts`);
     const misplaced = Array.from({ length: 11 }, (_, i) => ({ file: `m${i}.ts`, owner: 'x', ownerType: 'other' }));
-    const out = renderStrictCoverageGap('svc', { orphans, misplaced });
+    const out = renderStrictCoverageGap('svc', { preview: false, orphans, misplaced, conflicts: [] });
     expect(out).toContain('Orphans (matching files not in any mapping): 11');
     expect(out).toContain('    ... (1 more)\n  Misplaced');
     expect(out).toContain('    m0.ts → x (type: other)');

@@ -183,10 +183,18 @@ describe('a type', () => {
   });
 
   it('finds the strict type\'s orphans and misplaced files', async () => {
-    const def = graph.architecture.node_types['svc'];
-    const gap = await strictCoverageGapOf(graph, 'svc', def.when!);
+    const gap = await strictCoverageGapOf(graph, 'svc');
+    expect(gap.preview).toBe(false);
     expect(gap.orphans).toEqual(['src/svc/orphan.ts']);
     expect(gap.misplaced).toEqual([{ file: 'src/svc/b.ts', owner: 'app/b', ownerType: 'other' }]);
+    expect(gap.conflicts).toEqual([]);
+  });
+
+  it('previews the gap of a type that is not strict yet', async () => {
+    const gap = await strictCoverageGapOf(graph, 'lib');
+    expect(gap.preview).toBe(true);
+    expect(gap.orphans).toEqual(['src/lib/x.ts', 'src/lib/y.ts']);
+    expect(gap.misplaced).toEqual([]);
   });
 });
 

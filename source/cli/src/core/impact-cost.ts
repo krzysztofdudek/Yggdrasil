@@ -16,14 +16,14 @@ import { collectDescendants } from './graph/traversal.js';
 import { classifyInvalidations, collectIndirectDependents, nodesWithRefusedVerdict } from './graph/impact-graph.js';
 import type { ImpactSet } from './graph/impact-graph.js';
 import { FileContentCache } from '../io/file-content-cache.js';
-import { walkRepoFiles, resolveGraphExclusionSet, filterExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
-import { evaluateFileWhen } from './file-when-evaluator.js';
+import { walkRepoFiles, resolveGraphExclusionSet, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { scanStrictBackward } from './checks/mapping.js';
 import { computeExpectedPairs } from './pairs.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { scanUncoveredFiles } from './check.js';
 import { computeTypeCoverageCached } from './type-coverage.js';
 import { selectTierForAspect } from './tier-selection.js';
-import type { AspectDef, FileWhenPredicate, Graph, GraphNode } from '../model/graph.js';
+import type { AspectDef, Graph, GraphNode } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import type {
   AspectFillCost,
@@ -429,39 +429,28 @@ export async function computeTypeVerdictImpact(
 }
 
 /**
- * The files a strict type's `when` matches that are not in a node of that type:
- * orphans (in no mapping at all) and misplaced ones (in another type's node).
- *
- * An excluded file (a nested project's own boundary, or a coverage.excluded
- * root) is never a strict orphan/misplaced candidate — the live `yg check`
- * gate (checkStrictBackwardCoverage, core/checks/mapping.ts) applies the
- * identical filter; this preview must agree with it, or "run yg impact --type
- * before you flip the flag" would preview gaps `yg check` itself never reports.
+ * The files `typeId`'s `when` matches that are not in a node of that type —
+ * orphans (in no mapping at all) and misplaced ones (in another type's node) —
+ * and the files it would share with a type already `enforce: strict`. Asked of
+ * the scan `yg check` runs (core/checks/mapping.ts), with `typeId` treated as
+ * strict whether or not it is yet: before the flag is set this is the preview
+ * of what setting it would report, and after, it is what `yg check` reports.
  */
-export async function strictCoverageGapOf(graph: Graph, typeId: string, when: FileWhenPredicate): Promise<StrictCoverageGap> {
-  const projectRoot = join(graph.rootPath, '..');
-  const cache = new FileContentCache();
-  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
-  const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), exclusion);
-  const owners = new Map<string, string>();
-  for (const [np, n] of graph.nodes) {
-    for (const m of n.meta.mapping ?? []) owners.set(m, np);
+export async function strictCoverageGapOf(graph: Graph, typeId: string): Promise<StrictCoverageGap> {
+  const strictTypeIds = Object.entries(graph.architecture.node_types)
+    .filter(([id, def]) => id !== typeId && def.enforce === 'strict' && def.when !== undefined)
+    .map(([id]) => id);
+  const findings = await scanStrictBackward(graph, new FileContentCache(), [...strictTypeIds, typeId]);
+  const gap: StrictCoverageGap = {
+    preview: graph.architecture.node_types[typeId]?.enforce !== 'strict',
+    orphans: [],
+    misplaced: [],
+    conflicts: [],
+  };
+  for (const f of findings) {
+    if (f.kind === 'orphan' && f.typeId === typeId) gap.orphans.push(f.file);
+    else if (f.kind === 'misplaced' && f.typeId === typeId) gap.misplaced.push({ file: f.file, owner: f.owner, ownerType: f.ownerType });
+    else if (f.kind === 'overlap' && f.typeIds.includes(typeId)) gap.conflicts.push({ file: f.file, types: f.typeIds.filter((t) => t !== typeId) });
   }
-  const orphans: string[] = [];
-  const misplaced: StrictCoverageGap['misplaced'] = [];
-  for (const rel of repoFiles) {
-    const abs = join(projectRoot, rel);
-    const result = await evaluateFileWhen(when, {
-      absPath: abs, repoRelPath: rel, projectRoot, cache,
-    });
-    if (!result.result) continue;
-    const owner = owners.get(rel);
-    if (owner === undefined) {
-      orphans.push(rel);
-    } else {
-      const ownerType = graph.nodes.get(owner)?.meta.type ?? '?';
-      if (ownerType !== typeId) misplaced.push({ file: rel, owner, ownerType });
-    }
-  }
-  return { orphans, misplaced };
+  return gap;
 }
