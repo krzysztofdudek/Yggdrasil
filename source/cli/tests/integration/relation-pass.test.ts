@@ -5,19 +5,20 @@ import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile, guardedResolve } from '../../src/relations/resolve-path.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
+import { guardedResolve } from '../../src/relations/resolve-path.js';
 import type {
   DependencyExtractor,
   DetectedDep,
   ParsedFile,
-} from '../../src/relations/extractors/types.js';
+} from '@chrisdudek/runes/relations';
 
 import { computeTypeGateFindings } from '../../src/relations/type-gate.js';
 import { CACHE_SCHEMA_VERSION, factsKey, writeFacts, loadFacts } from '../../src/relations/facts-cache.js';
 import { hashString } from '../../src/io/hash.js';
 import { grammarDigest } from '../../src/ast/parser.js';
-import { csharpExtractor } from '../../src/relations/extractors/csharp.js';
+import { csharpExtractor, version as RUNES_VERSION } from '@chrisdudek/runes/relations';
 import { ensureLoaderRegistered } from '../../src/ast/loader-hook.js';
 import { isValidFeatureVector, type FeatureVector } from '../../src/relations/feature-vector.js';
 
@@ -738,7 +739,7 @@ describe('runRelationPass — AST fact cache', () => {
   });
 
   it('resolves a cross-file C# global-using ALIAS edge on a CACHED run (Map round-trip)', async () => {
-    // Mirrors reference/relations/csharp/csharp-global-using-alias.md, READ-ONLY oracle:
+    // Mirrors the Runes relation catalogue, reference/relations/csharp/csharp-global-using-alias.md, READ-ONLY oracle:
     //   global using Cust = MyApp.Models.Customer;  (node g)
     //   class C { Cust c; }                          (node c → must resolve to node m)
     //   namespace MyApp.Models; class Customer { }   (node m)
@@ -811,6 +812,7 @@ describe('runRelationPass — AST fact cache', () => {
       language: 'csharp',
       grammarHash: grammarDigest('.cs'),
       rev: csharpExtractor.rev,
+      runes: RUNES_VERSION,
     });
     await writeFacts(astCacheDir, 'csharp', cKey, { declarations: [], uses: [], features: FV });
 
@@ -1424,7 +1426,7 @@ describe('runRelationPass routes a .h header by its directory', () => {
       symbolIndexDir: cacheDir,
     });
     const key = (content: string, language: string, ext: string): string =>
-      factsKey({ contentHash: hashString(content), language, grammarHash: grammarDigest(ext), rev: 1 });
+      factsKey({ contentHash: hashString(content), language, grammarHash: grammarDigest(ext), rev: 1, runes: RUNES_VERSION });
     const cxxHeader = 'namespace ui { class W final {}; }\n';
     // The C++-routed header's shard sits under the C++ grammar's digest ...
     expect(grammarDigest('.cpp')).not.toBe(grammarDigest('.h'));

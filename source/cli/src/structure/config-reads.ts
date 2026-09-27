@@ -1,5 +1,5 @@
 import { withParsedFile } from '../ast/parser.js';
-import { walk } from '../ast/walk.js';
+import { walk } from '@chrisdudek/runes/ast';
 import type { Node } from 'web-tree-sitter';
 
 /**

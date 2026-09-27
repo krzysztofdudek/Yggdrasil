@@ -42,9 +42,8 @@ function walkFiles(dir: string, keep: (rel: string) => boolean, skipDir: (name: 
 describe('graph-rules owns every rule script this graph defines', () => {
   it('every non-drill check.mjs under .yggdrasil/aspects, at any depth, is mapped by graph-rules', async () => {
     const scripts = walkFiles(ASPECTS_ROOT, (rel) => rel.endsWith('/check.mjs'), (name) => name === 'drills');
-    // Sanity: the walk reaches the nested ids (portal/<id>, reference/relations/<id>).
+    // Sanity: the walk reaches the nested ids (portal/<id>).
     expect(scripts).toContain('.yggdrasil/aspects/portal/loopback-only/check.mjs');
-    expect(scripts).toContain('.yggdrasil/aspects/reference/relations/case-is-tested/check.mjs');
 
     const graph = await loadGraph(REPO_ROOT);
     const { ownerOf } = buildOwnerIndex(graph.nodes);

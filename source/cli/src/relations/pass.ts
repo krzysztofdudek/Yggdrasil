@@ -3,34 +3,35 @@ import { readFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 
 import type { Graph } from '../model/graph.js';
-import { parseFile, grammarDigest } from '../ast/parser.js';
+import { parseFile, grammarDigest, newParser } from '../ast/parser.js';
 import { relationLanguageForPath, primaryExtensionForLanguage, grammarExtensionForPath } from '../utils/language-registry.js';
 import { ensureLoaderRegistered } from '../ast/loader-hook.js';
 import { expandMappingPathsWithinOwnGraph, hashString } from '../io/hash.js';
 import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet } from '../io/repo-scanner.js';
 
 import { buildOwnerIndex, guardOwnerIndex } from './owner-index.js';
-import { SymbolTable } from './symbol-table.js';
-import { makeResolver, resolveDetectedEdges } from './resolver.js';
 import {
+  SymbolTable,
+  makeResolver,
+  resolveDetectedEdges,
   extractCsharpRefs,
   assembleCsharpCandidates,
+  buildCsharpProjectScopes,
+  extractorForLanguage,
+  sfcScriptView,
+  version as RUNES_VERSION,
   type CsharpExtract,
-} from './extractors/csharp.js';
-import { buildCsharpProjectScopes, type CsharpGlobalFacts } from './extractors/csharp-project.js';
-import { extractorForLanguage } from './extractors/registry.js';
-import { sfcScriptView } from './extractors/typescript.js';
+  type CsharpGlobalFacts,
+  type DependencyExtractor,
+  type ParsedFile,
+  type DeclaredSymbol,
+  type DetectedDep,
+} from '@chrisdudek/runes/relations';
 import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
 import { guardedResolve } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import { STRUCTURAL_RELATION_TYPES } from './allowed-types.js';
-import type {
-  DependencyExtractor,
-  ParsedFile,
-  DeclaredSymbol,
-  DetectedDep,
-} from './extractors/types.js';
 import { mapBounded, IO_CONCURRENCY } from '../utils/bounded-map.js';
 
 export interface NodeViolations {
@@ -428,7 +429,7 @@ async function parseSingle(record: FileRecord, source: FactSource): Promise<Pars
     const view = sfcScriptView(record.path, record.content);
     const content = view?.content ?? record.content;
     const tree = await parseFile(view?.parsePath ?? record.path, content, record.language);
-    return { path: record.path, content, tree, language: record.language };
+    return { path: record.path, content, tree, language: record.language, newParser };
   } catch (err) {
     // FAIL CLOSED. tree-sitter is error-tolerant — it returns a tree (with `hasError`
     // nodes) for malformed source and never throws on bad syntax — so any throw from
@@ -550,6 +551,7 @@ async function loadOrExtractFacts(
       language,
       grammarHash,
       rev: extractor.rev,
+      runes: RUNES_VERSION,
     });
 
     const cached = await loadFacts(deps.symbolIndexDir, language, key);
@@ -810,9 +812,9 @@ function addTypedEdges(typed: TypedEdgeCollector, record: FileRecord, detected: 
         // territory (same-node self-edges are its own exemption; cross-node ones are
         // its own violation). Never double-covered by the type gate.
         if (record.typeId !== undefined) {
-          const targetNode = graph.nodes.get(outcome.ownerNode);
+          const targetNode = graph.nodes.get(outcome.owner);
           if (targetNode) {
-            pushTypedEdge(typed, record, outcome.resolvedFile, { kind: 'node', path: outcome.ownerNode, type: targetNode.meta.type });
+            pushTypedEdge(typed, record, outcome.resolvedFile, { kind: 'node', path: outcome.owner, type: targetNode.meta.type });
           }
         }
         break; // nearest candidate bound — stop this dep's group
@@ -879,7 +881,7 @@ function verifyNodes(
       // definition shared verbatim with the reference-case runner (resolveDetectedEdges →
       // resolveCandidateGroup), one row per (line, node). A resolved self-edge is pushed here
       // and filtered downstream by verifyNodeDeps against the node's declared relations.
-      for (const { line, ownerNode } of resolveDetectedEdges(detected, resolver, record.path, record.language!)) {
+      for (const { line, owner: ownerNode } of resolveDetectedEdges(detected, resolver, record.path, record.language!)) {
         resolvedDeps.push({ fromFile: record.path, line, ownerNode });
       }
       if (hasTypeCovered) addTypedEdges(typed, record, detected);

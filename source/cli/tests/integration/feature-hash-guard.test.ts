@@ -30,8 +30,8 @@ import { runFill } from '../../src/core/fill.js';
 import { runCheck } from '../../src/core/check.js';
 import { readLock } from '../../src/io/lock-store.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
 import { astCacheDir } from '../../src/relations/facts-cache.js';
 
 // A deterministic aspect that reads its subject's AST and reports nothing. Its verdict

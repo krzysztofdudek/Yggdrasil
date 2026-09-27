@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { grammarWasmHash, grammarDigest, grammarDigestForLanguage, treeSitterRuntimeHash } from '../../../src/ast/parser.js';
+import { grammarWasmHash, grammarDigest, grammarDigestForLanguage } from '../../../src/ast/parser.js';
+
+/** The runtime identity Yggdrasil injects into the Runes parser host: the sha256 of its own web-tree-sitter wasm. */
+const runtimeHash = (): string =>
+  createHash('sha256').update(readFileSync(createRequire(import.meta.url).resolve('web-tree-sitter/web-tree-sitter.wasm'))).digest('hex');
 
 describe('grammarWasmHash', () => {
   it('is a stable 64-hex sha256 for a known grammar', () => {
@@ -16,13 +20,9 @@ describe('grammarWasmHash', () => {
 });
 
 describe('grammarDigest — the grammar AND the parser runtime', () => {
-  it('treeSitterRuntimeHash is the sha256 of the installed web-tree-sitter wasm', () => {
-    const wasm = createRequire(import.meta.url).resolve('web-tree-sitter/web-tree-sitter.wasm');
-    expect(treeSitterRuntimeHash()).toBe(createHash('sha256').update(readFileSync(wasm)).digest('hex'));
-  });
   it('folds the runtime hash and the grammar wasm hash, so either one changing changes it', () => {
     const expected = createHash('sha256')
-      .update(`web-tree-sitter:${treeSitterRuntimeHash()}\ngrammar:${grammarWasmHash('.rs')}`)
+      .update(`web-tree-sitter:${runtimeHash()}\ngrammar:${grammarWasmHash('.rs')}`)
       .digest('hex');
     expect(grammarDigest('.rs')).toBe(expected);
     expect(grammarDigest('.rs')).not.toBe(grammarWasmHash('.rs'));

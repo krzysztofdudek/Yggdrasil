@@ -11,11 +11,11 @@ export { resolveSuppressedRangesForPrompt, SuppressMarkerError } from './suppres
 // bucket — sharing it across a rule's subjects on the same node — without
 // importing ast/* directly (same bridge pattern as the suppress-range resolver
 // above).
-export type { ParseCache } from '../ast/parse-cache.js';
-export { destroyParseCache } from '../ast/parse-cache.js';
+export type { ParseCache } from '@chrisdudek/runes/ast';
+export { destroyParseCache } from '@chrisdudek/runes/ast';
 // Re-export AST helpers for structure aspect authors.
-// closest/walk are colocated in ast/walk.ts.
-export { walk, closest } from '../ast/walk.js';
+// closest/walk come from @chrisdudek/runes/ast, the AST helpers the relation extractors use too.
+export { walk, closest } from '@chrisdudek/runes/ast';
 export { report } from '../ast/report.js';
 export { inFile, type InFilePattern } from '../ast/file-path.js';
 export { findComments, type FindCommentsTarget } from '../ast/find-comments.js';

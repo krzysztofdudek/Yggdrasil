@@ -6,7 +6,6 @@
       "exports": [
         "src/ast/parser.ts#getParser",
         "src/ast/parser.ts#grammarWasmHash",
-        "src/ast/parser.ts#treeSitterRuntimeHash",
         "src/ast/runner.ts#GraphAccessTrap",
         "src/ast/suppress.ts#markdownFencedLines",
         "src/cli/aspect-test.ts#citationOverlap",
@@ -176,7 +175,6 @@
         "src/utils/git-pack-fetch.ts#listPackageVersionTags",
         "src/utils/git.ts#getLastCommitTimestamp",
         "src/utils/known-keys.ts#editDistance",
-        "src/utils/language-registry.ts#EXTENSION_TO_LANGUAGE",
         "src/utils/terminal-safe.ts#neutralizeControls"
       ]
     },

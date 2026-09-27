@@ -131,7 +131,6 @@
     "cli-validation-codes.test.ts": 10,
     "dead-exports.test.ts": 3,
     "dogfood-scripts-smoke.test.ts": 9,
-    "grammar-pipeline.test.ts": 4,
     "simulate.e2e.test.ts": 1
   }
 }

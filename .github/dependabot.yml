@@ -17,9 +17,10 @@ updates:
     # both groups, so each arrives as a PR of its own. They are all 0.x, where a
     # "minor" (0.25 -> 0.26) is the breaking release: node types get renamed or
     # restructured, the parser ABI moves. Such a PR's build fails until the
-    # grammar's pin in source/cli/src/utils/language-registry.ts (version,
-    # commit, sha256 of the wasm and node-types.json) is updated, which is where
-    # the node-types diff and the full relation/AST suite get reviewed. Grammars
+    # grammar's pin in the grammar manifest of @chrisdudek/runes (version, commit,
+    # sha256 of the wasm and node-types.json) is updated in a Runes release and
+    # the pin of @chrisdudek/runes here moves to it; the node-types diff and the
+    # full relation/AST suite get reviewed there. Grammars
     # the build takes from a GitHub release or a pinned commit are not npm
     # packages, so dependabot never sees them; they are bumped by hand the same way.
     groups:

@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
-import type { DependencyExtractor } from '../../src/relations/extractors/types.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
+import type { DependencyExtractor } from '@chrisdudek/runes/relations';
 
 function writeNode(root: string, nodeRel: string, name: string, mapping: string): void {
   const dir = path.join(root, '.yggdrasil', 'model', nodeRel);

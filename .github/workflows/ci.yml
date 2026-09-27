@@ -29,13 +29,14 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       # The build takes several grammars from a GitHub release or a source build at
-      # a pinned commit (scripts/grammars.mjs); both land in a content-addressed cache
+      # a pinned commit (scripts/grammars.mjs, over the grammar manifest of @chrisdudek/runes,
+      # whose version the lock pins, hence the key); both land in a content-addressed cache
       # that the build re-hashes against the pins on every read. Restoring it spares
       # each run the downloads and the tree-sitter toolchain; a miss only costs time.
       - uses: actions/cache@v6
         with:
           path: ~/.cache/yggdrasil/grammars
-          key: grammars-${{ hashFiles('source/cli/src/utils/language-registry.ts', 'source/cli/scripts/grammar-patches/**') }}
+          key: grammars-${{ hashFiles('source/cli/package-lock.json') }}
       - run: npm ci
         working-directory: source/cli
       - run: npm ci

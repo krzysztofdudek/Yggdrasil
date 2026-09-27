@@ -1,22 +1,14 @@
 name: AST Core Traversal Tests
 type: test-suite
-description: Unit tests for core AST traversal utilities — walking, reporting,
-  suppression, parsing, and the public index barrel
+description: Unit tests for the AST layer Yggdrasil keeps — reporting, suppression, comment finding, parsing through the Runes parser host (the grammar digest over Yggdrasil's runtime identity), the public index barrel, and the shipped grammars against the Runes pins and pinned runtime
 aspects: []
-relations:
-  [
-    { target: cli/ast/report, type: uses },
-    { target: cli/ast/runtime, type: uses },
-    { target: cli/language-registry, type: uses }
-  ]
+relations: [ { target: cli/ast/report, type: uses }, { target: cli/ast/runtime, type: uses }, { target: cli/language-registry, type: uses } ]
 mapping:
   - source/cli/tests/unit/ast/find-comments.test.ts
   - source/cli/tests/unit/ast/grammar-pins.test.ts
   - source/cli/tests/unit/ast/grammar-registry-loads.test.ts
   - source/cli/tests/unit/ast/index-exports.test.ts
   - source/cli/tests/unit/ast/parser.test.ts
-  - source/cli/tests/unit/ast/parser-concurrency.test.ts
   - source/cli/tests/unit/ast/parser-wasm-hash.test.ts
   - source/cli/tests/unit/ast/report.test.ts
   - source/cli/tests/unit/ast/suppress.test.ts
-  - source/cli/tests/unit/ast/walk.test.ts

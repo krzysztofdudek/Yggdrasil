@@ -24,7 +24,7 @@ import path from 'node:path';
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
 import { runAstAspect } from '../../../src/ast/runner.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
-import { walk, closest } from '../../../src/ast/walk.js';
+import { walk, closest } from '@chrisdudek/runes/ast';
 import { report } from '../../../src/ast/report.js';
 import { inFile } from '../../../src/ast/file-path.js';
 import { findComments } from '../../../src/ast/find-comments.js';

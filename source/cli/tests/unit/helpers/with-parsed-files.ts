@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { withParsedFile } from '../../../src/ast/parser.js';
 import { getLanguageForExtension } from '../../../src/utils/language-registry.js';
-import type { ParsedFile } from '../../../src/relations/extractors/types.js';
+import type { ParsedFile } from '@chrisdudek/runes/relations';
 
 /** One (path, code, language) input to withParsedFiles. */
 export interface ParseSpec {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { enrichFilesWithAst, prewarmupAstCache } from '../../../src/structure/ctx-parsers.js';
-import type { ParseCache } from '../../../src/ast/parse-cache.js';
+import type { ParseCache } from '@chrisdudek/runes/ast';
 import type { File } from '../../../src/structure/types.js';
 
 describe('enrichFilesWithAst', () => {

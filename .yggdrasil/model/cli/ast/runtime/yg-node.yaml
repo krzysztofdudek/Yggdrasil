@@ -1,11 +1,9 @@
 name: AST Runtime
 type: ast-adapter
-description: AST runtime — loader hook for .cjs interop, parser setup, check
-  runner, and yg-suppress marker extraction.
+description: AST runtime — loader hook for .cjs interop, the parser setup (a @chrisdudek/runes parser host over Yggdrasil's own web-tree-sitter runtime, with that runtime's wasm sha256 as its identity and dist/grammars as its grammar directory), check runner, and yg-suppress marker extraction.
 mapping:
   - source/cli/src/ast/loader-hook-impl.ts
   - source/cli/src/ast/loader-hook.ts
-  - source/cli/src/ast/parse-cache.ts
   - source/cli/src/ast/parser.ts
   - source/cli/src/ast/runner.ts
   - source/cli/src/ast/suppress.ts

@@ -12,9 +12,8 @@
 //
 // Exempt:
 //   - the package's public entry modules (what tsup bundles as an entry and
-//     what package.json exports or node loads by path), and the relation files
-//     the Grain repository vendors by path: their exports are read from outside
-//     this program;
+//     what package.json exports or node loads by path): their exports are read
+//     from outside this program;
 //   - names listed in dead-exports-allowlist.json, each under a reason.
 //
 // A name that only tests read is reported too, unless it is on the allowlist:
@@ -46,24 +45,9 @@ const ENTRY_MODULES = new Set([
   'src/structure/det-worker.ts', // worker entry spawned by the deterministic worker pool
 ]);
 
-/**
- * Files the Grain repository vendors from this source tree by path
- * (Grain's plugins/grain/scripts/build-relations.mjs copies them into its
- * engine/vendor/relations/ and strips the types), so every name they export is
- * read by Grain's engine and tests — from outside this program, where no
- * import here can show it. Keep this in step with that script's FILES list
- * (symbol-table, resolver, resolve-path, repo-layout, every extractors/*.ts)
- * and its ast/walk.ts copy.
- */
-const VENDORED_BY_GRAIN = [
-  /^src\/relations\/(symbol-table|resolver|resolve-path|repo-layout)\.ts$/,
-  /^src\/relations\/extractors\/[^/]+\.ts$/,
-  /^src\/ast\/walk\.ts$/,
-];
-
 /** A module whose exports are read from outside this program. */
 function isEntrySurface(rel) {
-  return ENTRY_MODULES.has(rel) || VENDORED_BY_GRAIN.some((re) => re.test(rel));
+  return ENTRY_MODULES.has(rel);
 }
 
 function loadAllowlist() {

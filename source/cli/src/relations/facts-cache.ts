@@ -2,8 +2,7 @@ import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { atomicWriteFile } from '../io/atomic-write.js';
-import type { DeclaredSymbol, DetectedDep } from './extractors/types.js';
-import type { CsharpExtract } from './extractors/csharp.js';
+import type { DeclaredSymbol, DetectedDep, CsharpExtract } from '@chrisdudek/runes/relations';
 import { isValidFeatureVector, type FeatureVector } from './feature-vector.js';
 
 /**
@@ -19,7 +18,7 @@ import { isValidFeatureVector, type FeatureVector } from './feature-vector.js';
 export const CACHE_SCHEMA_VERSION = 2;
 
 /** Re-export so callers can `import { CsharpExtract } from facts-cache` if convenient. */
-export type { CsharpExtract } from './extractors/csharp.js';
+export type { CsharpExtract } from '@chrisdudek/runes/relations';
 
 /** Extracted facts for one source file (declarations + detected dependencies). */
 export interface FileFacts {
@@ -119,8 +118,10 @@ export function astCacheDir(graphRoot: string): string {
 /**
  * Returns the shard filename stem (the cache key) for a given set of
  * content-addressing inputs. Different inputs always produce different keys
- * so no two distinct `(contentHash, language, grammarHash, rev)` tuples can
- * collide inside the same shard directory.
+ * so no two distinct `(contentHash, language, grammarHash, rev, runes)` tuples can
+ * collide inside the same shard directory. `runes` is the version of `@chrisdudek/runes`
+ * whose extractors produced the facts: the extractors live there, so a Runes upgrade can change
+ * the facts of an unchanged file under an unchanged grammar, and must re-extract it.
  *
  * Width is 32 hex chars = 128 bits of the SHA-256 digest. This makes a birthday
  * collision (which would serve one file's shard for another and slip past the
@@ -133,8 +134,9 @@ export function factsKey(args: {
   language: string;
   grammarHash: string;
   rev: number;
+  runes: string;
 }): string {
-  const payload = `${args.contentHash}\0${args.language}\0${args.grammarHash}\0${args.rev}`;
+  const payload = `${args.contentHash}\0${args.language}\0${args.grammarHash}\0${args.rev}\0${args.runes}`;
   return createHash('sha256').update(payload).digest('hex').slice(0, 32);
 }
 

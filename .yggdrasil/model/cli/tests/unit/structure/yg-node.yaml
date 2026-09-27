@@ -1,14 +1,14 @@
 name: Structure Context Tests
 type: test-suite
-description: "Unit tests for the structure-aspect runtime context API (ctx.fs,
-  ctx.graph, ctx parsers) and the sync mapping-path helper."
+description: "Unit tests for the structure-aspect runtime context API (ctx.fs, ctx.graph, ctx parsers), the sync mapping-path helper, and the static reading of which ctx.config keys a rule script reads."
 aspects: []
 relations:
   [
     { target: cli/ast/runtime, type: uses },
     { target: cli/structure, type: uses },
     { target: cli/core/pair-hash, type: uses },
-    { target: cli/tests/unit/helpers, type: uses }
+    { target: cli/tests/unit/helpers, type: uses },
+    { target: cli/config-reads, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/structure/expand-mapping-sync.test.ts
@@ -17,3 +17,4 @@ mapping:
   - source/cli/tests/unit/structure/ctx-parsers.test.ts
   - source/cli/tests/unit/structure/suppress-ranges.test.ts
   - source/cli/tests/unit/structure/ctx-fs-branch-coverage.test.ts
+  - source/cli/tests/unit/structure/config-reads.test.ts

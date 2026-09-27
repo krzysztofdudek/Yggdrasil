@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runRelationPass } from '../../src/relations/pass.js';
-import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
-import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
+import { extractorForLanguage } from '@chrisdudek/runes/relations';
+import { makeResolvePathToFile } from '@chrisdudek/runes/relations';
 
 // The live pass over a TS/JS project whose dependencies run through project
 // configuration and single-file components: tsconfig `paths`, an in-repo workspace

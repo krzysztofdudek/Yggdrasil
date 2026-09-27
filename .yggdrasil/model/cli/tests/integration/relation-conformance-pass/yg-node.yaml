@@ -1,27 +1,18 @@
 name: Integration Tests — Relation Conformance Pass
 type: test-suite
-description: "Integration tests for the parse-heavy relation-conformance pass
-  and its wiring into yg check: edge resolution across nodes, the runCheck
-  blocking-issue surface that emits relation-undeclared-dependency, the
-  fill-stage approved-persistence path under yg check --approve, and the silent
-  feature-field deviation index the reporting path maintains from the pass's
-  per-file facts (byproduct-free at every other runCheck call site, best-effort,
-  content-hash pinned to the pass's own hash)."
+description: "Integration tests for the parse-heavy relation-conformance pass and its wiring into yg check: edge resolution across nodes, the runCheck blocking-issue surface that emits relation-undeclared-dependency, the fill-stage approved-persistence path under yg check --approve, and the silent feature-field deviation index the reporting path maintains from the pass's per-file facts (byproduct-free at every other runCheck call site, best-effort, content-hash pinned to the pass's own hash)."
 aspects: []
 relations:
-  [
-    { target: cli/core/check, type: uses },
-    { target: cli/core/fill, type: uses },
-    { target: cli/core/loader, type: uses },
-    { target: cli/io/lock-store, type: uses },
-    { target: cli/model/lock, type: uses },
-    { target: cli/model/graph, type: uses },
-    { target: cli/relations/core, type: uses },
-    { target: cli/relations/extractors, type: uses },
-    { target: cli/ast/runtime, type: uses },
-    { target: cli/io/stores, type: uses },
-    { target: cli/portal/engine-api, type: uses }
-  ]
+  - { target: cli/core/check, type: uses }
+  - { target: cli/core/fill, type: uses }
+  - { target: cli/core/loader, type: uses }
+  - { target: cli/io/lock-store, type: uses }
+  - { target: cli/model/lock, type: uses }
+  - { target: cli/model/graph, type: uses }
+  - { target: cli/relations/core, type: uses }
+  - { target: cli/ast/runtime, type: uses }
+  - { target: cli/io/stores, type: uses }
+  - { target: cli/portal/engine-api, type: uses }
 mapping:
   - source/cli/tests/integration/relation-pass.test.ts
   - source/cli/tests/integration/relation-pass-multiroot-resolvers.test.ts
