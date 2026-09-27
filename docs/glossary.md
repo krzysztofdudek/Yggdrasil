@@ -54,19 +54,19 @@ Not called: reviewer kind. More: [Aspects](/aspects).
 
 A rule written as prose (`content.md`) that the reviewer reads and judges the code against — judgment, and it may cost.
 
-Not called: LLM aspect, judgment rule. More: [Reviewers](/reviewers).
+Machine token: `llm` — `reviewer.type` in `yg-aspect.yaml`, `kind` in the JSON output. Not called: LLM aspect, judgment rule. More: [Reviewers](/reviewers).
 
 ### script rule {#deterministic}
 
 A rule written as a script (`check.mjs`) that runs on your machine — mechanical, repeatable and free. A script rule has no reviewer.
 
-Not called: deterministic aspect, deterministic reviewer. More: [Reviewers](/reviewers).
+Machine token: `deterministic` — `reviewer.type` in `yg-aspect.yaml`, the `--only-deterministic` flag, `kind` and `reviewer` in the JSON output. Not called: deterministic aspect, deterministic reviewer. More: [Reviewers](/reviewers).
 
 ### bundle {#bundle}
 
 A rule with no `content.md` and no `check.mjs`, only `implies:`. It brings in the rules it implies and records no verdict of its own.
 
-Not called: aggregating reviewer. More: [Aspects](/aspects#bundling-rules-implies).
+Machine token: `aggregate` — `kind` in the JSON output. Not called: aggregating reviewer. More: [Aspects](/aspects#bundling-rules-implies).
 
 ### status {#status}
 
@@ -179,6 +179,8 @@ Not called: approving run, recording run. More: [CLI Reference](/cli-reference#y
 ### passed {#passed}
 
 The verdict when the code satisfies the rule.
+
+Machine token: `approved` — `verdict` in the JSON output and in the lock.
 
 ### refused {#refused}
 

@@ -210,6 +210,7 @@ node_types:
 Architecture-level default aspects (channel 3) may declare \`status:\` to
 control its status. When a node_type in \`yg-architecture.yaml\`
 declares a default aspect with status, that status applies to every node of
-that type unless explicitly overridden at the node or channel level.
+that type unless another site that attaches the rule raises it; a lower status
+at another site is \`aspect-status-downgrade\`, an error.
 See: \`yg knowledge read aspect-status\`.
 `;

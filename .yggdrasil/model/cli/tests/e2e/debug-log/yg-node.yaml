@@ -1,0 +1,13 @@
+name: E2E Tests — The Debug Log
+type: test-suite
+description: >-
+  Subprocess E2E for the opt-in debug log: with debug true in yg-config.yaml a
+  command that reads the graph writes .yggdrasil/.debug.log naming the command
+  it ran, and without it nothing is written. Pins that the log is started by
+  the shared graph loader, not by a list of commands.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-debug-log.test.ts

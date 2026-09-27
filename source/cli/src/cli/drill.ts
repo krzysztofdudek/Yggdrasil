@@ -414,7 +414,7 @@ async function buildDrillRun(
           debugWrite(`[drill] check '${aspect.id}' reads graph context — case recorded as unsupported (not scored): ${e.message}`);
           return 'unsupported';
         }
-        debugWrite(`[drill] deterministic check for '${aspect.id}' could not evaluate a case: ${e instanceof Error ? e.message : String(e)}`);
+        debugWrite(`[drill] script rule '${aspect.id}' could not evaluate a case: ${e instanceof Error ? e.message : String(e)}`);
         return 'unrun';
       }
     },

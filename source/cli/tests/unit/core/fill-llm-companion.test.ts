@@ -901,7 +901,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The diagnostic surfaces with the aspect-companion-runtime-error code (the mirror
-    // of the deterministic aspect-check-runtime-error), severity error (enforced).
+    // of the deterministic check-failed-to-run), severity error (enforced).
     const ce = result.checkResult.issues.find((i) => i.code === 'aspect-companion-runtime-error');
     expect(ce).toBeDefined();
     expect(ce!.severity).toBe('error');

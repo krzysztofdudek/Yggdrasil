@@ -25,7 +25,7 @@ aspects:                      # optional — aspect identifiers applied directly
   - id: conditional-aspect    #   object form — attach with per-site applicability filter
     status: enforced          #   optional — explicit status override (channel 1).
                               #   Must satisfy bump rule (bump up OK, downgrade is validator error).
-    when: <predicate>         #   optional — see yg schemas read aspect for grammar
+    when: { node: { has_mapping: true } }  # optional — a node predicate; yg schemas read aspect has the grammar
                               # Aspects cascade to all child nodes.
 
 ports:                        # optional — named entry points with required aspects.
@@ -39,7 +39,7 @@ ports:                        # optional — named entry points with required as
       - id: conditional-aspect
         status: enforced      #   optional — explicit status override (channel 6).
                               #   Must satisfy bump rule (bump up OK, downgrade is validator error).
-        when: <predicate>     #   optional — see yg schemas read aspect for grammar
+        when: { node: { type: service } }  # optional — a node predicate; yg schemas read aspect has the grammar
 
 relations:                    # optional — outgoing dependencies to other nodes
                               # Load-bearing, not just documentation: a built-in deterministic check
@@ -55,8 +55,9 @@ relations:                    # optional — outgoing dependencies to other node
                               # works as a deprecated alias; declaring both is rejected).
                               # Naming none is fine — the relation normalizes to the implicit
                               # default port, which carries no requirement unless declared. Naming
-                              # an empty list is a BLOCKING ERROR (port-names-empty) — omit the field
-                              # instead. Naming a port the target does not publish — including when
+                              # an empty list is refused as a BLOCKING yaml-invalid (the message
+                              # says port-names-empty, which is not a code of its own) — omit the
+                              # field instead. Naming a port the target does not publish — including when
                               # the target publishes no ports at all — is a BLOCKING ERROR
                               # (port-undefined); \`default\` never triggers it, since it always exists.
                               # Neither error has a waiver; fix the port name, or add the port to

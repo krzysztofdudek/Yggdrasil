@@ -55,7 +55,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output (exit 0):
 
 ```
-yg check: PASS  1 nodes · 8/8 files · 1 aspects · 0 flows · 1 verified (1 deterministic, 0 LLM)
+yg check: PASS  1 node · 8/8 files covered · 1 pair verified (script)
 ```
 
 > The script verdict is cached in the **gitignored**
@@ -83,15 +83,14 @@ You will see the refusal (exit 1), pointing at the exact line you added (the
 line number depends on where you inserted the import) — for example:
 
 ```
-yg check: FAIL  1 nodes · 8/8 files · 1 aspects · 0 flows
+yg check: FAIL  1 error   1 node · 8/8 files covered
 
-Errors (1):
+error[refused] deterministic-transforms — 1 violation in pipeline
+  at:   pipeline  src/transforms/clean.py:20  Transforms must be reproducible: line references datetime.now(). Reading the wall clock or drawing randomness makes the pipeline unreplayable. Pass any needed timestamp or seed in as an argument, or move this concern to the orchestrator (pipeline.py).
+  why:  Functions in the transforms package must be reproducible: no wall-clock reads and no randomness.
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
 
-  enforced  1 pairs  1 nodes  aspect 'deterministic-transforms'
-            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
-            Fix: Fix the listed violations, then: yg check --approve
-            - pipeline  Violations:
-              src/transforms/clean.py:20: Transforms must be reproducible: line references datetime.now(). Reading the wall clock or drawing randomness makes the pipeline unreplayable. Pass any needed timestamp or seed in as an argument, or move this concern to the orchestrator (pipeline.py).
+next: edit src/transforms/clean.py:20
 ```
 
 Remove the two added lines to restore green (re-run the two commands above).

@@ -469,7 +469,7 @@ async function runDeterministicPath(
 ): Promise<void> {
   if (aspect.reviewer.type !== 'deterministic') {
     failAndExit({
-        what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
+        what: `Aspect '${opts.aspect}' declares reviewer type '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
         why: `yg aspect-test supports script rules (check.mjs) and reviewer rules (content.md).`,
         next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
       }, 'command-error');

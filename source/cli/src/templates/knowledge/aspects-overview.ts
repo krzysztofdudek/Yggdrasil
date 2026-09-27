@@ -96,7 +96,12 @@ A reviewer rule may ship \`companion.mjs\` alongside \`content.md\` to provide a
 per-unit companion file resolver — a hook that selects 0..N files injected
 into the reviewer prompt for each unit individually. Presence of
 \`companion.mjs\` does not change the inferred kind (still a reviewer rule) and
-is forbidden alongside \`check.mjs\`. See
+is forbidden alongside \`check.mjs\`. The resolver may also live elsewhere in the
+repository: the \`companion:\` key of \`yg-aspect.yaml\` names it by its
+repository-relative path, and then it takes the place of a sibling
+\`companion.mjs\` (the named module is what runs and what is hashed). It is the
+way to give a rule installed from a package a resolver that knows your layout,
+set in that rule's \`yg-aspect.adapt.yaml\`. See
 \`yg knowledge read writing-llm-aspects\` for the full contract.
 
 ### Bundles
@@ -144,6 +149,14 @@ reach related nodes, the file system, and graph metadata through \`ctx\`. It run
 locally during \`yg check --approve\` at zero LLM cost and returns exact,
 deterministic results. Script rules do NOT use reviewer tiers —
 \`reviewer.tier:\` is rejected on them.
+
+A script rule may state its **error direction** with \`errs:\` in its
+\`yg-aspect.yaml\`: \`over\` (the check may flag code the rule does not forbid —
+false positives possible), \`under\` (it fires only on a provable violation — no
+false positives by design) or \`exact\` (neither). It is a label for readers and
+reports (\`yg aspects --health\`, and \`yg suppressions\`, which warns on a waiver of
+an \`errs: under\` rule); it is never part of a verdict's hash, and it is refused
+on a reviewer rule or a bundle.
 
 \`check.mjs\` runs in the main Node process with full privileges — there is no
 security sandbox. The read allow-list is a discipline that scopes observed

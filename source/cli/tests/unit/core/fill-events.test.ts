@@ -36,7 +36,7 @@ const SVC_SOURCE_DEFAULT = 'export const x = 1;\n';
 // A source file carrying a MALFORMED yg-suppress marker (no reason). When a check
 // returns a violation of the aspect it names on the line it would waive, the runner
 // throws while filtering — surfacing the fault as its own `malformed-suppress`
-// disposition (NOT an aspect-check-runtime-error), which the fill emits as an event.
+// disposition (NOT an check-failed-to-run), which the fill emits as an event.
 const SVC_SOURCE_MALFORMED_SUPPRESS =
   'export const x = 1; // yg-suppress(det-flag)\nexport const y = 2;\n';
 

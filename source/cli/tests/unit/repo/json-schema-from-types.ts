@@ -167,7 +167,7 @@ export function schemaFromFileFormat(format: FileFormatSchema, meta: { id: strin
       case 'string':
         return type.values !== undefined ? (type.values.length === 1 ? { const: type.values[0] } : { enum: [...type.values] }) : { type: 'string', ...(type.nonEmpty && { minLength: 1 }) };
       case 'boolean':
-        return { type: 'boolean' };
+        return type.only !== undefined ? { const: type.only } : { type: 'boolean' };
       case 'integer':
         return { type: 'integer', ...(type.min !== undefined && { minimum: type.min }) };
       case 'number':

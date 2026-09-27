@@ -249,7 +249,7 @@ node_types:
       default: deny
 
   relations-adapter:
-    description: "Relation-conformance subsystem — per-language dependency extractors, resolvers, and the pass/verify engine. Deterministic static code analysis."
+    description: "Relation-conformance subsystem — the relation pass, the owner index, graph-bound path resolution (guardedResolve), the type gate, the verifier and the facts cache. The per-language dependency extractors, the symbol table, the resolver and the per-language path resolvers come from @chrisdudek/runes/relations; this subsystem binds them to the graph. Deterministic static code analysis."
     enforce: strict
     when:
       all_of:
@@ -575,7 +575,7 @@ node_types:
       default: deny
 
   reference-catalogue:
-    description: "Catalogue of structured reference docs under reference/<kind>/. Each kind declares its structure in reference/<kind>/_reference-schema.yaml; the generic deterministic aspects reference/doc-shape + reference/layout + reference/section-body enforce it. First kind: the relations name-resolution case catalogue (one .md per identification case, 1:1 with a runCase test)."
+    description: "Catalogue of structured reference docs under reference/<kind>/. Each kind declares its structure in reference/<kind>/_reference-schema.yaml; the generic deterministic aspects reference/doc-shape + reference/layout + reference/section-body enforce it."
     enforce: strict
     when:
       path: "reference/**/*"

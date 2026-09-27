@@ -4,6 +4,25 @@ export const KNOWN_PROVIDERS = [
 ] as const;
 
 /**
+ * The model a tier's config.model falls back to when the tier omits it. Only
+ * these CLI providers have one; every other provider — copilot-cli included,
+ * whose seat policy decides which models it may use — must name its model. The
+ * parser reads it, and the texts that name the providers with a fallback (the
+ * config schema's required column, the issue-code fix) are built from it.
+ */
+export const PROVIDER_DEFAULT_MODELS: Readonly<Record<string, string>> = {
+  'claude-code': 'haiku',
+  'codex': 'o4-mini',
+  'gemini-cli': 'gemini-2.5-flash',
+};
+
+/** The providers with a built-in model fallback, as prose: "claude-code, codex and gemini-cli". */
+export function providersWithDefaultModel(): string {
+  const names = Object.keys(PROVIDER_DEFAULT_MODELS);
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
  * The first-party API providers: each has one canonical endpoint, and the key
  * it sends is read from its own environment variable when no config.api_key is
  * set. `yg check` compares a committed config.endpoint against these (see

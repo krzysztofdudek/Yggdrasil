@@ -4,3 +4,5 @@ There is now more than one kind of judge, and both must be judging the same thin
 The external-judge channel is removed: the reviewer configured in yg-config.yaml, through yg check --approve, is the only judge of a prose rule, by the owner's decision that there is to be no other. The review package assembly now serves the fill alone, and verdicts an earlier release recorded through the channel still re-prove by the same hash, so no adopter's lock is broken.
 ## [2026-09-23T20:10:02.472Z]
 The description still said an external-judge channel prints this package and records verdicts against its hash, after that channel was removed. It now says the fill stage is the package's only consumer, which is what the code does; a stale contract here is fed to agents through yg context.
+## [2026-09-27T20:04:02.767Z]
+Comments named the retired pseudo-code aspect-check-runtime-error as the counterpart of the companion runtime error; they now name the real cause, check-failed-to-run.

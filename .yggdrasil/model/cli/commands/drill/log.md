@@ -42,3 +42,5 @@ Exported values that no other file reads were found across the source, left over
 A command error's code is a contract — yg-error/1 consumers and sibling tools branch on it (a node that does not exist is read as absent by its code, a misused flag as a stale CLI) — while the wording is free to change. The output layer used to guess the code from the message wording with regular expressions when a command did not name one, so rewording a message could silently change its code, and a runner error whose text happened to say 'is required' read as a misused flag. Every refusal now names its code explicitly, as the refusal was classified before, and a bare what/why/next without a code no longer typechecks.
 ## [2026-09-27T06:36:29.277Z]
 The drill no longer asks the graphless runner for its trapped context: every graphless run now builds that one context itself, so the drill and the ad-hoc files mode of aspect-test cannot drift apart.
+## [2026-09-27T20:03:52.182Z]
+The debug line for a case a script rule could not evaluate called the rule a deterministic check, a retired name; it says script rule now.

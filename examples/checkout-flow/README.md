@@ -44,7 +44,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  4 nodes · 9/9 files · 1 aspects · 1 flows · 3 verified (3 deterministic, 0 LLM)
+yg check: PASS  4 nodes · 9/9 files covered · 3 pairs verified (script)
 ```
 
 > On a fresh clone, step 1 is required: the script verdict lives in the
@@ -55,7 +55,7 @@ yg check: PASS  4 nodes · 9/9 files · 1 aspects · 1 flows · 3 verified (3 de
 You can also see the propagation directly:
 
 ```bash
-node ../../source/cli/dist/bin.js flows          # Checkout — Participants: cart, fulfillment, payment · Aspects: emits-telemetry
+node ../../source/cli/dist/bin.js flows          # Checkout — Participants: 3 nodes (cart, fulfillment, payment) · Aspects: emits-telemetry
 node ../../source/cli/dist/bin.js impact --flow checkout   # Blast radius: 3 nodes
 ```
 
@@ -74,15 +74,14 @@ node ../../source/cli/dist/bin.js check
 proving the flow-level rule reaches every participant independently:
 
 ```
-yg check: FAIL  4 nodes · 9/9 files · 1 aspects · 1 flows · 2 verified (2 deterministic, 0 LLM)
+yg check: FAIL  1 error   4 nodes · 9/9 files covered · 2 pairs verified (script)
 
-Errors (1):
+error[refused] emits-telemetry — 1 violation in payment
+  at:   payment  src/payment.ts:1  Checkout step does not emit a telemetry event: add a track(...) call (e.g. track('cart.viewed', { ... })) so this step appears in the funnel.
+  why:  Every checkout step must emit a telemetry event via a track(...) call so the funnel can be reconstructed
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
 
-  enforced  1 pairs  1 nodes  aspect 'emits-telemetry'
-            A deterministic check recorded these violations. ...
-            Fix: Fix the listed violations, then: yg check --approve
-            - payment  Violations:
-              src/payment.ts:1: Checkout step does not emit a telemetry event: add a track(...) call (e.g. track('cart.viewed', { ... })) so this step appears in the funnel.
+next: edit src/payment.ts:1
 ```
 
 **Restore green:** put the `track('payment.captured', { ... });` call back in

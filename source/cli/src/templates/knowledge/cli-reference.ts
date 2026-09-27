@@ -1,4 +1,4 @@
-import { AUTO_APPROVE_READ_ONLY_CASES } from './shared-text.js';
+import { AUTO_APPROVE_READ_ONLY_CASES, DET_GATE_SKIP, GRAPHLESS_SCRIPT_CTX } from './shared-text.js';
 import { ISSUE_CODES_TABLE } from './issue-codes-table.js';
 
 export const summary =
@@ -330,7 +330,8 @@ same bare \`yg check\` stays read-only and says \`auto-approve: full ignored —
 is set\` on stderr instead.
 
 Verification is all-or-nothing: a run fills every pair it is answering for, or
-(when the mandatory-log gate stops it) nothing at all. By default it answers for
+(when the mandatory-log gate stops it) nothing at all — save the reviewer pairs
+the script gate below skips. By default it answers for
 the whole project. When progressive mode is on, it still runs every free
 script rule project-wide but buys reviewer work only for the rules the
 current change is accountable for, and names how many it left — see \`--full\`
@@ -343,9 +344,8 @@ script-verdict cache, so this rematerializes it; it also re-hashes the committed
 reviewer verdicts, so the trailing report still catches a stale committed reviewer verdict.
 
 The full-run order: the per-node log gate (a stop there prints no \`fill\` line);
-the pre-dispatch line (\`fill  N pairs · D script (free) · K reviewer calls (consensus included)\`); script fills first (free); the script gate (a
-node with an enforced script refusal has its reviewer fills skipped this run);
-then reviewer fills. A real verdict (passed or refused) is written to the lock; every
+the pre-dispatch line (\`fill  N pairs · D script (free) · K reviewer calls (consensus included)\`); script fills first (free); the script gate
+(${DET_GATE_SKIP}); then reviewer fills. A real verdict (passed or refused) is written to the lock; every
 infra disposition writes nothing and the pair stays unverified. Refusals are
 cached and FINAL for unchanged inputs. Interrupting is safe — finished pairs
 persist, the next run resumes.
@@ -639,9 +639,8 @@ Each case resolves to one of five outcomes:
 - \`unsupported\` — the rule needs context a drill cannot supply (a script
   rule that reads graph context — \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, the
   parsers — or a reviewer rule that ships \`companion.mjs\`); a capability gap,
-  recorded, never counted as pass/fail. A drill DOES supply \`ctx.subject\` (the
-  case files) and \`ctx.config\` (the rule's settings, with this repository's
-  adaptation applied), so a rule parameterized through settings drills normally.
+  recorded, never counted as pass/fail. A rule parameterized through settings
+  drills normally: ${GRAPHLESS_SCRIPT_CTX}
 
 Script rules run locally and FREE. Reviewer rules go through the same
 production prompt path the reviewer uses and BILL the reviewer — the
@@ -1049,7 +1048,10 @@ A status changed BY HAND (the only way a status changes today) is noticed:
 \`yg check\` reports it as a WARNING — moving a rule is not a violation — and the
 next full \`yg check --approve\` writes the bare fact into that rule's log and stops
 mentioning it (\`--only-deterministic\` writes no committed file, so it leaves the
-warning standing). A change already recorded by the caller is never written twice.
+warning standing). A change the rule's log already records — its newest status
+entry names the status the rule now stands at — is neither reported nor written
+twice, on any checkout: the warning reads the committed log, not only the local
+memory, so pulling a change together with its entry raises nothing.
 The status the tool last saw lives in the local, gitignored cache, so only a
 machine that saw the rule BEFORE the change reports it: a fresh checkout — a CI
 job — has nothing to compare against, remembers the current status silently and

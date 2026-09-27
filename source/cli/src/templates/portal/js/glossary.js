@@ -10,6 +10,7 @@
  *
  * Each entry: `id` (the stable lowercase key the portal looks up, and the docs anchor),
  * `term` (the display name), `group` (the docs section), `def` (the plain definition),
+ * optional `token` (the frozen machine token for the term in config, flags and JSON),
  * optional `not` (words that are NOT used for this — retired synonyms or look-alikes) and
  * optional `see` (the docs page that covers it in depth).
  *
@@ -79,6 +80,7 @@
       term: 'reviewer rule',
       group: 'Rules',
       def: 'A rule written as prose (`content.md`) that the reviewer reads and judges the code against — judgment, and it may cost.',
+      token: '`llm` — `reviewer.type` in `yg-aspect.yaml`, `kind` in the JSON output',
       not: 'LLM aspect, judgment rule',
       see: '/reviewers',
     },
@@ -87,6 +89,7 @@
       term: 'script rule',
       group: 'Rules',
       def: 'A rule written as a script (`check.mjs`) that runs on your machine — mechanical, repeatable and free. A script rule has no reviewer.',
+      token: '`deterministic` — `reviewer.type` in `yg-aspect.yaml`, the `--only-deterministic` flag, `kind` and `reviewer` in the JSON output',
       not: 'deterministic aspect, deterministic reviewer',
       see: '/reviewers',
     },
@@ -95,6 +98,7 @@
       term: 'bundle',
       group: 'Rules',
       def: 'A rule with no `content.md` and no `check.mjs`, only `implies:`. It brings in the rules it implies and records no verdict of its own.',
+      token: '`aggregate` — `kind` in the JSON output',
       not: 'aggregating reviewer',
       see: '/aspects#bundling-rules-implies',
     },
@@ -211,6 +215,7 @@
       term: 'passed',
       group: 'Judging',
       def: 'The verdict when the code satisfies the rule.',
+      token: '`approved` — `verdict` in the JSON output and in the lock',
     },
     {
       id: 'refused',

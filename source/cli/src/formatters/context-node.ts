@@ -133,7 +133,7 @@ export function formatNodeContext(data: NodeContextData): string {
         lines.push(`    Subjects: ${formatSubjectCount(subjects)}`);
       }
       if (status === 'draft') {
-        lines.push('    (reviewer skipped; aspect is draft)');
+        lines.push('    (not checked; the rule is draft)');
         if (aspect.implies && aspect.implies.length > 0) {
           lines.push(`    Implies: ${aspect.implies.join(', ')}`);
         }

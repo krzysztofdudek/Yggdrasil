@@ -335,7 +335,7 @@ mapping:
       expect(ctx.status).toBe(0);
       expect(ctx.stdout).toContain('audit-required [draft]');
       expect(ctx.stdout).toContain("port 'charge' on 'services/payments'");
-      expect(ctx.stdout).toContain('(reviewer skipped; aspect is draft)');
+      expect(ctx.stdout).toContain('(not checked; the rule is draft)');
 
       // The consumer's only effective aspect is draft, so it contributes NO
       // expected pair — fill has nothing to do and the always-flag check never

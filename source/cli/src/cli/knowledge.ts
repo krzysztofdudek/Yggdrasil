@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { KNOWLEDGE_TOPICS } from '../templates/knowledge/index.js';
+import { KNOWLEDGE_TOPICS, KNOWLEDGE_TOPIC_ALIASES } from '../templates/knowledge/index.js';
 import { abortOnUnexpectedError } from './preamble.js';
 import { paint, writeOut, failAndExit } from './output.js';
 
@@ -7,12 +7,17 @@ export function listKnowledge(): void {
   writeOut('\nAvailable knowledge topics:\n\n');
   const sorted = Object.entries(KNOWLEDGE_TOPICS).sort(([a], [b]) => a.localeCompare(b));
   for (const [name, topic] of sorted) {
-    writeOut(`  ${paint.bold(name.padEnd(28))} ${topic.summary}\n`);
+    const aliases = Object.keys(KNOWLEDGE_TOPIC_ALIASES).filter((a) => KNOWLEDGE_TOPIC_ALIASES[a] === name);
+    const also = aliases.length > 0 ? ` (also: ${aliases.join(', ')})` : '';
+    writeOut(`  ${paint.bold(name.padEnd(28))} ${topic.summary}${also}\n`);
   }
   writeOut('\nTo read a topic: yg knowledge read <name>\n\n');
 }
 
-export function readKnowledge(name: string): void {
+export function readKnowledge(requested: string): void {
+  const name = Object.prototype.hasOwnProperty.call(KNOWLEDGE_TOPIC_ALIASES, requested)
+    ? KNOWLEDGE_TOPIC_ALIASES[requested]
+    : requested;
   if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE_TOPICS, name)) {
     const available = Object.keys(KNOWLEDGE_TOPICS).sort().join(', ');
     failAndExit({

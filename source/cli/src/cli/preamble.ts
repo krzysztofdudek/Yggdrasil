@@ -1,6 +1,8 @@
 import { stat } from 'node:fs/promises';
 import { loadGraphOrThrow, GraphLoadError } from '../core/graph-loader.js';
 import { LockEnvironmentError, LockInvalidError } from '../io/lock-store.js';
+import { appendToDebugLog } from '../io/debug-log-writer.js';
+import { initDebugLog } from '../utils/debug-log.js';
 import type { Graph } from '../model/graph.js';
 import { failAndExit } from './output.js';
 
@@ -45,13 +47,20 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
  * process.exit(1); it does not return. Any other error is rethrown so the
  * caller can decide. Long-lived callers (the portal server) use the throwing
  * loader directly and never reach this exit.
+ *
+ * Once the graph is loaded this also starts the opt-in debug log (`debug: true` in
+ * yg-config.yaml), so every command that reads the graph writes
+ * `.yggdrasil/.debug.log` — including the ones whose reviewer errors point the user
+ * at that file (aspect-test, drill). Starting it twice is a no-op.
  */
 export async function loadGraphOrAbort(
   rootPath: string,
   options: { tolerateInvalidConfig?: boolean; noSecrets?: boolean } = {},
 ): Promise<Graph> {
   try {
-    return await loadGraphOrThrow(rootPath, options);
+    const graph = await loadGraphOrThrow(rootPath, options);
+    initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
+    return graph;
   } catch (err) {
     if (err instanceof GraphLoadError) {
       failAndExit(err.issue, err.issue.what.startsWith('No .yggdrasil/') ? 'graph-missing' : 'graph-load-failed');

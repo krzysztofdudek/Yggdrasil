@@ -100,14 +100,14 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       // Also flag the wrong file type for the declared reviewer
       const wrongTypeMsgData: IssueMessage = reviewer === 'llm'
         ? {
-            what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
+            what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but check.mjs is present.`,
             why: `A reviewer rule must not ship check.mjs (that's a script rule's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
+            next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs, or set reviewer.type to 'deterministic' to make it a script rule.`,
           }
         : {
-            what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
+            what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but content.md is present.`,
             why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
+            next: `Remove .yggdrasil/aspects/${aspect.id}/content.md, or set reviewer.type to 'llm' to make it a reviewer rule.`,
           };
       issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(wrongTypeMsgData), messageData: wrongTypeMsgData, aspectId: aspect.id });
       // companion+check is the more-specific conflict; emit it here before the continue.
@@ -120,7 +120,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
     if (reviewer === 'llm') {
       if (!hasContentMd) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer 'llm' but content.md is missing.`,
+          what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but content.md is missing.`,
           why: `A reviewer rule needs content.md as the rule definition the reviewer reads.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/content.md describing the rule.`,
         };
@@ -128,9 +128,9 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       }
       if (hasCheckMjs) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
+          what: `Aspect '${aspect.id}' declares reviewer type 'llm' (a reviewer rule) but check.mjs is present.`,
           why: `A reviewer rule must not ship check.mjs (that's a script rule's input).`,
-          next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs, or set reviewer.type to 'deterministic' to make it a script rule.`,
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
@@ -138,7 +138,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       // reviewer === 'deterministic'
       if (!hasCheckMjs) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but check.mjs is missing.`,
+          what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but check.mjs is missing.`,
           why: `A script rule needs check.mjs as the rule definition the structure runner executes.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/check.mjs exporting a check function.`,
         };
@@ -146,9 +146,9 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       }
       if (hasContentMd) {
         const msgData: IssueMessage = {
-          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
+          what: `Aspect '${aspect.id}' declares reviewer type '${reviewer}' (a script rule) but content.md is present.`,
           why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
-          next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/content.md, or set reviewer.type to 'llm' to make it a reviewer rule.`,
         };
         issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }

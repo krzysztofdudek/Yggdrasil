@@ -128,7 +128,7 @@ export interface AspectStatusDrift {
  * remembered the first time an approving run looks, which is what makes the
  * NEXT change visible.
  */
-export function findStatusDrift(graph: Graph, lock: LockFile): AspectStatusDrift[] {
+function findStatusDrift(graph: Graph, lock: LockFile): AspectStatusDrift[] {
   const remembered = lock.aspects ?? {};
   const drifted: AspectStatusDrift[] = [];
   for (const aspect of graph.aspects) {
@@ -138,6 +138,30 @@ export function findStatusDrift(graph: Graph, lock: LockFile): AspectStatusDrift
     if (from !== to) drifted.push({ aspectId: aspect.id, from, to });
   }
   return drifted.sort((a, b) => (a.aspectId < b.aspectId ? -1 : a.aspectId > b.aspectId ? 1 : 0));
+}
+
+/**
+ * Whether the rule's own log already records it standing at `to`: its most
+ * recent status entry names that standing. The one test both halves apply — the
+ * approving run before writing an entry, the read-only run before reporting a
+ * change — so a change recorded in the committed log is never reported as
+ * unrecorded by a checkout whose local memory has not caught up with it.
+ */
+async function logRecords(graph: Graph, aspectId: string, to: string): Promise<boolean> {
+  const log = await readAspectLog(graph.rootPath, aspectId);
+  return log.ok && lastRecordedStatus(log.entries) === to;
+}
+
+/**
+ * The drifts of {@link findStatusDrift} that the rule's own log does not
+ * already record — the ones worth telling anybody about.
+ */
+export async function findUnrecordedStatusDrift(graph: Graph, lock: LockFile): Promise<AspectStatusDrift[]> {
+  const out: AspectStatusDrift[] = [];
+  for (const drift of findStatusDrift(graph, lock)) {
+    if (!(await logRecords(graph, drift.aspectId, drift.to))) out.push(drift);
+  }
+  return out;
 }
 
 /** What an approving run did about the standings it found. */
@@ -188,8 +212,7 @@ export async function recordAspectStatuses(
     // The caller may already have recorded this change themselves. Deciding that
     // by reading the rule's own log — rather than by trusting a flag — is what
     // makes the two paths agree even when they are run days apart.
-    const log = await readAspectLog(graph.rootPath, aspect.id);
-    const alreadyRecorded = log.ok && lastRecordedStatus(log.entries) === to;
+    const alreadyRecorded = await logRecords(graph, aspect.id, to);
 
     if (!alreadyRecorded) {
       if (!writeLogs) continue;

@@ -27,3 +27,19 @@ export const RULE_SUPPORT_FILES =
 /** Which line a single-line `yg-suppress` marker waives, trailing markers included. */
 export const SUPPRESS_SINGLE_LINE_SCOPE =
   'A single-line marker waives exactly one line: the line directly below it — or, when its comment trails code on the same line (`doThing(); // yg-suppress(<aspect-path>) <reason>`), that line itself, never the one below. A trailing `yg-suppress-disable` opens its range on its own line, and a trailing `yg-suppress-enable` closes it after its own line. A trailing marker is read only in a file whose language has a registered grammar; anywhere else, put the marker on its own line, directly above the line it waives. `yg suppressions` prints the lines each marker actually waives.';
+
+/** When the committed logs lock file exists at all. */
+export const LOGS_LOCK_FILE_EXISTS =
+  "`yg-lock.logs.json` is written by every full fill that has something to put in it: the source fingerprint of each node with mapped source (of a `log_required` node only at its positive closure), and the log baseline of every node that owns a `log.md`. It is omitted only when no node has mapped source and none owns a `log.md` (an existing empty husk is removed) — a repository with no `log_required` type still gets the file once a full fill has run.";
+
+/** What a relation carries across the boundary: the aspects of the port it enters. */
+export const RELATION_CARRIES_PORT_ASPECTS =
+  "A relation carries the aspects of the port it enters: the ports it names in `portNames`, or the implicit `default` port when it names none — a relation that names a port enters ONLY through it, not through `default` as well. A relation into a port that carries no aspects (`default` carries none unless the target declares some on it) carries nothing across the boundary; the aspects the target holds for itself — its own, its ancestors', its type's — never cross.";
+
+/** The ctx of the graphless runner: `yg drill` and `yg aspect-test --files`. */
+export const GRAPHLESS_SCRIPT_CTX =
+  "The graphless runner — `yg drill` and `yg aspect-test --files` — hands a script rule one and the same `ctx` in both: `ctx.files` and `ctx.subject` (the given files) and `ctx.config` (the rule's settings: a package rule's defaults, with this repository's adaptation over them). A check that reads any other context accessor — `ctx.node`, `ctx.graph`, `ctx.fs`, `ctx.parseAst`, `ctx.parseYaml`, `ctx.parseJson` or `ctx.parseToml` — cannot run there, and is reported as needing a graph-attached run, never as a bug in the check.";
+
+/** What an enforced script refusal skips in the same run: the det gate. */
+export const DET_GATE_SKIP =
+  "An ENFORCED script-rule refusal — fresh in this run or cached — skips the paid reviewer fills of the same node for the rest of that run (of the same unit when the unit has no node, as a type-covered file has none, so one refusing file never skips another's); an advisory refusal skips nothing. The skipped reviewer pairs stay unverified, and a later run fills them once the refusal is gone.";

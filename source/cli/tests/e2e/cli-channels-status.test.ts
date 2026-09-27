@@ -262,7 +262,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
     }
   });
 
-  it('2: a DRAFT aspect via CH3 (own type default) — context tags [draft] (reviewer skipped); the violating token is IGNORED, approve announces the skip and exits 0', () => {
+  it('2: a DRAFT aspect via CH3 (own type default) — context tags [draft] (not checked); the violating token is IGNORED, approve announces the skip and exits 0', () => {
     const dir = hermeticFixture('ch3-draft');
     try {
       authorBannedAspect(dir, 'draft');
@@ -278,7 +278,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       expect(ctx.status).toBe(0);
       expect(ctx.stdout).toContain('no-banned-word [draft]');
       expect(ctx.stdout).toContain('Source: architecture (type: service)');
-      expect(ctx.stdout).toContain('(reviewer skipped; aspect is draft)');
+      expect(ctx.stdout).toContain('(not checked; the rule is draft)');
 
       // The token the draft check WOULD flag is planted, yet the fill ignores it:
       // a draft aspect is never run, so it contributes no fill pair and no
@@ -346,7 +346,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
     }
   });
 
-  it('4: a DRAFT aspect via CH4 (ancestor type default, module) — context tags [draft] (reviewer skipped); the violating token is IGNORED, approve announces the skip and exits 0', () => {
+  it('4: a DRAFT aspect via CH4 (ancestor type default, module) — context tags [draft] (not checked); the violating token is IGNORED, approve announces the skip and exits 0', () => {
     const dir = hermeticFixture('ch4-draft');
     try {
       authorBannedAspect(dir, 'draft');
@@ -360,7 +360,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       expect(ctx.status).toBe(0);
       expect(ctx.stdout).toContain('no-banned-word [draft]');
       expect(ctx.stdout).toContain('Source: inherited from parent (type: module)');
-      expect(ctx.stdout).toContain('(reviewer skipped; aspect is draft)');
+      expect(ctx.stdout).toContain('(not checked; the rule is draft)');
 
       // A draft aspect is never run, so it contributes no fill pair and no
       // verdict — the planted token is ignored (old "[draft] ... skipped" banner

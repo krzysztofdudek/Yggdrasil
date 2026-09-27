@@ -28,6 +28,7 @@ interface Entry {
   term: string;
   group: string;
   def: string;
+  token?: string;
   not?: string;
   see?: string;
 }
@@ -96,6 +97,7 @@ function render(entries: Entry[]): string {
     }
     out.push('', `### ${e.term} {#${e.id}}`, '', e.def);
     const extra: string[] = [];
+    if (e.token) extra.push(`Machine token: ${e.token}.`);
     if (e.not) extra.push(`Not called: ${e.not}.`);
     if (e.see) extra.push(`More: [${pageTitle(e.see)}](${e.see}).`);
     if (extra.length > 0) out.push('', extra.join(' '));

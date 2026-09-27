@@ -230,3 +230,7 @@ A full recording run now drops the log baseline of a node type the architecture 
 The comment on the hand-changed status path names the command that records such a change by its new name; behaviour is unchanged.
 ## [2026-09-27T10:05:50.708Z]
 The prune of a type baseline whose type is gone now reads and rewrites the type baselines file itself, under the log-write lock a concurrent type decision also takes, and only on a full run, because the fill lock write no longer carries that file.
+## [2026-09-27T20:03:59.472Z]
+A script check that failed to run was reported with the token aspect-check-runtime-error, which looked like an issue code but matched no finding: the finding is unverified with cause check-failed-to-run. The notice now names that cause so a reader can match it to the JSON.
+## [2026-09-27T20:22:24.256Z]
+The pooled script fill collected the runtime dispositions of component-free pairs in the order their worker tasks finished, so the same inputs could give the list in a different order from run to run. It is now sorted by file, rule and code once the pool is done, like the other diagnostics that already land in fixed slots.

@@ -1015,7 +1015,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
 
   if (health.signalNotes.length > 0) {
     lines.push('');
-    lines.push('Signal detail (catch = violations caught; exposure = times the reviewer judged):');
+    lines.push('Signal detail (catch = violations caught; exposure = verdicts a fill recorded):');
     for (const note of health.signalNotes) lines.push(`  ${note}`);
   }
 

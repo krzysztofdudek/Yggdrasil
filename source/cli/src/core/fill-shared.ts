@@ -49,7 +49,7 @@ export type DetFillOutcome =
   | { kind: 'runtime-error'; messageData: IssueMessage; code?: string }
   // A malformed (reasonless) `yg-suppress` marker in a mapped source file. This is
   // a fault in the marker, NOT in check.mjs, so it is a DISTINCT disposition (no
-  // write) that must never be reported as aspect-check-runtime-error / "check.mjs
+  // write) that must never be reported as check-failed-to-run / "check.mjs
   // crashed" — the exact mirror of how companion-runtime-error stays distinct.
   | { kind: 'malformed-suppress'; messageData: IssueMessage };
 
@@ -64,7 +64,7 @@ export type DetFillOutcome =
  *  resolved path is outside allowed-reads / observations stayed inconsistent across
  *  two runs). It is decided BEFORE the reviewer runs (callsMade: 0), counted
  *  separately, and reported as aspect-companion-runtime-error — the exact mirror of
- *  aspect-check-runtime-error for deterministic pairs.
+ *  check-failed-to-run for deterministic pairs.
  *  Both dispositions carry structured `messageData` ({ what, why, next }) so the
  *  failure is self-describing at the point it is produced. The bare `why` stays for
  *  callers that fold it into their own surrounding message. */

@@ -224,11 +224,11 @@ describe('det runtime errors grouped by aspectId', () => {
     // 3 pairs all hit runtime-error.
     expect(result.runtimeErrors).toBe(3);
 
-    // Exactly ONE per-aspect grouped message should mention both 'aspect-check-runtime-error'
+    // Exactly ONE per-aspect grouped message should mention both 'check-failed-to-run'
     // AND the specific aspect ID (the aggregate summary says "N deterministic check(s)" but
     // does not name the aspect — so filtering on both tokens isolates the grouped notice).
     const errorMessages = w.messages().filter(
-      (m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-crash'),
+      (m) => m.what.includes('check-failed-to-run') && m.what.includes('det-crash'),
     );
     expect(errorMessages).toHaveLength(1);
 
@@ -263,7 +263,7 @@ describe('det runtime errors grouped by aspectId', () => {
     // Single unit → original per-pair message format (includes the unit key).
     // The per-aspect notice + the aggregate summary both contain the token; at least one is emitted.
     const singleNotices = w.messages().filter(
-      (m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-crash'),
+      (m) => m.what.includes('check-failed-to-run') && m.what.includes('det-crash'),
     );
     expect(singleNotices).toHaveLength(1);
     // The single-unit notice includes the file path directly in what: (per-pair format).
@@ -321,8 +321,8 @@ describe('det runtime errors grouped by aspectId', () => {
     // TWO separate per-aspect grouped messages — one per aspect (each aspect only has
     // 1 unit so the per-pair message is emitted; filter by aspect ID to isolate them
     // from the aggregate summary which also contains the runtime-error token).
-    const msgA = w.messages().filter((m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-a'));
-    const msgB = w.messages().filter((m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-b'));
+    const msgA = w.messages().filter((m) => m.what.includes('check-failed-to-run') && m.what.includes('det-a'));
+    const msgB = w.messages().filter((m) => m.what.includes('check-failed-to-run') && m.what.includes('det-b'));
     expect(msgA).toHaveLength(1);
     expect(msgB).toHaveLength(1);
   });
@@ -490,10 +490,10 @@ describe('distinct-reason grouping (lossless): same aspect, different why/next �
     expect(result.runtimeErrors).toBe(2);
 
     // The two units produced DIFFERENT error messages → each must appear as a
-    // SEPARATE grouped message.  Filter by the aspect-check-runtime-error token
+    // SEPARATE grouped message.  Filter by the check-failed-to-run token
     // and the aspect name to exclude the aggregate summary.
     const detMessages = w.messages().filter(
-      (m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-multierr'),
+      (m) => m.what.includes('check-failed-to-run') && m.what.includes('det-multierr'),
     );
     expect(detMessages).toHaveLength(2);
 
@@ -591,7 +591,7 @@ describe('distinct-reason grouping (lossless): same aspect, different why/next �
 
     // Still ONE grouped message (identical reasons → collapsed).
     const grouped = w.messages().filter(
-      (m) => m.what.includes('aspect-check-runtime-error') && m.what.includes('det-samerr'),
+      (m) => m.what.includes('check-failed-to-run') && m.what.includes('det-samerr'),
     );
     expect(grouped).toHaveLength(1);
     // The single grouped message lists both units and the count.

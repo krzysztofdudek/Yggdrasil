@@ -34,7 +34,7 @@ reviewer:
 
 coverage:                           # Optional — controls which files must be mapped
   required:                         # Unmapped files under these roots are a blocking error
-    - "/"                           # Default: whole repo
+    - "/"                           # Default: whole repo (a fresh yg init writes required: [] instead)
   excluded: []                      # Files under these roots are silently ignored
   type_level: false                 # Optional — default false; a fresh yg init writes true.
                                     # When true, a file matched by exactly one classifying type's
@@ -184,7 +184,7 @@ Provider-specific options passed to the LLM client:
 
 | Field | Type | Notes |
 |---|---|---|
-| \`model\` | string | Required. Provider-specific model identifier. |
+| \`model\` | string | Required, except for \`claude-code\`, \`codex\` and \`gemini-cli\`, which fall back to a model of their own (above). Provider-specific model identifier. |
 | \`temperature\` | number | Defaults to 0. Higher = more varied responses. |
 | \`endpoint\` | string | Required for \`openai-compatible\` (no default host — else falls back to api.openai.com); \`ollama\` defaults to http://localhost:11434. |
 | \`timeout\` | number | Timeout in seconds, honored by every provider. Default 300 for the CLI providers and \`ollama\`, 60 for the hosted APIs (anthropic/openai/google/openai-compatible). Not folded into a verdict's hash (a transport knob). |
@@ -304,7 +304,7 @@ coverage:
 
 Controls which coverage-visible files must be mapped to a node.
 
-- \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default.
+- \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default. A fresh \`yg init\` writes \`required: []\`, so a newly adopted repository starts requiring nothing and tightens coverage where it wants enforcement.
 - \`excluded\` — roots that are silently ignored. Default: \`[]\`; a fresh \`yg init\` writes the agent-rules files it installed plus \`.gitattributes\` here, since they are Yggdrasil's own plumbing rather than project source. This is a supreme, global filter, not just a coverage-level rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
 - Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking level to a pattern. \`/\` still means the whole repo.
 - Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning (the \`-advisory\` suffix only means non-blocking; it is unrelated to the rule status \`advisory\`).
@@ -370,13 +370,15 @@ Each script rule's check runs under a wall-clock budget (default 120 seconds;
 set the \`YG_DET_TASK_TIMEOUT_MS\` environment variable, in milliseconds, to
 change it, or to \`0\` to switch it off). A check still running past it — an
 endless loop, runaway regex backtracking — is stopped and reported as
-\`aspect-check-runtime-error\` naming the rule and the unit; nothing is written
+\`unverified\` with cause \`check-failed-to-run\`, naming the rule and the unit; nothing is written
 for it and every other check still runs, so the gate never hangs.
 
 ## Debug logging
 
 \`debug\` (top-level) defaults to \`false\`. When set to \`true\`, every command
-appends its output to \`.yggdrasil/.debug.log\`. The log is append-only — rotate
+that reads the graph (all of them except \`init\`, \`knowledge\`, \`schemas\`,
+\`prime\`, \`marketplace\` and \`--help\`) appends its output to \`.yggdrasil/.debug.log\`,
+together with the provider's full output when a reviewer call fails. The log is append-only — rotate
 or delete it manually. It is gitignored — see "Local state" below.
 
 ## Local state (.yggdrasil/.gitignore)
@@ -427,9 +429,9 @@ and names, every field an earlier release read and this one refuses: retired
 relation's \`failure:\`, and a rule's \`language:\` / \`stability:\` / \`anchors:\` /
 \`id:\` (never in a rule installed from a package). Files are edited in place;
 the writer may normalize indentation, so review the diff. Every block of
-\`yg-config.yaml\`, \`yg-architecture.yaml\`, every \`yg-node.yaml\` and every
-\`yg-aspect.yaml\` refuses a key it does not accept (flow files are not held to
-this yet), and a typo is named with the key it
+\`yg-config.yaml\`, \`yg-architecture.yaml\`, every \`yg-node.yaml\`, every
+\`yg-aspect.yaml\` and every \`yg-flow.yaml\` refuses a key it does not accept, and
+a typo is named with the key it
 probably meant (\`consesnsus\` → did you mean \`consensus\`?). Run from the
 repository root only. Review the diff before committing.
 

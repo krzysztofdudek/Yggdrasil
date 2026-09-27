@@ -1,3 +1,5 @@
+import { RELATION_CARRIES_PORT_ASPECTS } from './shared-text.js';
+
 export const summary = 'Six relation types, paired events, ports propagate aspects via channel 6 through a named port or the implicit default, port-undefined/port-missing-aspect errors, empty portNames as a yaml-invalid parse failure, built-in relation-conformance check';
 
 export const content = `# Ports and relations
@@ -5,9 +7,9 @@ export const content = `# Ports and relations
 Relations express typed dependencies between nodes. Ports propagate aspects
 across those dependencies — that is channel 6 of the seven aspect channels.
 
-Mental model: bare relations connect nodes but do NOT carry aspects across
-the boundary. Ports do. When a critical aspect must hold on both sides of
-a call, model it with a port.
+Mental model. ${RELATION_CARRIES_PORT_ASPECTS} When a critical aspect must hold
+on both sides of a call, put it on a port: on \`default\` for every caller that
+names no port, or on a named port for the callers that name it.
 
 ## Relation types
 
@@ -92,11 +94,12 @@ cannot resolve at the node level — it is an architecture decision. Either chan
 node's type so an allowed relation exists, or extend the allowed relations in
 \`yg-architecture.yaml\` (requires the user's confirmation — never silent).
 
-A declared relation here is a bare relation: it satisfies the conformance check
-but does NOT propagate the target's aspects. If the dependency also needs to
-carry a critical aspect across the boundary, publish a port on the target and
-name it in the relation's \`portNames\` (see below), in addition to declaring
-the relation.
+Declaring the relation satisfies the conformance check; what it carries across
+the boundary is decided by ports, not by the declaration.
+${RELATION_CARRIES_PORT_ASPECTS} If the dependency also needs to carry a critical
+aspect across the boundary, put it on the target's \`default\` port, or publish a
+named port carrying it and name that port in the relation's \`portNames\` (see
+below).
 
 ## Structural relations must form a DAG
 
@@ -226,8 +229,8 @@ target node.
 
 Use a named port when:
 - The target node enforces an aspect that some but not all callers MUST
-  also satisfy. \`default\` binds every caller uniformly, so a named port is
-  what lets you scope the requirement to only the ones that opt in.
+  also satisfy. \`default\` binds every caller that names no port, so a named
+  port is what lets you scope the requirement to only the ones that opt in.
 - A security or compliance aspect must extend across files via the call
   chain, and only a subset of callers carry it.
 

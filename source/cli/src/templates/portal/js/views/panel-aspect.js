@@ -77,18 +77,18 @@
     if (aspect.name && aspect.name !== aspect.id) head.appendChild(dom.el('p', 'pan-desc', aspect.name));
     panel.appendChild(head);
 
-    // The rule itself — the exact text the reviewer enforces: the LLM prose (content.md), or the
-    // deterministic check's own source (check.mjs) for a local check, or an honest note for a bundle.
+    // The rule itself — the exact text that enforces it: a reviewer rule's prose (content.md), or a
+    // script rule's own source (check.mjs) for a local check, or an honest note for a bundle.
     var ruleSect = section('The rule');
     if (aspect.ruleProse) {
       ruleSect.appendChild(dom.el('pre', 'pan-rule', aspect.ruleProse));
     } else if (aspect.checkSource) {
-      ruleSect.appendChild(dom.el('div', 'pan-rule-h', 'A deterministic local check — the exact source that enforces it:'));
+      ruleSect.appendChild(dom.el('div', 'pan-rule-h', 'A script rule — the exact source that enforces it:'));
       ruleSect.appendChild(dom.el('pre', 'pan-rule pan-rule-code', aspect.checkSource));
     } else if (aspect.kind === 'aggregate') {
       ruleSect.appendChild(dom.el('p', 'pan-norule', 'A bundle — it groups the rules below and judges nothing of its own.'));
     } else {
-      ruleSect.appendChild(dom.el('p', 'pan-norule', 'A deterministic local check enforces this rule mechanically. Its state is the union of the cells below.'));
+      ruleSect.appendChild(dom.el('p', 'pan-norule', 'A script rule enforces this mechanically. Its state is the union of the cells below.'));
     }
     panel.appendChild(ruleSect);
 

@@ -56,7 +56,7 @@
         c.verified +
         ' of ' +
         c.pairsTotal +
-        ' expected checks are verified. Green means a reviewer actually checked it — but the absence of red is not a pass, so the unguarded surface below is still worth a look.',
+        ' expected checks are verified. Green means the check actually ran against the current code and passed — the rule\'s script for a script rule, the reviewer for a reviewer rule — but the absence of red is not a pass, so the unguarded surface below is still worth a look.',
     };
   }
 
@@ -257,7 +257,7 @@
     });
     stage.appendChild(precise);
 
-    var foot = dom.el('p', 'ov-foot', 'Absence of red is not a pass — green means a reviewer actually checked it and approved against current inputs.');
+    var foot = dom.el('p', 'ov-foot', 'Absence of red is not a pass — green means the rule\'s script or the reviewer actually checked it against the current inputs and it passed.');
     stage.appendChild(foot);
   };
 })();

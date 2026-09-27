@@ -88,7 +88,7 @@ describe('runStructureAspect — yg-suppress filtering', () => {
     // A reasonless marker (F6): collectSuppressions throws — but the fault is the
     // SOURCE file's marker, not check.mjs. The runner must re-raise it with the
     // distinct SUPPRESS_MARKER_MALFORMED_CODE and its own what/why/next, never as
-    // an aspect-check-runtime-error blaming the (correct) check.
+    // an check-failed-to-run blaming the (correct) check.
     writeFileSync(
       path.join(projectRoot, 'src/a.ts'),
       [

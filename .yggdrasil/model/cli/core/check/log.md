@@ -342,3 +342,5 @@ The warning for a rule status changed by hand now names the command that records
 yg-check/1 said only in the words of next whether an undeclared dependency could be declared at all, and Horde parsed that sentence. Each relation-undeclared-dependency edge now carries allowedRelations, the relation types the architecture allows to sanction that import (empty: none), added to the document without changing any existing field.
 ## [2026-09-27T16:03:22.656Z]
 The branch caught up with the release line: the issue-code registry now carries both the reviewer-endpoint and package-copy fixes made here and the type decision logs and yg log --aspect, which replaced yg aspects log, brought in with log --type. The status-change warning keeps the note that a fresh checkout never reports it, and its fix names yg log add --aspect, the command that exists after the merge.
+## [2026-09-27T20:09:15.222Z]
+The status-drift classification became asynchronous because it now reads each drifted rule own log: a status change the log already records is no longer reported as unrecorded on a checkout whose local memory of the old status has not caught up.

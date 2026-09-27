@@ -93,7 +93,7 @@ export type { InfraDiagnosticItem };
  * form lists up to `cap` unit keys and appends " … and N more" for the rest.
  *
  * `kind` controls the summary tokens injected into the grouped `what:`:
- *   'det'                → aspect-check-runtime-error token
+ *   'det'                → check-failed-to-run token
  *   'companion'          → aspect-companion-runtime-error token
  *   'malformed-suppress' → malformed-suppress-marker token (NOT a check fault)
  *   'pool-infra'         → generic unverified summary
@@ -134,7 +134,7 @@ export function emitGroupedDiagnostics(
       const overflow = unitKeys.length > cap ? ` … and ${unitKeys.length - cap} more` : '';
       let what: string;
       if (kind === 'det') {
-        what = `Script rule '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-check-runtime-error): ${listed}${overflow}`;
+        what = `Script rule '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (check-failed-to-run): ${listed}${overflow}`;
       } else if (kind === 'companion') {
         what = `Companion resolution for '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-companion-runtime-error): ${listed}${overflow}`;
       } else if (kind === 'malformed-suppress') {
@@ -250,7 +250,7 @@ export function reportFillTotals(
   }
   if (totals.runtimeErrors > 0) {
     emitIssue({
-      what: `${totals.runtimeErrors} script ${totals.runtimeErrors === 1 ? 'check' : 'checks'} failed to run at fill time — left unverified (aspect-check-runtime-error).`,
+      what: `${totals.runtimeErrors} script ${totals.runtimeErrors === 1 ? 'check' : 'checks'} failed to run at fill time — left unverified (check-failed-to-run).`,
       why: 'A check.mjs crashed, returned an invalid result, or observed a file that changed mid-run. No verdict was written.',
       next: `Fix the failing check.mjs, then re-run ${retry}.`,
     });

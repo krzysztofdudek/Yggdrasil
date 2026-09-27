@@ -739,7 +739,7 @@ describe('fill — fail-closed edge branches', () => {
     const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['det-a']?.['node:svc']).toBeUndefined();
     expect(result.runtimeErrors).toBeGreaterThan(0);
-    expect(w.text()).toContain('aspect-check-runtime-error');
+    expect(w.text()).toContain('check-failed-to-run');
   });
 
   it('a det check tainted on BOTH runs fails closed (runtime error, no write)', async () => {
@@ -759,7 +759,7 @@ describe('fill — fail-closed edge branches', () => {
     const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['det-a']?.['node:svc']).toBeUndefined();
     expect(result.runtimeErrors).toBeGreaterThan(0);
-    expect(w.text()).toContain('aspect-check-runtime-error');
+    expect(w.text()).toContain('check-failed-to-run');
   });
 
   it('a det refusal records a reason with the violation file:line rendered', async () => {
