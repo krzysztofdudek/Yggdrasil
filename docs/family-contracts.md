@@ -37,6 +37,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Repository export | `grain-export/1` | Grain — `grain export` | adopter pipelines and audits; no external consumer inside the family | before 6.0.0 | [this page](/family-contracts) |
 | Convention check (`grain check --json`, `grain review --json`) | `grain-check/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Obligation (`grain obligation --json`) | `grain-obligation/1` | Grain | Horde — `tk new` | before 6.0.0 | [this page](/family-contracts) |
+| Co-change partners (`grain completeness --json`) | `grain-completeness/1` | Grain | Horde — the architect, planned (it does not read the document yet) | 6.1.0 | [this page](/family-contracts) |
 | Proposal report (`grain propose --json`) | `grain-propose/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle record (`oracle.json`) | `grain-oracle/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Adopter correction inside an oracle record | `grain-correction/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
