@@ -304,7 +304,7 @@ error[relation-undeclared-dependency] Node 'users' has undeclared dependencies o
         payments: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: payments, type: uses } under relations: in .yggdrasil/model/users/yg-node.yaml.
 ```
 
-Add the relation it names under `relations:` in the importing node (`- { target: payments, type: uses }`). Declared relations are not an input to any verdict, so declaring them re-opens nothing. Two things can
+Add the relation it names under `relations:` in the importing node (`- { target: payments, type: uses }`). Declaring a relation re-opens no verdict except where a rule looked at the node through the graph: a script rule that read it with `ctx.graph` (`node()`, `relationsFrom()`, `relationsTo()`), or a reviewer rule whose `companion.mjs` did, folded the node's `yg-node.yaml` into its verdict, so editing that file re-opens those pairs — a script pair refills free, a reviewer pair is re-reviewed and paid. Every other verdict stays. Two things can
 make that harder:
 
 - If your architecture restricts which types may relate, the message says that
