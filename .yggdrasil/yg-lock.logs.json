@@ -491,7 +491,7 @@
     "graph-rules": {"log":{"last_entry_datetime":"2026-09-23T20:09:45.974Z","prefix_hash":"a0d354290fd63f36eda6677e002124784143e3882970e160600fee563c648f4b"},"source":"62dc8d880082cac19597c55a86b8111e066cfff06d63c854f001c3dbe33048a4"},
     "root": {"log":{"last_entry_datetime":"2026-05-15T11:05:58.272Z","prefix_hash":"3183f15df80dcc84c2e60d5b4bff7c641dd5f1b72a92a50c1ce78dff5d704db7"}},
     "root/ci": {"log":{"last_entry_datetime":"2026-09-23T20:09:49.031Z","prefix_hash":"435717e9988acfe37d8330994136843cac79d14ed912a6bd7716bc933b1a38ac"},"source":"284bc4579b3379f3fd645cebc88f8d46c017915c294d734c255e20b5e8151bdd"},
-    "root/project-config": {"source":"affc21337f87e2692e40136441ffab2d895d867a5fce57d6132a26727bc61b43"},
+    "root/project-config": {"source":"338057364e0edc472b2dbdc571070ee5fe4935f3e6dcc6e8c263f42193dd5cbd"},
     "scripts": {"source":"0adcce0ba310353eb2a22881da898720160da940219bf64e93e9f81822e6e2f1"},
     "tools": {"source":"f802cdf6a80311c31c8303f74d88afd512443c47f380c0cdeab03564d4bb0249"}
   }
