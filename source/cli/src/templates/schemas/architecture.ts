@@ -54,7 +54,9 @@ node_types:
                                              # logic, command handlers, persistence adapters. When true,
                                              # a node of this type demands a fresh log entry before
                                              # \`yg check --approve\` whenever its mapped source changed
-                                             # since the node's last positive closure. Leave omitted
+                                             # since the last full \`yg check --approve\` that closed its
+                                             # cycle (--only-deterministic never closes one; yg check
+                                             # warns log-cycle-open while none has). Leave omitted
                                              # (false) for types whose changes carry no business decision
                                              # worth forcing an entry for (e.g. config, types, constants).
 

@@ -134,17 +134,26 @@ export async function runStructureAspect(
           });
     }
     if (err instanceof UndeclaredGraphReadError) {
-      return {
-        violations: [{
-          message: `Aspect tried to read undeclared graph node '${err.nodePath}'. Add a relation in yg-node.yaml.`,
-          kind: 'structure-aspect-undeclared-graph-read',
-          file: `.yggdrasil/aspects/${aspectId}/check.mjs`,
-        }],
-        touchedFiles: [],
-        succeeded: false,
-        observations: recorder.snapshot(),
-        observationsTainted: recorder.tainted,
-      };
+      // The graph boundary is the same fact as the fs boundary above: the
+      // check reached outside what the node's relations let it see, and the
+      // remedy is a graph change, never a code fix. Thrown as a structured
+      // infra fault (the pair stays unverified, nothing is cached) instead of
+      // being returned as a Violation, whose report told the author to fix
+      // check.mjs. A flow read (`flow:<name>`) is widened by membership in the
+      // flow, not by a relation, so it names that remedy.
+      const flowName = err.nodePath.startsWith('flow:') ? err.nodePath.slice('flow:'.length) : undefined;
+      const reader = unit.kind === 'node' ? `node '${unit.nodePath}'` : `'${unit.file}'`;
+      throw new StructureRunnerError('STRUCTURE_UNDECLARED_GRAPH_READ', flowName !== undefined
+        ? {
+            what: `Aspect tried to read the participants of flow '${flowName}', in which ${reader} does not take part.`,
+            why: 'ctx.graph.flowParticipants may only read a flow the node, or one of its ancestors, participates in.',
+            next: `Add the node (or an ancestor) to the nodes: of flow '${flowName}', or remove the read if the rule should not depend on that flow.`,
+          }
+        : {
+            what: `Aspect tried to read undeclared graph node '${err.nodePath}'.`,
+            why: `check.mjs may only read graph nodes inside the node's allowed read set (itself, its declared relation targets, its ancestors and its descendants) — this node is outside all of them.`,
+            next: `Add a relation in yg-node.yaml to '${err.nodePath}'.`,
+          });
     }
     // ctx.node / ctx.graph accessed on a unit with no owning component: a typed,
     // fail-closed infra disposition (never a Violation) — thrown, not returned,

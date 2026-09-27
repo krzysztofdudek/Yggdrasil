@@ -56,8 +56,12 @@ export interface ConsensusResult {
  * remaining verdicts must still be a strict majority of the passes the tier
  * asked for; with fewer, the pair is not judged at all and the aggregate is a
  * provider error (infra — nothing is written, the pair stays unverified).
- * Among the verdicts, approval needs more satisfied than refused votes; a tie
- * refuses, as it always has.
+ * Among the verdicts, approval needs more satisfied than refused votes and
+ * refusal more refused than satisfied. A tie is infra too: `consensus` is
+ * always odd (config validation refuses an even one), so the only way to reach
+ * a tie is through votes a provider error removed. It is evidence about the
+ * provider, not about the code, and recording it as a refusal would make an
+ * infrastructure miss final.
  */
 export async function verifyWithConsensus(
   provider: LlmProvider,
@@ -93,6 +97,17 @@ export async function verifyWithConsensus(
   const refused = verdictVotes.filter((v) => !v.satisfied);
   if (satisfied.length > refused.length) {
     return { response: { satisfied: true, reason: satisfied[0]!.reason, errorSource: 'codeViolation' }, votes };
+  }
+  if (satisfied.length === refused.length) {
+    const firstError = votes.find((v) => v.errorSource === 'provider');
+    return {
+      response: {
+        satisfied: false,
+        reason: `the ${verdictVotes.length} of ${consensus} consensus votes that returned a verdict split ${satisfied.length}-${refused.length}, so no majority judged the code; the others failed: ${firstError?.reason ?? 'provider error'}`,
+        errorSource: 'provider',
+      },
+      votes,
+    };
   }
   return {
     response: { satisfied: false, reason: refused[0]!.reason, errorSource: 'codeViolation' },

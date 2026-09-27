@@ -182,6 +182,37 @@ describe('verifyWithConsensus', () => {
     expect(result.response.reason).toContain('HTTP 529 overloaded');
   });
 
+  it('(k) a tie left by provider-error votes is infra, never a refusal: [sat, refuse, err] at consensus 3', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: true, reason: 'looks fine', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'Rule Z violated', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'HTTP 529 overloaded', errorSource: 'provider' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = { verifyAspect: vi.fn(async () => responses[i++]), isAvailable: vi.fn(async () => true) };
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
+    expect(result.response.satisfied).toBe(false);
+    expect(result.response.errorSource).toBe('provider');
+    expect(result.response.reason).toContain('split 1-1');
+    expect(result.response.reason).toContain('HTTP 529 overloaded');
+    expect(consensusTally(result.votes)).toEqual({ satisfied: 1, total: 2 });
+  });
+
+  it('(l) a tie at consensus 5 after one error vote is infra: [sat, sat, refuse, refuse, err]', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: true, reason: 'ok 1', errorSource: 'codeViolation' },
+      { satisfied: true, reason: 'ok 2', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'no 1', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'no 2', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'timed out', errorSource: 'provider' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = { verifyAspect: vi.fn(async () => responses[i++]), isAvailable: vi.fn(async () => true) };
+    const result = await verifyWithConsensus(provider, 'prompt', 5);
+    expect(result.response.errorSource).toBe('provider');
+    expect(result.response.reason).toContain('split 2-2');
+  });
+
   it('(i) the votes run concurrently: every pass is in flight before any answers', async () => {
     let started = 0;
     let release!: () => void;

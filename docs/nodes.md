@@ -242,7 +242,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `node_types.<type>.relations.emits` | list of string | no | Node types a emits relation may target (`*` for any); an empty list allows none. |
 | `node_types.<type>.relations.listens` | list of string | no | Node types a listens relation may target (`*` for any); an empty list allows none. |
 | `node_types.<type>.relations.default` | `allow` \| `deny` | no | What a relation type not listed here may target. Default: `allow`. |
-| `node_types.<type>.log_required` | boolean | no | Whether a node of this type needs a log entry when its files change. |
+| `node_types.<type>.log_required` | boolean | no | Whether a node of this type needs a log entry when its files change since the last full yg check --approve that closed its cycle (--only-deterministic never closes one; log-cycle-open warns while none has). |
 | `node_types.<type>.when` | file predicate | no | The files this type classifies (path and content atoms). |
 | `node_types.<type>.enforce` | `strict` | no | strict: a file matching when must be mapped to a node of this type, and a node of this type may map only matching files. |
 

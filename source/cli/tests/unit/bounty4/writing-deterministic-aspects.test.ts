@@ -398,7 +398,7 @@ describe('allowed reads: ctx.fs boundary', () => {
 });
 
 describe('allowed reads: ctx.graph boundary', () => {
-  it('ctx.graph.node on an undeclared node -> structure-aspect-undeclared-graph-read', async () => {
+  it('ctx.graph.node on an undeclared node -> thrown STRUCTURE_UNDECLARED_GRAPH_READ (never a returned violation)', async () => {
     writeAspect('s-graphread', `export function check(ctx) { ctx.graph.node('Other'); return []; }`);
     const g = buildTestGraphForStructure({
       nodes: [
@@ -406,9 +406,11 @@ describe('allowed reads: ctx.graph boundary', () => {
         { path: 'Other', type: 'module', mapping: [] },
       ],
     });
-    const r = await run('s-graphread', 'N', g);
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-graph-read');
+    let caught: unknown;
+    try { await run('s-graphread', 'N', g); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_GRAPH_READ');
+    expect((caught as StructureRunnerError).messageData.next).toBe("Add a relation in yg-node.yaml to 'Other'.");
   });
 
   it('ctx.graph.children reaches own descendants without a declared relation', async () => {
@@ -467,29 +469,17 @@ describe('allowed reads: ctx.parseAst pre-warm boundary', () => {
 // ===========================================================================
 
 describe('reserved kinds: runtime emits the documented structure-aspect-* kinds', () => {
-  it('the two documented VIOLATION runtime kinds both begin with structure-aspect-', async () => {
-    // Drive each of the two runtime-emitted-Violation kinds and confirm their
-    // kind prefix. An undeclared ctx.fs read is NOT among them — it is thrown
-    // as a structured infra fault (see the next test), never returned as a
+  it('the documented VIOLATION runtime kind begins with structure-aspect-', async () => {
+    // Drive the runtime-emitted-Violation kind and confirm its prefix. An
+    // undeclared ctx.fs or graph read is NOT among them — each is thrown as a
+    // structured infra fault (see the next tests), never returned as a
     // Violation with a `kind`.
-    writeAspect('k-graph', `export function check(ctx) { ctx.graph.node('Other'); return []; }`);
-    const gGraph = buildTestGraphForStructure({
-      nodes: [
-        { path: 'N', type: 'module', mapping: ['src/a.ts'] },
-        { path: 'Other', type: 'module', mapping: [] },
-      ],
-    });
-    const graphR = await run('k-graph', 'N', gGraph);
-
     writeAspect('k-prewarm', `export function check(ctx) {
       ctx.parseAst({ path: 'src/nope.ts', content: 'const y = 2;' }, 'typescript'); return [];
     }`);
     const prewarmR = await run('k-prewarm', 'N', oneNode());
-
-    for (const r of [graphR, prewarmR]) {
-      expect(r.succeeded).toBe(false);
-      expect(r.violations[0].kind?.startsWith('structure-aspect-')).toBe(true);
-    }
+    expect(prewarmR.succeeded).toBe(false);
+    expect(prewarmR.violations[0].kind?.startsWith('structure-aspect-')).toBe(true);
   });
 
   it('an undeclared ctx.fs read is thrown (STRUCTURE_UNDECLARED_FS_READ), not a structure-aspect-* Violation', async () => {

@@ -342,7 +342,12 @@ export async function parseAspect(
     return refused([{ code: adaptResult.code, messageData: adaptResult.messageData }]);
   }
   const adapt = adaptResult.value;
-  const raw = adapt.present ? mergeAdaptOverAspect(rawBase, adapt.keys) : rawBase;
+  const raw = adapt.present
+    ? completeAdaptedBlocks(rawBase, adapt.keys, mergeAdaptOverAspect(rawBase, adapt.keys), aspectDir, idTrimmed)
+    : rawBase;
+  // Where a refusal about a block the adaptation set should send the reader:
+  // the adaptation, which is theirs to edit, not the package's copy, which is not.
+  const adaptSets = (key: string): boolean => adapt.present && Object.prototype.hasOwnProperty.call(adapt.keys, key);
 
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     return refused([{
@@ -357,7 +362,7 @@ export async function parseAspect(
 
   const description = typeof raw.description === 'string' ? raw.description.trim() : undefined;
 
-  const kindResult = inferRuleKind(raw, aspectDir, idTrimmed, options);
+  const kindResult = inferRuleKind(raw, aspectDir, idTrimmed, options, adaptSets('reviewer') ? adaptFilePath : undefined);
   if (!kindResult.ok) return refused(kindResult.errors);
   const { reviewer, hasCompanionMjs } = kindResult.value;
 
@@ -393,7 +398,7 @@ export async function parseAspect(
   // scope: — optional review granularity block
   let scope: ScopeDef | undefined;
   if (raw.scope !== undefined) {
-    const scopeResult = parseScope(raw.scope, idTrimmed, aspectYamlPath, reviewer.type);
+    const scopeResult = parseScope(raw.scope, idTrimmed, aspectYamlPath, reviewer.type, adaptSets('scope') ? adaptFilePath : undefined);
     if (!scopeResult.ok) return refused(scopeResult.errors);
     scope = scopeResult.value;
   }
@@ -494,6 +499,7 @@ function inferRuleKind(
   aspectDir: string,
   idTrimmed: string,
   options: ParseAspectOptions,
+  adaptFilePath?: string,
 ): FieldResult<{ reviewer: AspectReviewerSpec; hasCompanionMjs: boolean }> {
   const linked = ruleDirSymlinks(aspectDir);
   if (linked.length > 0) {
@@ -506,8 +512,57 @@ function inferRuleKind(
   const hasImplies = Array.isArray(raw.implies) && raw.implies.length > 0;
 
   const reviewerResult = parseReviewer(raw.reviewer, idTrimmed, { hasContentMd, hasCheckMjs, hasImplies });
-  if (!reviewerResult.ok) return reviewerResult;
+  if (!reviewerResult.ok) {
+    if (adaptFilePath === undefined) return reviewerResult;
+    // The adaptation set reviewer:, so a refusal of the merged block is most
+    // likely about what it set: say where, so the reader edits the adaptation
+    // rather than the package's copy, which any edit to is refused.
+    return {
+      ok: false,
+      errors: reviewerResult.errors.map((e) => ({
+        ...e,
+        messageData: { ...e.messageData, what: `${e.messageData.what} (reviewer: as adapted by ${adaptFilePath})` },
+      })),
+    };
+  }
   return { ok: true, value: { reviewer: reviewerResult.value, hasCompanionMjs } };
+}
+
+/**
+ * Complete a `reviewer:` or `scope:` block an adaptation brought in over a rule
+ * that declares none, before anything validates it.
+ *
+ * The merge is key by key, so an adaptation that sets only `reviewer.tier`
+ * over a rule whose kind is inferred (no `reviewer:` block), or only
+ * `scope.files` over a rule with no `scope:`, would leave a block missing the
+ * key the validator requires — `type` or `per` — and the adapted rule would be
+ * refused for a fact that is not the consumer's to state. So the missing key
+ * is filled with what the rule already means: the kind its rule files give it,
+ * and the default `per: node`. A block the rule itself declares is left alone:
+ * a rule that writes `reviewer:` without `type:` is the package's own error.
+ */
+function completeAdaptedBlocks(
+  base: Record<string, unknown>,
+  adapt: Record<string, unknown>,
+  merged: Record<string, unknown>,
+  aspectDir: string,
+  idTrimmed: string,
+): Record<string, unknown> {
+  const isMap = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const absent = (v: unknown): boolean => v === undefined || v === null;
+  const out = { ...merged };
+  if (isMap(adapt.reviewer) && absent(base.reviewer) && isMap(out.reviewer) && !('type' in out.reviewer)) {
+    const inferred = parseReviewer(undefined, idTrimmed, {
+      hasContentMd: fileExistsSync(path.join(aspectDir, 'content.md')),
+      hasCheckMjs: fileExistsSync(path.join(aspectDir, 'check.mjs')),
+      hasImplies: Array.isArray(base.implies) && base.implies.length > 0,
+    });
+    if (inferred.ok) out.reviewer = { type: inferred.value.type, ...out.reviewer };
+  }
+  if (isMap(adapt.scope) && absent(base.scope) && isMap(out.scope) && !('per' in out.scope)) {
+    out.scope = { per: 'node', ...out.scope };
+  }
+  return out;
 }
 
 /**
@@ -1045,10 +1100,17 @@ function parseScope(
   aspectId: string,
   aspectYamlPath: string,
   reviewerType: 'llm' | 'deterministic' | 'aggregate',
+  adaptFilePath?: string,
 ):
   | { ok: true; value: ScopeDef }
   | { ok: false; errors: Array<{ code: CheckCode; messageData: IssueMessage }> }
 {
+  // When the adaptation set scope:, every refusal names it as the file to edit:
+  // the package's copy of yg-aspect.yaml is not the consumer's to change.
+  const at = adaptFilePath === undefined
+    ? `yg-aspect.yaml at ${aspectYamlPath}`
+    : `${adaptFilePath} (adapting ${aspectYamlPath})`;
+  const editFile = adaptFilePath ?? `.yggdrasil/aspects/${aspectId}/yg-aspect.yaml`;
   // scope on aggregate is forbidden — checked before any structural parsing
   if (reviewerType === 'aggregate') {
     return {
@@ -1058,7 +1120,7 @@ function parseScope(
         messageData: {
           what: `Aspect '${aspectId}' declares 'scope:' but it is a bundle (no content.md, no check.mjs).`,
           why: 'A bundle has no rule source and no verdict of its own — scope controls review granularity for a rule source, so it has no meaning here.',
-          next: `Remove 'scope:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add content.md / check.mjs to make this a reviewer rule or a script rule.`,
+          next: `Remove 'scope:' from ${editFile}, or add content.md / check.mjs to make this a reviewer rule or a script rule.`,
         },
       }],
     };
@@ -1071,7 +1133,7 @@ function parseScope(
       errors: [{
         code: 'aspect-scope-invalid',
         messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: 'scope' must be a YAML mapping`,
+          what: `${at}: 'scope' must be a YAML mapping`,
           why: "scope controls review granularity — it must be an object with 'per:' and optional 'files:'",
           next: "Write scope: as a mapping — `scope: { per: node }`, or `scope: { per: file }` with an optional files: filter.",
         },
@@ -1090,7 +1152,7 @@ function parseScope(
       errors: [{
         code: 'aspect-scope-invalid',
         messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: unknown key '${unknownScopeKeys[0]}' in scope`,
+          what: `${at}: unknown key '${unknownScopeKeys[0]}' in scope`,
           why: "scope accepts only 'per' and 'files'",
           next: `remove '${unknownScopeKeys[0]}' from the scope block`,
         },
@@ -1105,7 +1167,7 @@ function parseScope(
       errors: [{
         code: 'aspect-scope-invalid',
         messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: 'scope' block is missing required 'per:' field`,
+          what: `${at}: 'scope' block is missing required 'per:' field`,
           why: "'per' determines review granularity — allowed values: node | file",
           next: "add 'per: node' or 'per: file' under scope:",
         },
@@ -1119,7 +1181,7 @@ function parseScope(
       errors: [{
         code: 'aspect-scope-invalid',
         messageData: {
-          what: `yg-aspect.yaml at ${aspectYamlPath}: invalid scope.per value '${String(obj.per)}'`,
+          what: `${at}: invalid scope.per value '${String(obj.per)}'`,
           why: "allowed values for scope.per are: node | file",
           next: "change scope.per to 'node' or 'file'",
         },
@@ -1133,7 +1195,7 @@ function parseScope(
   let files: ScopeDef['files'];
   if ('files' in obj && obj.files !== undefined) {
     try {
-      files = parseFileWhen(obj.files, `yg-aspect.yaml at ${aspectYamlPath}: scope.files`, 'scope.files');
+      files = parseFileWhen(obj.files, `${at}: scope.files`, 'scope.files');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Augment: if the error is a WhenPredicateInvalidError whose message already carries
@@ -1146,7 +1208,7 @@ function parseScope(
           messageData: {
             what: isNodeAtomHint
               ? message
-              : `yg-aspect.yaml at ${aspectYamlPath}: scope.files predicate is invalid: ${message}`,
+              : `${at}: scope.files predicate is invalid: ${message}`,
             why: isNodeAtomHint
               ? 'scope.files uses the file-predicate grammar (path/content atoms); node-family atoms belong in when:'
               : 'scope.files must be a valid file predicate (path/content atoms and all_of/any_of/not combinators)',

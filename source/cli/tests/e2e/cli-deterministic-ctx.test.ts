@@ -24,7 +24,7 @@ import { textNext } from '../support/assert-output.js';
 //   * ctx.fs (exists/list/read) — file-system shape rules
 //   * ctx.parseAst — syntax-tree inspection inside a graph-aware check
 //   * the allowed-reads boundary — UndeclaredGraphReadError /
-//     structure-aspect-undeclared-graph-read when a check reaches outside it
+//     STRUCTURE_UNDECLARED_GRAPH_READ (infra) when a check reaches outside it
 // plus the `yg aspect-test` command surface: --node (graph-scoped),
 // --files (ad-hoc), and --check-determinism — and the `yg check --approve`
 // (fill) enforcement surface, which records each (aspect, unit) verdict in
@@ -233,7 +233,7 @@ const GRAPH_NAME_MATCH_CHECK = `export function check(ctx) {
 
 // Allowed-reads boundary violation: reach a SIBLING node id that is NOT in the
 // allowed set (no relation, not ancestor/descendant). ctx.graph.node throws
-// UndeclaredGraphReadError -> structure-aspect-undeclared-graph-read.
+// UndeclaredGraphReadError -> STRUCTURE_UNDECLARED_GRAPH_READ (infra).
 const CROSS_GRAPH_READ_CHECK = `export function check(ctx) {
   // 'services/payments' is a sibling of 'services/orders' — outside the allowed
   // reads boundary. This throws and the runner surfaces a boundary violation.
@@ -446,7 +446,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
   // Scenario 2: ALLOWED-READS boundary — reaching a node outside the boundary.
   // -------------------------------------------------------------------------
 
-  it('S2: ctx.graph.node on an out-of-boundary sibling surfaces structure-aspect-undeclared-graph-read', () => {
+  it('S2: ctx.graph.node on an out-of-boundary sibling is infra naming the relation to add', () => {
     const dir = deterministicFixture('s2');
     try {
       writeAspect(dir, 'cross-read', 'Reads a sibling node outside the allowed boundary on purpose.', CROSS_GRAPH_READ_CHECK);
@@ -457,9 +457,10 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
       // aspect-test --node renders the boundary breach as an actionable violation.
       const test = run(['aspect-test', '--aspect', 'cross-read', '--node', 'services/orders'], dir);
       expect(test.status).toBe(1);
-      // The runner converts UndeclaredGraphReadError into an actionable violation.
+      // The runner converts UndeclaredGraphReadError into an infra fault whose
+      // remedy is the graph change, as it does for an undeclared ctx.fs read.
       expect(test.all).toContain("Aspect tried to read undeclared graph node 'services/payments'");
-      expect(test.all).toContain('Add a relation in yg-node.yaml');
+      expect(test.all).toContain("Add a relation in yg-node.yaml to 'services/payments'.");
 
       // The same boundary error blocks the fill (exit 1): the check crashed on the
       // undeclared read, so its pair is classified aspect-check-runtime-error and

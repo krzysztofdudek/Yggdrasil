@@ -301,7 +301,7 @@ describe('runStructureAspect', () => {
     })).rejects.toThrow(/STRUCTURE_CHECK_RETURN_SHAPE/);
   });
 
-  it('undeclared graph read → structured violation (succeeded: false)', async () => {
+  it('undeclared graph read → thrown STRUCTURE_UNDECLARED_GRAPH_READ naming the relation to add', async () => {
     await writeAspect('a16', `export function check(ctx) { ctx.graph.node('Other'); return []; }`);
     const g = buildTestGraphForStructure({
       nodes: [
@@ -309,12 +309,10 @@ describe('runStructureAspect', () => {
         { path: 'Other', type: 'module', mapping: [] },
       ],
     });
-    const r = await runStructureAspect({
+    await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a16'),
       aspectId: 'a16', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
-    });
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-graph-read');
+    })).rejects.toThrow(/STRUCTURE_UNDECLARED_GRAPH_READ[\s\S]*Add a relation in yg-node\.yaml to 'Other'/);
   });
 
   it('relation target files prewarmup', async () => {
