@@ -31,7 +31,12 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   been removed, and no enforced rule says it never blocks. The rules that need
   graph context a single-file drill cannot give (sibling-test-file, the portal
   count-parity rule) are driven here with a hand-built context over their real
-  rule scripts."
+  rule scripts. One more is a ratchet on how end-to-end tests assert: it counts,
+  per end-to-end file, the assertions that pin a sentence of CLI prose, and
+  fails when a file holds more than its committed baseline (so a new test
+  asserts on codes and JSON fields) or fewer (so a conversion lowers the
+  baseline and the count only goes down). Files whose subject is the wording
+  itself, the golden corpus and the docs samples, are not counted."
 aspects: []
 relations:
   [
@@ -57,3 +62,5 @@ mapping:
   - source/cli/tests/unit/repo/self-governance-rules.test.ts
   - source/cli/tests/unit/repo/glossary-sync.test.ts
   - source/cli/tests/unit/repo/no-retired-terms.test.ts
+  - source/cli/tests/unit/repo/e2e-prose-ratchet.test.ts
+  - source/cli/tests/unit/repo/e2e-prose-baseline.json

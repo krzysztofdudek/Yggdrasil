@@ -50,7 +50,17 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   TMPDIR at one directory per run, removes it afterwards together with the
   module cache vitest itself leaves behind, and fails the run naming any entry
   a test left there. Tests that never removed what they made had filled the
-  development container's /tmp with tens of thousands of directories."
+  development container's /tmp with tens of thousands of directories.
+
+  It also owns how a test asserts on the CLI's output. One helper reads the
+  stable parts of it: a machine document's issue codes, causes and next
+  command; the text report's block labels, verdict line and next command; an
+  error's code. A behaviour test asks its question of those, so it does not
+  break when a sentence is reworded. A second helper finds the assertions that
+  pin a sentence of prose instead (a literal of five or more words), which the
+  end-to-end ratchet counts. The tests README states the convention: the exact
+  words live in the golden corpus, and a sentence is asserted only where it is
+  the contract. Both helpers import only vitest's expect and Node builtins."
 aspects: []
 relations: []
 mapping:
@@ -62,3 +72,6 @@ mapping:
   - source/cli/tests/support/fs-op-counter.mjs
   - source/cli/tests/support/tmpdir.ts
   - source/cli/tests/support/global-tmpdir.ts
+  - source/cli/tests/support/assert-output.ts
+  - source/cli/tests/support/prose-assertions.ts
+  - source/cli/tests/README.md
