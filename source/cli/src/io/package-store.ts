@@ -1,4 +1,5 @@
 import { mkdir, readdir, lstat, readFile, rename, rm, open, unlink } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -8,7 +9,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { PackageConfigKeyDef, PackageManifest, PackagesLock, PackagesLockEntry } from '../model/packages.js';
-import { ADAPT_FILENAME, ADAPT_LOG_FILENAME, PACKAGES_DIR, PACKAGES_LOCK_FILENAME } from '../model/packages.js';
+import { ADAPT_FILENAME, ADAPT_LOG_FILENAME, MARKETPLACE_FILENAME, PACKAGES_DIR, PACKAGES_LOCK_FILENAME } from '../model/packages.js';
 
 /**
  * source/cli/src/io/package-store.ts — the filesystem half of consuming law from
@@ -777,5 +778,30 @@ export async function hashAspectsRelativeFile(
     return await hashFile(path.join(aspectsRoot(projectRoot), ...aspectsRelPath.split('/')));
   } catch {
     return null;
+  }
+}
+
+// ============================================================
+// Probing a local source
+// ============================================================
+
+/** True when `source` names a directory that exists on this machine. */
+export function isLocalDirectory(source: string): boolean {
+  try {
+    return statSync(source).isDirectory();
+  } catch (err) {
+    debugWrite(`[pack] local-directory probe of '${source}': ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/** True when a local directory carries a marketplace manifest at its root. */
+export function isReadableMarketplaceDir(source: string): boolean {
+  if (!isLocalDirectory(source)) return false;
+  try {
+    return statSync(path.join(source, MARKETPLACE_FILENAME)).isFile();
+  } catch (err) {
+    debugWrite(`[pack] no ${MARKETPLACE_FILENAME} in '${source}': ${(err as Error).message}`);
+    return false;
   }
 }

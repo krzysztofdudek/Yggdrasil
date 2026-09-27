@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { statSync } from 'node:fs';
 import { rcompare as semverRcompare, valid as validSemver } from 'semver';
 
 import { toPosixPath } from '../utils/posix.js';
@@ -19,6 +18,8 @@ import {
   acquirePackCommandLock,
   createFetchStagingDir,
   installDirAbs,
+  isLocalDirectory,
+  isReadableMarketplaceDir,
   listPackageAspectDirs,
   packagesLockPath,
   removeDirectory,
@@ -107,27 +108,6 @@ export function parsePackageSpec(raw: string): PackageSpec | null {
     return { source, name, version };
   }
   return { source, name: fragment };
-}
-
-/** True when `source` names a directory that exists on this machine. */
-export function isLocalDirectory(source: string): boolean {
-  try {
-    return statSync(source).isDirectory();
-  } catch (err) {
-    debugWrite(`[pack] local-directory probe of '${source}': ${(err as Error).message}`);
-    return false;
-  }
-}
-
-/** True when a local directory carries a marketplace manifest at its root. */
-function isReadableMarketplaceDir(source: string): boolean {
-  if (!isLocalDirectory(source)) return false;
-  try {
-    return statSync(path.join(source, MARKETPLACE_FILENAME)).isFile();
-  } catch (err) {
-    debugWrite(`[pack] no ${MARKETPLACE_FILENAME} in '${source}': ${(err as Error).message}`);
-    return false;
-  }
 }
 
 /**

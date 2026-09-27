@@ -200,3 +200,5 @@ Following a rule's imports must never leave the rule directory by way of a symbo
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
 ## [2026-09-27T01:06:13.685Z]
 Added the resolved-path probe (symbolic links followed, null when the path cannot be resolved) for the change-scope measurement, which compares git's top level with the project root and now lives in the engine, where a module may not touch the file system itself.
+## [2026-09-27T01:12:59.556Z]
+The package store now holds the two probes of a local package source (is it a directory on this machine, does it carry a marketplace manifest at its root), moved from command-layer support, which touched the file system directly. They are file-system reads, which belong in the persistence layer; what they answer and what they record in the debug log is unchanged.
