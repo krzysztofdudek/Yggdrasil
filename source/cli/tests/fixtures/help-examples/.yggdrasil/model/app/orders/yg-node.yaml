@@ -1,0 +1,5 @@
+name: Orders
+description: Takes an order at checkout and keeps it.
+type: service
+mapping:
+  - src/a.ts

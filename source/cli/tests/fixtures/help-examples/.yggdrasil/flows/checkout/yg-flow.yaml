@@ -1,0 +1,4 @@
+name: Checkout
+description: A customer places an order.
+nodes:
+  - app/orders

@@ -1,0 +1,17 @@
+version: "6.0.0"
+
+# The reviewer is never called: every rule of this project is a script rule.
+reviewer:
+  default: standard
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: "qwen2.5-coder:0.5b"
+        endpoint: "http://127.0.0.1:11434"
+
+# Only the code needs an owner; the agent-rules files yg init writes do not.
+coverage:
+  required:
+    - src
