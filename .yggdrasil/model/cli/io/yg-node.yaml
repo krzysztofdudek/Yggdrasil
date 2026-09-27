@@ -3,8 +3,4 @@ type: module
 description: Filesystem I/O layer — parent grouping for parsers (cli/io/parsers) and storage adapters (cli/io/stores). Aspects are declared explicitly on each child.
 aspects:
   - no-buildissuemessage-in-engine
-relations:
-  - target: cli/model/graph
-    type: uses
-  - target: cli/model/lock
-    type: uses
+relations: []

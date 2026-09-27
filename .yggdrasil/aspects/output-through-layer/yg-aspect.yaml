@@ -29,11 +29,16 @@ description: >-
   error lines, engine modules writing finished prose, and plurals spelled per
   call site, so one fact read differently from command to command and every
   wording fix had to find every copy; the output layer (issues 188-191) fixed
-  that once, and this rule keeps it from growing back. errs: over — the count
-  form reads the substitution before a noun as a number, so a non-count
-  substitution directly before `files` (`${lang} files`) is flagged too; phrase
-  such a sentence without the substitution right before the noun.
+  that once, and this rule keeps the forms it names from growing back. It
+  polices only those forms: a count whose noun is not pairs, nodes or files
+  (`${n} obligation${n === 1 ? '' : 's'}`), a noun chosen by a whole-word
+  conditional (`${n} ${n === 1 ? 'pair' : 'pairs'}`), or a stream reached
+  through an alias passes it, so a green does not mean every count in the
+  source goes through count(). errs is left out because the check errs both
+  ways — under for those shapes, and over because the count form reads the
+  substitution before a noun as a number, so a non-count substitution directly
+  before `files` (`${lang} files`) is flagged too; phrase such a sentence
+  without the substitution right before the noun.
 reviewer:
   type: deterministic
-errs: over
 review_by: 2027-03-24

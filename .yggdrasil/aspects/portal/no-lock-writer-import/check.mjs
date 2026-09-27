@@ -4,36 +4,47 @@ import { walk, report } from '@chrisdudek/yg/ast';
 // in-process lock writer may be reachable from the backend.
 //
 // AST-based bans:
-//   - import the PERSISTING fill module (core/fill) wholesale — every symbol it
-//     exports persists. The non-persisting primitive (core/fill-det) is allowed,
-//     so the module match is exact (`fill.js`, never `fill-det.js`).
-//   - import a writer SYMBOL by imported name (alias-proof) from ANY module. The
-//     lock-store module is NOT banned wholesale — readLock lives there — only its
-//     writer symbols are caught here by name.
-//   - call a writer symbol: a bare call `writeLock(...)` or a member call on a
-//     namespace alias `store.writeLock(...)`.
-//   - READ a writer symbol off a lock-store namespace alias: `store.writeLock` as a
-//     member_expression, regardless of whether it is immediately called or first
-//     bound to a local (`const persist = store.writeLock`). Binding then calling is
-//     a write reachable from the backend just as much as a direct member call, so
-//     the member READ itself is the violation.
+//   - import the lock-store module (io/lock-store) for anything but its named
+//     READERS. The ban is an allowlist, not a list of writers: a writer added to
+//     lock-store later (writeLockSync arrived that way) is refused on arrival,
+//     where a list of writer names would have let it through.
+//   - member-READ anything but a reader off a lock-store namespace alias:
+//     `store.writeLock`, whether it is immediately called or first bound to a
+//     local (`const persist = store.writeLock`). Binding then calling is a write
+//     reachable from the backend just as much as a direct member call, so the
+//     member READ itself is the violation.
+//   - import a persisting fill module wholesale: core/fill (every symbol persists)
+//     and core/fill-writer (the verdict writer and the fill exclusion). The
+//     non-persisting primitive (core/fill-det) is allowed, so the module match is
+//     exact (`fill.js`, never `fill-det.js`).
+//   - import or call a writer SYMBOL by name from ANY module (alias-proof):
+//     writeLock, writeLockSync, setEntry (the verdict writer's method), runFill.
 // We never scan raw text; a string literal containing "writeLock" is not a hit.
 
-const WRITER_SYMBOLS = new Set([
-  'writeLock',
-  'setEntry',
-  'persistEntry',
-  'runFill',
-  'saveLock',
-  'commitLock',
+const WRITER_SYMBOLS = new Set(['writeLock', 'writeLockSync', 'setEntry', 'runFill']);
+
+// What the portal may take from io/lock-store: pure readers, path helpers, the
+// pure serializer, the error classes and the option type. Anything else it
+// exports writes, or takes the approve lock, and is refused.
+const LOCK_STORE_READERS = new Set([
+  'readLock',
+  'readTypeLock',
+  'readDetLockAspectIds',
+  'readLegacyLock',
+  'nondetLockPath',
+  'detLockPath',
+  'committedLockContentHash',
+  'serializeLock',
+  'LockInvalidError',
+  'LockEnvironmentError',
+  'APPROVE_LOCK_FILE_NAME',
+  'WriteLockOptions',
 ]);
 
-// The lock-store module — its writer symbols may not be member-read off a namespace
-// alias. readLock lives there too, so the module is not banned wholesale.
 const LOCK_STORE_MODULE_RE = /(^|\/)lock-store(\.js)?$/;
 
-// The persisting fill module, matched EXACTLY so core/fill-det is never caught.
-const PERSISTING_FILL_MODULE_RE = /(^|\/)fill(\.js)?$/;
+// The persisting fill modules, matched EXACTLY so core/fill-det is never caught.
+const PERSISTING_FILL_MODULE_RE = /(^|\/)fill(-writer)?(\.js)?$/;
 
 function stringValue(node) {
   if (!node) return undefined;
@@ -45,6 +56,45 @@ function stringValue(node) {
   if (frag) return frag.text;
   const t = node.text;
   return t.length >= 2 ? t.slice(1, -1) : '';
+}
+
+function checkImport(file, node, spec, lockStoreNamespaceAliases, violations) {
+  if (PERSISTING_FILL_MODULE_RE.test(spec)) {
+    violations.push(
+      report(
+        file,
+        node,
+        `Portal backend may not import the persisting fill module ('${spec}'). ` +
+          `The only write is the out-of-process shelled Approve; use fillDetPair (core/fill-det) ` +
+          `for a non-persisting verdict.`,
+      ),
+    );
+    return;
+  }
+  const fromLockStore = LOCK_STORE_MODULE_RE.test(spec);
+  walk(node, (n) => {
+    if (fromLockStore && n.type === 'namespace_import') {
+      const alias = n.namedChildren.find((c) => c.type === 'identifier');
+      if (alias) lockStoreNamespaceAliases.add(alias.text);
+    }
+    if (n.type === 'import_specifier') {
+      const importedName = n.namedChildren[0]?.text;
+      if (!importedName) return true;
+      if (fromLockStore && !LOCK_STORE_READERS.has(importedName)) {
+        violations.push(
+          report(
+            file,
+            node,
+            `Portal backend may import only readers from '${spec}'; '${importedName}' is not one ` +
+              `(allowed: ${[...LOCK_STORE_READERS].join(', ')}).`,
+          ),
+        );
+      } else if (WRITER_SYMBOLS.has(importedName)) {
+        violations.push(report(file, node, `Portal backend may not import lock-writer symbol '${importedName}'.`));
+      }
+    }
+    return true;
+  });
 }
 
 export function check(ctx) {
@@ -59,38 +109,7 @@ export function check(ctx) {
     walk(file.ast.rootNode, (node) => {
       if (node.type === 'import_statement' || node.type === 'export_statement') {
         const spec = stringValue(node.childForFieldName('source'));
-        if (typeof spec === 'string' && PERSISTING_FILL_MODULE_RE.test(spec)) {
-          violations.push(
-            report(
-              file,
-              node,
-              `Portal backend may not import the persisting fill module ('${spec}'). ` +
-                `The only write is the out-of-process shelled Approve; use fillDetPair (core/fill-det) ` +
-                `for a non-persisting verdict.`,
-            ),
-          );
-          return true;
-        }
-        // Record a lock-store namespace alias so member READS of a writer are caught below.
-        if (typeof spec === 'string' && LOCK_STORE_MODULE_RE.test(spec)) {
-          walk(node, (n) => {
-            if (n.type === 'namespace_import') {
-              const alias = n.namedChildren.find((c) => c.type === 'identifier');
-              if (alias) lockStoreNamespaceAliases.add(alias.text);
-            }
-          });
-        }
-        // Writer symbol imported by name, from any module.
-        walk(node, (n) => {
-          if (n.type === 'import_specifier') {
-            const importedName = n.namedChildren[0]?.text;
-            if (importedName && WRITER_SYMBOLS.has(importedName)) {
-              violations.push(
-                report(file, node, `Portal backend may not import lock-writer symbol '${importedName}'.`),
-              );
-            }
-          }
-        });
+        if (typeof spec === 'string') checkImport(file, node, spec, lockStoreNamespaceAliases, violations);
         return true;
       }
 
@@ -102,10 +121,9 @@ export function check(ctx) {
           violations.push(report(file, node, `Portal backend may not call lock-writer '${fn.text}'.`));
           return true;
         }
-        // member call: store.writeLock(...)  — kept for a writer member call whose object
-        // is NOT a recorded lock-store alias (any other object exposing a writer method).
-        // A lock-store-alias member call is owned by the member-READ pass below, so we
-        // skip it here to avoid a duplicate report at the same location.
+        // member call: writer.setEntry(...) — a writer method on any object that is NOT a
+        // recorded lock-store alias. A lock-store-alias member access is owned by the
+        // member-READ pass below, so it is skipped here to avoid a duplicate report.
         if (fn.type === 'member_expression') {
           const obj = fn.childForFieldName('object');
           const prop = fn.childForFieldName('property');
@@ -119,7 +137,7 @@ export function check(ctx) {
       return true;
     });
 
-    // Second pass: ANY member READ of a writer symbol off a lock-store namespace alias —
+    // Second pass: ANY member READ of a non-reader off a lock-store namespace alias —
     // `store.writeLock` — whether it is called, assigned to a local, passed as a callback,
     // or returned. Binding then calling is a write path, so the member read is the violation.
     if (lockStoreNamespaceAliases.size > 0) {
@@ -127,13 +145,14 @@ export function check(ctx) {
         if (node.type !== 'member_expression') return true;
         const obj = node.childForFieldName('object');
         const prop = node.childForFieldName('property');
-        if (obj && prop && lockStoreNamespaceAliases.has(obj.text) && WRITER_SYMBOLS.has(prop.text)) {
+        if (obj && prop && lockStoreNamespaceAliases.has(obj.text) && !LOCK_STORE_READERS.has(prop.text)) {
           violations.push(
             report(
               file,
               node,
-              `Portal backend may not reference lock-writer '${obj.text}.${prop.text}' — binding a writer to ` +
-                `a local then calling it is still an in-process write. The only write is the shelled Approve.`,
+              `Portal backend may not reference '${obj.text}.${prop.text}' — only the lock-store readers are ` +
+                `allowed, and binding a writer to a local then calling it is still an in-process write. ` +
+                `The only write is the shelled Approve.`,
             ),
           );
         }
@@ -142,8 +161,7 @@ export function check(ctx) {
     }
   }
 
-  // De-duplicate: a `store.writeLock(...)` member CALL is reported by both the member-call
-  // arm and the member-read arm. Keep one violation per (line, column, message).
+  // De-duplicate one violation per (line, column, message).
   const seen = new Set();
   return violations.filter((v) => {
     const key = `${v.line}:${v.column}:${v.message}`;

@@ -22,10 +22,6 @@ aspects: []
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/loader
-    type: calls
-  - target: cli/core/context
-    type: calls
 
   - target: cli/utils
     type: calls

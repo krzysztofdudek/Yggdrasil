@@ -1,0 +1,10 @@
+name: Agent surface
+description: "Tell an agent or an adopter how Yggdrasil works — the operating manual printed by yg prime (templates/rules.ts), the knowledge topics of yg knowledge, the schema references of yg schemas, the adopter guides under docs/ and the glossary behind the docs Glossary page and the portal tooltips. They describe the same behaviour in parallel texts that import nothing from each other, so no code edge ties them; this flow does, so that yg impact on any of them names the others. A change of behaviour described in one of these texts is checked against the others; the sentences they must share word for word are held by the agent-surface-truth unit test."
+nodes:
+  - cli/templates
+  - cli/knowledge
+  - cli/knowledge-authoring
+  - cli/knowledge-concepts
+  - cli/schemas
+  - cli/portal/frontend/core
+  - docs/guides

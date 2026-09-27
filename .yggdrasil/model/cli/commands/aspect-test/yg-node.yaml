@@ -10,41 +10,12 @@ description: "Runs an aspect against a node or ad-hoc files WITHOUT touching the
   the stored verdict."
 aspects:
   - provider-redaction-cascade
-max_direct_relations:
-  limit: 22
-  reason: >-
-    Restored from 24 back to the pre-existing 21 (originally: raised from the
-    project default of 20 to 21 for three dependencies the LLM-mode pair
-    lookup needed to thread real type-coverage classification into
-    computeExpectedPairs: cli/core/check, cli/core/type-coverage,
-    cli/io/file-content-cache). The later raise to 24, for the `--file <path>`
-    addressing mode's three extra dependencies (cli/relations/core,
-    cli/commands/owner, cli/core/check-coverage-tiers), is undone here by
-    extraction rather than a wider ceiling: --file's target classification
-    (coverage-exclusion, single-type-classification, the nodeless
-    type-coverage lookup, and the nodeless architecture-reach computation
-    shared with the companion-diagnostic path) now lives in
-    cli/core/aspect-test-file-target, its own engine node — which took two
-    further pre-existing dependencies with it (cli/core/check,
-    cli/core/type-coverage; cli/io/file-content-cache moved too but that one
-    was only ever needed for the same classification work). --file's
-    existence and ownership checks stay here (cli/commands/owner is still
-    real: findOwner's single canonical source, owner.ts, is a `command`-typed
-    file an `engine` node cannot legally call). Real usage today is 20, one
-    under this ceiling — 21 is kept rather than tightened further so a small,
-    genuine future addition here does not immediately require another graph
-    edit.
-    Raised from 21 to 22 when type-only imports became dependencies in 6.1.0: the
-    command already named the AST report's types, and that import is now a declared
-    relation to cli/ast/report like any other. No new call was added.
 relations:
   - target: cli/output
     type: calls
   - target: cli/ast/runtime
     type: calls
   - target: cli/structure
-    type: calls
-  - target: cli/core/loader
     type: calls
   - target: cli/core/pairs
     type: calls
@@ -55,8 +26,6 @@ relations:
   - target: cli/llm/shared
     type: calls
   - target: cli/llm/registry
-    type: calls
-  - target: cli/io/parsers/config
     type: calls
   - target: cli/io/stores
     type: calls

@@ -1,5 +1,5 @@
 name: NoDirectConsole
-description: "Engine files must not call console.log/warn/error/info/debug directly — engine output goes through debugWrite() or formatters; console.* is reserved for CLI command handlers."
+description: "Engine and reviewer-dispatch files must not call console.log/warn/error/info/debug directly — output goes through the CLI output layer, a diagnostic through debugWrite(). The wider output-through-layer rule refuses console.* in every shipped source file, command handlers included; this rule repeats that ban for these two types."
 review_by: 2027-03-22
 errs: under
 reviewer:

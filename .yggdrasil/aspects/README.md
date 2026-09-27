@@ -217,8 +217,8 @@ The three values (canonical definitions from `yg schemas read aspect`):
   fully decidable from what it reads (an existence fact, list-membership, or a
   static structural contract).
 
-One aspect is a genuine **mixed** case and intentionally leaves `errs` **absent**
-(see the note below the table) — forcing a single label there would be
+Two aspects are genuine **mixed** cases and intentionally leave `errs` **absent**
+(see the notes below the table) — forcing a single label there would be
 dishonest.
 
 | aspect id | errs | justification (from the check's code) |
@@ -258,7 +258,7 @@ dishonest.
 | `wasm-tree-lifecycle` | under | Flags only a named import of `parseFile` from the parser module; a require, dynamic, or namespace-access form is silently skipped. |
 | `portal/approve-shells-cli-only` | under | A tripwire over literal spawn-argument arrays and bare fill-call identifiers; a dynamically-built spawn or an aliased fill call is silently skipped. |
 | `portal/count-parity-via-reuse` | under | The negative arms are a self-described evadable tripwire over raw-verdict iteration shapes; a sufficiently obfuscated re-count is silently skipped (the real guarantee is the positive reuse manifest plus the parity test). |
-| `portal/no-lock-writer-import` | under | Flags only proven writer imports/calls (with lock-store namespace aliasing); a deeper alias or dynamic reach is silently skipped. |
+| `portal/no-lock-writer-import` | under | Allows only named readers from the lock-store module (by import or namespace member read) and flags the persisting fill modules and writer names; a deeper alias, a re-export through another module or a dynamic reach is silently skipped. |
 | `portal/no-node-imports-in-frontend` | under | Flags only static/require/dynamic node-builtin imports and literal `process.` access; a computed specifier or aliased `process` is silently skipped. |
 | `portal/no-secrets-import` | under | Flags only proven secrets-module imports/calls and fs reads of a path whose literal text names the secrets file; a computed module or path is silently skipped. |
 | `runcheck-injected-input-parity` | under | Two provable families. PARITY: flags a `runCheck()` call only when its options argument is a plain object literal PROVABLY missing a derived issue-gating key, or is absent entirely; a variable, a spread (in the argument list or inside the literal), a computed key, or any key shape the check cannot read is unprovable and silently skipped. CLASSIFICATION: flags an optional member of runCheck's options interface that is neither derived as issue-gating nor named in the check's side-effect allowlist — a fact read straight off the parsed interface, and itself what the rule forbids. |
@@ -279,6 +279,8 @@ reads of the literal `options` identifier, silently skipping the documented
 shapes: an aliased options object, a short-flag-only spec, a dynamically-built
 spec, and a rest-pattern capture. Neither direction dominates, so no single
 label would be honest.
+
+**Mixed / absent — `output-through-layer`.** It is *over* because the count form reads any substitution directly before `pairs`, `nodes` or `files` as a number, so `${lang} files` is flagged. It is *under* because it knows only those three nouns and only a plural written out or spliced on as `file${…}`: a count of any other noun (`${n} obligation${n === 1 ? '' : 's'}`), a noun chosen by a whole-word conditional (`${n} ${n === 1 ? 'pair' : 'pairs'}`) and a stream reached through an alias all pass. Neither direction dominates.
 
 ## Graph-context aspects (no drill corpus in v1)
 

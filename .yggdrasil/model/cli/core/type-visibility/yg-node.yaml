@@ -5,8 +5,6 @@ aspects: []
 relations:
   - target: cli/model/graph
     type: uses
-  - target: cli/model/lock
-    type: uses
   - target: cli/core/pairs
     type: calls
   - target: cli/core/type-effective

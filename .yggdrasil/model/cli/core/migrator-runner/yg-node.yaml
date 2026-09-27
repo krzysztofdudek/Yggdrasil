@@ -1,6 +1,6 @@
 name: Migrator Runner
 type: engine
-description: Upgrade orchestration — sequences runMigrations and updateConfigVersion, collects and flattens migration actions and warnings.
+description: Upgrade orchestration — runVersionUpgrade applies every migration newer than the project's version in order, persisting each step's version with updateConfigVersion, stops at a migration that withholds its bump, and collects and flattens migration actions and warnings.
 aspects:
   - posix-paths-output
 relations:

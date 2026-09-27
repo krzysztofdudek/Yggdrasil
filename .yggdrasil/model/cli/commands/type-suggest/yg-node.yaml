@@ -10,8 +10,6 @@ aspects:
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/loader
-    type: calls
   - target: cli/core/type-classifier
     type: calls
   - target: cli/io/file-content-cache

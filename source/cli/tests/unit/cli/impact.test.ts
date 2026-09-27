@@ -422,6 +422,8 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('outside the project root');
+        // next is a command to run again, not a restatement of the finding.
+        expect(result.stderr).toContain('next: yg impact --file <a path inside the repository, relative to its root>');
         // The generic crash handler must NOT fire for this user-input error.
         expect(result.stderr).not.toContain('This is a bug');
       });

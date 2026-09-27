@@ -41,8 +41,6 @@ relations:
     type: calls
   - target: cli/model/packages
     type: uses
-  - target: cli/model/validation
-    type: uses
   - target: cli/tests/unit/cli
     type: uses
 mapping:

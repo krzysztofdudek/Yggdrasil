@@ -48,8 +48,6 @@ relations:
     type: calls
   - target: cli/structure
     type: calls
-  - target: cli/model/validation
-    type: uses
   - target: cli/model/verified-pair
     type: uses
 mapping:

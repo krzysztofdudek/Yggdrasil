@@ -1,5 +1,5 @@
 name: Fill Unit Tests
 type: test-suite
-description: "Parent node for fill unit tests — children cover LLM fills (llm.test.ts) and deterministic fills (det.test.ts). Split to keep each child under the LLM reviewer prompt budget."
+description: "Parent node for fill unit tests — children cover LLM fills (fill-llm*.test.ts), deterministic fills (fill-det*.test.ts with the closure, infra-grouping and progress tests), scope classification (fill-classify-scope.test.ts), divergence (fill-divergence.test.ts) and the lock rewrite (fill-gc*.test.ts). Split to keep each child under the LLM reviewer prompt budget."
 aspects: []
 relations: []

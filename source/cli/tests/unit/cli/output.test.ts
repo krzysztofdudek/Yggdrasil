@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   count, plural, next,
-  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA,
+  fail, failAndExit, notice, setJsonOutput, errorDocument,
   writeOut, writeErr, paint,
 } from '../../../src/cli/output.js';
 import { list, overflowLine, block, verdict, fixPointer, MEMBER_CAP, commandArgv } from '../../../src/formatters/output-grammar.js';
@@ -125,11 +125,10 @@ describe('fail / failAndExit / notice', () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     setJsonOutput(true);
-    expect(isJsonOutput()).toBe(true);
     fail({ what: 'Node nope not found.', why: 'It must exist.', next: 'yg tree' }, 'node-not-found');
     const doc = JSON.parse(out.mock.calls.map((c) => String(c[0])).join(''));
     expect(doc).toEqual({
-      schema: ERROR_JSON_SCHEMA,
+      schema: 'yg-error/1',
       code: 'node-not-found',
       what: 'Node nope not found.',
       why: 'It must exist.',
