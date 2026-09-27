@@ -19,7 +19,7 @@ export function readKnowledge(name: string): void {
           what: `Unknown knowledge topic '${name}'.`,
           why: 'The topic name does not match any entry in the embedded knowledge base.',
           next: `Available: ${available}. Run 'yg knowledge list' for summaries.`,
-        });
+        }, 'command-error');
   }
   const topic = KNOWLEDGE_TOPICS[name];
   writeOut(topic.content);

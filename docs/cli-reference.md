@@ -254,7 +254,7 @@ error[node-not-found]: node 'nope' is not in the graph
 next: yg find "nope"
 ```
 
-The heading is `error[<code>]: <what>`; `why:` says why it is refused; `next:` is the one step to take. The code is the command's own when it names one (`aspect-not-found`, `lock-invalid`, …), else `node-not-found` for a node the graph does not hold, `usage` for a flag used wrongly, and `command-error` for the rest. A flag or argument the parser itself rejects is an `error[usage]` whose `next:` names the command's help:
+The heading is `error[<code>]: <what>`; `why:` says why it is refused; `next:` is the one step to take. Every command error names its code explicitly — `node-not-found` for a node the graph does not hold, `aspect-not-found` for a rule, `usage` for a flag or argument used wrongly, a specific code where the refusal has one (`lock-invalid`, `graph-missing`, …), and `command-error` for the rest; the code is never inferred from the wording, which may change while the code does not. [Issue codes](#codes-command) lists them. A flag or argument the parser itself rejects is an `error[usage]` whose `next:` names the command's help:
 
 ```text
 error[usage]: unknown option '--message'
@@ -281,7 +281,7 @@ A command that answers in JSON and fails still answers on stdout: besides its
 — so a machine reader never gets zero bytes for a failed command. `code` names
 the error (`usage` for a flag combination the command refuses, `node-not-found`,
 `graph-missing` in a directory with no graph, `lock-invalid`, `internal`, …;
-`command-error` for the rest). `why` is `null` when the error has no reason
+`command-error` for the rest — the full list is under [Issue codes](#codes-command)). `why` is `null` when the error has no reason
 beyond what it says (most `usage` errors). `next.text` is the step exactly as
 the text's `next:` line prints it; `next.command` is the same step as an
 argument vector — the form `yg-check/1`'s `next.command` takes — set only when

@@ -5,7 +5,7 @@ import { Document, parse as yamlParse, parseDocument, stringify as yamlStringify
 import { fetchAnthropicModels, fetchOpenAIModels, fetchGoogleModels, fetchOllamaModels } from '../llm/model-fetcher.js';
 import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
-import type { IssueMessage } from '../model/validation.js';
+import type { CodedIssueMessage, IssueMessage } from '../model/validation.js';
 import { debugWrite } from '../utils/debug-log.js';
 
 // ---------------------------------------------------------------------------
@@ -661,7 +661,7 @@ export interface ResolvedReviewerConfig {
 
 export type ResolveReviewerResult =
   | { ok: true; config: ResolvedReviewerConfig; keyWarning?: IssueMessage }
-  | { ok: false; issue: IssueMessage };
+  | { ok: false; issue: CodedIssueMessage };
 
 /**
  * Resolve a reviewer config from flags + env for the non-interactive (pure-CLI)
@@ -686,6 +686,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       model = 'sonnet';
     } else {
       return { ok: false, issue: {
+        code: 'usage',
         what: `--model is required for provider '${provider}'.`,
         why: provider === 'copilot-cli'
           ? "copilot-cli has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses any other instead of substituting one."
@@ -700,6 +701,7 @@ export function resolveReviewerConfigFromFlags(opts: {
   }
   if (provider === 'copilot-cli' && !COPILOT_MODEL_NAME.test(model)) {
     return { ok: false, issue: {
+      code: 'command-error',
       what: `--model '${model}' is not a model name copilot-cli can pass on.`,
       why: "The copilot-cli reviewer refuses a model name with characters other than letters, digits, '.', '_', ':' and '-', because on Windows the name reaches a shell.",
       next: 'Re-run naming a model your Copilot plan allows, e.g. yg init --provider copilot-cli --model auto (auto lets Copilot pick).',
@@ -712,6 +714,7 @@ export function resolveReviewerConfigFromFlags(opts: {
       endpoint = 'http://localhost:11434';
     } else {
       return { ok: false, issue: {
+        code: 'usage',
         what: `--endpoint is required for provider '${provider}'.`,
         why: 'An OpenAI-compatible provider has no default base URL — the reviewer needs an endpoint to call.',
         next: `Re-run naming an endpoint: yg init --provider ${provider} --model ${model} --endpoint <url>.`,

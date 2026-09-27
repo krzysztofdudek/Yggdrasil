@@ -22,7 +22,7 @@
  * streams and the error path and re-exports the grammar the commands speak.
  */
 
-import type { IssueMessage } from '../model/validation.js';
+import type { CodedIssueMessage, IssueMessage } from '../model/validation.js';
 import type { IssueCode, OutsideTwinCode } from '../model/issue-code.js';
 import { type Diagnostic, fromIssueMessage, toIssueMessage, isDiagnostic } from '../formatters/output-diagnostic.js';
 import { block, commandArgv, stepText } from '../formatters/output-grammar.js';
@@ -160,30 +160,27 @@ function asDiagnostic(d: Diagnostic | IssueMessage, code: IssueCode | OutsideTwi
  * `error[code]: what`, `why:`, `next:` — and, when this invocation answers in
  * JSON, the yg-error/1 document on stdout. Does not exit: the caller owns the
  * exit (most await exitAfterFlush so a long stdout drains first). `code` names
- * the error for machines and heads the text; it defaults to `command-error`.
- * With `document: false` the JSON document is left to the caller, whose own
+ * the error for machines and heads the text. It is always explicit: a
+ * Diagnostic or a {@link CodedIssueMessage} carries its own, and a bare
+ * what/why/next must be given one — the code is never guessed from the words,
+ * which are free to change while the code is a contract. With
+ * `document: false` the JSON document is left to the caller, whose own
  * document answers this outcome.
  */
+export function fail(d: Diagnostic | CodedIssueMessage, code?: IssueCode, opts?: { document?: boolean }): void;
+export function fail(d: IssueMessage, code: IssueCode, opts?: { document?: boolean }): void;
 export function fail(d: Diagnostic | IssueMessage, code?: IssueCode, opts: { document?: boolean } = {}): void {
-  const diag = asDiagnostic(d, code ?? (isDiagnostic(d) ? d.code : inferErrorCode(d.what)));
+  const diag = asDiagnostic(d, code ?? ownCode(d));
   writeErr(`${block(diag, 'error')}\n`);
   // `document: false` for a command whose JSON answer to this outcome is its
   // own document (written next), so stdout still carries exactly one.
   if (isJsonOutput() && opts.document !== false) writeJsonDocument(errorDocument(diag));
 }
 
-/**
- * The code of a command error its caller did not name, from what it says: a
- * node that is not in the graph is `node-not-found`, a rule that is not in the
- * graph is `aspect-not-found`, a flag used wrongly is
- * `usage`, anything else `command-error`. A caller that knows better names the
- * code itself.
- */
-function inferErrorCode(what: string): IssueCode {
-  if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
-  if (/^rule\b.*\bis not in the graph/i.test(what)) return 'aspect-not-found';
-  if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';
-  return 'command-error';
+/** The code a diagnostic or a coded message carries; the overloads of {@link fail} guarantee there is one. */
+function ownCode(d: Diagnostic | IssueMessage): IssueCode | OutsideTwinCode {
+  if (isDiagnostic(d)) return d.code;
+  return (d as CodedIssueMessage).code;
 }
 
 /**
@@ -192,8 +189,8 @@ function inferErrorCode(what: string): IssueCode {
  * (`yg find "<path>"`, argv under --json). `why` says what the command needed
  * the node for.
  */
-export function nodeNotFound(nodePath: string, why: string): IssueMessage {
-  return { what: `node '${nodePath}' is not in the graph`, why, next: `yg find "${nodePath}"` };
+export function nodeNotFound(nodePath: string, why: string): CodedIssueMessage {
+  return { code: 'node-not-found', what: `node '${nodePath}' is not in the graph`, why, next: `yg find "${nodePath}"` };
 }
 
 /**
@@ -202,13 +199,15 @@ export function nodeNotFound(nodePath: string, why: string): IssueMessage {
  * step (`yg aspects`, which lists every rule id the graph declares). The twin
  * of {@link nodeNotFound}; `why` says what the command needed the rule for.
  */
-export function aspectNotFound(aspectId: string, why: string): IssueMessage {
-  return { what: `rule '${aspectId}' is not in the graph`, why, next: 'yg aspects' };
+export function aspectNotFound(aspectId: string, why: string): CodedIssueMessage {
+  return { code: 'aspect-not-found', what: `rule '${aspectId}' is not in the graph`, why, next: 'yg aspects' };
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */
+export function failAndExit(d: Diagnostic | CodedIssueMessage, code?: IssueCode): never;
+export function failAndExit(d: IssueMessage, code: IssueCode): never;
 export function failAndExit(d: Diagnostic | IssueMessage, code?: IssueCode): never {
-  fail(d, code);
+  fail(d as Diagnostic | CodedIssueMessage, code);
   process.exit(1);
 }
 

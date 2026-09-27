@@ -44,7 +44,7 @@ export function registerIncidentCommand(program: Command): void {
             what: `--tag '${opts.tag}' is not a recognized incident cause.`,
             why: 'Each incident is tagged by CAUSE so the shape of what enforcement misses stays legible; an unknown tag would make that record meaningless.',
             next: `Re-run with one of: ${INCIDENT_TAGS.join(', ')}.`,
-          });
+          }, 'command-error');
         }
 
         if (opts.reason.trim() === '') {
@@ -52,7 +52,7 @@ export function registerIncidentCommand(program: Command): void {
             what: 'An incident needs a non-empty --reason.',
             why: 'The ledger is human testimony: the entry must say WHAT escaped and HOW it surfaced, or it records nothing worth committing.',
             next: 'Re-run with --reason "<what escaped enforcement and how it surfaced>".',
-          });
+          }, 'command-error');
         }
 
         // Optional per-rule attribution. When present, the id MUST name an existing

@@ -593,7 +593,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
         what: `The ${label} '${value}' is not a plain relative name.`,
         why: 'simulate writes the candidate only inside an isolated clone and must never resolve a path outside it; a value with a `..`, absolute, or drive-letter component could escape onto the real tree.',
         next: `Pass a plain aspect id and a plain ${target.kind === 'node' ? '--node' : '--file'} path with no \`..\` segments and no absolute or drive-letter components.`,
-      });
+      }, 'command-error');
       return 1;
     }
   }
@@ -616,7 +616,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       what: `The candidate id '${candidateId}' resolves outside the graph's aspects directory.`,
       why: 'simulate reads and overlays the candidate only inside the project graph and its clone; a path that escapes that boundary is refused.',
       next: 'Pass a plain aspect id with no `..` or absolute components.',
-    });
+    }, 'command-error');
     return 1;
   }
   const candidateStat = statSync(candidateDir, { throwIfNoEntry: false });
@@ -631,7 +631,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       what: `Candidate '${candidateId}' is a ${kind === 'llm' ? 'reviewer' : 'reviewer-with-companion'} rule, which simulate cannot replay.`,
       why: 'A replay must be deterministic and reproducible; a reviewer\'s verdict is point-in-time testimony, not a value a rerun over history can reproduce.',
       next: 'Supply a script rule (check.mjs) as the candidate to replay here, or use `yg drill` to test a reviewer rule\'s falsifiability against a case corpus.',
-    });
+    }, 'command-error');
     return 1;
   }
   if (kind === 'none') {
@@ -639,7 +639,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       what: `Candidate '${candidateId}' has no check.mjs to replay.`,
       why: 'simulate replays a script rule\'s check.mjs; this aspect ships no check.mjs (it may be a bundle that only groups other aspects).',
       next: 'Pass a script rule that ships a check.mjs, or one of the rules a bundle implies.',
-    });
+    }, 'command-error');
     return 1;
   }
 
@@ -649,7 +649,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       what: 'The current graph declares no readable schema version in yg-config.yaml.',
       why: 'The replay horizon is the set of commits sharing this graph\'s schema; without a current version there is nothing to compare a commit\'s schema against.',
       next: 'Ensure .yggdrasil/yg-config.yaml has a `version:` field, then re-run.',
-    });
+    }, 'command-error');
     return 1;
   }
 
@@ -668,7 +668,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
       what: `The --file path '${resolvedTarget.file}' resolves outside the project root.`,
       why: 'simulate resolves --file the same way every other --file-accepting command does (relative to the graph root, not the current directory) — a value that escapes the project root cannot be a subject in this project\'s history.',
       next: 'Pass a --file path inside the project root.',
-    });
+    }, 'command-error');
     return 1;
   }
 
@@ -681,7 +681,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
         what: 'yg simulate could not make an isolated clone of this project.',
         why: `Replay runs in a throwaway clone so the real tree is never touched; the clone failed (${firstErrorLine(cloned.stderr) ?? 'git clone did not succeed'}). Git and a committed history are required.`,
         next: 'Ensure git is installed and this project is a git repository with at least one commit, then re-run.',
-      });
+      }, 'command-error');
       return 1;
     }
 
@@ -812,7 +812,7 @@ export function registerSimulateCommand(program: Command): void {
               : 'Neither --node nor --file was provided.',
             why: 'yg simulate replays over exactly one target: --node (a component) or --file (a type-covered file, no component).',
             next: 'Re-run with exactly one of --node <path> or --file <path>.',
-          });
+          }, 'command-error');
         }
         const candidateId = candidate.trim().replace(/\/$/, '');
         const target: SimulateTarget = hasNode
@@ -824,7 +824,7 @@ export function registerSimulateCommand(program: Command): void {
             what: `--max-commits must be a positive whole number (got '${opts.maxCommits}').`,
             why: 'The value bounds how many recent commits the replay considers; a non-positive or non-numeric value has no meaning.',
             next: 'Re-run with --max-commits <n> where n is 1 or greater.',
-          });
+          }, 'command-error');
         }
         const binPath = path.join(getPackageRoot(), 'bin.js');
         const code = await runSimulation({

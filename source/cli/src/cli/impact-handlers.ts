@@ -49,7 +49,7 @@ export async function handleFlowImpact(
       what: `Flow not found: ${flowName}`,
       why: 'The flow name must match a directory name under .yggdrasil/flows/.',
       next: 'Run: yg flows — to list all defined flows.',
-    });
+    }, 'command-error');
   }
   writeOut(renderFlowImpact(flowImpactOf(graph, flow)));
 }
@@ -63,7 +63,7 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
       what: `Type '${typeId}' not found in architecture.`,
       why: 'The type id must match a node_types key in .yggdrasil/yg-architecture.yaml.',
       next: 'Read .yggdrasil/yg-architecture.yaml to see defined types.',
-    });
+    }, 'command-error');
   }
   const def = graph.architecture.node_types[typeId];
 

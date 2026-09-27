@@ -20,7 +20,7 @@ import {
 } from '../io/drill-corpus-store.js';
 import { appendAspectLogEntry } from '../core/log/aspect-log.js';
 import type { AspectDef, Graph } from '../model/graph.js';
-import type { IssueMessage } from '../model/validation.js';
+import type { CodedIssueMessage } from '../model/validation.js';
 import { aspectNotFound, fail, failAndExit, paint, writeOut } from './output.js';
 
 /**
@@ -80,7 +80,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             what: `'${aspect.def.id}' was installed from a package, and its cases belong to the package.`,
             why: 'Everything in an installed rule\'s directory is a copy of what its publisher released, recorded file by file; a case written into it would be refused by yg check as a file no package put there, and the next update would delete it.',
             next: 'Send the case to the package\'s author, so it ships with the next version; once you update to it, yg drill runs it here. Nothing was added.',
-          });
+          }, 'command-error');
         }
 
         const why = typeof opts.why === 'string' && opts.why.trim() !== '' ? opts.why.trim() : null;
@@ -108,7 +108,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
         for (const { expect, spec } of wanted) {
           const flag = `--${expect}`;
           const parsed = parseCaseSpec(spec, flag);
-          if (!parsed.ok) failAndExit(parsed.error);
+          if (!parsed.ok) failAndExit(parsed.error, 'command-error');
           // A file the corpus runner never runs as a case (documentation, the
           // rule's own definition) would be written, reported as measured, and
           // then never measured by anything. Refused before anything is read.
@@ -118,7 +118,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
               what: `${flag}: '${toPosixPath(parsed.filePath)}' cannot be a drill case — the drill never runs a ${caseFileName === 'yg-aspect.yaml' ? 'file named yg-aspect.yaml' : '.md file'} as one.`,
               why: 'In a rule\'s case corpus a .md file is documentation beside the cases and yg-aspect.yaml is reserved, so yg drill skips both. A case filed under either name would never be run, and the rule would never be measured against it.',
               next: 'Add a source file the rule applies to instead. Nothing was added.',
-            });
+            }, 'command-error');
           }
 
           const at = await readFileAtCommit(projectRoot, parsed.ref, parsed.filePath);
@@ -127,28 +127,28 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
               what: `${flag}: this repository has no commit '${parsed.ref}'.`,
               why: 'The case is the code as it really stood somewhere in this history; a commit the repository does not have names no such code.',
               next: 'Check the commit with git log, then re-run with a commit this repository contains. A shallow clone may simply not have it yet.',
-            });
+            }, 'command-error');
           }
           if (at.kind === 'not-at-commit') {
             failAndExit({
               what: `${flag}: '${toPosixPath(parsed.filePath)}' is not in commit ${parsed.ref}.`,
               why: 'A case is taken from the file as it stood at that commit. If the path was not there — not yet added, already deleted, or renamed since — there is nothing to take, and adding anything else would put code in the corpus that never existed at the commit it claims.',
               next: 'Check the path at that commit with git ls-tree, then re-run with the path as it was named there.',
-            });
+            }, 'command-error');
           }
           if (at.content.trim() === '') {
             failAndExit({
               what: `${flag}: '${toPosixPath(parsed.filePath)}' is empty at commit ${at.commitSha.slice(0, 7)}.`,
               why: 'An empty case measures nothing: every rule passes it, so it can never catch a regression and only inflates the corpus count people read as coverage.',
               next: 'Pick the commit where the file actually carried the code in question.',
-            });
+            }, 'command-error');
           }
           if (at.content.includes(String.fromCharCode(0))) {
             failAndExit({
               what: `${flag}: '${toPosixPath(parsed.filePath)}' is not text at commit ${at.commitSha.slice(0, 7)}.`,
               why: 'A case is source a rule reads; binary content cannot be reviewed by either kind of rule and would sit in the corpus permanently unrunnable.',
               next: 'Add a source file instead.',
-            });
+            }, 'command-error');
           }
 
           const already = duplicateOf(at.content, corpus);
@@ -157,7 +157,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
               what: `${flag}: this exact content is already the case '${already.caseLabel}'.`,
               why: "Two copies of one case measure nothing new — the rule's behaviour on those bytes is already recorded — while the corpus count, which people read as coverage, goes up.",
               next: `Run yg drill --aspect ${aspect.def.id} --case '${already.caseLabel}/**' to see what that case already reports, or add the code from a different commit where it genuinely differs.`,
-            });
+            }, 'command-error');
           }
 
           // The case keeps the path the file had in the repository, so a rule
@@ -186,7 +186,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             what: `--violates and --satisfies name the same case, '${planned[0].caseLabel}'.`,
             why: 'The case name is the file, the day and the commit it came from. Two specs that agree on all three are one piece of code, and one piece of code cannot be both what the rule must refuse and what it must pass.',
             next: 'Give the two flags different files or different commits, or add just one of them.',
-          });
+          }, 'command-error');
         }
 
         for (const plan of planned) {
@@ -212,7 +212,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
         const setup = await buildDrillRun(graph, aspect.def, projectRoot, false);
         if (!setup.ok) {
           await undo(graph, aspect.def, planned);
-          failAndExit(setup.error);
+          failAndExit(setup.error, 'command-error');
         }
 
         // Every case written has to be one the runner measures. One that did not
@@ -226,7 +226,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             what: `The rule '${aspect.def.id}' could not be run over ${unrun.map((p) => `'${p.caseLabel}'`).join(' and ')}: the drill does not find it as a case.`,
             why: 'A case the drill never runs is never measured: it would sit in the corpus looking like coverage while nothing checks the rule against it.',
             next: `Run yg drill --aspect ${aspect.def.id} to see which cases the corpus holds. Nothing was added.`,
-          });
+          }, 'command-error');
         }
 
         const summary = await runDrills(aspect.def, projectRoot, cases, setup.ctx, setup.deps);
@@ -240,7 +240,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             what: `The rule '${aspect.def.id}' could not be run over the case.`,
             why: 'A rule that reads the whole graph, or one whose reviewer is unavailable, cannot be exercised over case files alone — so nothing was measured. A case nobody can measure would sit in the corpus forever, never passing and never failing.',
             next: `Run yg drill --aspect ${aspect.def.id} to see the same limit across the corpus. Nothing was added.`,
-          });
+          }, 'command-error');
         }
 
         const now = Date.now();
@@ -261,7 +261,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
             }),
             nowMs: now,
           });
-          if (!entry.ok) failAndExit(entry.error);
+          if (!entry.ok) failAndExit(entry.error, 'command-error');
         }
 
         const missed = summary.results.filter((r) => r.outcome === 'miss' || r.outcome === 'false-alarm');
@@ -271,7 +271,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
               what: `The rule '${aspect.def.id}' does not catch '${first.case.caseLabel}': it expected ${first.case.expect} and got ${first.got}.`,
               why: 'This is real code that the rule let through. The case is now in the corpus and stays there — that is the point of adding it — and it will keep failing until the rule is sharpened enough to catch it.',
               next: `Sharpen the rule in .yggdrasil/aspects/${aspect.def.id}/, then re-run yg drill --aspect ${aspect.def.id}. Changing a reviewer rule's text re-reviews every place it applies; check yg impact --aspect ${aspect.def.id} first.`,
-            });
+            }, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -289,7 +289,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
 }
 
 /** Resolve the rule the case is for, or the reason it cannot be resolved. */
-function resolveAspect(graph: Graph, id: string): { def: AspectDef } | { error: IssueMessage } {
+function resolveAspect(graph: Graph, id: string): { def: AspectDef } | { error: CodedIssueMessage } {
   const def = graph.aspects.find((a) => a.id === id);
   if (def === undefined) {
     return {
@@ -299,6 +299,7 @@ function resolveAspect(graph: Graph, id: string): { def: AspectDef } | { error: 
   if (def.reviewer.type === 'aggregate') {
     return {
       error: {
+        code: 'command-error',
         what: `The rule '${id}' only bundles other rules, so it has nothing to run over a case.`,
         why: 'An aggregate carries no rule source of its own — no check and no prose — so a case filed under it could never be judged.',
         next: `Add the case to one of the rules it bundles instead: ${(def.implies ?? []).join(', ') || 'see yg aspects'}.`,

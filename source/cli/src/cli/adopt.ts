@@ -213,7 +213,7 @@ export function registerAdoptCommand(program: Command): void {
             what: `'${proposalDir}' does not hold a proposed graph.`,
             why: `A proposal is a directory containing a ${GRAPH_DIR}/ tree with a yg-config.yaml and a yg-architecture.yaml in it — the staging directory a generator writes, or that inner directory on its own. Nothing of that shape is at this path, and guessing further would risk accepting something that is not a graph at all.`,
             next: `Pass the directory a generator wrote (Grain writes ${GRAPH_DIR}-proposal/ at the repository root by default), or the ${GRAPH_DIR}/ directory inside it.`,
-          });
+          }, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -228,7 +228,7 @@ export function registerAdoptCommand(program: Command): void {
             what: `This repository already has a graph: ${count(existing.components, 'component')}, ${count(existing.rules, 'rule')}, ${count(existing.flows, 'flow')}${existing.hasRecordedVerdicts ? ', with verdicts already recorded against it' : ''}.`,
             why: 'Accepting a proposal REPLACES the whole graph; the two are never merged, because a rule taken from one graph and a component taken from another have never been checked against each other and the result would be a set of rules nobody wrote. Doing that silently would discard work with no record that it happened.',
             next: `Re-run with --replace to accept over it — the existing graph is moved aside under ${GRAPH_DIR}.replaced-<timestamp>/ and nothing is deleted. To compare first, run: yg adopt ${proposalDir} --dry-run (a dry run writes nothing)`,
-          });
+          }, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -243,7 +243,7 @@ export function registerAdoptCommand(program: Command): void {
             what: `The proposed graph could not be read: ${err instanceof Error ? err.message : String(err)}`,
             why: 'A graph that does not load cannot be checked against anything, so accepting it would leave this repository with a gate that refuses every run for a reason no rule is responsible for. The same reader that would run on every check was used here, so this is exactly what would have happened afterwards.',
             next: 'Fix the proposal at its source and regenerate it, or repair the file the message names, then run yg adopt again.',
-          });
+          }, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -263,7 +263,7 @@ export function registerAdoptCommand(program: Command): void {
             what: `The proposed graph does not hold together — ${count(blocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${blocking.length > 10 ? `\n... and ${blocking.length - 10} more` : ''}`,
             why: 'These are the same problems that block every check, and they are about the graph itself rather than about any code. Accepting it would hand this repository a gate that is red before a single line is written, so nothing was moved.',
             next: 'Fix them where the proposal is generated and produce it again, then run yg adopt on the new one.',
-          });
+          }, 'command-error');
           await exitAfterFlush(1);
           return;
         }
@@ -333,7 +333,7 @@ export function registerAdoptCommand(program: Command): void {
               what: `In this repository the proposed graph does not hold together — ${count(stillBlocking.length, 'blocking problem')} across ${count(codes.length, 'kind')}: ${codes.join(', ')}.\n${detail}${stillBlocking.length > 10 ? `\n... and ${stillBlocking.length - 10} more` : ''}`,
               why: 'The graph reads correctly on its own but does not fit the code it was handed: these problems are about files it names and cannot find, or references it cannot resolve here. A gate in that state refuses every run for a reason no rule owns. ' + (left === undefined ? 'Nothing was kept — the repository is exactly as it was.' : 'Undoing the acceptance failed, so the repository is not as it was: the warning above names what is left and how to put it back.'),
               next: 'Regenerate the proposal against this repository at its current state, then run yg adopt on the new one.',
-            });
+            }, 'command-error');
             await exitAfterFlush(1);
             return;
           }

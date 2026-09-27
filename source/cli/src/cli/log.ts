@@ -97,7 +97,7 @@ export function registerLogCommand(program: Command): void {
                     what: `--reason-file is not a regular file: ${opts.reasonFile}`,
                     why: 'Directory, device, socket, or named pipe is not a valid source for log entry body.',
                     next: `yg log add --node ${opts.node.trim().replace(/\/$/, '')} --reason-file <a text file with the justification>`,
-                  });
+                  }, 'command-error');
             }
           } catch (err) {
             const e = err as NodeJS.ErrnoException;
@@ -107,7 +107,7 @@ export function registerLogCommand(program: Command): void {
                     what: `Cannot stat --reason-file: ${e.message}`,
                     why: 'File must exist and be accessible.',
                     next: `Check path: ${opts.reasonFile}`,
-                  });
+                  }, 'command-error');
             }
             throw err;
           }
@@ -270,7 +270,7 @@ export function registerLogCommand(program: Command): void {
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
                 next: `yg log merge-resolve --node ${opts.node.trim().replace(/\/$/, '')} --ours <ref> --theirs <ref>  (add --base <ref> only to check against a commit other than their merge base; pass none of the three during a merge, rebase or cherry-pick, or on the merge commit)`,
-              });
+              }, 'usage');
         }
         const repoRoot = path.dirname(graph.rootPath);
         const nodePath = opts.node.trim().replace(/\/$/, '');

@@ -74,7 +74,7 @@ export function registerDrillCommand(program: Command): void {
               what: 'yg drill needs the rule whose case corpus to run.',
               why: 'A drill replays ONE rule over its own cases; without naming the rule there is no corpus to run and no rule to run it with.',
               next: 'List the rules with yg aspects, then run: yg drill --aspect <id>.',
-            });
+            }, 'command-error');
         }
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
@@ -87,7 +87,7 @@ export function registerDrillCommand(program: Command): void {
               what: `aspect '${aspect.id}' is a bundle (no rule source), so it has nothing to drill.`,
               why: `yg drill re-runs a script rule's check.mjs or a reviewer rule's content.md over a case corpus; a bundle only groups other aspects.`,
               next: `yg drill --aspect ${aspect.implies?.[0] ?? '<one of the rules it implies>'}  (drill one of the rules it bundles instead)`,
-            });
+            }, 'command-error');
         }
 
         const cases = await discoverDrillCases({
@@ -125,7 +125,7 @@ export function registerDrillCommand(program: Command): void {
           : undefined;
         const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true, sink);
         if (!setup.ok) {
-          failAndExit(setup.error);
+          failAndExit(setup.error, 'command-error');
         }
         const { ctx, deps } = setup;
 
@@ -144,7 +144,7 @@ export function registerDrillCommand(program: Command): void {
         debugWrite(`[drill] run failed: ${e instanceof Error ? e.message : String(e)}`);
         // A deterministic runner error already carries a fully-formed what/why/next.
         if (e instanceof AstRunnerError) {
-          fail(e.messageData);
+          fail(e.messageData, 'command-error');
           await exitAfterFlush(1);
           return;
         }

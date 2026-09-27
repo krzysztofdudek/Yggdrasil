@@ -24,7 +24,7 @@ export function readSchema(name: string): void {
           what: `Unknown schema '${name}'.`,
           why: 'The schema name does not match any embedded graph-element schema.',
           next: `Available: ${available}. Run 'yg schemas list' for summaries.`,
-        });
+        }, 'command-error');
   }
   const topic = SCHEMA_TOPICS[name];
   writeOut(topic.content);
