@@ -29,6 +29,10 @@ import type { BurnSet } from './progressive-scope.js';
 import { progressivePairKey } from './progressive-scope.js';
 import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from './check-codes.js';
 import { splitCoverageIssueByTouched } from './check-coverage-tiers.js';
+// BaselineNoise lives in the model layer (model/check-result.ts) beside the result
+// that carries it; re-exported for this module's callers.
+import type { BaselineNoise } from '../model/check-result.js';
+export type { BaselineNoise };
 
 /**
  * The codes whose finding is about a component's LOG rather than the component
@@ -301,13 +305,6 @@ export function countOutside(issues: CheckIssue[]): number {
  * something no per-pair intersection can bound, so nothing is outside it and
  * the count is zero by definition.
  */
-export interface BaselineNoise {
-  /** Advisory refusals whose pair the change did not reach. */
-  advisory: number;
-  /** Enforced findings this run already holds outside the change. */
-  enforcedOutside: number;
-}
-
 export function countBaselineNoise(
   issues: CheckIssue[],
   scope: BurnSet,

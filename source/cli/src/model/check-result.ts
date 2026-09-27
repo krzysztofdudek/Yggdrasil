@@ -1,0 +1,164 @@
+/**
+ * The whole result a check run hands back, and the standing noise floor it may
+ * carry. Pure types, in the model layer so every consumer of a check result
+ * (the report renderers, the portal extractors, the fill stage) names them
+ * without depending on the check engine; core/check-contract.ts re-exports
+ * them.
+ */
+import type { CheckIssue } from './check-issue.js';
+import type { VerifiedPair } from './verified-pair.js';
+import type { TypeVisibilityReport } from './type-visibility.js';
+
+/**
+ * The standing NOISE FLOOR of a run measured against a branch: how much of its
+ * report stands on code the change never touched, split by how each half got
+ * there (computed by `countBaselineNoise`, core/check-progressive.ts).
+ */
+export interface BaselineNoise {
+  /** Advisory refusals whose pair the change did not reach. */
+  advisory: number;
+  /** Enforced findings this run already holds outside the change. */
+  enforcedOutside: number;
+}
+
+export interface CheckResult {
+  projectName: string;
+  nodeCount: number;
+  nodeTypeCounts: Map<string, number>;
+  aspectCount: number;
+  flowCount: number;
+  coveredFiles: number;
+  totalFiles: number;
+  issues: CheckIssue[];
+  /** Count of aspect-violation-advisory warnings (subset of issues). Surfaced as a footer tally. */
+  advisoryWarnings: number;
+  /**
+   * Count of rules whose own status is 'draft' — their pairs are left out of
+   * the expected set, so how many pairs that is is never enumerated. Rendered
+   * as `N draft rules skipped`.
+   */
+  draftSkipped: number;
+  /**
+   * Count of VERIFIED pairs whose reviewer kind is deterministic. Tallied from
+   * the same loop that emits per-pair issues (`emitPairIssue` emits nothing for
+   * a verified pair, the only place this datum exists). Read-side only — not a
+   * hash ingredient (`core/pair-hash.ts` is untouched).
+   */
+  verifiedDet: number;
+  /** Count of VERIFIED LLM pairs. See `verifiedDet`. */
+  verifiedLlm: number;
+  /**
+   * Every expected pair this run classified against the lock (verified,
+   * refused, unverified, prompt-too-large, or companion-error) — the SAME
+   * list `verifiedDet`/`verifiedLlm` are tallied from. A future classification
+   * step reads `pair.subjectFiles` off these to match a finding back to the
+   * files a change touched; nothing reads this field yet. Empty (never
+   * undefined) when the lock could not be read.
+   */
+  pairs: VerifiedPair[];
+  /**
+   * Whether `coverage.type_level` was on this run — gates the header's
+   * node-owned/type-covered split and the zero-classifying-types notice.
+   * Optional so every pre-existing `CheckResult` literal renders unchanged.
+   */
+  typeLevel?: boolean;
+  /**
+   * Files silently satisfied by the type-level lattice (matched by exactly one
+   * classifying type's `when`, no node, no issue). 0 when the flag is off or
+   * the coverage scan did not run.
+   */
+  typeCoveredCount?: number;
+  /**
+   * Count of architecture types declaring `when:` — a pure architecture fact,
+   * computed regardless of the flag. `typeLevel` on with this at 0 means the
+   * lattice can never match a file — the standing notice's trigger.
+   */
+  classifyingTypeCount?: number;
+  /**
+   * Files actually owned by a node mapping (`totalFiles` minus uncovered).
+   * Distinct from `coveredFiles` (also folds in `coverage.excluded` files,
+   * kept for the flag-off header / `portal/extract.ts`) so the flag-on
+   * header's "node-owned" term never claims a file no node maps.
+   */
+  nodeOwnedFiles?: number;
+  /**
+   * Files the graph excludes from enforcement: uncovered files under a
+   * `coverage.excluded` root (the ones `partitionByCoverageTier` drops
+   * silently) plus `mappedExcludedFiles` below. `coveredFiles ===
+   * nodeOwnedFiles + excludedFiles` always holds; its own field (not derived
+   * at render time) so a rendering bug can never go negative/inconsistent.
+   */
+  excludedFiles?: number;
+  /**
+   * Files a node mapping names (directory, glob or exact entry) that the
+   * graph nevertheless excludes — a nested project's own boundary, or a
+   * `coverage.excluded` root inside a mapped directory. No pair, fingerprint or
+   * rule ever covers them, so runCheck counts them in `excludedFiles`, never in
+   * `nodeOwnedFiles`, and every surface reading this result (the CLI header,
+   * the fill report, the portal) shows the same split. Set only when the
+   * flag-gated split is computed (`typeLevel`); POSIX, repo-relative.
+   */
+  mappedExcludedFiles?: string[];
+  /** Per-file type-tier enforcement report. Undefined at flag-off. */
+  typeVisibility?: TypeVisibilityReport;
+  /**
+   * How many enforced obligations fell OUTSIDE the change scope this run was
+   * given — one per `-outside` twin the classification produced, except the
+   * aggregate coverage twin, which counts the uncovered files it names (it is
+   * one finding standing for many obligations). Undefined whenever no scope was
+   * supplied, which is every run that does not opt in.
+   */
+  outsideCount?: number;
+  /** The plain name the change was measured against, for the report to quote. */
+  progressiveReference?: string;
+  /** How many changed paths that measurement actually accounted for. */
+  changedInputCount?: number;
+  /**
+   * How many findings the byte guard KEPT blocking — ones this run was about to
+   * report as inherited until their files turned out to differ from what the
+   * reference branch holds, whatever git said about them.
+   *
+   * Reported rather than kept internal because the number is also the symptom of
+   * a whole failure class: on a repository where a content filter sits between
+   * the stored blob and the working copy (a committed `.gitattributes` with
+   * `text eol=` or a `filter=` driver, large-file storage), every file
+   * legitimately differs, so every inherited finding is kept on every run and the
+   * measurement has effectively switched itself off. Without this number that
+   * state is indistinguishable from an ordinary red build. Undefined whenever no
+   * scope was supplied, which is every run that does not opt in.
+   */
+  byteGuardKept?: number;
+  /**
+   * The reference tree's object ids are in a format this build cannot reproduce,
+   * so the content check could not be made at all this run. Undefined whenever no
+   * scope was supplied.
+   */
+  byteGuardUnavailable?: boolean;
+  /**
+   * How much of this report stands on code the change never touched — the
+   * standing floor the repository already had, split by how each half got
+   * there. Undefined whenever no scope was supplied, which is every run that
+   * does not measure changes against a branch: with nothing to measure
+   * against there is no "untouched code" to speak of, and a zero would claim
+   * one.
+   */
+  baselineNoise?: BaselineNoise;
+  /**
+   * True when NOTHING is required to be covered, so a file no component owns
+   * can never fail a check however long it stays that way.
+   *
+   * Reported because that consequence is invisible: the uncovered files ARE
+   * listed either way and only their severity differs, and severity is the one
+   * thing a reader cannot see from a list. It is also the shipped default — a
+   * fresh project and a mined proposal both start there — so the state is
+   * common rather than exotic.
+   */
+  coverageRequiresNothing?: boolean;
+  /**
+   * True when the structural attention index was NOT written because git does
+   * not ignore `.yggdrasil/.feature-field.json` here. A check never edits the
+   * tracked .gitignore to make room for it; the caller prints a notice naming
+   * `yg init --upgrade`, which adds the line.
+   */
+  featureIndexNotIgnored?: boolean;
+}

@@ -1,0 +1,11 @@
+name: VerifiedPairTypes
+type: types
+description: "One expected pair as lock verification classified it: the pair, its state (verified, refused, unverified, over the prompt limit, or a companion that could not resolve), the size data a still-valid but oversized verdict surfaces, a prompt size to back-fill, whether its companion was left unrun, who judged it outside the configured reviewer, the recorded hash and when and at which commit it was filled, whether an unverified pair is stale rather than never seen, whether an earlier release keyed it, and the reviewer tier it resolves to. Pure types in the model layer, so the check result and the report renderers name a classified pair without depending on the verifier; core/verify-lock.ts re-exports them."
+aspects: []
+relations:
+  - target: cli/model/expected-pair
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/model/verified-pair.ts

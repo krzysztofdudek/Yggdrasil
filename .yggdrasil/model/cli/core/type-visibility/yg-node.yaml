@@ -13,5 +13,7 @@ relations:
     type: calls
   - target: cli/model/validation
     type: uses
+  - target: cli/model/type-visibility
+    type: uses
 mapping:
   - source/cli/src/core/type-visibility.ts

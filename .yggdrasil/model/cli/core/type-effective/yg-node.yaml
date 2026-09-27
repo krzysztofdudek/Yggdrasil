@@ -11,5 +11,7 @@ relations:
     type: uses
   - target: cli/relations/core
     type: calls
+  - target: cli/model/type-visibility
+    type: uses
 mapping:
   - source/cli/src/core/type-effective.ts
