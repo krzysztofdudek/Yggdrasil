@@ -398,6 +398,8 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'package-config-dynamic': { severity: 'warning', stage: 'marketplace', meaning: 'A published rule reaches its settings through a name not written out in the source, so the check cannot tell which it reads.', fix: 'Read each setting by a literal name.' },
   'package-reviewer-tier': { severity: 'warning', stage: 'marketplace', meaning: "A published rule asks for a reviewer tier by name, which a consumer's configuration may not have.", fix: 'Remove reviewer.tier and let the consumer pick through an adaptation.' },
   'package-drills-unrecognized': { severity: 'warning', stage: 'marketplace', meaning: "A drills/ directory of a published rule is named neither violates-… nor satisfies-…, so no drill runs it.", fix: 'Rename it with the violates- or satisfies- prefix.' },
+  'marketplace-manifest-key-unknown': { severity: 'warning', stage: 'marketplace', meaning: 'yg-marketplace.yaml carries a key yg-marketplace/1 does not declare. A reader ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere.', fix: 'Fix the spelling (yg schemas read marketplace lists the keys), or remove the key.' },
+  'package-manifest-key-unknown': { severity: 'warning', stage: 'marketplace', meaning: 'A yg-package.yaml carries a key yg-package/1 does not declare. A consumer\'s install ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere.', fix: 'Fix the spelling (yg schemas read package lists the keys), or remove the key.' },
 };
 
 /** Every registered code, in the registry's order. */

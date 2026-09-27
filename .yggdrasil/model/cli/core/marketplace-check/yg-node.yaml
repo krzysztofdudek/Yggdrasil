@@ -7,7 +7,9 @@ description: "The five questions a repository publishing rules is asked before
   what an install copies (no symbolic link, no binary), asked through the very
   readers the install uses so that a package this check passes is one that
   installs, with what git ignores left out because an install clones the tag and
-  never sees it, whether every rule loads under the very
+  never sees it — plus a warning, never a refusal, for each key a manifest carries
+  that its /1 schema does not declare, which every reader ignores by the family
+  rule and the author alone can correct, whether every rule loads under the very
   loader a consumer will load it with, whether every implies stays inside its own
   package, whether every setting a rule reads is declared and every setting
   declared is read, and whether the package will still mean the same thing in a

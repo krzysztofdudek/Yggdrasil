@@ -294,4 +294,6 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`package-config-dynamic\` | warning | A published rule reaches its settings through a name not written out in the source, so the check cannot tell which it reads. | Read each setting by a literal name. |
 | \`package-reviewer-tier\` | warning | A published rule asks for a reviewer tier by name, which a consumer's configuration may not have. | Remove reviewer.tier and let the consumer pick through an adaptation. |
 | \`package-drills-unrecognized\` | warning | A drills/ directory of a published rule is named neither violates-… nor satisfies-…, so no drill runs it. | Rename it with the violates- or satisfies- prefix. |
+| \`marketplace-manifest-key-unknown\` | warning | yg-marketplace.yaml carries a key yg-marketplace/1 does not declare. A reader ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read marketplace lists the keys), or remove the key. |
+| \`package-manifest-key-unknown\` | warning | A yg-package.yaml carries a key yg-package/1 does not declare. A consumer's install ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read package lists the keys), or remove the key. |
 `;

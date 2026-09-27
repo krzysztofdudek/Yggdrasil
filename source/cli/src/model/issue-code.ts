@@ -300,7 +300,9 @@ export type MarketplaceCode =
   | 'package-config-unused'
   | 'package-config-dynamic'
   | 'package-reviewer-tier'
-  | 'package-drills-unrecognized';
+  | 'package-drills-unrecognized'
+  | 'marketplace-manifest-key-unknown'
+  | 'package-manifest-key-unknown';
 
 /** Every registered code. */
 export type IssueCode = CheckCode | CommandErrorCode | SuppressionCode | MarketplaceCode;

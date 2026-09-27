@@ -200,6 +200,29 @@ describe('(a) the manifests against what is on disk', () => {
     });
     expect(result.errors.map((e) => e.code)).toEqual(['package-manifest-invalid']);
   });
+
+  it('9b: a key yg-package/1 does not declare is a WARNING naming it — every reader ignores it', async () => {
+    const result = await run('pkgkey', {
+      'packages/demo/yg-package.yaml': BASE['packages/demo/yg-package.yaml'].replace('requires:\n  yg: ">=6.0.0"\n', 'requires:\n  yg: ">=6.0.0"\n  node: ">=22"\ndescripton: typo\n'),
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((w) => w.code)).toEqual(['package-manifest-key-unknown', 'package-manifest-key-unknown']);
+    const what = result.warnings.map((w) => w.messageData.what).join('\n');
+    expect(what).toContain("'descripton'");
+    expect(what).toContain("'node' in requires");
+    expect(result.warnings[0].subject).toBe('packages/demo/yg-package.yaml');
+  });
+
+  it('9c: a key yg-marketplace/1 does not declare, top level or in an entry, is a WARNING naming it', async () => {
+    const result = await run('mktkey', {
+      'yg-marketplace.yaml': ['schema: yg-marketplace/1', 'owner: acme', 'packages:', '  - name: demo', '    path: packages/demo', '    version: 1.0.0', '    verison: 1.0.1', ''].join('\n'),
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((w) => w.code)).toEqual(['marketplace-manifest-key-unknown', 'marketplace-manifest-key-unknown']);
+    const what = result.warnings.map((w) => w.messageData.what).join('\n');
+    expect(what).toContain("'owner'");
+    expect(what).toContain("'verison'");
+  });
 });
 
 // ---------------------------------------------------------------------------

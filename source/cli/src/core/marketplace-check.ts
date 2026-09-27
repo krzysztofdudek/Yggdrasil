@@ -5,7 +5,7 @@ import type { MarketplaceCode } from '../model/issue-code.js';
 import type { AspectDef, FileWhenPredicate } from '../model/graph.js';
 import type { PackageManifest, MarketplaceEntry } from '../model/packages.js';
 import { MARKETPLACE_FILENAME, PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
-import { checkPackageRequires, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
+import { checkPackageRequires, manifestIgnoredKeys, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
 import { inspectPackageTree, listPackageAspectDirs } from '../io/package-store.js';
 import { listIgnoredUntrackedPaths } from '../utils/git-introspect.js';
 import { isGitRepositoryRoot } from '../utils/git-pack-fetch.js';
@@ -92,6 +92,8 @@ export const MARKETPLACE_WARNING_CODES = [
   'package-config-dynamic',
   'package-reviewer-tier',
   'package-drills-unrecognized',
+  'marketplace-manifest-key-unknown',
+  'package-manifest-key-unknown',
 ] as const;
 
 
@@ -226,6 +228,10 @@ export async function checkMarketplace(root: string, opts: MarketplaceCheckOptio
     return { errors, warnings };
   }
 
+  for (const sentence of await manifestIgnoredKeys(manifestPath, 'marketplace')) {
+    record(issue('marketplace-manifest-key-unknown', 'warning', ignoredKeyMessage(MARKETPLACE_FILENAME, sentence, 'marketplace'), MARKETPLACE_FILENAME));
+  }
+
   const entries = manifest.value.packages;
   const claimed = new Set(entries.map((e) => e.path));
 
@@ -252,6 +258,20 @@ export async function checkMarketplace(root: string, opts: MarketplaceCheckOptio
   }
 
   return { errors, warnings };
+}
+
+/**
+ * A key a manifest carries that no reader of its `/1` document reads. Only a
+ * warning: the family rule for a versioned document is that a reader ignores a
+ * field it does not know, so a key a later release reads must stay publishable;
+ * the author is told so a misspelling is not published unnoticed.
+ */
+function ignoredKeyMessage(file: string, sentence: string, schema: 'package' | 'marketplace'): IssueMessage {
+  return {
+    what: `${file}: ${sentence.split('. ')[0]}.`,
+    why: `A yg-${schema}/1 reader ignores a key it does not declare, so a later release can add one without breaking this one — which means a misspelled key is ignored too, in every repository that installs from here.`,
+    next: `Fix the key's spelling (yg schemas read ${schema} lists the keys it declares), or remove it; keep it only if a later Yggdrasil reads it.`,
+  };
 }
 
 /** Everything asked of one published package. */
@@ -300,6 +320,9 @@ async function checkOnePackage(
     return;
   }
   const pkg = parsed.value;
+  for (const sentence of await manifestIgnoredKeys(pkgManifestPath, 'package')) {
+    record(issue('package-manifest-key-unknown', 'warning', ignoredKeyMessage(rel(root, pkgManifestPath), sentence, 'package'), rel(root, pkgManifestPath)));
+  }
 
   const dirName = path.basename(entry.path);
   if (pkg.name !== entry.name || pkg.name !== dirName) {

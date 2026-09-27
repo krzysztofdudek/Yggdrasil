@@ -247,13 +247,17 @@ left out — an install clones the tag and never sees it — so a locally instal
 marketplace nested inside another repository's working tree, is copied from disk
 by \`yg pack add\`, ignored files included, so there nothing is left out.
 
-And four warnings, which do not fail the check: \`package-config-unused\` (declared
+And six warnings, which do not fail the check: \`package-config-unused\` (declared
 and never read), \`package-config-dynamic\` (the rule reaches its settings through a
 computed name, so this check can only confirm the ones written out),
 \`package-reviewer-tier\` (a published rule names a tier, which is a per-repository
-name — see step 3 above), and \`package-drills-unrecognized\` (a directory under
+name — see step 3 above), \`package-drills-unrecognized\` (a directory under
 \`drills/\` under neither prefix — the runner skips it silently, so it looks like a
-case and runs as none).
+case and runs as none), and \`package-manifest-key-unknown\` /
+\`marketplace-manifest-key-unknown\` (a key \`yg-package.yaml\` or
+\`yg-marketplace.yaml\` carries that its \`/1\` schema does not declare — every
+reader ignores such a key, so a later release can add one, which means a
+misspelled one is ignored in every consumer too).
 
 **\`marketplace check\` does not run your drills.** Running a case needs a
 repository to run it in, and a marketplace has no graph — which is the whole

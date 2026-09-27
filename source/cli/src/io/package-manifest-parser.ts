@@ -16,6 +16,8 @@ import type {
 } from '../model/packages.js';
 import { PACKAGES_DIR, REQUESTED_LATEST } from '../model/packages.js';
 import { toPosixPath } from '../utils/posix.js';
+import { ignoredKeyProblems } from '../utils/file-schema.js';
+import { MARKETPLACE_FORMAT, PACKAGE_FORMAT } from '../utils/file-formats-package.js';
 
 /**
  * source/cli/src/io/package-manifest-parser.ts — read → parse → validate → return
@@ -101,6 +103,26 @@ function parseDocument(
       next: `Fix the YAML syntax in ${filePath}. A literal tab character is the usual cause — YAML indentation is spaces only.`,
     });
   }
+}
+
+/**
+ * The keys a manifest carries that its `/1` schema does not declare, one
+ * sentence each — what every reader of the document silently ignores. Empty
+ * when the file is absent or does not parse (the parsers say so themselves).
+ * For the author's `yg marketplace check`, never for a reader: a reader must
+ * keep ignoring them.
+ */
+export async function manifestIgnoredKeys(filePath: string, kind: 'package' | 'marketplace'): Promise<string[]> {
+  const text = await readOrNull(filePath);
+  if (text === null) return [];
+  let raw: unknown;
+  try {
+    raw = parseYaml(text) as unknown;
+  } catch {
+    return [];
+  }
+  const format = kind === 'package' ? PACKAGE_FORMAT : MARKETPLACE_FORMAT;
+  return ignoredKeyProblems(raw, format.root).map((p) => p.message);
 }
 
 // ============================================================
