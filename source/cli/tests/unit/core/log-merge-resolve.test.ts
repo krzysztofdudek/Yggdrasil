@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { logMergeResolve, looksLikeInterleavedMerge } from '../../../src/core/log/log-merge-resolve.js';
-import { readLock, writeLock } from '../../../src/io/lock-store.js';
+import { readLock, writeLock, acquireApproveLock } from '../../../src/io/lock-store.js';
 import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
@@ -564,6 +564,36 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     if (!result.ok) {
       expect(result.error.what).toContain('yg-lock.logs.json contains git conflict markers');
       expect(result.error.next).toContain('git checkout --ours -- .yggdrasil/yg-lock.logs.json');
+    }
+  });
+
+  it('fails on a conflicted logs lock before writing the union, so log.md keeps its markers for the re-run', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, PARENT1_LOG);
+    const before = await readFile(logPath, 'utf-8');
+    await writeFile(path.join(projectRoot, '.yggdrasil', 'yg-lock.logs.json'), '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('lock-invalid');
+    expect(await readFile(logPath, 'utf-8')).toBe(before);
+  });
+
+  it('refuses while a fill holds the approval lock, writing nothing', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, PARENT1_LOG);
+    const before = await readFile(logPath, 'utf-8');
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    const release = acquireApproveLock(yggRoot, 0, 'yg check --approve');
+    try {
+      const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+      const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot, nowMs: 0 });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('lock-environment');
+        expect(result.error.what).toContain('Another fill is already running');
+      }
+      expect(await readFile(logPath, 'utf-8')).toBe(before);
+    } finally {
+      release();
     }
   });
 });

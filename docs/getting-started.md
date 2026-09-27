@@ -357,7 +357,7 @@ The lock's script verdicts live in a gitignored local cache
 `yg check` would report those pairs as unverified. Rebuild the cache first — it's
 free and needs no key — with `yg check --approve --only-deterministic`, which fills
 only the script pairs and writes the gitignored cache. See
-[The lock](/the-lock) for the file layout.
+[The lock](/the-lock) for the file layout. That step reports on the tree after it and exits 1 on any blocking finding (an unverified reviewer pair, an unmapped file, a refusal), so it already fails the job before the second step runs; the second is the read-only gate. To fail the job in one place, mark the first step `continue-on-error: true`.
 
 **GitHub Actions:**
 

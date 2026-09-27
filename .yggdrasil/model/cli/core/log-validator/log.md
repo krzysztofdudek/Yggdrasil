@@ -10,3 +10,5 @@ R0.6: update log-parser import — log-integrity.ts now imports parseLog from ./
 Append-only validation normalises line endings before offsets and the prefix hash are taken, matching how the baseline is written, so a CRLF checkout of an unchanged log validates.
 ## [2026-09-26T02:52:37.420Z]
 The test for git conflict markers in a node log lived as three separate regular expressions in the check, merge-resolve and nowhere in the fill. It now lives beside the format validator as the one definition every caller shares, because the fill gate and closure need the exact same answer the check gives.
+## [2026-09-27T21:08:41.563Z]
+The step that undoes a rewritten log is shared by the check report and the type-log add refusal, so it lives beside the append-only check: restore the log itself first, and restore the baseline file only as a second resort that also rolls back every other baseline recorded in it since the last commit.

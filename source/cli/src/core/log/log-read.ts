@@ -31,7 +31,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'usage',
         what: 'Cannot combine --top with --all',
         why: '--all overrides --top; provide one or the other.',
         next: 'Drop one of the flags and retry.',
@@ -42,7 +42,7 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     return {
       ok: false,
       error: {
-        code: 'command-error',
+        code: 'usage',
         what: `Invalid --top value: ${input.top}`,
         why: '--top must be a positive integer.',
         next: 'Use --top 10 or --all.',

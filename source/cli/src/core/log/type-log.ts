@@ -38,7 +38,7 @@ import { readLogSafe, statLogFile, withLogWriteLock, writeLogFile } from '../../
 import { readTypeLock, writeTypeLock, LockInvalidError } from '../../io/lock-store.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat, logHasConflictMarkers } from '../log-format.js';
-import { validateAppendOnly } from '../log-integrity.js';
+import { validateAppendOnly, restoreLogStep } from '../log-integrity.js';
 import { walkTypeParentChain } from '../type-effective.js';
 import { composeLogEntry } from './log-entry.js';
 import { computeLogBaselineFromContent } from './log-gate.js';
@@ -220,7 +220,7 @@ function unsettledLogRefusal(
         code: 'log-integrity',
         what: `${logRel} no longer holds the history last recorded for it (${check.reason})`,
         why: 'Adding an entry moves the recorded baseline forward, so appending now would record a rewritten or truncated history as the truth.',
-        next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json — or, after a merge, yg log merge-resolve --type ${typeId}`,
+        next: `After a merge, yg log merge-resolve --type ${typeId}. Otherwise: ${restoreLogStep(logRel, '.yggdrasil/yg-lock.types.json')}`,
       };
     }
   }

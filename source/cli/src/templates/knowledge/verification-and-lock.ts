@@ -392,7 +392,7 @@ This differs from aspect verdicts in two ways:
   failure, unparseable response; for script pairs a \`check.mjs\` import
   failure or thrown error; companion-assembly failure — hook throws, bad return
   shape, path outside allowed-reads, or missing path) writes nothing — the pair
-  stays unverified. There is no "infra" verdict state.
+  stays unverified. There is no "infra" verdict state. One of them stops the whole run first: with no \`reviewer:\` section and an ENFORCED reviewer rule in effect, a full \`yg check --approve\` aborts before anything runs (\`config-reviewer-missing\`, the structural gate — \`ABORTED  nothing ran\`), so not even the free script pairs are filled. \`--only-deterministic\`, \`--dry-run\` and a project whose reviewer rules are all advisory go ahead, each leaving its reviewer pairs unverified as having no reviewer.
 
 ## Garbage-collection
 
@@ -487,9 +487,7 @@ rematerializes them. Garbled or unparseable content, or an unrecognized
 \`version\` (neither 1 nor 2 — 2 is accepted only for the backward-compat drop
 above), is treated differently in the two kinds of file.
 
-In a COMMITTED file it is a blocking \`lock-invalid\` error (fail closed) naming
-the offending file, and the \`next:\` covers both recoveries: restore it from git,
-or delete it and re-fill via \`yg check --approve\`.
+In a COMMITTED file it is a blocking \`lock-invalid\` error (fail closed) naming the offending file. For garbled content or an unknown version the \`next:\` covers both recoveries: restore it from git, or delete it and re-fill via \`yg check --approve\`. For git conflict markers it is the merge recovery: take one side wholesale (\`git checkout --ours\` / \`--theirs\` on that file), then \`yg check\` (and \`yg log merge-resolve\` for a log the same merge conflicted). Plain \`yg check\` reports it inside its report (under \`--json\`, in \`yg-check/1\`); \`yg check --approve\` cannot start over it, so it stops with a command error — under \`--json\`, a \`yg-error/1\` document, not \`yg-check/1\`.
 
 The gitignored DERIVED cache (\`.yg-lock.deterministic.json\`) is not an error at
 all. The same fault there is silently DISCARDED and the file rebuilt from

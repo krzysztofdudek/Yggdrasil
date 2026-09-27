@@ -67,7 +67,7 @@ then: yg check --approve  (24 reviewer pairs · 24 calls · paid)
   findings (one per node, pair, file group or repository fact — the unit of the
   JSON \`totals\`); where the blocks below group them differently it says how
   many blocks hold them: \`34 errors in 4 blocks\`. A narrowed view ends
-  with \`view: top 2\` / \`view: aspect <id>\` / \`view: summary\` / \`view: details\`;
+  with \`view: top 2\` / \`view: aspect <id>\` / \`view: summary\` / \`view: summary by node\` / \`view: details\`;
   its counts are always the whole run's.
 - One block per finding group: \`error[<label>] <subject>\` or
   \`warning[<label>] <subject>\`, then \`at:\` (members, at most 12, then
@@ -117,7 +117,7 @@ fills nothing, whatever the configuration.
 \`\`\`bash
 yg check --top 5           # print only the first 5 blocks
 yg check --top             # print only the block next: points at (no value)
-yg check --summary         # one line per severity: each label with its count
+yg check --summary         # one line per severity: each label with its count (--summary codes: the same)
 yg check --summary nodes   # one row per node instead
 yg check --aspect <id>     # focus on one rule: its blocks, every member listed
 yg check --details         # every block, every member listed
@@ -228,9 +228,7 @@ the per-file structural counts the relation pass already computes — size,
 nesting, and the six category counts). It is pure ATTENTION: it is NEVER an
 issue, an exit code, or a suggested next step; it never gates \`yg check\`, and
 it is computed from the warm parse cache at no extra cost. The write is
-best-effort — a failure to write it never fails a check. Only the reporting
-read path maintains it; \`--approve\`, \`--dry-run\`, and the internal fill
-re-checks leave it untouched.
+best-effort — a failure to write it never fails a check. The reporting paths maintain it: plain \`yg check\` and \`yg check --approve\` (its post-fill report, \`--only-deterministic\` and an \`auto_approve\` fill included); only \`--dry-run\` and the internal fill re-checks leave it untouched.
 
 \`\`\`bash
 yg check --attention-dump   # hidden: print the raw measurements, then exit 0
@@ -308,17 +306,16 @@ The fill prints no \`next:\` of its own: the report after it names the one step
 
 A pair gets its own line only when it could not be judged
 (\`fill  not judged  <aspect> @ <unit>\`) or a consensus split
-(\`fill  passed by 2 of 3 votes  <aspect> @ <unit>\`); refusals are in the report.
+(\`fill  passed by 2 of 3 votes  <aspect> @ <unit>\`); refusals are in the report. A reviewer tier that fails its availability check before any pair is sent is reported once instead, as one \`warning: Reviewer provider '<provider>' (tier '<tier>') cannot run: <cause>. N pairs left unverified.\` — its pairs get no line of their own.
 On a terminal one status line updates in place (\`fill  37/50 · 3 refused · 12s
 <pair>\`); elsewhere a \`fill  still working — 6/24, waiting on <pair>\` line keeps
 a long run from looking hung. A fill with nothing to do prints nothing. Pass
-\`--quiet\` / \`-q\` to silence the progress stream entirely — useful when piping the
-report or running in environments where stderr noise matters.
+\`--quiet\` / \`-q\` to silence the progress lines (the \`fill  …\` lines) — useful when piping the report or running in environments where stderr noise matters. Warnings and errors still print on stderr (an unreachable reviewer, pairs that failed on a provider error), so a quiet run never hides why it went red.
 
 \`\`\`bash
 yg check --approve                      # fill everything (script rules, then reviewer rules), then report
 yg check --approve --only-deterministic # fill ONLY script pairs (free, keyless); the CI / pre-commit gate
-yg check --approve --dry-run            # free cost preview — print the budget + per-node breakdown, write NOTHING, exit 0
+yg check --approve --dry-run            # free cost preview — the budget, one line per reviewer pair, script pairs counted; write NOTHING, exit 0
 yg check --approve --quiet              # fill everything but silence stderr progress
 \`\`\`
 
@@ -347,8 +344,7 @@ the pre-dispatch line (\`fill  N pairs · D script (free) · K reviewer calls (c
 node with an enforced script refusal has its reviewer fills skipped this run);
 then reviewer fills. A real verdict (passed or refused) is written to the lock; every
 infra disposition writes nothing and the pair stays unverified. Refusals are
-cached and FINAL for unchanged inputs. Interrupting is safe — finished pairs
-persist, the next run resumes.
+cached and FINAL for unchanged inputs. Interrupting is safe — on Ctrl+C or SIGTERM every finished pair is written before exit, and the next run resumes; a hard kill (\`kill -9\`) can also lose up to two batches of finished free script results, re-computed for free.
 
 When nothing was unverified, the fill prints nothing at all. Under
 \`--only-deterministic\` the opening \`fill\` lines and the closing \`fill  done …\`
@@ -373,12 +369,7 @@ configuration (the step-1 structural gate) aborts the preview — it surfaces th
 same blocker a real \`--approve\` would hit. A cost estimate never demands a fresh
 log entry, so the preview never HARD-STOPS on the per-node log gate — it previews
 the budget even on \`log_required\` nodes whose source changed since their last
-closure, where a real \`--approve\` would require the entry first. (The preview's
-trailing read-only check report still SURFACES that requirement as a
-\`log-entry-missing\` error, exactly as plain \`yg check\` does — it just exits 0
-and writes nothing.) \`--dry-run\` requires
-\`--approve\`; on its own it is a usage error (plain \`yg check\` is already a free,
-no-write read).
+closure, where a real \`--approve\` would require the entry first. (The text preview prints no report of the tree under it; when a fill would first stop on missing log entries, it lists those \`log-entry-missing\` findings after the budget under a \`note:\`, and still exits 0 and writes nothing. Under \`--json\` the yg-check/1 document of the tree carries them as usual.) \`--dry-run\` requires a fill: \`--approve\`, or a configured \`auto_approve\` that makes the bare \`yg check\` a fill (\`deterministic\`, or \`full\` outside CI) — there \`yg check --dry-run\` alone is the preview. When the run would be read-only it is a usage error (plain \`yg check\` is already a free, no-write read).
 
 ## yg adopt
 
@@ -1132,7 +1123,9 @@ yg log read --node orders/handler              # top 10 entries, newest first
 yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
+yg log read --node orders/handler --json       # one yg-log/1 document (with --with-verdicts: plus verdictEvents)
 yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
+yg log merge-resolve --node orders/handler --ours <ref> --theirs <ref>   # a merge that left no merge commit
 yg log add --type handler --reason "Handlers validate input at the boundary, never in the service." --adds
 yg log read --type handler                     # the decisions in force, newest first
 yg log read --type handler --all               # replaced decisions too, marked

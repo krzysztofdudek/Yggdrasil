@@ -128,6 +128,10 @@ reaches closure. Under progressive mode a node can reach closure while some of i
 reviewer work is deliberately left unbought, so the next source change there needs
 its own entry, exactly as it would after an ordinary closure.
 
+Only a full \`yg check --approve\` records closure; \`--only-deterministic\` never writes the committed logs file. So a \`log_required\` node with nothing left to fill whose source moved past its recorded baseline, while its log has entries, shows a \`log-cycle-open\` WARNING on plain \`yg check\`: its newest entry keeps answering for every edit until a full run records the baseline. It never blocks. It is expected between \`yg log add\` and that full run on a node with no pairs pending; on a project whose only fill is the free gate it means the requirement has stopped asking for new entries, and a full run somewhere has to close it.
+
+The log's own integrity is checked on every \`yg check\`, as blocking errors: \`log-conflict\` (git conflict markers left in log.md — \`yg log merge-resolve\`), \`log-integrity\` (the recorded history was rewritten, or entries were inserted before the last recorded one, the shape a merge leaves — \`yg log merge-resolve\` after a merge, otherwise restore log.md from git), and \`log-format\` (log.md does not parse as entries: text before the first header, a header or datetime that does not parse, a \`## \` line inside a body, entries out of order or sharing a datetime, an unclosed code fence). Under progressive mode each of them — and \`log-entry-missing\` — on a node your change did not touch is reported as its non-blocking \`-outside\` warning.
+
 ## Self-contained entry — worked example
 
 The rules for self-contained entries are in the agent operating manual
@@ -159,13 +163,10 @@ Same decision, all rationale embedded in the entry.
 
 ## Format constraints
 
-Enforced in two places: \`yg log add\` refuses a malformed \`--reason\` before a
-byte is written (the reserved-header, sub-heading-level and fence-balance rules
-below), and \`yg check\` validates the file as a whole (those same rules plus
-datetime ordering).
+Enforced in two places: \`yg log add\` refuses a malformed \`--reason\` before a byte is written (an empty reason, a line-start \`## \` outside a code fence, an unclosed fence), and \`yg check\` validates the file as a whole as \`log-format\`: those same rules plus text before the first entry header (\`invalid_start\`), a header that does not parse (\`invalid_header\`), a datetime not in the exact \`YYYY-MM-DDTHH:MM:SS.mmmZ\` form (\`invalid_datetime\`), entries out of order (\`out_of_order\`) and two entries sharing one datetime (\`duplicate_datetime\`).
 
 - Entry headers \`## [<ISO datetime UTC with milliseconds>]\` are reserved.
-- Sub-headings in your \`--reason\` must be level 3+ (\`###\` or deeper).
+- Use \`###\` or deeper for sub-headings in your \`--reason\`. Only the level-2 \`## \` is refused (below); a level-1 \`# \` line passes both commands, but reads as a heading above the entry's own, so avoid it.
 - Do not put a level-2 heading (\`##\`) at the start of any line in your
   \`--reason\` content. Only a real line-start level-2 heading is the
   problem — a \`## \` that appears inside a BACKTICK-fenced code block (three
@@ -221,20 +222,18 @@ keeps every entry and records the baseline but exits with
 the merge, then add one entry that supersedes both and says which holds — ask
 the user which one that is.
 
-## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
+## Recovery from typo in a fresh entry (BEFORE its baseline is recorded)
 
-If you just ran \`yg log add\` and notice a typo, and the node has NOT reached
-positive closure since (no entry baseline was recorded over the typo):
+If you just ran \`yg log add\` and notice a typo, and no baseline has been recorded over the typo'd entry yet:
 
 \`\`\`bash
 git checkout .yggdrasil/model/<path>/log.md
 yg log add --node <path> --reason "<correct text>"
 \`\`\`
 
-The log baseline in the lock is unchanged because no closure happened, so checking
-out just \`log.md\` is safe and integrity remains intact. Do NOT use this path once
-the node has closed over the typo'd entry — at that point the entry is in the
-baseline and you must use the Supersedes convention instead.
+When the entry was the log's first and \`log.md\` is not tracked by git yet, there is nothing to check out: delete the file instead, then re-add.
+
+The window is short, and it depends on the node's type. For a \`log_required\` node it lasts until the node reaches positive closure (the full \`yg check --approve\` that records its fingerprint). For any other node it lasts only until the next full \`yg check --approve\` in the repository — any run, on any node, even one with nothing to fill: every full fill records the newest entry of every such node as its baseline. Inside the window the log baseline in the lock is unchanged, so checking out just \`log.md\` is safe and integrity remains intact. Once a baseline covers the typo'd entry, restoring \`log.md\` breaks integrity (\`log-integrity\`, \`boundary_missing\`) — use the Supersedes convention instead.
 
 ## Reverting a change you regret
 
@@ -288,8 +287,7 @@ Add the entry before finishing the operation, then \`yg check --approve\`. A
 merge that changed only the log — the component's source is exactly as its
 recorded closure saw it — owes nothing.
 
-On a log that is already whole (the merge commit, or a hand resolution) it only
-verifies: it cannot silently drop or fabricate entries. Do NOT manually
+On a log that is already whole (the merge commit, or a hand resolution) it verifies without rewriting the log — it cannot silently drop or fabricate entries — and, like every successful run, records the log's baseline in the committed lock file (\`yg-lock.logs.json\`; a type's in \`yg-lock.types.json\`), which is staged with the merge. It compares the log byte for byte with git's copies of both sides, which is why \`yg init\` pins every log.md to LF in \`.gitattributes\` (\`/.yggdrasil/**/log.md text eol=lf\`) — keep that line. Do NOT manually
 concatenate the two log histories or keep one side and re-add entries — integrity
 hashes break, and re-added entries lose their original dates.
 

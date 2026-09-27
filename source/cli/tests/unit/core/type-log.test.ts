@@ -164,7 +164,12 @@ describe('type log — baseline, lock section, findings', () => {
 
     const logAbs = path.join(dir, LOG_REL);
     writeFileSync(logAbs, readFileSync(logAbs, 'utf-8').replace('caller', 'callee'), 'utf-8');
-    expect((await findings(graph, dir)).map((i) => [i.code, i.unitKey])).toEqual([['log-integrity', `file:${LOG_REL}`]]);
+    const rewritten = await findings(graph, dir);
+    expect(rewritten.map((i) => [i.code, i.unitKey])).toEqual([['log-integrity', `file:${LOG_REL}`]]);
+    // A type's baseline sits in yg-lock.types.json; the log itself is restored first.
+    expect(rewritten[0].messageData.next).toContain(`git checkout HEAD -- ${LOG_REL}.`);
+    expect(rewritten[0].messageData.next).toContain('.yggdrasil/yg-lock.types.json');
+    expect(rewritten[0].messageData.next).not.toContain('yg-lock.logs.json');
 
     rmSync(logAbs);
     expect((await findings(graph, dir)).map((i) => i.code)).toEqual(['log-integrity']);

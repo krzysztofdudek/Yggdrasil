@@ -208,8 +208,8 @@ export function resolveCheckView(opts: CheckFlags): { view: CheckView } | { refu
     if (opts.summary !== true && opts.summary !== 'nodes' && opts.summary !== 'codes') {
       return {
         refusal: {
-          what: `--summary takes 'nodes' or nothing; got "${String(opts.summary)}".`,
-          why: '--summary rolls the findings up by label (one line per severity); --summary nodes rolls them up by node instead. There is no other way to roll them up.',
+          what: `--summary takes 'nodes', 'codes' or nothing; got "${String(opts.summary)}".`,
+          why: '--summary (or --summary codes, its explicit form) rolls the findings up by label, one line per severity; --summary nodes rolls them up by node instead. There is no other way to roll them up.',
           next: 'yg check --summary',
         },
       };
@@ -248,12 +248,14 @@ export function isTriageView(opts: CheckFlags): boolean {
  * Under a committed auto_approve, a bare `yg check` is itself a fill, so only
  * `--no-approve` names the free read there.
  */
-export function dryRunWithoutApproveRefusal(autoApprove: string | false | undefined): IssueMessage {
-  const autoApproveOn = autoApprove === 'deterministic' || autoApprove === 'full';
+export function dryRunWithoutApproveRefusal(autoApprove: string | false | undefined, ci = false): IssueMessage {
+  // Whether a bare `yg check` fills on this run: `deterministic` always does,
+  // `full` only outside CI (a committed `full` is held back under CI).
+  const autoApproveOn = autoApprove === 'deterministic' || (autoApprove === 'full' && !ci);
   const plainRead = autoApproveOn ? 'yg check --no-approve' : 'yg check';
   return {
     what: '--dry-run requires --approve.',
-    why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(autoApprove)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
+    why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget, one line per reviewer pair) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(autoApprove)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
     next: `Run: yg check --approve --dry-run (cost preview), or ${plainRead} (plain read).`,
   };
 }

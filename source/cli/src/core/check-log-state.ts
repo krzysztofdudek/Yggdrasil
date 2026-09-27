@@ -22,7 +22,7 @@ import path from 'node:path';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { readTextFile, readSortedDirOrEmpty, statKind } from '../io/graph-fs.js';
-import { validateAppendOnly } from './log-integrity.js';
+import { validateAppendOnly, restoreLogStep } from './log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
 import { computeLogGateState, logGateStateBlocks, logCycleOpen, type LogGateState } from './log/log-gate.js';
@@ -52,6 +52,7 @@ export async function classifyLogStateFromLock(
       logRel: `.yggdrasil/model/${nodePathPosix}/log.md`,
       flag: `--node ${nodePathPosix}`,
       baseline: lock.nodes[nodePath]?.log,
+      baselineFile: '.yggdrasil/yg-lock.logs.json',
       identity: { nodePath },
     }, issues);
   }
@@ -74,6 +75,7 @@ async function classifyTypeLogs(graph: Graph, projectRoot: string, lock: LockFil
       logRel,
       flag: `--type ${typeId}`,
       baseline: lock.types?.[typeId]?.log,
+      baselineFile: '.yggdrasil/yg-lock.types.json',
       identity: { unitKey: `file:${logRel}` },
     }, issues);
   }
@@ -107,12 +109,14 @@ interface LogUnderCheck {
   /** `--node <path>` / `--type <type>` — what `yg log merge-resolve` takes for it. */
   flag: string;
   baseline: { last_entry_datetime: string; prefix_hash: string } | undefined;
+  /** The committed file that holds this log's baseline beside every other one of its kind. */
+  baselineFile: string;
   identity: { nodePath: string } | { unitKey: string };
 }
 
 /** Conflict markers, the append-only baseline and the format — for one log. */
 async function classifyOneLog(projectRoot: string, log: LogUnderCheck, issues: CheckIssue[]): Promise<void> {
-  const { logRel, flag, baseline: logBaseline, identity } = log;
+  const { logRel, flag, baseline: logBaseline, baselineFile, identity } = log;
   const logAbs = path.join(projectRoot, logRel);
   let logContent: string | null = null;
   try {
@@ -171,7 +175,7 @@ async function classifyOneLog(projectRoot: string, log: LogUnderCheck, issues: C
             why: check.reason === 'prefix_modified'
               ? 'Historical (pre-baseline) log content was modified — append-only violated.'
               : 'Baseline boundary entry not found — log was deleted or reset.',
-            next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json`,
+            next: restoreLogStep(logRel, baselineFile),
           };
       issues.push({
         severity: 'error',
@@ -284,7 +288,10 @@ export async function classifyLogRequirement(
  * A WARNING, never an error: nothing is wrong with the code, and the
  * requirement itself is not violated. A node with any pair still waiting (or
  * refused) is skipped — the fill that settles it is the one that will close the
- * cycle, so the ordinary edit → log → approve loop never sees this.
+ * cycle, so a node whose edit leaves pairs to fill never sees this in the
+ * ordinary edit → log → approve loop. A node with nothing to fill (no rules, or
+ * none that its edit re-opened) does: between `yg log add` and the full
+ * `--approve` that records its baseline, and before its first full run.
  */
 function classifyOpenLogCycle(
   gate: LogGateState,

@@ -209,8 +209,11 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       // Restore-from-git guidance names both the log.md and the committed log
       // baseline (the triad member yg-lock.logs.json), not the retired single-file
       // yg-lock.json name.
-      expect(all).toContain('git checkout HEAD -- .yggdrasil/model/services/orders/log.md');
+      expect(all).toContain('git checkout HEAD -- .yggdrasil/model/services/orders/log.md.');
       expect(all).toContain('.yggdrasil/yg-lock.logs.json');
+      // The whole logs lock holds every node's baseline: it is never restored in
+      // the same breath as this one log, only as the named second resort.
+      expect(all).not.toContain('log.md .yggdrasil/yg-lock.logs.json');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -666,6 +669,8 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(status).toBe(1);
       expect(all).toContain('Invalid --top value: NaN');
       expect(all).toContain('positive integer');
+      // A flag used wrongly is a usage error, as every command reports it.
+      expect(all).toContain('error[usage]');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -681,6 +686,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       );
       expect(status).toBe(1);
       expect(all).toContain('Cannot combine --top with --all');
+      expect(all).toContain('error[usage]');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

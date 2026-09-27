@@ -52,9 +52,11 @@ node_types:
     log_required: <boolean>                  # optional — default false. Enable (true) on types whose
                                              # changes carry business intent worth capturing — domain
                                              # logic, command handlers, persistence adapters. When true,
-                                             # a node of this type demands a fresh log entry before
-                                             # \`yg check --approve\` whenever its mapped source changed
-                                             # since the node's last positive closure. Leave omitted
+                                             # a node of this type demands a fresh log entry whenever its
+                                             # mapped source changed since the node's last positive
+                                             # closure: plain \`yg check\` reports a missing one as a
+                                             # blocking log-entry-missing error, and \`yg check --approve\`
+                                             # records no verdict for the node until it exists. Leave omitted
                                              # (false) for types whose changes carry no business decision
                                              # worth forcing an entry for (e.g. config, types, constants).
 

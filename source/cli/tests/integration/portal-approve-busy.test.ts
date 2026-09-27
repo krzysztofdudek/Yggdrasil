@@ -10,8 +10,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { startServer, type ServerHandle } from '../../src/portal/server/server.js';
-import { APPROVE_LOCK_PATH, approveInProgress } from '../../src/portal/server/approve.js';
-import { APPROVE_LOCK_FILE_NAME } from '../../src/io/lock-store.js';
+import { APPROVE_LOCK_PATH, APPROVE_LOCK_STALE_MS, approveInProgress } from '../../src/portal/server/approve.js';
+import { APPROVE_LOCK_FILE_NAME, APPROVE_LOCK_STALE_MS as STORE_STALE_MS } from '../../src/io/lock-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_ROOT = path.join(path.resolve(__dirname, '../..'), 'tests', 'fixtures', 'portal-basic');
@@ -39,6 +39,20 @@ describe('portal Approve while an approval is running', () => {
 
   it('the portal spells the approval lock the way the lock store does', () => {
     expect(APPROVE_LOCK_PATH).toBe(path.join('.yggdrasil', APPROVE_LOCK_FILE_NAME));
+    expect(APPROVE_LOCK_STALE_MS).toBe(STORE_STALE_MS);
+  });
+
+  it('a holder on another machine blocks the button until the CLI would count it abandoned', () => {
+    const lockFile = path.join(projectRoot, APPROVE_LOCK_PATH);
+    const startedAt = '2026-01-01T00:00:00.000Z';
+    writeFileSync(lockFile, JSON.stringify({ pid: 1, host: `not-${hostname()}`, startedAt, command: 'yg check --approve', token: 't' }));
+    try {
+      const started = Date.parse(startedAt);
+      expect(approveInProgress(projectRoot, started + 60_000)).toBe(true);
+      expect(approveInProgress(projectRoot, started + APPROVE_LOCK_STALE_MS + 1)).toBe(false);
+    } finally {
+      rmSync(lockFile, { force: true });
+    }
   });
 
   it('POST /approve returns 409 while a live process holds the approval lock, and runs nothing', async () => {

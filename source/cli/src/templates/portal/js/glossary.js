@@ -311,14 +311,21 @@
       id: 'lock',
       term: 'lock',
       group: 'The lock and waivers',
-      def: 'The committed record of reviewer verdicts, beside a local cache of script verdicts. CI re-proves it without a key.',
-      see: '/the-lock',
+      def: 'The committed record of reviewer verdicts (`yg-lock.nondeterministic.json`) and of each component’s log baseline and source fingerprint (`yg-lock.logs.json`; a node type’s decision-log baselines sit in `yg-lock.types.json`), beside a local, gitignored cache of script verdicts. CI re-proves it without a key.',
+      see: '/the-lock#the-three-lock-files',
     },
     {
       id: 'log-entry',
       term: 'log entry',
       group: 'The lock and waivers',
       def: 'Why a component’s own code changed, written with `yg log add`. A component whose type sets `log_required` owes one for each change to its own source — never for a rule, relation, lock or verdict change — and a fill stops before recording anything over a component it would fill that owes one.',
+      see: '/the-lock#the-log-gate',
+    },
+    {
+      id: 'closure',
+      term: 'positive closure',
+      group: 'The lock and waivers',
+      def: 'The moment a full `yg check --approve` ends with every enforced pair of a component settled: the fill records the component’s source fingerprint and its log baseline, and the next change to its own source owes a new log entry. `--only-deterministic` never records it.',
       see: '/the-lock#the-log-gate',
     },
     {
