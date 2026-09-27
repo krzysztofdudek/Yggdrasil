@@ -176,6 +176,8 @@ An entry is pruned only when the run can *positively* prove its pair is gone. An
 
 Only the **committed** files can ever conflict — `yg-lock.nondeterministic.json`, `yg-lock.logs.json` and `yg-lock.types.json`. The script-rule cache is gitignored, so it never appears in a merge and never conflicts; it is simply rebuilt locally.
 
+**With the merge driver configured** (`yg init` configures it in each clone; see [`yg merge-driver`](cli-reference.md#yg-merge-driver)), git merges these files itself, per key and the same whichever side is ours: every key either side holds is kept, a key only one side changed takes that side's value, and a key both sides changed differently drops out — the pair reads as unverified and the next `yg check --approve` fills it, and a dropped log baseline is recorded again by `yg log merge-resolve` with no log named (the post-merge hook runs it). Nothing is stitched and nothing is invented: every value kept is one a side wrote, and it still proves itself against the merged tree. What follows is for a clone without the driver.
+
 When two branches both wrote verdicts, git can leave conflict markers in one of the committed files. Do not hand-stitch the two sides. Pick one side of the conflicting file wholesale:
 
 ```bash

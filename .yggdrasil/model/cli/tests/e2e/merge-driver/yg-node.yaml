@@ -1,0 +1,21 @@
+name: E2E Tests — git merges through the merge drivers
+type: test-suite
+description: >-
+  Subprocess E2E for the merge drivers against real git merges. Init writes
+  the attributes, the local driver configuration with its fallback and the
+  post-merge hook, and a second run changes nothing; two branches' type
+  decisions merge with no conflict, the post-merge hook records the baseline
+  the lock driver dropped, and the check is clean; two branches superseding the
+  same decision stop the merge on the log with markers. And the three ways a
+  driver loses work silently: an attribute with no driver defined gives git's
+  markers, a driver whose CLI is gone falls back to markers instead of ours
+  alone, and a driver that exits 0 without writing is caught by the log
+  reconciliation run after the merge.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-merge-driver.test.ts

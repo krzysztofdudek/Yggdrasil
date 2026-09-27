@@ -220,6 +220,9 @@ describe.skipIf(!distExists)('CLI E2E — a node type keeps a decision log', () 
 
       const resolved = yg(dir, ['log', 'merge-resolve', '--type', TYPE]);
       expect(resolved.status, resolved.all).toBe(0);
+      // The step names the file a type's baseline is written to, not the node logs file.
+      expect(resolved.all).toContain('.yggdrasil/yg-lock.types.json');
+      expect(resolved.all).not.toContain('yg-lock.logs.json');
       const entries = readType(dir).entries;
       expect(entries).toHaveLength(3);
       expect(errorCodes(yg(dir, ['check']).stdout)).not.toContain('log-conflict');

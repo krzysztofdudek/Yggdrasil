@@ -1,4 +1,7 @@
-import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, chmod } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { toPosixPath } from '../utils/posix.js';
 import path from 'node:path';
 import { parseDocument, isMap, isScalar, isSeq, type Document } from 'yaml';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
@@ -45,6 +48,11 @@ import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js
  *      baseline is a prefix hash; the hash normalises line endings, and pinning
  *      the committed text to LF also keeps checkouts (Git for Windows defaults to
  *      core.autocrlf=true) byte-identical to what was baselined and appended.
+ *    - every log.md (a rule adaptation's log too) merged by the `yg-log` driver
+ *      and every committed lock file by the `yg-lock` driver (`yg merge-driver`,
+ *      configured per clone by {@link ensureMergeDrivers}). The attribute is
+ *      safe on a clone that never configured the drivers: git treats a driver
+ *      it has no definition for as absent and merges with conflict markers.
  *  Single source of truth for what init writes into the repo-root .gitattributes
  *  (both fresh init and every --upgrade). */
 const GITATTRIBUTES_LINES = [
@@ -53,6 +61,9 @@ const GITATTRIBUTES_LINES = [
   '/.yggdrasil/advise-imported.jsonl merge=union',
   '/.yggdrasil/yg-events.llm*.jsonl merge=union linguist-generated=true',
   '/.yggdrasil/**/log.md text eol=lf',
+  '/.yggdrasil/**/log.md merge=yg-log',
+  '/.yggdrasil/**/yg-aspect.adapt.log.md merge=yg-log',
+  '/.yggdrasil/yg-lock.*.json merge=yg-lock',
 ] as const;
 
 /**
@@ -90,6 +101,140 @@ export async function ensureGitattributes(repoRoot: string): Promise<string[]> {
   const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
   await writeFile(gaPath, `${existing}${sep}${missing.join('\n')}\n`, 'utf-8');
   return missing;
+}
+
+// ---------------------------------------------------------------------------
+// Merge drivers and the post-merge hook — local git configuration
+// ---------------------------------------------------------------------------
+
+/** The marker line that says a post-merge hook is the one `yg init` writes (and may rewrite). */
+const POST_MERGE_MARKER = '# yg:post-merge';
+
+/**
+ * The CLI that is running, as a path a POSIX shell can test and node can run:
+ * resolved through symlinks (a global `yg` is usually a link to the package's
+ * bin), with forward slashes (Git for Windows' sh reads `C:/…`, not `C:\…`),
+ * and with the characters a double-quoted sh word would interpret escaped.
+ */
+function runningCliPath(given?: string): string | null {
+  const argv1 = given ?? process.argv[1];
+  if (argv1 === undefined || argv1 === '') return null;
+  let resolved = argv1;
+  try {
+    resolved = realpathSync(argv1);
+  } catch {
+    debugWrite(`[init] merge drivers: could not resolve ${argv1}, using it as given`);
+  }
+  return resolved.replace(/\\/g, '/').replace(/(["$`])/g, '\\$1');
+}
+
+/**
+ * The command git runs for one driver. The CLI is named by the absolute path it
+ * runs from now, and the command FALLS BACK to git's own text merge with
+ * conflict markers whenever that CLI or node is gone (an npx cache cleared, a
+ * global install removed): a driver git is told to run but cannot start leaves
+ * the file conflicted with ours' side only and no markers, so staging it would
+ * lose theirs without a word. The same holds for a CLI that is there but does
+ * not start — a node too old for it, a half-finished upgrade, an older CLI with
+ * no `merge-driver` command: it exits non-zero without writing, so a non-zero
+ * exit that left no conflict markers in <ours> gets git's text merge too. (The
+ * driver's own refusal always writes markers before exiting 1.) Git runs
+ * driver commands through its own POSIX shell on every platform (Git for
+ * Windows ships one, with grep), so `if … fi` is portable; nothing in it is bash.
+ */
+export function mergeDriverCommand(cli: string, kind: 'log' | 'lock'): string {
+  const textMerge = 'git merge-file -L ours -L base -L theirs %A %O %B';
+  return `if [ -f "${cli}" ] && command -v node >/dev/null 2>&1; then node "${cli}" merge-driver ${kind} %O %A %B %P; s=$?; if [ $s -ne 0 ] && ! grep -q '^<<<<<<< ' %A; then ${textMerge}; exit 1; fi; exit $s; else ${textMerge}; fi`;
+}
+
+/** The post-merge hook `yg init` writes when the repository has none. */
+export function postMergeHook(cli: string): string {
+  return [
+    '#!/bin/sh',
+    POST_MERGE_MARKER,
+    '# Written by yg init. git merges log.md and the lock through the yg-log and yg-lock',
+    '# drivers, but a driver sees one file and cannot record a merged log\'s baseline;',
+    '# `yg log merge-resolve` with no log named records it for every log the merge changed.',
+    '# It never fails the merge: what it could not reconcile it names, and yg check says the same.',
+    `if [ -f "${cli}" ] && command -v node >/dev/null 2>&1; then`,
+    `  node "${cli}" log merge-resolve || echo "yg: some merged logs are not reconciled - run yg log merge-resolve" >&2`,
+    'fi',
+    'exit 0',
+    '',
+  ].join('\n');
+}
+
+/**
+ * The variables that point git at a repository other than the one its working
+ * directory is in. Git sets them for the hooks it runs, so a `yg init` run from
+ * inside one (a test suite in a pre-commit gate) would otherwise configure THAT
+ * repository's drivers and hooks. The repository configured is always the one
+ * the project root is in, found from the directory alone.
+ */
+const REPOSITORY_OVERRIDES = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX', 'GIT_NAMESPACE'];
+
+function gitLine(cwd: string, args: string[]): string | null {
+  const env = { ...process.env };
+  for (const name of REPOSITORY_OVERRIDES) delete env[name];
+  try {
+    return execFileSync('git', args, { cwd, env, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Configure this clone's `yg-log` and `yg-lock` merge drivers (in its local
+ * `.git/config` — a driver's command is a local path, so it is never committed)
+ * and install the post-merge hook that records merged logs' baselines, when the
+ * repository has no post-merge hook of its own. Idempotent: a setting already
+ * right is left alone, and returns what this run changed, so an upgrade can say
+ * so. Outside a git repository, or with git missing, it does nothing. `cliPath`
+ * names the CLI the commands run; absent, the one running now.
+ *
+ * A hook some other tool wrote is never replaced; a hooks directory outside the
+ * git directory (`core.hooksPath` into the working tree) is left alone too,
+ * since a file written there would be the repository's, not this clone's. In
+ * both cases the line to add by hand is named in the returned notes.
+ */
+export async function ensureMergeDrivers(projectRoot: string, cliPath?: string): Promise<{ configured: string[]; notes: string[] }> {
+  const out = { configured: [] as string[], notes: [] as string[] };
+  const cli = runningCliPath(cliPath);
+  if (cli === null || gitLine(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') return out;
+  const drivers: Array<[string, 'log' | 'lock', string]> = [
+    ['yg-log', 'log', "Yggdrasil's append-only log.md"],
+    ['yg-lock', 'lock', "Yggdrasil's committed lock files"],
+  ];
+  for (const [name, kind, label] of drivers) {
+    for (const [key, value] of [[`merge.${name}.name`, label], [`merge.${name}.driver`, mergeDriverCommand(cli, kind)]] as const) {
+      if (gitLine(projectRoot, ['config', '--local', '--get', key]) === value) continue;
+      if (gitLine(projectRoot, ['config', '--local', key, value]) === null) {
+        out.notes.push(`could not set ${key} in the local git config`);
+        continue;
+      }
+      out.configured.push(key);
+    }
+  }
+  const hookPath = gitLine(projectRoot, ['rev-parse', '--path-format=absolute', '--git-path', 'hooks/post-merge']);
+  const commonDir = gitLine(projectRoot, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (hookPath === null || commonDir === null) return out;
+  const hook = postMergeHook(cli);
+  const existing = await readFile(hookPath, 'utf-8').catch(() => null);
+  const ours = existing !== null && existing.includes(POST_MERGE_MARKER);
+  if (existing !== null && !ours) {
+    out.notes.push(`${toPosixPath(hookPath)} exists and is not Yggdrasil's — add \`yg log merge-resolve\` to it to record merged logs' baselines after every merge`);
+    return out;
+  }
+  if (!toPosixPath(hookPath).startsWith(`${toPosixPath(commonDir)}/`)) {
+    out.notes.push(`the hooks directory is inside the working tree (core.hooksPath) — add a post-merge hook running \`yg log merge-resolve\` there if the repository wants one`);
+    return out;
+  }
+  if (existing === hook) return out;
+  await mkdir(path.dirname(hookPath), { recursive: true });
+  await writeFile(hookPath, hook, { encoding: 'utf-8', mode: 0o755 });
+  await chmod(hookPath, 0o755);
+  out.configured.push('hooks/post-merge');
+  return out;
 }
 
 // ---------------------------------------------------------------------------

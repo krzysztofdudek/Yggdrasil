@@ -6,7 +6,7 @@ import { findOwnerWithinOwnGraph } from './owner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead, type LogEntry } from '../core/log/log-read.js';
-import { logMergeResolve, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
+import { logMergeResolve, logMergeResolveAll, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
 import { appendTypeLogEntry, readTypeLog, type TypeDecisions } from '../core/log/type-log.js';
 import { addAspectLogEntry, readAspectLogCommand } from './log-aspect.js';
 import { projectRootFromGraph } from '../io/paths.js';
@@ -430,6 +430,11 @@ interface MergeResolveOpts { node?: string; type?: string; aspect?: string; ours
 
 async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
+  const namesNone = opts.node === undefined && opts.type === undefined && opts.aspect === undefined;
+  if (namesNone && opts.ours === undefined && opts.theirs === undefined && opts.base === undefined) {
+    await mergeResolveAllAction(graph);
+    return;
+  }
   const target = targetOf(opts, 'merge-resolve');
   if (target.kind === 'aspect') {
     failAndExit({
@@ -473,13 +478,56 @@ async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
     : undefined;
   if (result.wroteUnion === true) {
     const op = result.inProgress ?? 'merge';
-    const stage = `git add ${result.logPath} .yggdrasil/yg-lock.logs.json`;
+    // A type's baseline lives in its own lock file; a node's in the logs file.
+    const stage = `git add ${result.logPath} .yggdrasil/${target.kind === 'type' ? 'yg-lock.types.json' : 'yg-lock.logs.json'}`;
     const finish = `${OPERATION_COMMANDS[op].finish}, then yg check${owed !== undefined ? ' --approve' : ''}`;
     writeOut(`${next(owed ?? stage)}\n`);
     writeOut(`${thenStep(owed !== undefined ? `${stage}, ${finish}` : finish)}\n`);
   } else if (owed !== undefined) {
     writeOut(`${next(owed)}\n`);
     writeOut(`${thenStep('yg check --approve')}\n`);
+  }
+}
+
+/**
+ * `yg log merge-resolve` with no log named: the post-merge step. Every node and
+ * type log the merge changed is reconciled and its baseline recorded — what a
+ * merge driver, a function of one file, cannot do. Run by the post-merge hook
+ * `yg init` installs, and by whatever merges branches for a loop (Jarl's
+ * merger, Horde's landing) right after its merge. Exit 1 when any log failed;
+ * the rest are reconciled all the same.
+ */
+async function mergeResolveAllAction(graph: Graph): Promise<void> {
+  const repoRoot = path.dirname(graph.rootPath);
+  const result = await logMergeResolveAll({ graph, repoRoot });
+  if (result.merge === 'none') {
+    writeOut('HEAD is not a merge commit and no merge is in progress — no log to reconcile.\n');
+    return;
+  }
+  for (const r of result.resolved) {
+    writeOut(paint.green(`${r.wroteUnion === true ? 'Wrote the union of both sides into' : 'Verified'} ${r.logPath}; baseline recorded.\n`));
+  }
+  const owed = result.resolved.filter((r) => r.entryOwed === true);
+  if (result.failed.length > 0) {
+    for (const f of result.failed) writeOut(`${f.logPath}: ${f.error.what}\n`);
+    failAndExit({
+      code: result.failed[0].error.code,
+      what: `${count(result.failed.length, 'log')} the merge changed could not be reconciled (${result.failed.map((f) => f.logPath).join(', ')})`,
+      why: `${result.failed[0].error.why}${result.resolved.length > 0 ? ` The other ${count(result.resolved.length, 'log')} were reconciled and their baselines recorded.` : ''}`,
+      next: result.failed.map((f) => (f.error.code === 'log-merge-supersedes-conflict' ? f.error.next : `yg log merge-resolve ${f.target}`)).join('\n'),
+    });
+  }
+  if (result.resolved.length === 0) {
+    writeOut('The merge changed no node or type log — no baseline to record.\n');
+    return;
+  }
+  const stage = 'git add .yggdrasil/yg-lock.logs.json .yggdrasil/yg-lock.types.json';
+  const finish = result.merge === 'in-progress' ? `${stage}, then git commit` : `${stage}, then git commit (or git commit --amend on the merge commit, before it is pushed)`;
+  if (owed.length > 0) {
+    writeOut(`${next(owed.map((r) => `yg log add ${r.target} --reason '<why these changes were merged — ask the user>'`).join('\n'))}\n`);
+    writeOut(`${thenStep(`${finish}, then yg check --approve`)}\n`);
+  } else {
+    writeOut(`${next(finish)}\n`);
   }
 }
 
@@ -538,7 +586,7 @@ export function registerLogCommand(program: Command): void {
   log
     .command('merge-resolve')
     .description(
-      'Reconcile log.md after a git merge: during a merge, rebase or cherry-pick stopped on a conflicted log.md (writes the union of both sides), on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
+      'Reconcile log.md after a git merge: during a merge, rebase or cherry-pick stopped on a conflicted log.md (writes the union of both sides), on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit. With no log named: every node and type log the merge at HEAD (or the merge in progress) changed, each baseline recorded — the step after a merge whose drivers merged the logs',
     )
     .option('--node <path>', 'Node path (relative to .yggdrasil/model/)')
     .option('--type <type>', 'Node type whose decision log to reconcile')

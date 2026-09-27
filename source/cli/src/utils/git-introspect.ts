@@ -81,6 +81,19 @@ export async function getMergeParents(repoCwd: string, ref: string): Promise<str
   return parts.slice(1);
 }
 
+/**
+ * The paths (relative to `repoCwd`, POSIX) whose content differs between two
+ * commits, limited to `pathspec`. Throws on a git failure — the caller decides
+ * whether "could not tell" may pass as "nothing changed".
+ */
+export async function pathsDifferingBetween(repoCwd: string, refA: string, refB: string, pathspec: string): Promise<string[]> {
+  const { stdout } = await execFilep('git', ['diff', '--name-only', '--relative', '--no-renames', '-z', refA, refB, '--', pathspec], {
+    cwd: repoCwd,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return stdout.split('\0').filter((p) => p !== '').map(toPosixPath);
+}
+
 /** The first-parent ancestors of `ref`, nearest first, excluding `ref` itself; at most `limit`. */
 export async function firstParentAncestors(repoCwd: string, ref: string, limit: number): Promise<string[]> {
   try {

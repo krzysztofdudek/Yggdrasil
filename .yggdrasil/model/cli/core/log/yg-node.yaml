@@ -19,6 +19,12 @@ description: >-
   the tool saw is remembered beside the verdicts so that a status changed by hand
   is noticed and written down ONCE rather than passing unrecorded or being
   reported again on every run.
+  The text merge git's log driver performs is here too, a pure function of
+  the three versions of one file that writes the same union the reconciliation
+  writes and refuses with conflict markers where the reconciliation would
+  refuse, or where both sides replaced the same entry; after a merge, every
+  log the merge changed can be reconciled at once, reading the sides off the
+  merge itself, which records the baselines a driver cannot.
   An entry can name earlier entries of the same log that it replaces: the
   reference is written into the entry's own text, both entries stay in the file,
   and only a reader of what is in force skips the replaced one — a reference to
@@ -94,6 +100,7 @@ mapping:
   - source/cli/src/core/log/log-supersedes.ts
   - source/cli/src/core/log/type-log.ts
   - source/cli/src/core/log/log-merge-resolve.ts
+  - source/cli/src/core/log/log-merge-driver.ts
   - source/cli/src/core/log/log-gate.ts
   - source/cli/src/core/log/type-law.ts
   - source/cli/src/core/log/log-standing-scan.ts

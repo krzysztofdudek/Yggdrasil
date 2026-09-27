@@ -274,6 +274,7 @@
         "marketplace-packages-invalid",
         "marketplace-schema-missing",
         "marketplace-schema-unknown",
+        "merge-driver-refused",
         "missing-reason",
         "no-coverage",
         "node-not-found",

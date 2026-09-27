@@ -334,6 +334,12 @@ export async function writeTypeLock(yggRoot: string, types: Record<string, LockT
     removeFileIfExists(filePath);
     return;
   }
+  await writeFileIfChanged(filePath, serializeTypeLock(types));
+}
+
+/** The canonical bytes of the type-log baseline file: keys sorted, one entry per line. */
+function serializeTypeLock(types: Record<string, LockTypeEntry>): string {
+  const ids = Object.keys(types).sort();
   const lines = ['{', `  "version": 1,`, '  "types": {'];
   ids.forEach((id, i) => {
     const log = types[id].log;
@@ -341,7 +347,7 @@ export async function writeTypeLock(yggRoot: string, types: Record<string, LockT
     lines.push(`    ${JSON.stringify(id)}: ${entry}${i === ids.length - 1 ? '' : ','}`);
   });
   lines.push('  }', '}', '');
-  await writeFileIfChanged(filePath, lines.join('\n'));
+  return lines.join('\n');
 }
 
 /**
@@ -1082,4 +1088,157 @@ export function writeLockSync(yggRoot: string, lock: LockFile, opts: WriteLockOp
     put(logsLockPath(yggRoot), {}, lock.nodes);
   }
   put(detLockPath(yggRoot), det, {}, lock.aspects ?? {});
+}
+
+// ── Merge driver: the committed lock files merged by git ───────────────────────
+
+/**
+ * The merge git's `yg-lock` driver performs on one committed lock file (the
+ * verdict file, the logs file or the type-log baseline file), given the three
+ * versions git hands a driver. Pure: three texts in, one text out.
+ *
+ * Direction-independent — swapping ours and theirs gives the same bytes — and
+ * decided per key, never by stitching lines:
+ *   - the keys are the union of both sides' keys: a verdict per rule and unit,
+ *     a node's `source` and `log` facts, a type's `log` baseline;
+ *   - a key both sides hold with the same value keeps it;
+ *   - a key only one side changed from the merge base takes that side's value
+ *     (a deletion counts as a change, so a pruned verdict stays pruned);
+ *   - a key both sides changed to different values DROPS OUT, so the pair reads
+ *     as unverified (the next `yg check --approve` fills it) and the log
+ *     baseline as absent (`yg log merge-resolve` with no target records it
+ *     again after the merge).
+ * Nothing is ever invented: every value in the result is one a side wrote, and
+ * each one still proves itself — a verdict by its input hash, a baseline by the
+ * log it covers, a fingerprint by the code — so a value that does not match
+ * the merged tree reads as stale, never as verified.
+ *
+ * Refused (null) when a side does not parse, carries conflict markers, has a
+ * version this CLI does not read, or fails the shape the reader enforces — a
+ * key this release does not know included, at the top level too: the reader
+ * may drop a later release's section, but a merge that did so would commit the
+ * loss for everyone, so a driver older than the lock it is handed stops
+ * instead. The driver then leaves git's own conflict, and the file is taken
+ * wholesale by hand as the lock-invalid message says.
+ */
+export function mergeLockTexts(base: string, ours: string, theirs: string): { ok: true; text: string } | { ok: false; why: string } {
+  const sides: Array<Record<string, unknown> | null> = [];
+  for (const [label, text] of [['base', base], ['ours', ours], ['theirs', theirs]] as const) {
+    if (text.trim() === '') {
+      sides.push(null);
+      continue;
+    }
+    if (/^(?:<<<<<<<|=======|>>>>>>>)/m.test(text)) return { ok: false, why: `${label} carries conflict markers` };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { ok: false, why: `${label} is not JSON` };
+    }
+    if (!isPlainObject(parsed) || parsed.version !== LOCK_FORMAT_VERSION) return { ok: false, why: `${label} is not a version ${LOCK_FORMAT_VERSION} lock file` };
+    const invalid = mergeSideShapeError(parsed);
+    if (invalid !== null) return { ok: false, why: `${label} ${invalid}` };
+    sides.push(parsed);
+  }
+  const kinds = new Set(sides.filter((side) => side !== null).map((side) => ('types' in side ? 'types' : 'lock')));
+  if (kinds.size > 1) return { ok: false, why: 'the sides are different lock files (a type baseline file and a verdict or logs file)' };
+  const [b, o, t] = sides;
+  const section = (side: Record<string, unknown> | null, key: string): Record<string, Record<string, unknown>> => {
+    const value = side?.[key];
+    return isPlainObject(value) ? (value as Record<string, Record<string, unknown>>) : {};
+  };
+  const merged = (key: string): Record<string, Record<string, unknown>> => mergeTwoLevels(section(b, key), section(o, key), section(t, key));
+  if ([b, o, t].some((side) => side !== null && 'types' in side)) {
+    return { ok: true, text: serializeTypeLock(merged('types') as Record<string, LockTypeEntry>) };
+  }
+  const aspects = merged('aspects') as Record<string, LockAspectEntry>;
+  return {
+    ok: true,
+    text: serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: merged('verdicts') as unknown as Record<string, Record<string, VerdictEntry>>,
+      nodes: merged('nodes') as Record<string, LockNodeEntry>,
+      ...(Object.keys(aspects).length > 0 ? { aspects } : {}),
+    }),
+  };
+}
+
+/**
+ * Why one side of a lock merge cannot be merged key by key, or null when it can:
+ * exactly the shape the reader accepts, with every top-level key known. A leaf
+ * the serializer does not name (an entry field a later release added) would be
+ * dropped from the result without a word, and a leaf missing a field would be
+ * written as broken JSON — so neither ever reaches the merge.
+ */
+function mergeSideShapeError(side: Record<string, unknown>): string | null {
+  if ('types' in side) {
+    const extra = Object.keys(side).filter((k) => k !== 'version' && k !== 'types');
+    if (extra.length > 0) return `has keys this CLI does not know (${extra.join(', ')})`;
+    if (!isPlainObject(side.types)) return '"types" is not a JSON object';
+    for (const [typeId, entry] of Object.entries(side.types)) {
+      if (!isPlainObject(entry) || Object.keys(entry).some((k) => k !== 'log')) return `"types.${typeId}" is not { log? }`;
+      const log = entry.log;
+      if (log === undefined) continue;
+      if (!isPlainObject(log) || Object.keys(log).length !== 2 || typeof log.last_entry_datetime !== 'string' || typeof log.prefix_hash !== 'string') {
+        return `"types.${typeId}.log" is not { last_entry_datetime, prefix_hash }`;
+      }
+    }
+    return null;
+  }
+  const extra = Object.keys(side).filter((k) => !KNOWN_TOP_KEYS.has(k));
+  if (extra.length > 0) return `has top-level keys this CLI does not know (${extra.join(', ')})`;
+  try {
+    validateLockShape(side, { fileName: 'lock', committed: true });
+    return null;
+  } catch (err) {
+    if (err instanceof LockInvalidError) return `is malformed: ${err.messageData.what}`;
+    throw err;
+  }
+}
+
+/**
+ * A two-level map (outer key → inner key → leaf value) merged per inner key by
+ * {@link mergeLeaf}. An outer key stays when any of its inner keys survives,
+ * or when both sides still hold it (an empty node entry is a fact of its own).
+ */
+function mergeTwoLevels(
+  base: Record<string, Record<string, unknown>>,
+  ours: Record<string, Record<string, unknown>>,
+  theirs: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const outer of new Set([...Object.keys(ours), ...Object.keys(theirs)])) {
+    const inBase = base[outer] ?? {};
+    const inOurs = ours[outer] ?? {};
+    const inTheirs = theirs[outer] ?? {};
+    const inner: Record<string, unknown> = {};
+    for (const key of new Set([...Object.keys(inOurs), ...Object.keys(inTheirs)])) {
+      const value = mergeLeaf(inBase[key], inOurs[key], inTheirs[key]);
+      if (value !== undefined) inner[key] = value;
+    }
+    if (Object.keys(inner).length > 0 || (outer in ours && outer in theirs)) out[outer] = inner;
+  }
+  return out;
+}
+
+/** One key's value after the merge: see {@link mergeLockTexts}. Undefined = absent. */
+function mergeLeaf(base: unknown, ours: unknown, theirs: unknown): unknown {
+  const same = (a: unknown, b: unknown): boolean => canonicalJson(a) === canonicalJson(b);
+  // Every kept value in canonical key order: two equal values that differ only
+  // in key order would otherwise make the bytes depend on which side is ours.
+  const canonical = (value: unknown): unknown => (value === undefined ? undefined : JSON.parse(canonicalJson(value)));
+  if (same(ours, theirs)) return canonical(ours);
+  if (same(ours, base)) return canonical(theirs);
+  if (same(theirs, base)) return canonical(ours);
+  return undefined;
+}
+
+/** JSON with object keys sorted at every level, so two equal values compare equal whatever their key order. */
+function canonicalJson(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (isPlainObject(value)) {
+    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
 }

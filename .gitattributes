@@ -5,3 +5,8 @@ repos/** -text
 /.yggdrasil/advise-imported.jsonl merge=union
 /.yggdrasil/yg-events.llm*.jsonl merge=union linguist-generated=true
 /.yggdrasil/**/log.md text eol=lf
+/.yggdrasil/**/log.md merge=yg-log
+/.yggdrasil/**/yg-aspect.adapt.log.md merge=yg-log
+/.yggdrasil/yg-lock.*.json merge=yg-lock
+# Every change adds its lines under [Unreleased]; only a release writes a version heading, so a union never interleaves two sections.
+/CHANGELOG.md merge=union

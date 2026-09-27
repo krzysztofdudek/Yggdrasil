@@ -1,0 +1,27 @@
+name: Merge Driver Command
+type: command
+description: >-
+  yg merge-driver log|lock — the git merge drivers for the files Yggdrasil owns,
+  run by git with the base, ours and theirs versions of one file and never typed
+  by hand. log merges an append-only log.md as text into the same union the log
+  reconciliation writes; lock merges a committed lock file per key, the same
+  whichever side is ours. The result always replaces ours before a clean exit;
+  a refusal writes conflict markers and exits 1 so git stops on the file; any
+  unexpected failure falls back to git's own three-way text merge with markers,
+  so a driver never leaves ours alone as if it were the answer. It reads no
+  graph and writes no lock: recording a merged log's baseline is the log
+  command's step after the merge.
+aspects: []
+relations:
+  - target: cli/output
+    type: calls
+  - target: cli/core/log
+    type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/merge-driver.ts

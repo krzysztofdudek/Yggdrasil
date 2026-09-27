@@ -9,7 +9,9 @@ description: >-
   alone takes the flags that record a change of its standing — a RECORD, not the
   change: the rule's own file stays the user's to edit, so a standing the file
   does not carry is refused — and it keeps no merge baseline, so merge-resolve
-  refuses it. yg log read --json prints the yg-log/1
+  refuses it. merge-resolve naming no log at all reconciles every node and type
+  log the merge at hand changed — the step after a merge whose drivers merged
+  the logs. yg log read --json prints the yg-log/1
   document for a node (the node's entries with their timestamps; with
   --with-verdicts also the fill events attributed to it and whether that
   telemetry is shared) and the yg-type-log/1 document for a type, whose read

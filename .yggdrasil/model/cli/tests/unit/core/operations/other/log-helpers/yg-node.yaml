@@ -47,6 +47,7 @@ relations:
     { target: cli/model/graph, type: uses }
   ]
 mapping:
+  - source/cli/tests/unit/core/log-merge-driver.test.ts
   - source/cli/tests/unit/core/log-format.test.ts
   - source/cli/tests/unit/core/log-integrity.test.ts
   - source/cli/tests/unit/core/log-merge-resolve.test.ts

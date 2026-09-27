@@ -37,6 +37,7 @@ import {
 import {
   createYggdrasilStructure,
   ensureGitattributes,
+  ensureMergeDrivers,
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
   stripRetiredKeys,
@@ -50,7 +51,7 @@ import { grandfatherTypeLaw } from '../core/log/type-law.js';
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
 // the init module unchanged.
-export { ensureGitattributes, ensureYggdrasilGitignore };
+export { ensureGitattributes, ensureMergeDrivers, ensureYggdrasilGitignore };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -284,6 +285,7 @@ async function freshInit(
   }
 
   await ensureGitattributes(projectRoot);
+  await ensureMergeDrivers(projectRoot);
 
   p.outro(paint.green(
     reviewerConfig
@@ -406,6 +408,7 @@ export async function freshInitNonInteractive(
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), opts.rulesArtifacts);
   await persistReviewerConfig(yggRoot, resolved);
   await ensureGitattributes(projectRoot);
+  await ensureMergeDrivers(projectRoot);
 
   writeOut(paint.green(
     `Yggdrasil initialized (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n` +
@@ -450,6 +453,7 @@ export async function freshInitKeyless(
 ): Promise<void> {
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
   await ensureGitattributes(projectRoot);
+  await ensureMergeDrivers(projectRoot);
   writeOut(paint.green(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
     `  ${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
@@ -762,6 +766,9 @@ export async function runVersionUpgrade(
   // adopters pick it up (both the interactive and non-interactive --upgrade
   // paths route through here). Idempotent.
   const gitattributesAdded = await ensureGitattributes(projectRoot);
+  // The merge drivers the attributes name, and the post-merge hook that records
+  // merged logs' baselines, configured in this clone (never committed).
+  const mergeDrivers = await ensureMergeDrivers(projectRoot);
   // Likewise ensure `.yggdrasil/.gitignore` carries the full set of local
   // rebuildable/secret state (secrets, the relation symbol-index cache, the
   // debug log) so existing adopters pick up the complete set. Idempotent.
@@ -791,6 +798,7 @@ export async function runVersionUpgrade(
     housekeeping: [
       { file: '.yggdrasil/.gitignore', added: gitignoreAdded },
       { file: '.gitattributes', added: gitattributesAdded },
+      { file: 'the local git configuration', added: [...mergeDrivers.configured, ...mergeDrivers.notes] },
     ],
     withheld,
     coverageBlocked: await predictCoverageBlockers(projectRoot, managedRootFiles(report)),

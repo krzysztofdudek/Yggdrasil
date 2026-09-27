@@ -70,6 +70,8 @@ A rule history was the one log with a command of its own, under the rule list, w
 yg log add --type takes --adds, the writer answer that the new decision replaces none of those in force, and prints the decisions in force for the type and the types above it before the result, so the choice between --supersedes and --adds is made with them in view. --adds with --supersedes, or on any other log, is a usage error.
 ## [2026-09-27T19:32:12.851Z]
 The log command takes --ratify on a rule's log to record that the user admitted the rule as law over the node types it reaches, and refuses it on a node's or a type's log with the same usage refusal the status flags have, since only a rule has type law to admit. --by now also names who admitted it.
+## [2026-09-27T21:01:48.587Z]
+After a merge whose drivers combined the logs, the baselines of the merged logs still have to be recorded, and whoever merged cannot be expected to know which logs the merge touched. Naming no log now means every node and type log the merge at hand changed, read off the merge itself, so a post-merge hook or a tool that merges branches runs one command; a log that fails is reported with its own reason while the others are still reconciled.
 ## [2026-09-27T21:08:35.359Z]
 merge-resolve now takes the fill's approval lock for a node's baseline, and the engine reads no clock of its own, so the command passes the wall clock in. Reading a type log with --top and --all together, or with an invalid --top, is a flag used wrongly and is now reported as a usage error, as every other command reports one.
 ## [2026-09-27T21:42:58.943Z]

@@ -1,0 +1,22 @@
+name: CLI Merge Driver Tests
+type: test-suite
+description: >-
+  Unit tests for the merge driver command and the merge driver configuration
+  init writes: a clean log and lock merge replaces ours and exits 0, a refusal
+  leaves markers and exits 1, an unknown kind or an unreadable side falls back
+  to git's own markers; the configured command names the CLI by path and falls
+  back to git merge-file when it is gone; the configuration and the post-merge
+  hook are written once, a foreign hook is left alone, and nothing is written
+  outside a git repository.
+aspects: []
+relations:
+  - target: cli/commands/merge-driver
+    type: uses
+  - target: cli/init-scaffold
+    type: uses
+  - target: cli/io/lock-store
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/merge-driver.test.ts

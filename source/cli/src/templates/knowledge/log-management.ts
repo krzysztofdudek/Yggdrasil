@@ -267,6 +267,15 @@ node's baseline.
 
 ## After a git merge, rebase or cherry-pick
 
+**With the merge drivers configured** (\`yg init\` configures them in each clone:
+\`merge=yg-log\` for every log.md, \`merge=yg-lock\` for the committed lock files),
+git merges both sides' entries itself, in date order, and stops with markers only
+when history was rewritten or both sides superseded the same entry. A driver sees one
+file and cannot record the merged log's baseline, so after the merge run
+\`yg log merge-resolve\` with NO log named (the post-merge hook \`yg init\` installs
+runs it): it reconciles every node and type log the merge changed and records each
+baseline. Then commit the lock files. Without the drivers, or when a driver stopped:
+
 If both sides added log entries to the same node, git stops with conflict
 markers in its \`log.md\`. Run, right there, with the operation still stopped:
 

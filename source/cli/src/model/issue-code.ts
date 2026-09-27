@@ -238,6 +238,8 @@ export type CommandErrorCode =
   | 'log-merge-entries-unknown'
   | 'log-merge-out-of-order'
   | 'log-merge-supersedes-conflict'
+  // yg merge-driver leaving conflict markers for git to stop on.
+  | 'merge-driver-refused'
   // yg log add --supersedes naming an entry it cannot replace.
   | 'log-supersedes-unknown'
   | 'log-supersedes-superseded'

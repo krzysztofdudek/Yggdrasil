@@ -4,5 +4,7 @@ Added so the CLI describes itself in one place: the root help groups the command
 Parser errors read on one line: the parser's "Did you mean" suggestion joins the sentence instead of riding on a line of its own inside the error document's what, and --json on a command that has no JSON form says so instead of suggesting the nearest flag (log add suggested --reason). Colour flags — --color, --color=<when>, --no-color — are taken off the command line before parsing, since the colour library already read them, so every command accepts them instead of refusing them as unknown options.
 ## [2026-09-26T21:33:23.925Z]
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
+## [2026-09-27T21:01:54.985Z]
+The merge driver is a command git runs rather than one a person types, but it is part of the surface and appears in the grouped help under setup with the exact shape git invokes it with, so a reader who meets it in a git configuration can find what it is.
 ## [2026-09-27T21:08:34.588Z]
 The top-level and check help examples called a bare yg check a read-only gate, which is false on a project that sets auto_approve; the example now says it is read-only unless auto_approve is set.

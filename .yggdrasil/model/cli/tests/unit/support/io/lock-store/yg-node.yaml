@@ -11,6 +11,7 @@ relations:
     { target: cli/tests/support, type: uses }
   ]
 mapping:
+  - source/cli/tests/unit/io/lock-store-merge.test.ts
   - source/cli/tests/unit/io/lock-store.test.ts
   - source/cli/tests/unit/io/lock-store-migration.test.ts
   - source/cli/tests/unit/io/lock-store-write-cache.test.ts
