@@ -65,7 +65,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           why: `A bundle groups implied aspects and has no verdict of its own; a rule source here is never read.`,
           next: `Remove .yggdrasil/aspects/${aspect.id}/${present} to keep it a bundle, or declare reviewer.type explicitly to make it a reviewer rule or a script rule.`,
         };
-        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
       // companion.mjs is an LLM-only add-on; it is never valid on an aggregate.
       if (hasCompanionMjs) {
@@ -109,7 +109,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
             why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
             next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
           };
-      issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(wrongTypeMsgData), messageData: wrongTypeMsgData });
+      issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(wrongTypeMsgData), messageData: wrongTypeMsgData, aspectId: aspect.id });
       // companion+check is the more-specific conflict; emit it here before the continue.
       if (hasCompanionMjs) {
         issues.push(companionWithCheckIssue(aspect.id));
@@ -124,7 +124,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           why: `A reviewer rule needs content.md as the rule definition the reviewer reads.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/content.md describing the rule.`,
         };
-        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
+        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
       if (hasCheckMjs) {
         const msgData: IssueMessage = {
@@ -132,7 +132,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           why: `A reviewer rule must not ship check.mjs (that's a script rule's input).`,
           next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
         };
-        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
     } else {
       // reviewer === 'deterministic'
@@ -142,7 +142,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           why: `A script rule needs check.mjs as the rule definition the structure runner executes.`,
           next: `Create .yggdrasil/aspects/${aspect.id}/check.mjs exporting a check function.`,
         };
-        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
+        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
       if (hasContentMd) {
         const msgData: IssueMessage = {
@@ -150,7 +150,7 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
           why: `A script rule must not ship content.md (that's a reviewer rule's input).`,
           next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
         };
-        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData, aspectId: aspect.id });
       }
     }
 
@@ -725,6 +725,7 @@ export async function checkAspectReferences(graph: Graph): Promise<ValidationIss
           rule: 'aspect-reference-broken',
           ...issueMsg(msgData),
           messageData: msgData,
+          aspectId: aspect.id,
         });
         continue;
       }
@@ -740,6 +741,7 @@ export async function checkAspectReferences(graph: Graph): Promise<ValidationIss
           rule: 'aspect-reference-broken',
           ...issueMsg(msgData),
           messageData: msgData,
+          aspectId: aspect.id,
         });
       }
     }

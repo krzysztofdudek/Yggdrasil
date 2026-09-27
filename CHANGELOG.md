@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- In `yg check --json`, a rule with a missing or unexpected rule source (`aspect-missing-rule-source`, `aspect-unexpected-rule-source`) and a rule whose reference is missing (`aspect-reference-broken`) now name the rule in the finding's `aspect` field, not only in its sentence.
 - A rule directory with no rule source now says so in plain words, and names what to add: it used to print a literal `\n` inside its suggested fix and recommend a `reviewer:` block the rule does not need. The same holds for a `reviewer:` or `scope:` value that is not a mapping.
 - Three messages now end on a step you can run or follow: `yg owner --file` with a path outside the repository names the command to run again; `yg log merge-resolve` with `--ours`, `--theirs` or `--base` given alone names the full command for that component; and `yg init --upgrade` reports a file it had to leave untouched with a why and a next step. `yg log read --with-verdicts` on a git-tracked events sidecar no longer puts a capitalised `NOTE:` label in the middle of its header.
 - `yg context --file` and `yg find` no longer lose the end of a long answer read through a pipe (`| head`, a slow reader, an agent capturing the output). They ended the process before the pipe had taken everything they wrote; they now wait for it, and the exit code is unchanged.

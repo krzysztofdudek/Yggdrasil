@@ -88,6 +88,39 @@ references:
     expect(out).toContain('aspect-reference-broken');
   });
 
+  it('yg check --json names the rule on each rule-contract finding, in the aspect field', () => {
+    // The rule was once named only inside the sentence of these findings, so a
+    // consumer had to parse prose to know which rule to open.
+    const repo = makeBaseRepo();
+    repos.push(repo);
+    const ygg = join(repo, '.yggdrasil');
+    writeFileSync(join(ygg, 'aspects', 'a', 'yg-aspect.yaml'), `name: A
+description: t
+reviewer: { type: llm }
+references:
+  - docs/missing.md
+`, 'utf-8');
+    mkdirSync(join(ygg, 'aspects', 'b'), { recursive: true });
+    writeFileSync(join(ygg, 'aspects', 'b', 'content.md'), '# B\n', 'utf-8');
+    writeFileSync(join(ygg, 'aspects', 'b', 'yg-aspect.yaml'), `name: B
+description: t
+reviewer: { type: deterministic }
+`, 'utf-8');
+
+    const stdout = ((): string => {
+      try {
+        return execFileSync('node', [CLI, 'check', '--json'], { cwd: repo, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (e: any) {
+        return e.stdout ?? '';
+      }
+    })();
+    const doc = JSON.parse(stdout) as { issues: Array<{ code: string; aspect?: string }> };
+    const aspectOf = (code: string): Array<string | undefined> => doc.issues.filter((i) => i.code === code).map((i) => i.aspect);
+    expect(aspectOf('aspect-reference-broken')).toEqual(['a']);
+    expect(aspectOf('aspect-missing-rule-source')).toEqual(['b']);
+    expect(aspectOf('aspect-unexpected-rule-source')).toEqual(['b']);
+  });
+
   it('references on deterministic aspect causes yg check to fail with aspect-references-on-deterministic', () => {
     const repo = makeBaseRepo();
     repos.push(repo);
