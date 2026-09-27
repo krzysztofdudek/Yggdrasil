@@ -665,6 +665,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.stderr).not.toContain('all expected pairs hold valid verdicts');
         expect(r.stderr).toMatch(/^fill .* [1-9]\d* refused\b/m);
+        // The free run never bills the reviewer.
+        expect(r.stderr).toMatch(/^fill .*\b0 reviewer calls\b/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

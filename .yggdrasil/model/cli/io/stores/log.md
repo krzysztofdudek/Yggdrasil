@@ -210,3 +210,5 @@ Why sealing and not taking the file out of git: the file was most of the graph's
 The first-line check reads at most 4 KB of the file and is cached per process, so a fill appending thousands of events reads it once. A first line that does not parse is never sealed under a guessed month. Two processes sealing at the same instant can put a line into the neighbouring month's file but never drop one.
 ## [2026-09-27T02:24:01.185Z]
 The helper that names a sealed month file stays private to the events store: nothing else in the engine builds that name (the reader and progressive scope match the pattern instead), and the repository forbids an export only a test reads, because it couples the test to an internal rather than to what the CLI does.
+## [2026-09-27T02:34:22.372Z]
+Sealing the committed events file renames it, or appends it to an existing month file and removes it, so on its own it could lose a line another writer appended in between. It is safe because only a fill writes the committed stream and a fill holds the approve lock for its whole run; the comment now says so instead of claiming concurrent sealing can never lose a line.

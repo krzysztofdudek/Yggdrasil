@@ -61,9 +61,11 @@ export function readFirstLine(filePath: string, maxBytes = 4096): string | undef
  * Move a finished log file to `sealedPath`. When nothing is there yet this is a
  * rename; when a file of that name already exists (another branch sealed the
  * same period and git merged it in), the log's content is appended to it and
- * the log removed, so no line is lost either way. Best-effort under concurrent
- * writers: two processes sealing at the same instant can put a line into a
- * neighbouring period's file, never drop it.
+ * the log removed. Not safe on its own against a concurrent writer: a line
+ * appended to the log between the read and the removal here would be lost. The
+ * one caller, the committed events stream, is written only by a fill, and a fill
+ * holds the approve lock (`.yg-approve.lock`) for its whole run, so no second
+ * writer can be sealing or appending at the same time.
  */
 export function sealFile(filePath: string, sealedPath: string): void {
   if (!existsSync(sealedPath)) {
