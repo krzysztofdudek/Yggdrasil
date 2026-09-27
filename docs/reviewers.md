@@ -442,10 +442,11 @@ yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 
 `yg aspect-test` exits 0 for clean, 1 for violations, and never writes the lock. Output:
 
+<!-- sample: aspect-test-refused -->
 ```text
 yg aspect-test: refused — 1 violation
-src/utils/config.ts
-  L12: fs.readFileSync is synchronous — use async equivalent
+  at:   src/utils/config.ts:12  fs.readFileSync is synchronous — use async equivalent
+diagnostic only — lock unchanged; yg check judges the lock against your files, not this run
 ```
 
 ### Graph-aware checks

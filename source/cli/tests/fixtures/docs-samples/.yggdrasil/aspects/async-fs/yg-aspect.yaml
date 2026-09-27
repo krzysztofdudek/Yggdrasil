@@ -1,0 +1,7 @@
+name: AsyncFs
+description: Source code uses the asynchronous file system API, never a synchronous call that blocks the event loop.
+reviewer:
+  type: deterministic
+status: enforced
+scope:
+  per: file

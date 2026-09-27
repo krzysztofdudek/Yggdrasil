@@ -172,7 +172,7 @@ For \`--node\`, the output ends with a one-line cost summary that folds each rev
 pair's resolved-tier consensus into the reviewer-call count:
 
 \`\`\`text
-  Editing this node re-verifies: 3 reviewer pairs = 9 reviewer calls (consensus included); 2 deterministic = free; 4 currently-green verdicts re-rolled.
+  Editing this node re-verifies: 1 reviewer pair = 3 reviewer calls (consensus included); 1 script = free; 0 currently-green verdicts re-rolled.
 \`\`\`
 
 Flags of \`yg impact\`, generated from its \`--help\` (\`npm run cli-reference:update\` in source/cli):
@@ -1126,8 +1126,11 @@ one the lock has never recorded at all. Absent entirely when the flag is off.
 
 \`\`\`text
 $ yg tree
-...
-6 files are covered by their architecture type alone, with no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
+orders [module] — Everything about taking and keeping an order.
+orders/order-service [service] — Takes an order and keeps it.
+utils [service] — Reads the application's configuration.
+
+3 type-covered files, with no component of their own: 2 checked by at least one rule (2 with no recorded verdict for at least one of its rules), 1 with nothing that applies.
 \`\`\`
 
 ### \`yg structure\`
@@ -1668,8 +1671,8 @@ step \`yg check\` names for an unmapped file.
 $ yg owner --file src/handlers/capturePayment.ts
 src/handlers/capturePayment.ts -> type:handler
   Enforced by its architecture type, not by a component (1 of 1 rule unverified — no valid verdict is currently on record for it).
-No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
-yg context --file src/handlers/capturePayment.ts
+  why:  No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
+next: yg context --file src/handlers/capturePayment.ts
 \`\`\`
 
 #### \`yg owner --files\` (batch)

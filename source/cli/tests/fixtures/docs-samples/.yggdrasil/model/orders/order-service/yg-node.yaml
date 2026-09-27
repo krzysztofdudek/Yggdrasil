@@ -1,0 +1,7 @@
+name: OrderService
+description: Takes an order and keeps it.
+type: service
+aspects:
+  - audit-logging
+mapping:
+  - src/orders/order.service.ts

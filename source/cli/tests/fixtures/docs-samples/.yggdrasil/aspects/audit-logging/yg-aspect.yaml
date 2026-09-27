@@ -1,0 +1,5 @@
+name: AuditLogging
+description: Every mutation emits an audit event.
+reviewer:
+  type: llm
+status: enforced
