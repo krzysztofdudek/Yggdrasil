@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-aspect-log-1.schema.json",
+  "title": "Rule history (yg aspects log read --json)",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-aspect-log/1"
+    },
+    "aspect": {
+      "description": "The rule whose history this is.",
+      "type": "string"
+    },
+    "status": {
+      "description": "What the rule stands at right now — read from the rule, not from the log.",
+      "type": "string"
+    },
+    "entries": {
+      "description": "Newest first. Capped only when the caller asked for a limit.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AspectLogJsonEntry"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "aspect",
+    "status",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "AspectLogJsonEntry": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "description": "ISO 8601 UTC timestamp — the entry header, verbatim.",
+          "type": "string"
+        },
+        "body": {
+          "description": "Everything written under that header, verbatim.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Present only on an entry that recorded a change of standing.",
+          "$ref": "#/$defs/AspectLogJsonStatus"
+        }
+      },
+      "required": [
+        "at",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "AspectLogJsonStatus": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Where the rule stood before.",
+          "type": "string"
+        },
+        "to": {
+          "description": "Where it stands after.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

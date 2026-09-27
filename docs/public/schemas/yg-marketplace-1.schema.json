@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-marketplace-1.schema.json",
+  "title": "Marketplace manifest (yg-marketplace.yaml)",
+  "description": "Marketplace manifest (yg-marketplace/1) — the packages a marketplace repository publishes. Read from <marketplace root>/yg-marketplace.yaml. A key not listed is ignored by this reader (the /1 rule), so additionalProperties is true.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "description": "The document version.",
+      "const": "yg-marketplace/1"
+    },
+    "packages": {
+      "description": "The packages this marketplace publishes (an empty list is legal).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The package name, one path segment, unique in the marketplace.",
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "description": "The package directory, relative to the marketplace root.",
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "description": "The version published.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "version"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "packages"
+  ],
+  "additionalProperties": true
+}

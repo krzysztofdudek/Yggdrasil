@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-aspects-1.schema.json",
+  "title": "Rule list (yg aspects --json)",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-aspects/1"
+    },
+    "aspects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AspectsJsonAspect"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "aspects"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "AspectsJsonAspect": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "Reviewer kind: a judged rule, a local check, or a bundle with no reviewer of its own.",
+          "enum": [
+            "aggregate",
+            "deterministic",
+            "llm"
+          ]
+        },
+        "tier": {
+          "description": "The reviewer tier a judged rule resolves to, when it names one.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "status": {
+          "description": "The rule's own default status; an attach site may raise it per component.",
+          "enum": [
+            "advisory",
+            "draft",
+            "enforced"
+          ]
+        },
+        "reviewBy": {
+          "description": "The standing request to re-examine whether the rule still earns its place, as a bare `YYYY-MM-DD` date. Null when the rule names none.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "errs": {
+          "description": "The rule's honest error direction, on a local check that declares one.",
+          "anyOf": [
+            {
+              "enum": [
+                "exact",
+                "over",
+                "under"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "implies": {
+          "description": "Rules this one pulls in.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "usage": {
+          "$ref": "#/$defs/AspectsJsonUsage"
+        },
+        "reach": {
+          "description": "Every subject the rule reaches, named rather than counted — present ONLY when the caller asked for it with `--reach`. Absent by default, so the document a caller already reads stays byte-identical to what it was before this field existed, and nobody pays the enumeration who did not ask for it.",
+          "$ref": "#/$defs/AspectsJsonReach"
+        },
+        "drills": {
+          "$ref": "#/$defs/AspectsJsonDrills"
+        },
+        "log": {
+          "description": "The last thing the rule's own history recorded — so a reader of this document does not have to open files to know whether a rule has been touched, when, and whether its standing moved.",
+          "$ref": "#/$defs/AspectsJsonLog"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "kind",
+        "tier",
+        "status",
+        "reviewBy",
+        "errs",
+        "implies",
+        "usage",
+        "drills",
+        "log"
+      ],
+      "additionalProperties": false
+    },
+    "AspectsJsonDrills": {
+      "type": "object",
+      "properties": {
+        "violates": {
+          "description": "Cases the rule MUST refuse.",
+          "type": "number"
+        },
+        "satisfies": {
+          "description": "Cases the rule MUST pass.",
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "violates",
+        "satisfies",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "AspectsJsonLog": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "description": "ISO 8601 UTC timestamp of the newest entry, or null when there is none.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "statusChange": {
+          "description": "The standing the newest entry recorded, when it recorded one.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "statusChange"
+      ],
+      "additionalProperties": false
+    },
+    "AspectsJsonReach": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AspectsJsonReachUnit"
+          }
+        }
+      },
+      "required": [
+        "units"
+      ],
+      "additionalProperties": false
+    },
+    "AspectsJsonReachUnit": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "description": "The subject: one component, or one file governed by its architecture type.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "file",
+                "node"
+              ]
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "node": {
+          "description": "The owning component, or null for a file no component owns.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "status": {
+          "description": "Effective status on THIS subject — the standing that decides whether a finding blocks here, which an attach site may raise above the rule's own default. A `draft` unit is listed like any other: a rule that reaches nothing and a rule that reaches ten subjects it is not yet judging are different facts, and an empty list must only ever mean the first.",
+          "enum": [
+            "advisory",
+            "draft",
+            "enforced"
+          ]
+        },
+        "via": {
+          "description": "Which channel delivered the rule here.",
+          "enum": [
+            "architecture",
+            "flow",
+            "hierarchy",
+            "implied",
+            "own",
+            "port",
+            "type"
+          ]
+        },
+        "from": {
+          "description": "Where it came from, when the channel has an origin to name: the ancestor component (`hierarchy`), the architecture type (`architecture`, `type`), the flow (`flow`), the port and the component publishing it (`port`), the rule that implies this one (`implied`). Null for `own`, whose origin is the subject itself.",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "unit",
+        "node",
+        "status",
+        "via",
+        "from"
+      ],
+      "additionalProperties": false
+    },
+    "AspectsJsonUsage": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "description": "Components where the rule is effective, however it got there.",
+          "type": "number"
+        },
+        "architecture": {
+          "description": "Attached by an architecture type's defaults.",
+          "type": "number"
+        },
+        "own": {
+          "description": "Declared on the component itself.",
+          "type": "number"
+        },
+        "inherited": {
+          "description": "Declared on an ancestor component (or an ancestor's architecture type) and inherited down the hierarchy.",
+          "type": "number"
+        },
+        "port": {
+          "description": "Required by a port the component consumes.",
+          "type": "number"
+        },
+        "implied": {
+          "description": "Pulled in ONLY by another rule's `implies` — no attachment of its own reaches the component.",
+          "type": "number"
+        },
+        "flow": {
+          "description": "Propagated from a flow the component participates in.",
+          "type": "number"
+        },
+        "typeCovered": {
+          "description": "Files governed by an architecture type alone, with no component of their own.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nodes",
+        "architecture",
+        "own",
+        "inherited",
+        "port",
+        "implied",
+        "flow",
+        "typeCovered"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

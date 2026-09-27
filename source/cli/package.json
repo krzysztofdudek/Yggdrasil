@@ -34,7 +34,8 @@
     "glossary:update": "YG_GLOSSARY_UPDATE=1 vitest run tests/unit/repo/glossary-sync.test.ts",
     "prose:baseline": "YG_PROSE_BASELINE_UPDATE=1 vitest run tests/unit/repo/e2e-prose-ratchet.test.ts",
     "codes:update": "YG_CODES_UPDATE=1 vitest run tests/unit/repo/issue-code-tables.test.ts",
-    "schemas:update": "YG_SCHEMAS_UPDATE=1 vitest run tests/unit/repo/file-schema-tables.test.ts"
+    "schemas:update": "YG_SCHEMAS_UPDATE=1 vitest run tests/unit/repo/file-schema-tables.test.ts",
+    "json-schemas:update": "YG_JSON_SCHEMAS_UPDATE=1 vitest run tests/unit/repo/json-contract-schemas.test.ts"
   },
   "keywords": [
     "yggdrasil",

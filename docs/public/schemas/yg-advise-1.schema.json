@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-advise-1.schema.json",
+  "title": "Attention feed (yg advise --json)",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-advise/1"
+    },
+    "attention": {
+      "description": "One line per signal class — the same aggregates the text view heads with.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "items": {
+      "description": "The ranked, currently-visible items. Never capped here: the cap is a rendering choice.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AdviseJsonItem"
+      }
+    },
+    "suppressed": {
+      "description": "Items a recorded decision currently hides, with the decision that hides them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AdviseJsonItem"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "attention",
+    "items",
+    "suppressed"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "AdviseJsonItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable id — what a dismiss or defer names.",
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        },
+        "evidenceHash": {
+          "description": "Binds the item to the evidence it rests on. A decision taken against this hash stops applying the moment the evidence moves.",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "The ids this item was known by before its class was renamed (6.1.0: `dead-attach:<rule>` is now `aspect-effective-nowhere:<rule>`, `uncovered-hot-spot:<node>` is now `unguarded-hot-spot:<node>`). A reader that keyed records by the old id finds the item by any of these; a dismiss or defer still accepts them. Present only on a renamed item. Added in 6.1.0.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "provenance": {
+          "description": "Present only on an item another tool proposed.",
+          "$ref": "#/$defs/AdviseJsonProvenance"
+        },
+        "suppressed": {
+          "description": "Why the item is currently hidden, when it is.",
+          "type": "object",
+          "properties": {
+            "action": {
+              "enum": [
+                "defer",
+                "dismiss",
+                "done"
+              ]
+            },
+            "until": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "what",
+        "why",
+        "next",
+        "evidenceHash"
+      ],
+      "additionalProperties": false
+    },
+    "AdviseJsonProvenance": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "description": "The tool that measured it.",
+          "type": "string"
+        },
+        "at": {
+          "description": "The commit it was measured at, or null when the producer named none.",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

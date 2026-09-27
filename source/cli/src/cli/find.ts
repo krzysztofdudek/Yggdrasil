@@ -32,6 +32,15 @@ export interface FindJsonResult {
   next: string | null;
 }
 
+/** `yg find --json` (yg-find/1): the query as searched and its ranked results, best first. */
+export interface FindJsonDocument {
+  schema: typeof FIND_JSON_SCHEMA;
+  /** The query, trimmed. */
+  query: string;
+  /** At most five results; empty when nothing matched or the graph is empty. */
+  results: FindJsonResult[];
+}
+
 /** The address a result is passed on by: a node without its `model/` prefix, a rule by id. */
 function resultId(doc: IndexedDocument): string {
   const p = toPosixPath(doc.path);
@@ -68,7 +77,7 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
   const docs = await buildIndex(graph, typeCoverage, (m) => { warn(m); });
   if (docs.length === 0) {
     writeOut(opts.json === true
-      ? `${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: [] }, null, 2)}\n`
+      ? `${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: [] } satisfies FindJsonDocument, null, 2)}\n`
       : 'Empty graph, nothing to search.\n');
     return 0;
   }
@@ -94,7 +103,7 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
         next: doc.kind === 'node' ? `yg context --node ${id}` : doc.kind === 'file' ? `yg context --file ${id}` : null,
       });
     }
-    writeOut(`${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: rows }, null, 2)}\n`);
+    writeOut(`${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: rows } satisfies FindJsonDocument, null, 2)}\n`);
     return 0;
   }
   if (results.length === 0) {

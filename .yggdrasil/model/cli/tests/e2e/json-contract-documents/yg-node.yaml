@@ -1,0 +1,9 @@
+name: E2E Tests — json-contract-documents
+type: test-suite
+description: "Subprocess E2E holding every yg-*/1 document the built CLI emits to its published JSON Schema, every mapping closed: the run report in each form, context, impact, node, rule list and health, attention feed, rule history, waiver inventory, drill run, node list, owner, search, component log and command errors, over a matrix of fixture repositories (a flow with script rules, a drill corpus, a waiver and logs; a type-covered tree; a graph with ports; a flow file that does not load), plus the package manifests as published and the package record yg pack add writes."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/json-contract-documents.test.ts

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-package-versions-1.schema.json",
+  "title": "Package versions cache (.yggdrasil/.yg-packages-versions.json)",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-package-versions/1"
+    },
+    "packages": {
+      "description": "Keyed by installed package name — the same name the installation record uses.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PackageVersionsEntry"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "packages"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "PackageVersionsEntry": {
+      "type": "object",
+      "properties": {
+        "published": {
+          "description": "Every version tag the source published, verbatim. UNTRUSTED: it came from another repository.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "checked_at": {
+          "description": "ISO timestamp of the reach that produced `published`. Never compared, only reported.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "published",
+        "checked_at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

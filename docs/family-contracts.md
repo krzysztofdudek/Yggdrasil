@@ -90,6 +90,12 @@ That rule has one recorded exception, taken deliberately in 6.0.0. Normalising e
 - Two `yg-advise/1` item ids changed with their class names: `dead-attach:<rule>` is now `aspect-effective-nowhere:<rule>` (the check's own code for the same finding) and `uncovered-hot-spot:<node>` is now `unguarded-hot-spot:<node>`. A consumer keying records by item id (Horde's audit ledger keys `advise:<id>`) would see the renamed item as new. Each renamed item carries `aliases`, an additive list of the ids it was known by, so a consumer can match an old record to it; `yg advise dismiss` and `defer` still accept the old ids, and decisions stored under them keep applying.
 - `usage.implied` in `yg-aspects/1` counted every rule a component received through anything but its own list, its architecture type and a flow: another rule's `implies`, an ancestor, and a consumed port. It now counts only `implies`; the other two have their own additive fields, `inherited` and `port`.
 
+## The published schemas
+
+Every `yg-…/1` document Yggdrasil writes or reads has a JSON Schema, published with these docs at `/schemas/<id>.schema.json` (`yg-check/1` at [/schemas/yg-check-1.schema.json](/schemas/yg-check-1.schema.json), and so on). None is written by hand: a JSON document's schema is derived from the TypeScript type its emitter is compiled against, and the three package documents' from the file-format schema their parser enforces (`yg schemas read package`). A test regenerates all of them and fails when a published one differs, validates real documents emitted over a matrix of fixture repositories against them, and requires every field any of them declares to be named on this page or in the [CLI Reference](/cli-reference).
+
+They describe exactly what this release writes: every mapping is closed (`additionalProperties: false`) and every enumeration lists the values this release uses. Use them to check a producer, or to learn a document's shape; do not use them to reject a document you read. Under [the rule](#the-rule) a later release may add a field, or a value, within `/1`, and a consumer that refused it would break on an upgrade that promised it would not.
+
 ## The guard
 
 Two halves, both deterministic, no network and no clock.

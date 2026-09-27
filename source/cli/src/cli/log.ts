@@ -44,6 +44,23 @@ function handleError(error: unknown): never {
 /** Schema id of `yg log read --json`. */
 const LOG_JSON_SCHEMA = 'yg-log/1';
 
+/** `yg log read --json` (yg-log/1). */
+export interface LogJsonDocument {
+  schema: typeof LOG_JSON_SCHEMA;
+  /** The node, as its path under model/. */
+  node: string;
+  /** Its log entries, newest first. */
+  entries: Array<{ datetime: string; body: string }>;
+  /** Present with --with-verdicts: the fill events attributed to the node. */
+  verdictEvents?: {
+    /** The earliest event considered, or null for the whole history. */
+    since: string | null;
+    /** Whether the event stream is committed (shared with the team) rather than local. */
+    sharedHistory: boolean;
+    events: VerdictEvent[];
+  };
+}
+
 /**
  * `yg log read --json`: the node's entries, newest first, each with its
  * timestamp and body; with --with-verdicts also the fill events attributed to
@@ -54,7 +71,7 @@ function writeLogJson(
   entries: Array<{ datetime: string; body: string }>,
   verdicts?: { events: VerdictEvent[]; gitTracked: boolean; since: string | null },
 ): void {
-  const doc = {
+  const doc: LogJsonDocument = {
     schema: LOG_JSON_SCHEMA,
     node,
     entries: entries.map((e) => ({ datetime: e.datetime, body: e.body })),

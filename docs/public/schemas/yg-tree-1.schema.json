@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-tree-1.schema.json",
+  "title": "Node list (yg tree --json)",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-tree/1"
+    },
+    "root": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "maxDepth": {
+      "type": [
+        "null",
+        "number"
+      ]
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TreeJsonNode"
+      }
+    },
+    "typeCovered": {
+      "description": "Files covered by their architecture type alone, repo-wide; null when type-level coverage is off.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/TypeCoveredCounts"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "root",
+    "maxDepth",
+    "nodes",
+    "typeCovered"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "TreeJsonNode": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "description": {
+          "description": "The whole description, or null when the node has none.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "parent": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "depth": {
+          "description": "0 for a root of the listing, one more per level below it.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "path",
+        "type",
+        "description",
+        "parent",
+        "depth"
+      ],
+      "additionalProperties": false
+    },
+    "TypeCoveredCounts": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "enforced": {
+          "description": "Checked by at least one rule.",
+          "type": "number"
+        },
+        "unverifiedEnforced": {
+          "description": "Of `enforced`: files with no recorded verdict for at least one of their rules.",
+          "type": "number"
+        },
+        "unenforced": {
+          "description": "Matched a type with nothing that applies.",
+          "type": "number"
+        },
+        "uncomputable": {
+          "description": "Whose rules could not be worked out (an aspect implies cycle).",
+          "type": "number"
+        }
+      },
+      "required": [
+        "total",
+        "enforced",
+        "unverifiedEnforced",
+        "unenforced",
+        "uncomputable"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

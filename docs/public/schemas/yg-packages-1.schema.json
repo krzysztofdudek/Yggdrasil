@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-packages-1.schema.json",
+  "title": "Package record (.yggdrasil/yg-packages.yaml)",
+  "description": "Package record (yg-packages/1) — what is installed, from where, and every copied file's hash. Written by yg pack. Read from .yggdrasil/yg-packages.yaml. A key not listed is ignored by this reader (the /1 rule), so additionalProperties is true.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "description": "The document version.",
+      "const": "yg-packages/1"
+    },
+    "packages": {
+      "description": "The installed packages, by name.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "description": "Where the package was installed from.",
+            "type": "string",
+            "minLength": 1
+          },
+          "package": {
+            "description": "The install directory under aspects/packages/.",
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "description": "The installed version.",
+            "type": "string",
+            "minLength": 1
+          },
+          "requested": {
+            "description": "What was asked for: latest, or a version.",
+            "type": "string",
+            "minLength": 1
+          },
+          "tag": {
+            "description": "The tag the copy came from.",
+            "type": "string",
+            "minLength": 1
+          },
+          "commit": {
+            "description": "The commit that tag pointed at.",
+            "type": "string",
+            "minLength": 1
+          },
+          "identity": {
+            "description": "given when the install identity was named by hand.",
+            "const": "given"
+          },
+          "installed_at": {
+            "description": "When it was installed.",
+            "type": "string",
+            "minLength": 1
+          },
+          "files": {
+            "description": "Every copied file, with its hash at install; the package-file-modified rail compares against it.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "source",
+          "package",
+          "version",
+          "installed_at",
+          "files"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "additionalProperties": true
+}
