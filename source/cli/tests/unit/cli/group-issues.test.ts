@@ -7,10 +7,10 @@ import {
   coverageBlockLabel,
   getIssueLabel,
   issuePriorityRank,
-} from '../../../src/cli/group-issues.js';
+} from '../../../src/formatters/group-issues.js';
 import { OUTSIDE_CODES } from '../../../src/utils/check-codes.js';
 import type { CheckIssue, CheckResult } from '../../../src/core/check.js';
-import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { enrichCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 
 /** The step the report's one Next engine names for these findings (the `next:` step, without its annotations). */

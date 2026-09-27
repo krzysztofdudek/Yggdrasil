@@ -24,7 +24,7 @@ description: >-
   resolved range and its reason, every warning with a stable code, and the
   totals). A consumer never has to parse prose to learn what governs a file,
   who depends on a component, what a component is, or how a build stands.
-  This node holds only the schema constants, the document types and the pure
+  For those forms this node holds only the schema constants, the document types and the pure
   `format*Json` renderers — never a builder that turns a domain result into a
   document: a `formatter`-type node may only `uses` a plain data type and
   `calls` a utility, never reach into a facade or a core result type, so a
@@ -35,7 +35,44 @@ description: >-
   counts, a pair's outcome, a periodic tally, the in-place status line with the
   width it must fit, the closing totals) and the fill-text renderer turns one
   event into the exact text a person reads, so the engine owns none of those
-  sentences. It also holds the check's two standing notices (type-level
+  sentences. It also renders the whole yg check report, the one report a
+  formatter composes rather than a single document: the report's views over one
+  hierarchy (the verdict line, a partial-result banner when part of the graph
+  did not load, the finding blocks, standing notes, and the next: / then:
+  lines last; full, --details, --aspect, --top N, --summary and --summary nodes,
+  every one printing the same verdict line with the true counts and a view:
+  tag), the header (the verdict and metrics line, the type-level coverage
+  block, the byte-guard and baseline-noise notices, the notice naming verdicts
+  an older lock holds from a judge other than the configured reviewer, and the
+  emoji accessibility gate), the finding blocks (grouped by code and cause,
+  capped and listed in full under --details, each with its members, the shared
+  why and fix, and its fill cost in pairs and calls), and the issue grouping
+  the blocks and the portal worklist share (group labels, the tier and
+  priority order, an -outside twin sub-ranked after every ordinary warning, an
+  unverified finding grouped by its cause). The report owns the Next contract,
+  the only place the step a check points at is decided: next: is the first
+  step of the first block (never a fill while a code or graph error stands),
+  taken from the step the finding's emitter hands over as data before anything
+  is read out of its sentence, with the node, the file and the user's own
+  flags filled in, a fill stating the whole command's cost, and a sentence
+  supplying only ever a graph file to change, never a source file; then: names
+  the fill once the fixes are in. The same step is the yg-check/1 document's
+  suggestedNext and next object, and the document also gets each finding's
+  label and the report's blocks and banner. It also renders a recording run a
+  gate stopped (an ABORTED verdict line keeping the `yg check:` anchor, the
+  gating findings as blocks) and the log entries a cost preview says a
+  recording run would stop on. Under it sit the CLI's output grammar (count
+  and plural agreement, capped lists with a drill command on the overflow
+  line, the block heading, the lowercase labelled fields, the verdict,
+  next:, then: and note: lines, the recording run a step names and its price,
+  and paint and decorated, the one door to colour, decoration only) and the
+  Diagnostic model with the code registry (per issue code its label, the tier
+  it sorts into and the noun its members are counted in), which the command
+  layer's output module re-exports to every command, and the type-level
+  coverage sentences (why an attached rule does not run on a type-covered
+  file, where a type's inherited parent chain stops, an absorbed implies
+  cycle) shared verbatim by yg check, yg context --file, yg owner --file and
+  the portal. It also holds the check's two standing notices (type-level
   coverage switched on with no classifying type, and the attention index
   skipped because git does not ignore it), shared verbatim by the check
   report and yg init.
@@ -50,6 +87,12 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/model/check-issue
+    type: uses
+  - target: cli/check-codes
+    type: calls
+  - target: cli/model/type-visibility
+    type: uses
 mapping:
   - source/cli/src/formatters/advise-json.ts
   - source/cli/src/formatters/aspect-log-json.ts
@@ -58,6 +101,13 @@ mapping:
   - source/cli/src/formatters/aspects-json.ts
   - source/cli/src/formatters/check-json.ts
   - source/cli/src/formatters/check-notices.ts
+  - source/cli/src/formatters/check-render-groups.ts
+  - source/cli/src/formatters/check-render-header.ts
+  - source/cli/src/formatters/check-render-views.ts
+  - source/cli/src/formatters/group-issues.ts
+  - source/cli/src/formatters/output-diagnostic.ts
+  - source/cli/src/formatters/output-grammar.ts
+  - source/cli/src/formatters/type-visibility-text.ts
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts

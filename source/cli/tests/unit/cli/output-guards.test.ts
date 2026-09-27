@@ -25,7 +25,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
+import { formatOutput, type CheckView } from '../../../src/formatters/check-render-views.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import {
   llmRefusedMessage,
@@ -248,7 +248,7 @@ describe('no rendered group repeats a member line', () => {
 // ── Messages carry no layout ───────────────────────────────
 
 /** The output layer itself lays text out; everything else hands it data. */
-const LAYOUT_OWNERS = new Set(['cli/output.ts', 'cli/output-diagnostic.ts']);
+const LAYOUT_OWNERS = new Set(['cli/output.ts', 'formatters/output-grammar.ts', 'formatters/output-diagnostic.ts']);
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];

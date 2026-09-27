@@ -3,8 +3,9 @@ import { walk, report } from '@chrisdudek/yg/ast';
 /**
  * Output through the layer.
  *
- * Every byte the CLI prints goes through its output layer (cli/output.ts and
- * cli/output-diagnostic.ts), which owns the words, the layout, the counts, the
+ * Every byte the CLI prints goes through its output layer (cli/output.ts, and
+ * the grammar and diagnostic model it re-exports from
+ * formatters/output-grammar.ts and formatters/output-diagnostic.ts), which owns the words, the layout, the counts, the
  * colour and the streams. This rule keeps the four ways around it shut, over
  * the whole shipped source tree — every .ts file under source/cli/src/, so a
  * module written tomorrow is covered the day it is written:
@@ -30,7 +31,8 @@ const GUARDED_PREFIX = 'source/cli/src/';
 /** The output layer itself: the one place allowed every form above. */
 const OUTPUT_LAYER = new Set([
   'source/cli/src/cli/output.ts',
-  'source/cli/src/cli/output-diagnostic.ts',
+  'source/cli/src/formatters/output-grammar.ts',
+  'source/cli/src/formatters/output-diagnostic.ts',
   // count() and plural() themselves, kept in utils so the engine and the
   // formatters (which may not import the command layer) count the same way.
   'source/cli/src/utils/count.ts',

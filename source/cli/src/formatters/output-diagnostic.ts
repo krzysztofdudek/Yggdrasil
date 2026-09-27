@@ -1,6 +1,7 @@
 /**
  * The Diagnostic model and the code registry — the data half of the CLI's
- * output layer (the words and layout half is `output.ts`).
+ * output layer (the words and layout half is `output-grammar.ts`, and the
+ * streams it is written to are the command layer's `cli/output.ts`).
  *
  * A Diagnostic is one thing the CLI has to tell its reader: an error that stops
  * a command, a finding in a report, a warning, a note. Every command used to
@@ -180,4 +181,9 @@ export function toIssueMessage(d: Diagnostic): IssueMessage {
     why: d.why ?? '',
     next: d.fix?.text ?? '',
   };
+}
+
+/** Whether a value is already a Diagnostic rather than the what/why/next triple it is built from. */
+export function isDiagnostic(d: Diagnostic | IssueMessage): d is Diagnostic {
+  return 'summary' in d;
 }

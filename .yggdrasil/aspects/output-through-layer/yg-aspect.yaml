@@ -1,7 +1,8 @@
 name: OutputThroughLayer
 description: >-
-  Every byte the CLI prints goes through its output layer (cli/output.ts and
-  cli/output-diagnostic.ts), which owns the words, the layout, the counts, the
+  Every byte the CLI prints goes through its output layer (cli/output.ts, and
+  the grammar and diagnostic model it re-exports from
+  formatters/output-grammar.ts and formatters/output-diagnostic.ts), which owns the words, the layout, the counts, the
   colour and the streams. DIRECTORY-scoped over every .ts file under
   source/cli/src/, so a module written tomorrow is covered the day it is
   written. Four ways around the layer are refused. (1) A hand-rolled plural: a

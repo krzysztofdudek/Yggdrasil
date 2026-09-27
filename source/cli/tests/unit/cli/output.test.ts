@@ -1,19 +1,21 @@
 /**
- * Unit tests for the CLI output layer (src/cli/output.ts, src/cli/output-diagnostic.ts):
+ * Unit tests for the CLI output layer (src/cli/output.ts, and the grammar and
+ * diagnostic model it re-exports from src/formatters/output-grammar.ts and
+ * src/formatters/output-diagnostic.ts):
  * the count/list/block/verdict/next primitives, the code registry, the
  * diagnostic conversions, and the command-error path (text on stderr, the
  * yg-error/1 document on stdout only when the invocation answers in JSON).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
-  count, plural, list, overflowLine, block, verdict, next, fixPointer,
-  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA, MEMBER_CAP,
+  count, plural, next,
+  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA,
   writeOut, writeErr, paint,
-  commandArgv,
 } from '../../../src/cli/output.js';
+import { list, overflowLine, block, verdict, fixPointer, MEMBER_CAP, commandArgv } from '../../../src/formatters/output-grammar.js';
 import { count as utilCount, plural as utilPlural } from '../../../src/utils/count.js';
 import { withoutColourFlags } from '../../../src/cli/help.js';
-import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/cli/output-diagnostic.js';
+import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/formatters/output-diagnostic.js';
 
 afterEach(() => {
   vi.restoreAllMocks();

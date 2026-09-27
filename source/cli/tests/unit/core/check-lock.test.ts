@@ -22,7 +22,7 @@ import type { BurnSet } from '../../../src/core/progressive-scope.js';
 import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/utils/check-codes.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
-import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { enrichCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 import type { CheckResult as ReportedResult } from '../../../src/core/check.js';
 

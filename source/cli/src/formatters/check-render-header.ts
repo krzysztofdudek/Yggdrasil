@@ -1,9 +1,9 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
-import type { CheckResult } from '../core/check.js';
-import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
-import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
-import { describeCascadeCycle } from '../core/type-effective.js';
-import { count, verdict, decorated } from './output.js';
+import type { CheckResult } from '../model/check-result.js';
+import type { TypeVisibilityReason, TypeVisibilityReport } from '../model/type-visibility.js';
+import { describeTypeVisibilityReason, describeChainTermination, describeCascadeCycle } from './type-visibility-text.js';
+import { verdict, decorated } from './output-grammar.js';
+import { count } from '../utils/count.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 

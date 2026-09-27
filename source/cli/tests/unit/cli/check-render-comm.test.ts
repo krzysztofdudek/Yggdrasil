@@ -8,7 +8,7 @@
  * aborted).
  */
 import { describe, it, expect } from 'vitest';
-import { formatOutput, formatAbort, enrichCheckJson, abortCheckJson } from '../../../src/cli/check-render-views.js';
+import { formatOutput, formatAbort, enrichCheckJson, abortCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson, checkJsonIssueOf } from '../../../src/core/check-json.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import { unverifiedMessage, detRefusedMessage } from '../../../src/formatters/lock-issue-messages.js';

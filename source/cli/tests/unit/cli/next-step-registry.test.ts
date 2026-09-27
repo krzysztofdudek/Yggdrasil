@@ -18,9 +18,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { enrichCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
-import { REGISTERED_CODES } from '../../../src/cli/output-diagnostic.js';
+import { REGISTERED_CODES } from '../../../src/formatters/output-diagnostic.js';
 import { emitPairIssue } from '../../../src/core/check-pair-issues.js';
 import { buildCoverageIssue, buildCoverageAdvisoryIssue } from '../../../src/core/check-coverage-tiers.js';
 import { readLock, LockInvalidError } from '../../../src/io/lock-store.js';
@@ -254,7 +254,7 @@ describe('one Next engine', () => {
     const writers = sources(SRC)
       .filter((f) => /\.suggestedNext\s*=(?!=)/.test(readFileSync(f, 'utf-8')))
       .map((f) => path.relative(SRC, f).split(path.sep).join('/'));
-    expect(writers).toEqual(['cli/check-render-views.ts']);
+    expect(writers).toEqual(['formatters/check-render-views.ts']);
   });
 });
 

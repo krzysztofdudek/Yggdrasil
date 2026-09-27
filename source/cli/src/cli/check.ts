@@ -16,7 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
 import { scanReasonlessMarkers } from '../core/suppressions/scan.js';
 import type { Graph, YggConfig } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
-import { formatOutput, type CheckView, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, formatOwed } from './check-render-views.js';
+import { formatOutput, type CheckView, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, formatOwed } from '../formatters/check-render-views.js';
 import { CHECK_JSON_SCHEMA, formatCheckJson, formatCompactCheckJson, type CheckJsonDocument } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';

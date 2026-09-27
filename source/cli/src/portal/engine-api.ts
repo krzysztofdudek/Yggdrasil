@@ -10,7 +10,8 @@ import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from 
 import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock, type LockVerification, type VerifiedPair, type PairState } from '../core/verify-lock.js';
-import { computeExpectedPairs, describeCascadeCycle, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
+import { computeExpectedPairs, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
+import { describeCascadeCycle } from '../formatters/type-visibility-text.js';
 import type { TypeCoverageResult } from '../core/type-coverage.js';
 import { readLogContent } from '../core/log/log-gate.js';
 import { CLI_SUPPORTED_SCHEMA, loadGraphOrThrow } from '../core/graph-loader.js';
@@ -24,7 +25,7 @@ import {
 import { collectDescendants } from '../core/graph/traversal.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import { parseLog } from '../core/parsing/log-parser.js';
-import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
+import { groupIssues, type IssueGroup } from '../formatters/group-issues.js';
 import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, SourceFileCountMarkerInput, PortalTypeAllowed } from './contract.js';
 // RELATION_TYPES only — this facade already declares its cli/relations/core relation
 // (allowed-types.ts is re-exported from there), so this import adds no new coupling.
@@ -277,14 +278,14 @@ export function groupPortalIssues(issues: CheckIssue[]): IssueGroup[] {
 }
 
 /** The shape `groupPortalIssues` returns — re-exported (type-only, no new relation: this
- *  facade already declares the `cli/group-issues` coupling above) so the pipeline can name
- *  a group's fields (`toGroup` in derive-rest.ts) without importing `cli/group-issues` itself. */
+ *  facade already declares the `cli/formatters` coupling above) so the pipeline can name
+ *  a group's fields (`toGroup` in derive-rest.ts) without importing the formatters itself. */
 export type { IssueGroup };
 
 /** Reuse the CLI's own coverage-code partition so the portal worklist splits
  *  coverage issues out of rule-grouping exactly like the terminal's grouped
  *  renderer (renderErrorSection / renderWarningSection). */
-export { FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from '../cli/group-issues.js';
+export { FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from '../formatters/group-issues.js';
 
 // ── FULL live boundary (phantom + declared-only + forbidden-type) ─────────────
 

@@ -11,7 +11,7 @@ relations:
     type: uses
   - target: cli/output
     type: uses
-  - target: cli/check-render-views
+  - target: cli/formatters
     type: uses
   - target: cli/core/check
     type: uses

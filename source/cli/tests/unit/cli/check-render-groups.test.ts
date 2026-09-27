@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
-import { buildBlocks, renderBlocks } from '../../../src/cli/check-render-groups.js';
-import { MEMBER_CAP } from '../../../src/cli/output.js';
+import { formatOutput, type CheckView } from '../../../src/formatters/check-render-views.js';
+import { buildBlocks, renderBlocks } from '../../../src/formatters/check-render-groups.js';
+import { MEMBER_CAP } from '../../../src/formatters/output-grammar.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import {
   llmRefusedMessage,

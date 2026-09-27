@@ -21,7 +21,8 @@ import {
 import { classifySingleFileCached, computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
-import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
+import { computeTypeAspectCascade } from '../core/type-effective.js';
+import { describeCascadeCycle } from '../formatters/type-visibility-text.js';
 import { unverifiedVerdictCaveat } from '../core/type-visibility.js';
 import { verifyPairs } from '../core/verify-lock.js';
 import { readLock } from '../io/lock-store.js';

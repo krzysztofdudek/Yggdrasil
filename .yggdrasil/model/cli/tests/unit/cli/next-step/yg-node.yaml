@@ -24,7 +24,7 @@ max_direct_relations:
 relations:
   - target: cli/commands/owner
     type: uses
-  - target: cli/check-render-views
+  - target: cli/formatters
     type: uses
   - target: cli/core/check
     type: uses

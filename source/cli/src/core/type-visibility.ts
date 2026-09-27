@@ -48,14 +48,15 @@
  * groups, counts, and shapes is one the producers above already decided (the
  * render layer, `check-render-header.ts`, turns a cascade-cycle group's
  * `aspectId` into the same `why` sentence `yg owner --file` / `yg context
- * --file` already print, via `type-effective.ts#describeCascadeCycle` — never
+ * --file` already print, via `describeCascadeCycle` (formatters/type-visibility-text.ts) — never
  * restated here, so the wording cannot drift between the three surfaces). The
  * things this module DOES compute itself are which of a type's declared law
  * is enforced ANYWHERE (a plain group-by over `appliedPairs`), where the
  * type's implicit parent chain stops — both pure graph facts, no file I/O,
  * independent of whether a relation-edge index is available — and, lower in
  * this file, the message TEXT for an already-decided reason
- * (`describeTypeVisibilityReason`, `cannotRunUnverifiedMessage`): composing a
+ * (`cannotRunUnverifiedMessage`, whose phrase for the reason comes from
+ * `describeTypeVisibilityReason`, formatters/type-visibility-text.ts): composing a
  * sentence out of a reason this module did not invent is not the same as
  * inventing one.
  */
@@ -67,40 +68,14 @@ import { walkTypeParentChain } from './type-effective.js';
 // The report's shapes live in the model layer (model/type-visibility.ts) so the
 // renderers that print them never depend on this module; re-exported for this
 // module's callers.
+import { describeTypeVisibilityReason } from '../formatters/type-visibility-text.js';
 import type {
-  ChainTermination,
   TypeVisibilityReason,
   TypeVisibilityRow,
   TypeVisibilityUncomputableGroup,
   TypeVisibilityReport,
 } from '../model/type-visibility.js';
 export type { TypeVisibilityReason, TypeVisibilityRow, TypeVisibilityUncomputableGroup, TypeVisibilityReport };
-
-/**
- * Plain-language sentence for where a type's inherited chain stops and why —
- * shared verbatim between `yg check`'s per-type block and `yg context --file`
- * so the wording never drifts between the two surfaces.
- *
- * 'no-parents' phrasing deliberately does NOT claim whether the type omitted
- * `parents:` or wrote an explicit `parents: []`: the graph loader normalizes
- * both to the identical absent-parents state before either ever reaches this
- * function (`architecture-parser.ts` turns a YAML `parents: []` into
- * `undefined` at load time), so a real, loaded graph can never tell the two
- * apart here. Claiming "no parents declared" would be false for an author who
- * wrote the explicit empty list; this phrasing is true either way.
- * 'empty-parents' keeps its own distinct, accurate text — reachable only via
- * a hand-built Graph that bypasses the parser (never a real loaded project;
- * see type-effective.test.ts) — so it is not merged into 'no-parents'.
- */
-export function describeChainTermination(t: ChainTermination): string {
-  const reasonPhrase: Record<ChainTermination['reason'], string> = {
-    fork: `a fork (${t.candidates.join(' | ')})`,
-    cycle: `a cycle back to '${t.candidates[0]}'`,
-    'no-parents': `'${t.candidates[0]}' — it has no parent type to inherit from`,
-    'empty-parents': `'${t.candidates[0]}' — an explicit empty parents list`,
-  };
-  return `inherited rules stop at ${reasonPhrase[t.reason]}`;
-}
 
 /**
  * One (file, aspectId) pair that ACTUALLY produced a pair — `core/pairs.ts`'s
@@ -413,20 +388,4 @@ export function buildTypeVisibility(
     uncomputable: { count: uncomputable.length, groups: groupUncomputable(uncomputable) },
     rows,
   };
-}
-
-/** Short, plain-language phrase for a reason — shared by every render surface so the vocabulary never drifts between them. */
-export function describeTypeVisibilityReason(reason: TypeVisibilityReason): string {
-  switch (reason) {
-    case 'when-not-satisfied': return 'its attach condition (when:) was not satisfied on this file';
-    case 'draft': return 'the rule is still draft (reviewer skipped)';
-    case 'whole-unit-rule': return 'it is a per: node rule and this file has no component to run it on';
-    case 'scope.files-excluded': return "excluded by the rule's own scope.files filter";
-    case 'aspect-undefined': return 'the architecture attaches an aspect id with no matching aspect definition';
-    case 'unreadable': return 'the file could not be read, so it cannot be reviewed';
-    case 'binary-subject': return 'a binary file cannot be reviewed by a reviewer rule';
-    case 'read-beyond-architecture': return "it tried to read a file outside what the architecture allows this file's type to depend on";
-    case 'node-context-required': return 'it needs component context (ctx.node / ctx.graph) that a type-covered file does not have';
-    case 'companion-context-failed': return 'its companion could not resolve a dependency for this file';
-  }
 }
