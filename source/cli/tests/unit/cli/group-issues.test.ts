@@ -13,6 +13,9 @@ import type { CheckIssue, CheckResult } from '../../../src/core/check.js';
 import { enrichCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 
+/** The code a check issue carries. */
+type CheckIssueCode = CheckIssue['code'];
+
 /** The step the report's one Next engine names for these findings (the `next:` step, without its annotations). */
 function nextStep(issues: CheckIssue[]): string | null {
   const r = {
@@ -434,15 +437,15 @@ describe('issuePriorityRank — -outside twins sort last among warnings', () => 
 
   it('sorts a genuine warning ahead of a twin even when the twin\'s OWN label would sort first', () => {
     const twin = iss({ severity: 'warning', code: 'unverified-outside', nodePath: 'a' });
-    // A code no aspect ever produces — chosen only so its label (which falls
-    // through getIssueLabel to the raw code) sorts AFTER the twin's label
-    // ('unverified-outside') under a pure alphabetical tie-break.
-    const ordinary = iss({ severity: 'warning', code: 'zzz-unrelated-warning', nodePath: 'b' });
+    // A registered code with no label of its own — chosen only so its label
+    // (the raw code) sorts AFTER the twin's label ('unverified-outside') under
+    // a pure alphabetical tie-break.
+    const ordinary = iss({ severity: 'warning', code: 'when-unmatched-port', nodePath: 'b' });
     expect(getIssueLabel(twin) < getIssueLabel(ordinary)).toBe(true);
     // Label-only ordering (the pre-fix behavior) would render the twin FIRST —
     // exactly backwards. The fix ranks by severity/scope first, THEN label.
     const groups = groupIssues([twin, ordinary]);
-    expect(groups.map((g) => g.code)).toEqual(['zzz-unrelated-warning', 'unverified-outside']);
+    expect(groups.map((g) => g.code)).toEqual(['when-unmatched-port', 'unverified-outside']);
   });
 });
 
@@ -470,13 +473,13 @@ describe('getIssueLabel — outside twins', () => {
     // where its mirror has a registry label of its own (`refused`, `unmapped`).
     for (const code of OUTSIDE_CODES) {
       const base = code.slice(0, -'-outside'.length);
-      expect(getIssueLabel(iss({ code }))).toBe(`${getIssueLabel(iss({ code: base }))}-outside`);
+      expect(getIssueLabel(iss({ code: code as CheckIssueCode }))).toBe(`${getIssueLabel(iss({ code: base as CheckIssueCode }))}-outside`);
     }
   });
 
   it('leaves every other code exactly as it was', () => {
     for (const code of ['unverified', 'aspect-violation-enforced', 'unmapped-files', 'lock-invalid']) {
-      expect(getIssueLabel(iss({ code }))).not.toContain('outside');
+      expect(getIssueLabel(iss({ code: code as CheckIssueCode }))).not.toContain('outside');
     }
   });
 });

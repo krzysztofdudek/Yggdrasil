@@ -23,6 +23,7 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
+import type { IssueCode, OutsideTwinCode } from '../model/issue-code.js';
 import { type Diagnostic, fromIssueMessage, toIssueMessage, isDiagnostic } from '../formatters/output-diagnostic.js';
 import { block, commandArgv, stepText } from '../formatters/output-grammar.js';
 import { neutralizeStream } from '../utils/terminal-safe.js';
@@ -110,7 +111,7 @@ export const ERROR_JSON_SCHEMA = 'yg-error/1';
  */
 export interface ErrorDocument {
   schema: typeof ERROR_JSON_SCHEMA;
-  code: string;
+  code: IssueCode | OutsideTwinCode;
   what: string;
   why: string | null;
   next: { command: string[] | null; text: string };
@@ -150,7 +151,7 @@ export function errorDocument(d: Diagnostic): ErrorDocument {
 }
 
 /** A command error's diagnostic from a what/why/next triple. */
-function asDiagnostic(d: Diagnostic | IssueMessage, code: string): Diagnostic {
+function asDiagnostic(d: Diagnostic | IssueMessage, code: IssueCode | OutsideTwinCode): Diagnostic {
   return isDiagnostic(d) ? d : fromIssueMessage(d, { code });
 }
 
@@ -163,7 +164,7 @@ function asDiagnostic(d: Diagnostic | IssueMessage, code: string): Diagnostic {
  * With `document: false` the JSON document is left to the caller, whose own
  * document answers this outcome.
  */
-export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { document?: boolean } = {}): void {
+export function fail(d: Diagnostic | IssueMessage, code?: IssueCode, opts: { document?: boolean } = {}): void {
   const diag = asDiagnostic(d, code ?? (isDiagnostic(d) ? d.code : inferErrorCode(d.what)));
   writeErr(`${block(diag, 'error')}\n`);
   // `document: false` for a command whose JSON answer to this outcome is its
@@ -178,7 +179,7 @@ export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { docume
  * `usage`, anything else `command-error`. A caller that knows better names the
  * code itself.
  */
-function inferErrorCode(what: string): string {
+function inferErrorCode(what: string): IssueCode {
   if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
   if (/^rule\b.*\bis not in the graph/i.test(what)) return 'aspect-not-found';
   if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';
@@ -206,7 +207,7 @@ export function aspectNotFound(aspectId: string, why: string): IssueMessage {
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */
-export function failAndExit(d: Diagnostic | IssueMessage, code?: string): never {
+export function failAndExit(d: Diagnostic | IssueMessage, code?: IssueCode): never {
   fail(d, code);
   process.exit(1);
 }
@@ -226,6 +227,6 @@ export function notice(d: Diagnostic | IssueMessage): void {
  * the same grammar as an error. The command's own result reports what it
  * means for the outcome.
  */
-export function warn(d: Diagnostic | IssueMessage, code?: string): void {
+export function warn(d: Diagnostic | IssueMessage, code?: IssueCode): void {
   writeErr(`${block(d, 'warning', code)}\n`);
 }

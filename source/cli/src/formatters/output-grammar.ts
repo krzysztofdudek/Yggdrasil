@@ -15,6 +15,7 @@
 
 import chalk from 'chalk';
 import type { IssueMessage } from '../model/validation.js';
+import type { IssueCode } from '../model/issue-code.js';
 import { count } from '../utils/count.js';
 import { type Diagnostic, type Fix, fromIssueMessage, isDiagnostic } from './output-diagnostic.js';
 
@@ -137,10 +138,12 @@ export function heading(severity: HeadingSeverity, label: string | undefined, su
  *
  * `severity` picks the heading word (`note` for a notice).
  */
-export function block(d: Diagnostic | IssueMessage, severity: HeadingSeverity = 'error', code?: string): string {
-  const diag = isDiagnostic(d) ? d : fromIssueMessage(d, { code: code ?? (severity === 'error' ? 'command-error' : '') });
-  // A note carries no code; a warning shows one only when it has one.
-  const label = severity === 'note' || diag.code === '' ? undefined : diag.code;
+export function block(d: Diagnostic | IssueMessage, severity: HeadingSeverity = 'error', code?: IssueCode): string {
+  // A note carries no code, and a warning shows one only when it has one; an
+  // error with none named is a command-error.
+  const shown = code ?? (isDiagnostic(d) ? d.code : severity === 'error' ? 'command-error' : undefined);
+  const diag = isDiagnostic(d) ? d : fromIssueMessage(d, { code: shown ?? 'command-error' });
+  const label = severity === 'note' || shown === undefined ? undefined : diag.code;
   const lines = [heading(severity, label, diag.summary, { colon: true })];
   for (const extra of diag.detail ?? []) if (extra.trim() !== '') lines.push(`  ${extra.replace(/^\s+/, '')}`);
   if (diag.why !== undefined && diag.why !== '') lines.push(...field('why', diag.why));

@@ -57,8 +57,8 @@ describe('list', () => {
 describe('block / verdict / next / fixPointer', () => {
   it('renders an error[code] heading, a labelled why and a next line, keeping multi-line what whole', () => {
     expect(block({ what: 'a\n  b', why: 'w', next: 'n' })).toBe('error[command-error]: a\n  b\n  why:  w\nnext: n');
-    const d = fromIssueMessage({ what: 'a\n  b', why: 'w', next: 'n' }, { code: 'x' });
-    expect(block(d)).toBe('error[x]: a\n  b\n  why:  w\nnext: n');
+    const d = fromIssueMessage({ what: 'a\n  b', why: 'w', next: 'n' }, { code: 'usage' });
+    expect(block(d)).toBe('error[usage]: a\n  b\n  why:  w\nnext: n');
   });
 
   it('states a verdict as `<command>: <STATUS>  <tail>`', () => {
@@ -98,15 +98,15 @@ describe('code registry', () => {
 
 describe('diagnostic conversions', () => {
   it('records a fix as a command only when its first line is a whole runnable command', () => {
-    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'yg check --approve' }, { code: 'c' }).fix?.command).toBe('yg check --approve');
-    expect(fromIssueMessage({ what: 'w', why: 'y', next: "yg log add --node x --reason '<why>'" }, { code: 'c' }).fix?.command).toBeUndefined();
-    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'Run: yg tree.' }, { code: 'c' }).fix?.command).toBeUndefined();
-    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'yg tree, then retry.' }, { code: 'c' }).fix?.command).toBeUndefined();
+    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'yg check --approve' }, { code: 'usage' }).fix?.command).toBe('yg check --approve');
+    expect(fromIssueMessage({ what: 'w', why: 'y', next: "yg log add --node x --reason '<why>'" }, { code: 'usage' }).fix?.command).toBeUndefined();
+    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'Run: yg tree.' }, { code: 'usage' }).fix?.command).toBeUndefined();
+    expect(fromIssueMessage({ what: 'w', why: 'y', next: 'yg tree, then retry.' }, { code: 'usage' }).fix?.command).toBeUndefined();
   });
 
   it('round-trips a what/why/next triple', () => {
     const msg = { what: 'one\ntwo', why: 'because', next: 'yg tree' };
-    expect(toIssueMessage(fromIssueMessage(msg, { code: 'c' }))).toEqual(msg);
+    expect(toIssueMessage(fromIssueMessage(msg, { code: 'usage' }))).toEqual(msg);
   });
 });
 

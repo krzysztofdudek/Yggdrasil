@@ -2,6 +2,7 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { readFileOrDefault } from './read-or-default.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckCode } from '../model/issue-code.js';
 import type { PackageConfigKeyDef, PackageConfigType } from '../model/packages.js';
 import { ADAPT_FILENAME } from '../model/packages.js';
 
@@ -53,7 +54,7 @@ const NON_ADAPTABLE_KEYS: Record<string, string> = {
 
 export type AdaptResult<T> =
   | { ok: true; value: T }
-  | { ok: false; code: string; messageData: IssueMessage };
+  | { ok: false; code: CheckCode; messageData: IssueMessage };
 
 export interface AspectAdapt {
   /** True when an adapt file exists at all (even an empty or comment-only one). */

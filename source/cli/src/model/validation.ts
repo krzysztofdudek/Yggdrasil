@@ -1,3 +1,5 @@
+import type { CheckCode } from './issue-code.js';
+
 // ============================================================
 // Validation
 // ============================================================
@@ -37,7 +39,7 @@ export interface IssueMessage {
 
 export interface ValidationIssue {
   severity: IssueSeverity;
-  code?: string;
+  code?: CheckCode;
   rule: string;
   messageData: IssueMessage;
   nodePath?: string;

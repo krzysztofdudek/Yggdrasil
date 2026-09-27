@@ -3,6 +3,7 @@ import { escapesRepo } from '../utils/repo-path-escape.js';
 import { parse as parseYaml } from 'yaml';
 import { readFileOrDefault } from './read-or-default.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckCode, IssueCode } from '../model/issue-code.js';
 import type {
   MarketplaceEntry,
   MarketplaceManifest,
@@ -30,11 +31,17 @@ import { toPosixPath } from '../utils/posix.js';
  * lock rather than an error.
  */
 
-export type ParseResult<T> =
+/**
+ * A parsed document, or why it was refused. `C` narrows the codes a parser can
+ * refuse with, so a caller that turns a refusal into a check finding (the graph
+ * loader, over an installed package) is held by the typecheck to codes a
+ * finding may carry.
+ */
+export type ParseResult<T, C extends IssueCode = IssueCode> =
   | { ok: true; value: T }
-  | { ok: false; errors: Array<{ code: string; messageData: IssueMessage }> };
+  | { ok: false; errors: Array<{ code: C; messageData: IssueMessage }> };
 
-function fail<T>(code: string, messageData: IssueMessage): ParseResult<T> {
+function fail<T, C extends IssueCode>(code: C, messageData: IssueMessage): ParseResult<T, C> {
   return { ok: false, errors: [{ code, messageData }] };
 }
 
@@ -59,7 +66,7 @@ function asMapping(
   raw: unknown,
   filePath: string,
   documentLabel: string,
-): ParseResult<Record<string, unknown>> {
+): ParseResult<Record<string, unknown>, 'package-manifest-invalid'> {
   if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('package-manifest-invalid', {
       what: `${documentLabel} at ${filePath} is empty or is not a YAML mapping.`,
@@ -83,7 +90,7 @@ function parseDocument(
   text: string,
   filePath: string,
   documentLabel: string,
-): ParseResult<unknown> {
+): ParseResult<unknown, 'package-manifest-invalid'> {
   try {
     return { ok: true, value: parseYaml(text) as unknown };
   } catch (err) {
@@ -234,7 +241,7 @@ function parseConfigSchema(
   raw: unknown,
   filePath: string,
   aspects: string[],
-): ParseResult<PackageConfigSchema> {
+): ParseResult<PackageConfigSchema, CheckCode> {
   if (raw === undefined) return { ok: true, value: {} };
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('package-config-schema-invalid', {
@@ -312,7 +319,7 @@ function parseConfigSchema(
 export async function parsePackageManifest(
   filePath: string,
   presentAspectDirs?: string[],
-): Promise<ParseResult<PackageManifest>> {
+): Promise<ParseResult<PackageManifest, CheckCode | 'package-manifest-missing'>> {
   const text = await readOrNull(filePath);
   if (text === null) {
     return fail('package-manifest-missing', {

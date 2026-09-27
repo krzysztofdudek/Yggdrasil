@@ -487,7 +487,7 @@ describe('G. when reference-integrity validation', () => {
 
   function codesFor(when: WhenPredicate): string[] {
     const g = mkGraph([knownTarget()], { aspects: [aspectWithWhen('a', when)] });
-    return checkWhenReferences(g).map((i) => i.code).filter((c): c is string => c !== undefined);
+    return checkWhenReferences(g).flatMap((i) => (i.code !== undefined ? [i.code] : []));
   }
 
   it('unknown target_type => when-unknown-type', () => {

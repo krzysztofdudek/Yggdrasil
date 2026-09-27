@@ -36,10 +36,16 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   fails when a file holds more than its committed baseline (so a new test
   asserts on codes and JSON fields) or fewer (so a conversion lowers the
   baseline and the count only goes down). Files whose subject is the wording
-  itself, the golden corpus and the docs samples, are not counted."
+  itself, the golden corpus and the docs samples, are not counted. The last
+  renders the issue-code tables of the docs CLI reference and of the knowledge
+  cli-reference topic from the code registry and fails on any difference, so
+  neither can list a code the CLI does not register or miss one it does; it
+  also fails when any Code-headed table of the docs or the knowledge topics
+  names an unregistered code."
 aspects: []
 relations:
   [
+    { target: cli/check-codes, type: uses },
     { target: cli/core/check, type: uses },
     { target: cli/core/file-when-evaluator, type: uses },
     { target: cli/core/graph, type: uses },
@@ -64,3 +70,4 @@ mapping:
   - source/cli/tests/unit/repo/no-retired-terms.test.ts
   - source/cli/tests/unit/repo/e2e-prose-ratchet.test.ts
   - source/cli/tests/unit/repo/e2e-prose-baseline.json
+  - source/cli/tests/unit/repo/issue-code-tables.test.ts

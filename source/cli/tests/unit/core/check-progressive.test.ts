@@ -12,6 +12,9 @@ import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { VerifiedPair } from '../../../src/core/verify-lock.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
+/** The code a check issue carries. */
+type CheckIssueCode = CheckIssue['code'];
+
 /**
  * The classification step: for each finding a check produced, decide whether the
  * current change is accountable for it. In scope ⇒ untouched. Outside ⇒ re-coded
@@ -143,7 +146,7 @@ describe('applyChangeScope — pair-keyed findings', () => {
   });
 
   it('downgrades every pair-derived code the same way', () => {
-    const codes = ['unverified', 'aspect-violation-enforced', 'prompt-too-large', 'aspect-companion-runtime-error'];
+    const codes: CheckIssueCode[] = ['unverified', 'aspect-violation-enforced', 'prompt-too-large', 'aspect-companion-runtime-error'];
     const issues = codes.map((code) => pairIssue('audit', 'node:svc', { code, rule: code }));
     const out = applyChangeScope(issues, burn(), [knownPair('audit', 'node:svc')]);
     expect(out.map((i) => i.code)).toEqual(codes.map(outsideTwin));
@@ -162,7 +165,7 @@ describe('applyChangeScope — pair-keyed findings', () => {
 // ── Rule 4: node-keyed findings, with the log carve-out ─────────────────────
 
 describe('applyChangeScope — node-keyed findings', () => {
-  const nodeIssue = (code: string): CheckIssue => ({
+  const nodeIssue = (code: CheckIssueCode): CheckIssue => ({
     severity: 'error',
     code,
     rule: code,
@@ -183,7 +186,7 @@ describe('applyChangeScope — node-keyed findings', () => {
 
   it('keeps a log finding whose node had only its log file changed', () => {
     const scope = burn({ logOnlyNodePaths: new Set(['cli/core/check']) });
-    for (const code of ['log-entry-missing', 'log-integrity', 'log-format', 'log-conflict']) {
+    for (const code of ['log-entry-missing', 'log-integrity', 'log-format', 'log-conflict'] as const) {
       const [out] = applyChangeScope([nodeIssue(code)], scope, []);
       expect(out.code).toBe(code);
       expect(out.severity).toBe('error');
@@ -206,7 +209,7 @@ describe('applyChangeScope — node-keyed findings', () => {
 // ── Rule 5: file-keyed findings ─────────────────────────────────────────────
 
 describe('applyChangeScope — file-keyed findings', () => {
-  const fileIssue = (code: string, file: string): CheckIssue => ({
+  const fileIssue = (code: CheckIssueCode, file: string): CheckIssue => ({
     severity: 'error',
     code,
     rule: code,
@@ -235,7 +238,7 @@ describe('applyChangeScope — file-keyed findings', () => {
 // ── Rule 6: the two aggregated, edge-list findings ──────────────────────────
 
 describe('applyChangeScope — aggregate findings carrying an edge list', () => {
-  const edgeIssue = (code: string, edges: Array<{ fromFile: string; toFile: string }>): CheckIssue => ({
+  const edgeIssue = (code: CheckIssueCode, edges: Array<{ fromFile: string; toFile: string }>): CheckIssue => ({
     severity: 'error',
     code,
     rule: code,
@@ -543,7 +546,7 @@ describe('applyChangeScope — against the real burn engine', () => {
     });
   }
 
-  const nodeFinding = (code: string, nodePath: string): CheckIssue => ({
+  const nodeFinding = (code: CheckIssueCode, nodePath: string): CheckIssue => ({
     severity: 'error',
     code,
     rule: code,
@@ -608,7 +611,7 @@ describe('applyChangeScope — against the real burn engine', () => {
           baseVerdictPairKeys: new Set(),
           configVocabularyChanged: false,
         });
-        const issue: CheckIssue = { severity: 'warning', code, rule: code, messageData: md() };
+        const issue: CheckIssue = { severity: 'warning', code: code as CheckIssueCode, rule: code, messageData: md() };
         expect(issueIsInScope(issue, scope, new Set()), `${code} -> ${path}`).toBe(true);
       }
     }

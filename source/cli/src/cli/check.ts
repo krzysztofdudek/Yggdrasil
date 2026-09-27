@@ -146,7 +146,7 @@ export function registerCheckCommand(program: Command): void {
 }
 
 /** Print a refusal in the one error grammar, then end the command with exit 1. */
-async function refuse(message: Parameters<typeof fail>[0], code = 'usage'): Promise<void> {
+async function refuse(message: Parameters<typeof fail>[0], code: Parameters<typeof fail>[1] = 'usage'): Promise<void> {
   fail(message, code);
   await exitAfterFlush(1);
 }

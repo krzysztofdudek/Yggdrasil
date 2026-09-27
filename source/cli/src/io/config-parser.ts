@@ -11,6 +11,7 @@ import type {
 } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckCode } from '../model/issue-code.js';
 import { KNOWN_PROVIDERS } from '../utils/known-providers.js';
 import { loadConfigOverlay, deepMerge } from './secrets-parser.js';
 import { readFileOrDefault } from './read-or-default.js';
@@ -20,7 +21,7 @@ import { closestKnownKey, describeUnknownKeys, findUnknownKeys, type RetiredKeys
 export { KNOWN_PROVIDERS };
 
 export class ConfigParseError extends Error {
-  constructor(public messageData: IssueMessage, public code: string) {
+  constructor(public messageData: IssueMessage, public code: CheckCode) {
     super(messageData.what);
   }
 }

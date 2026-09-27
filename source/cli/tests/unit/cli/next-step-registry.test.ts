@@ -235,7 +235,7 @@ describe('the Next step of every registered code', () => {
   });
 
   it('a fix whose words name a source file never makes it the target', () => {
-    const next = nextOf([{ severity: 'error', code: 'some-structural-code', rule: 'x', nodePath: 'app/svc', messageData: { what: 'w', why: 'y', next: 'Fix the import in src/svc/index.ts so it names a declared relation.' } }])!;
+    const next = nextOf([{ severity: 'error', code: 'parent-type-forbidden', rule: 'x', nodePath: 'app/svc', messageData: { what: 'w', why: 'y', next: 'Fix the import in src/svc/index.ts so it names a declared relation.' } }])!;
     expect(next.target.file).toBeUndefined();
     expect(next.text).toBe('Fix the import in src/svc/index.ts so it names a declared relation');
   });

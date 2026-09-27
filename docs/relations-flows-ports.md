@@ -170,9 +170,10 @@ Three blocking errors keep the port contract honest, and none of them has an "ac
 
 | Code | When it fires | Fix |
 |---|---|---|
-| `port-names-empty` | A relation declares `portNames` (or its deprecated alias) as an empty list. Unlike the other two rows this is not a distinct issue code: an empty list fails node parsing, so `yg check` reports it as `yaml-invalid` (rule `invalid-node-yaml`) and the text `port-names-empty` appears only inside that error's message. Filtering `yg check --json` or writing a suppression on `port-names-empty` matches nothing. | Omit the field entirely to enter through `default`, or name at least one real port. |
 | `port-undefined` | A relation names a port the target does not publish — including when the target publishes no ports at all. `default` never fires this: it always exists. | Fix the port name, or add the missing port to the target. |
 | `port-missing-aspect` | A named port — `default` included — lists a rule that is not defined under `aspects/`. | Define the rule, or remove it from the port. (An undefined id is caught as `aspect-undefined` whether or not a relation names the port; this code is the "and a relation actually enters through it" case.) |
+
+An empty `portNames` list (or its deprecated alias) is not a code of its own: it fails node parsing, so `yg check` reports it as `yaml-invalid`, and the text `port-names-empty` appears only inside that error's message — filtering `yg check --json` or writing a suppression on it matches nothing. Omit the field to enter through `default`, or name at least one real port.
 
 Each message names the relation, explains what would go unverified, and tells you what to add.
 

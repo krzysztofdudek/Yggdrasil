@@ -6,6 +6,7 @@ import { fileExistsSync } from './graph-fs.js';
 import type { AspectDef, AspectReviewerSpec, AspectStatus, StatusInherit, ScopeDef, ErrsDirection } from '../model/graph.js';
 import { ASPECT_STATUS_VALUES, ERRS_DIRECTION_VALUES } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { CheckCode } from '../model/issue-code.js';
 import type { WhenPredicate } from '../model/when.js';
 import { readArtifacts, readSupportFileHashes, ruleDirSymlinks, symlinkOnPath } from './artifact-reader.js';
 import { mergeAdaptOverAspect, parseAspectAdapt, resolveAspectConfig } from './aspect-adapt-parser.js';
@@ -70,7 +71,7 @@ export function isValidReviewByDate(value: string): boolean {
 
 export type ParseAspectResult =
   | { ok: true; aspect: AspectDef }
-  | { ok: false; aspectId: string; errors: Array<{ code: string; messageData: IssueMessage }> };
+  | { ok: false; aspectId: string; errors: Array<{ code: CheckCode; messageData: IssueMessage }> };
 
 /**
  * What a caller knows about an aspect that arrived inside a package, and that the
@@ -144,7 +145,7 @@ function parseReferences(
   packageAdaptPath: string | undefined,
 ):
   | { ok: true; value: Array<{ path: string; description?: string }> }
-  | { ok: false; errors: Array<{ code: string; messageData: IssueMessage }> }
+  | { ok: false; errors: Array<{ code: CheckCode; messageData: IssueMessage }> }
 {
   if (!Array.isArray(rawRefs)) {
     return {
@@ -450,13 +451,13 @@ export async function parseAspect(
 }
 
 /** The refusals a field parse can end in, in the parser's one error shape. */
-type FieldErrors = Array<{ code: string; messageData: IssueMessage }>;
+type FieldErrors = Array<{ code: CheckCode; messageData: IssueMessage }>;
 
 /** A field parse: its value, or the refusals it ends in. */
 type FieldResult<T> = { ok: true; value: T } | { ok: false; errors: FieldErrors };
 
 /** One refusal, as a failed field parse. */
-function fieldRefusal(code: string, messageData: IssueMessage): { ok: false; errors: FieldErrors } {
+function fieldRefusal(code: CheckCode, messageData: IssueMessage): { ok: false; errors: FieldErrors } {
   return { ok: false, errors: [{ code, messageData }] };
 }
 
@@ -878,7 +879,7 @@ function parseReviewer(
   files: RuleFileFacts,
 ):
   | { ok: true; value: AspectReviewerSpec }
-  | { ok: false; errors: Array<{ code: string; messageData: IssueMessage }> }
+  | { ok: false; errors: Array<{ code: CheckCode; messageData: IssueMessage }> }
 {
   // Step 1: structural — when `reviewer:` is absent or null, INFER the kind from
   // rule-file presence. This is the single inference point; the validator
@@ -907,9 +908,9 @@ function parseReviewer(
       errors: [{
         code: 'aspect-reviewer-missing',
         messageData: {
-          what: `aspect '${aspectId}' has no reviewer: block and no rule source to infer one from`,
-          why: 'an aspect must ship content.md (reviewer rule), check.mjs (script rule), or declare implies (bundle); otherwise it does nothing',
-          next: 'add `reviewer:\\n  type: llm` with a content.md, add a check.mjs, or add `implies:` to make this a bundle',
+          what: `Aspect '${aspectId}' has no rule source to infer its kind from: no content.md, no check.mjs, and no implies:.`,
+          why: 'A rule\'s kind comes from what it ships — content.md makes a reviewer rule, check.mjs a script rule, implies: a bundle. With none of them it does nothing.',
+          next: `Add content.md (a reviewer rule) or check.mjs (a script rule) to .yggdrasil/aspects/${aspectId}/, or declare implies: to make it a bundle.`,
         },
       }],
     };
@@ -920,16 +921,16 @@ function parseReviewer(
       errors: [{
         code: 'aspect-reviewer-not-mapping',
         messageData: {
-          what: `aspect '${aspectId}' has reviewer: value that is not a YAML mapping`,
-          why: 'reviewer: accepts an object with type: and optional tier:',
-          next: 'replace with `reviewer:\\n  type: llm`',
+          what: `Aspect '${aspectId}' has a reviewer: value that is not a YAML mapping.`,
+          why: 'reviewer: accepts a mapping with type: and an optional tier:.',
+          next: 'Write it as a mapping — `reviewer: { type: llm }` — or remove it: the kind is inferred from the rule source.',
         },
       }],
     };
   }
 
   // Step 2+3: collect independent errors on the mapping
-  const errors: Array<{ code: string; messageData: IssueMessage }> = [];
+  const errors: Array<{ code: CheckCode; messageData: IssueMessage }> = [];
   const obj = raw as Record<string, unknown>;
 
   // Step 2: structural — type missing or invalid
@@ -1032,7 +1033,7 @@ function parseScope(
   reviewerType: 'llm' | 'deterministic' | 'aggregate',
 ):
   | { ok: true; value: ScopeDef }
-  | { ok: false; errors: Array<{ code: string; messageData: IssueMessage }> }
+  | { ok: false; errors: Array<{ code: CheckCode; messageData: IssueMessage }> }
 {
   // scope on aggregate is forbidden — checked before any structural parsing
   if (reviewerType === 'aggregate') {
@@ -1058,7 +1059,7 @@ function parseScope(
         messageData: {
           what: `yg-aspect.yaml at ${aspectYamlPath}: 'scope' must be a YAML mapping`,
           why: "scope controls review granularity — it must be an object with 'per:' and optional 'files:'",
-          next: "use 'scope:\\n  per: node' or 'scope:\\n  per: file' (optionally add files: filter)",
+          next: "Write scope: as a mapping — `scope: { per: node }`, or `scope: { per: file }` with an optional files: filter.",
         },
       }],
     };

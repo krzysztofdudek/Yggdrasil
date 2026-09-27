@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
+import type { CheckCode } from '../../model/issue-code.js';
 import { FIRST_PARTY_PROVIDERS } from '../../utils/known-providers.js';
 import { parse as parseYaml } from 'yaml';
 import { isTrackedByGit, readHeadFile } from '../../utils/git.js';
@@ -32,7 +33,7 @@ import { issueMsg } from './shared.js';
  */
 export function checkReviewerCredentials(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const push = (severity: 'error' | 'warning', code: string, md: IssueMessage): void => {
+  const push = (severity: 'error' | 'warning', code: CheckCode, md: IssueMessage): void => {
     issues.push({ severity, code, rule: code, ...issueMsg(md), messageData: md });
   };
 

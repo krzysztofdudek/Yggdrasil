@@ -13,6 +13,7 @@
  */
 
 import type { CheckIssue, UnverifiedCause } from '../model/check-issue.js';
+import type { CheckCode, OutsideTwinCode } from '../model/issue-code.js';
 // UnverifiedCause lives in the model layer beside the issue that carries it;
 // re-exported for this module's callers.
 export type { UnverifiedCause };
@@ -51,9 +52,8 @@ export function unverifiedCauseRank(cause: UnverifiedCause | undefined): number 
  * `yg check` regardless of verification state. Both the summary tally and the
  * rendered grouping read this one set.
  */
-export const STRUCTURAL_CODES = new Set<string>([
+export const STRUCTURAL_CODES: ReadonlySet<string> = new Set<CheckCode>([
   'yaml-invalid',
-  'type-invalid',
   'relation-broken',
   'flow-node-broken',
   'aspect-undefined',
@@ -186,7 +186,7 @@ export function isConfigLoadFailure(issue: { code?: string; rule?: string }): bo
  * `yg check`. Membership here governs grouping/tally only, not severity —
  * the emitting check decides whether a code blocks.
  */
-export const COMPLETENESS_CODES = new Set<string>(['description-missing']);
+export const COMPLETENESS_CODES: ReadonlySet<string> = new Set<CheckCode>(['description-missing']);
 
 /**
  * Gating codes — a structural validation failure that makes reviewer/tier
@@ -196,7 +196,7 @@ export const COMPLETENESS_CODES = new Set<string>(['description-missing']);
  *
  * Shared gating-code set consumed by the fill stage (core/fill.ts).
  */
-export const APPROVE_GATING_CODES = new Set<string>([
+export const APPROVE_GATING_CODES: ReadonlySet<string> = new Set<CheckCode>([
   'config-reviewer-missing',
   'config-tiers-missing',
   'config-tiers-empty',
@@ -259,7 +259,7 @@ export const APPROVE_GATING_CODES = new Set<string>([
  * and only for a run that can close a cycle: `--only-deterministic` and a
  * `--dry-run` preview record no baseline and are not stopped by them.
  */
-export const APPROVE_LOG_STATE_GATING_CODES = new Set<string>(['log-conflict', 'log-integrity', 'log-format']);
+export const APPROVE_LOG_STATE_GATING_CODES: ReadonlySet<string> = new Set<CheckCode>(['log-conflict', 'log-integrity', 'log-format']);
 
 /**
  * Wide-tier scoped codes — the codes progressive mode is ever allowed to consider
@@ -318,7 +318,7 @@ export const APPROVE_LOG_STATE_GATING_CODES = new Set<string>(['log-conflict', '
  * change by reading its structured field(s) — no code in this set still
  * requires parsing `messageData` prose to find its subject.
  */
-export const SCOPED_CODES = new Set<string>([
+export const SCOPED_CODES: ReadonlySet<string> = new Set<CheckCode>([
   // Pair-verdict codes: a reviewer/deterministic verdict a change's own pairs
   // did or did not reach.
   'unverified',
@@ -356,8 +356,10 @@ export const SCOPED_CODES = new Set<string>([
  * suffix inline — a hand-spelled copy that drifts from this one would silently
  * stop matching, defeating the twin scheme without raising any error.
  */
-export function outsideTwin(code: string): string {
-  return `${code}-outside`;
+export function outsideTwin(code: string): OutsideTwinCode {
+  // Callers pass a SCOPED_CODES member (a CheckCode); the template type says
+  // what the result is, and this is the one place it is spelled.
+  return `${code}-outside` as OutsideTwinCode;
 }
 
 /**
@@ -368,8 +370,8 @@ export function outsideTwin(code: string): string {
  * slicing the string, for the same reason producers call `outsideTwin` rather
  * than concatenating it: one spelling, in one place.
  */
-const BASE_CODE_BY_OUTSIDE_TWIN: ReadonlyMap<string, string> = new Map(
-  Array.from(SCOPED_CODES, (code) => [outsideTwin(code), code] as const),
+const BASE_CODE_BY_OUTSIDE_TWIN: ReadonlyMap<string, CheckCode> = new Map(
+  Array.from(SCOPED_CODES as ReadonlySet<CheckCode>, (code) => [outsideTwin(code), code] as const),
 );
 
 /**
@@ -407,7 +409,7 @@ export function countOutside(issues: CheckIssue[]): number {
  * printing the raw code, which is how an internal identifier reaches a person's
  * screen.
  */
-export function baseCodeOfOutsideTwin(code: string): string | undefined {
+export function baseCodeOfOutsideTwin(code: string): CheckCode | undefined {
   return BASE_CODE_BY_OUTSIDE_TWIN.get(code);
 }
 
