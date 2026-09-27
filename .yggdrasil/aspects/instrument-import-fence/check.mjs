@@ -52,10 +52,11 @@ import { walk, report, inFile } from '@chrisdudek/yg/ast';
  *     (check-progressive.ts turns an out-of-scope finding into its `-outside`
  *     warning twin), or owns the single next step a finished check points at.
  *   - core/progressive-*.ts, which decides which findings are in scope at all.
- *   - cli/check.ts and every cli/check-*.ts render unit split out of it
+ *   - cli/check.ts and every cli/check-*.ts unit split out of it, and the
+ *     report's render units, formatters/check-render-*.ts
  *     (check-render-views.ts owns nextPointer/residualAfterNext and consumes
- *     issuePriorityRank), and cli/group-issues.ts, which orders the issues the
- *     suggested next step is picked from.
+ *     issuePriorityRank), and formatters/group-issues.ts, which orders the
+ *     issues the suggested next step is picked from.
  *
  * A new stage named after the module it was split from is fenced the moment it
  * exists; a unit test enumerates the real repo's files for these globs and plants
@@ -67,7 +68,8 @@ const GATING_GLOBS = [
   'source/cli/src/core/progressive-*.ts',
   'source/cli/src/cli/check.ts',
   'source/cli/src/cli/check-*.ts',
-  'source/cli/src/cli/group-issues.ts',
+  'source/cli/src/formatters/check-render-*.ts',
+  'source/cli/src/formatters/group-issues.ts',
 ];
 
 function isGating(file) {

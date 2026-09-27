@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
-import { useEmoji, renderTypeVisibilityBlock } from '../../../src/cli/check-render-header.js';
+import { formatOutput, type CheckView } from '../../../src/formatters/check-render-views.js';
+import { useEmoji, renderTypeVisibilityBlock } from '../../../src/formatters/check-render-header.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
-import type { TypeVisibilityReport } from '../../../src/core/type-visibility.js';
+import type { TypeVisibilityReport } from '../../../src/model/type-visibility.js';
 
 /** Strip ANSI color codes so block-line counting is deterministic. */
 function stripAnsi(s: string): string {

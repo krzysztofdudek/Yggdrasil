@@ -80,3 +80,5 @@ The command layer had two ways of ending the process side by side: the shared he
 An outside-the-repository --file used to end on a next step that named no command. It now names the command to run again with a path inside the repository, like the same error from yg context does, so the reader has a concrete step.
 ## [2026-09-26T21:33:25.459Z]
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
+## [2026-09-27T00:25:48.125Z]
+The sentence for an absorbed implies cycle is now read from the formatter layer, where the check report and yg context read the same sentence. The wording is unchanged.

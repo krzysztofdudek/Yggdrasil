@@ -40,7 +40,6 @@ relations:
     { target: cli/core/type-coverage, type: uses },
     { target: cli/tests/fixtures, type: uses },
     { target: cli/core/check, type: uses },
-    { target: cli/check-render-header, type: uses },
     { target: cli/tests/support, type: uses },
     { target: cli/core/pairs, type: uses },
     { target: cli/model/fill-event, type: uses },

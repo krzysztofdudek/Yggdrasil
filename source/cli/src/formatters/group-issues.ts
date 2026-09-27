@@ -1,5 +1,5 @@
-import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER, isConfigLoadFailure } from '../core/check-codes.js';
+import type { CheckIssue } from '../model/check-issue.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER, isConfigLoadFailure } from '../utils/check-codes.js';
 import { codeInfo, tierRank } from './output-diagnostic.js';
 
 /**

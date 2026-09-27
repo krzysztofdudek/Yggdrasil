@@ -1,4 +1,3 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (colour and glyphs); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 /**
  * The findings of a check run as blocks — one template for every finding:
  *
@@ -21,12 +20,13 @@
  * blocks of their own, each stating its why once. A fix that differs between
  * members only by the member's own node is stated once, with `<node>` in it.
  */
-import type { CheckIssue } from '../core/check.js';
-import { baseCodeOfOutsideTwin, type UnverifiedCause } from '../core/check-codes.js';
-import { issueViolations } from '../core/check-json.js';
+import type { CheckIssue, UnverifiedCause } from '../model/check-issue.js';
+import { baseCodeOfOutsideTwin } from '../utils/check-codes.js';
+import { issueViolations } from './check-json.js';
 import { groupIssues, getIssueLabel, issuePriorityRank, issueTierRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, FULL_WHAT_CODES } from './group-issues.js';
 import { codeInfo, type Tier } from './output-diagnostic.js';
-import { count, MEMBER_CAP, field, heading, decorated, costWords, type FillCost } from './output.js';
+import { MEMBER_CAP, field, heading, decorated, costWords, type FillCost } from './output-grammar.js';
+import { count } from '../utils/count.js';
 import { toPosixPath } from '../utils/posix.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
@@ -297,7 +297,7 @@ function slotOf(members: CheckIssue[]): Pick<CheckBlock, 'fix' | 'templated' | '
   // The word differs in its path, never in the punctuation that closes it.
   if (split.some((p) => p[2] !== split[0][2] || !/^[\w@.-]*\/[\w@./-]*$|^[\w@-]+\.[\w.-]+$/.test(p[1]) || p[1].includes('<'))) return undefined;
   const fix = [...words[0].slice(0, at), `${PATH_SLOT}${split[0][2]}`, ...words[0].slice(at + 1)].join('');
-  return { fix, templated: true, slot: { placeholder: PATH_SLOT, values: new Map(members.map((m, i) => [m, split[i][1]])) } };
+  return { fix, templated: true, slot: { placeholder: PATH_SLOT, values: new Map(members.map((m, i) => [m, toPosixPath(split[i][1])])) } };
 }
 
 /** One block from members that share a code, a rule and a why. */
@@ -438,7 +438,8 @@ function refusalEntries(members: CheckIssue[]): AtEntry[] {
     const violations = issueViolations(m);
     if (violations !== undefined && violations.length > 0) {
       violations.forEach((v, i) => {
-        const where = v.line !== null && v.file !== '' ? `${v.file}:${v.line}  ` : v.file !== '' ? `${v.file}  ` : '';
+        const file = toPosixPath(v.file);
+        const where = v.line !== null && file !== '' ? `${file}:${v.line}  ` : file !== '' ? `${file}  ` : '';
         const [msg, ...more] = v.message.split('\n');
         const lead = i === 0 ? padUnit(unit, width) : ' '.repeat(width);
         out.push({

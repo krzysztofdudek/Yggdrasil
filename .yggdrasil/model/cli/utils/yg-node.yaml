@@ -17,7 +17,12 @@ description: Shared helper functions — debug logging, git introspection, path
   installed-artifact names (AGENTS.md, CLAUDE.md, .clinerules/yggdrasil.md) for
   the same reason — the installer, the committed-digest reader, and the check
   that labels findings with them cannot import each other, but all three may
-  call utility. It also owns the one-file coverage.excluded predicate
+  call utility. It also owns the repo-relative spellings of the two committed
+  graph files that reach the whole graph when a change edits them (the
+  architecture and the configuration), for the same reason — the burn table
+  in the engine, the check code taxonomy and the change-scope measurement all
+  intersect a touched-file set with them, and one imported spelling is the
+  only way that stays true. It also owns the one-file coverage.excluded predicate
   (normalizeRoot / matchesRoot / isExcludedByCoverage) — placed here rather
   than in the engine layer so the persistence-adapter layer (io/hash.ts,
   io/repo-scanner.ts) can call it directly while expanding a mapping to real
@@ -67,5 +72,6 @@ mapping:
   - source/cli/src/utils/file-when-parser.ts
   - source/cli/src/utils/validate-check-module.ts
   - source/cli/src/utils/rules-artifact-names.ts
+  - source/cli/src/utils/graph-file-names.ts
   - source/cli/src/utils/count.ts
   - source/cli/src/utils/known-keys.ts

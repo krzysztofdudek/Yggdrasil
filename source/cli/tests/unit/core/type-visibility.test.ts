@@ -14,7 +14,6 @@ import { fileURLToPath } from 'node:url';
 import {
   buildTypeVisibility,
   classifyRunnerDisposition,
-  describeTypeVisibilityReason,
   cannotRunReasonFor,
   cannotRunUnverifiedMessage,
   unverifiedVerdictCaveat,
@@ -22,6 +21,7 @@ import {
 } from '../../../src/core/type-visibility.js';
 import type { TypeVisibilityRow, TypeVisibilityAppliedPair } from '../../../src/core/type-visibility.js';
 import { computeExpectedPairs } from '../../../src/core/pairs.js';
+import { describeTypeVisibilityReason } from '../../../src/formatters/type-visibility-text.js';
 import type { TypeCoverageInput, ExpectedPair } from '../../../src/core/pairs.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';

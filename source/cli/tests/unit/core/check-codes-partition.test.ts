@@ -6,7 +6,7 @@ import {
   STRUCTURAL_CODES,
   APPROVE_GATING_CODES,
   SINGLETON_INPUTS,
-} from '../../../src/core/check-codes.js';
+} from '../../../src/utils/check-codes.js';
 
 // The exact four STRUCTURAL_CODES members allowed to double as SCOPED_CODES
 // members. This is policy, not a derivable fact — asserted as a literal set so

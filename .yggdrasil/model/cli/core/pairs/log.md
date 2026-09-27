@@ -32,3 +32,5 @@ A caller that already reads UncomputableTypeCoverage.cycle through this module n
 Readability of a component's subject files was probed one awaited call at a time, which left a large repository's check waiting on the disk; the probes now run a bounded number at a time with the same results in the same order. Pair enumeration can also be limited to named components, for a caller that asks about one component and used to expand every component's mapping only to discard all but one.
 ## [2026-09-25T17:43:44.832Z]
 Type-only imports now count as dependencies between components, the same as value imports. The expected-pair type moved to the model layer: the impact graph, which pair enumeration calls, named it back through this module, a cycle between the two components. This module re-exports it under its old name.
+## [2026-09-27T00:25:45.765Z]
+Stopped re-exporting the sentence for an absorbed implies cycle. It was re-exported only so the portal facade could print it without a relation to the cascade module; the sentence now lives in the formatter layer, which the facade may call directly.

@@ -93,7 +93,7 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
-  - target: cli/core/check-codes
+  - target: cli/check-codes
     type: calls
   - target: cli/core/checks/aspects
     type: calls

@@ -1,6 +1,6 @@
 name: WorklistMirrorsIssueGroups
 description: >-
-  Guards the CLI's IssueGroup (cli/group-issues.ts) from silently outrunning the portal
+  Guards the CLI's IssueGroup (formatters/group-issues.ts) from silently outrunning the portal
   worklist's WorklistGroup (portal/contract.ts). What is guaranteed, precisely: every
   IssueGroup field must be pinned to a named WorklistGroup counterpart or explicitly
   recorded as CLI-only (a new CLI field cannot go unrecorded); a pin can never go stale

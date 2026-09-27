@@ -27,8 +27,12 @@ import type { CheckIssue } from './check-contract.js';
 import type { VerifiedPair } from './verify-lock.js';
 import type { BurnSet } from './progressive-scope.js';
 import { progressivePairKey } from './progressive-scope.js';
-import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from './check-codes.js';
+import { SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from '../utils/check-codes.js';
 import { splitCoverageIssueByTouched } from './check-coverage-tiers.js';
+// BaselineNoise lives in the model layer (model/check-result.ts) beside the result
+// that carries it; re-exported for this module's callers.
+import type { BaselineNoise } from '../model/check-result.js';
+export type { BaselineNoise };
 
 /**
  * The codes whose finding is about a component's LOG rather than the component
@@ -256,27 +260,6 @@ export function applyChangeScope(
 }
 
 /**
- * How many enforced obligations this run reports as outside the change.
- *
- * Counted from the CLASSIFIED list so there is exactly one definition of the
- * number, shared by the result the command renders and the single next step it
- * points at — two places that must never be able to disagree.
- *
- * One twin is one obligation, EXCEPT the aggregate coverage twin, which stands
- * for the uncovered files it names and contributes that count instead: it is
- * one finding about N obligations, and reporting it as 1 would understate the
- * inherited debt by however many files it lists.
- */
-export function countOutside(issues: CheckIssue[]): number {
-  let count = 0;
-  for (const issue of issues) {
-    if (!OUTSIDE_CODES.has(issue.code)) continue;
-    count += issue.uncoveredCount ?? 1;
-  }
-  return count;
-}
-
-/**
  * The standing NOISE FLOOR: how much of this run's report stands on code the
  * current change never touched.
  *
@@ -301,13 +284,6 @@ export function countOutside(issues: CheckIssue[]): number {
  * something no per-pair intersection can bound, so nothing is outside it and
  * the count is zero by definition.
  */
-export interface BaselineNoise {
-  /** Advisory refusals whose pair the change did not reach. */
-  advisory: number;
-  /** Enforced findings this run already holds outside the change. */
-  enforcedOutside: number;
-}
-
 export function countBaselineNoise(
   issues: CheckIssue[],
   scope: BurnSet,

@@ -1,0 +1,7 @@
+name: TypeVisibilityTypes
+type: types
+description: "The type-level coverage tier report shapes: every reason a rule attached to a file type does not run on it (the cascade reasons, the enumeration reasons and the ones only running the rule can decide), one drop row, a group of files an implies cycle stopped from being resolved, the per-type report yg check renders, and the two cascade facts it carries: an absorbed implies cycle and where a type inherited parent chain stops. Pure types in the model layer, so the renderers that print the report name them without depending on the engine that computes it; core/type-visibility.ts and core/type-effective.ts re-export them."
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/type-visibility.ts

@@ -57,7 +57,7 @@ import { BINARY_EXTENSIONS } from '../utils/binary-extensions.js';
 import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { isExcludedByCoverage } from './check-coverage-tiers.js';
-import { computeTypeAspectCascade, describeCascadeCycle } from './type-effective.js';
+import { computeTypeAspectCascade } from './type-effective.js';
 import type { TypeAspectDrop, TypeAspectDropReason, TypeEffectiveAspect, TypeCascadeCycle } from './type-effective.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 
@@ -160,14 +160,6 @@ export interface UncomputableTypeCoverage {
   typeId: string;
   cycle: TypeCascadeCycle;
 }
-
-/**
- * Re-exported so a caller that already consumes `UncomputableTypeCoverage.cycle` through
- * this module (this facade's own `PairComputation`, never type-effective.ts directly) can
- * render the identical cycle sentence `yg check`, `yg context --file`, and `yg owner --file`
- * already print for it — without a new relation to type-effective.ts of its own.
- */
-export { describeCascadeCycle };
 
 /**
  * Return shape of computeExpectedPairs.

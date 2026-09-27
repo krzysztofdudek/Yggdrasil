@@ -1,5 +1,5 @@
 /**
- * source/cli/src/cli/progressive-scope-resolve.ts — resolve the CHANGE SCOPE a
+ * source/cli/src/core/progressive-scope-resolve.ts — resolve the CHANGE SCOPE a
  * `yg check` run gates against: which of this run's obligations the current
  * change is accountable for, measured against the reference branch the project
  * names in `yg-config.yaml`.
@@ -28,26 +28,24 @@
  */
 
 import path from 'node:path';
-import { realpathSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
 import { LOCK_NONDET_FILE_NAME } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
-import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
-import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { computeExpectedPairs, type TypeCoverageInput } from './pairs.js';
+import { scanUncoveredFiles } from './check-coverage-scan.js';
+import { computeTypeCoverageCached } from './type-coverage.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from '../utils/graph-file-names.js';
 import {
-  ARCHITECTURE_FILE,
-  CONFIG_FILE,
   computeBurnSet,
   configVocabularyChanged,
   progressivePairKey,
   type BurnSet,
   type GlobalCause,
-} from '../core/progressive-scope.js';
+} from './progressive-scope.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
+import { readTextFile, realPathSyncOrNull } from '../io/graph-fs.js';
 import {
   changedFilesAgainst,
   getFileAtRef,
@@ -69,8 +67,8 @@ import { resolveProgressiveState, type PreflightProbes } from './progressive-pre
 /**
  * Repo-relative POSIX location of the committed lock this module reads at the
  * reference. The two committed GRAPH files it also reads (`ARCHITECTURE_FILE`,
- * `CONFIG_FILE`) are imported from the burn table that spells them rather than
- * re-typed here: the same paths decide what makes a run global, and two
+ * `CONFIG_FILE`) are imported from the one module that spells them for the burn
+ * table too, rather than re-typed here: the same paths decide what makes a run global, and two
  * spellings of one path is exactly how a probe silently stops matching.
  */
 const YGG_DIR = '.yggdrasil';
@@ -298,7 +296,7 @@ async function didConfigVocabularyMove(projectRoot: string, mergeBase: string): 
   }
   let headText: string;
   try {
-    headText = await readFile(path.join(projectRoot, CONFIG_FILE), 'utf-8');
+    headText = await readTextFile(path.join(projectRoot, CONFIG_FILE));
   } catch {
     return true;
   }
@@ -365,11 +363,8 @@ export function resolveSubmoduleGitlinkInDiff(
  */
 function toplevelMatchesProjectRoot(toplevel: string, projectRoot: string): boolean {
   if (toplevel === toPosixPath(projectRoot)) return true;
-  try {
-    return toplevel === toPosixPath(realpathSync(projectRoot));
-  } catch {
-    return false;
-  }
+  const real = realPathSyncOrNull(projectRoot);
+  return real !== null && toplevel === toPosixPath(real);
 }
 
 /** Resolve every git fact the preflight table decides over. */

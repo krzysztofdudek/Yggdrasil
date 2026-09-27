@@ -5,6 +5,12 @@ import type { WhenEvalOverrides } from './when-evaluator.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, ImpliesCycleError } from './graph/aspects.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 import { debugWrite } from '../utils/debug-log.js';
+// The cascade's reported facts (why a rule drops, an absorbed implies cycle, where
+// the parent chain stops) live in the model layer (model/type-visibility.ts) so a
+// renderer can name them without depending on this module; re-exported for this
+// module's callers.
+import type { TypeAspectDropReason, TypeCascadeCycle, ChainTermination } from '../model/type-visibility.js';
+export type { TypeAspectDropReason, TypeCascadeCycle, ChainTermination };
 
 /**
  * Rules that apply to a source file enforced by its architecture type alone,
@@ -42,9 +48,6 @@ export interface TypeEffectiveAspect {
   status: AspectStatus;
   via: 'type' | 'parent-chain' | 'implies';
 }
-
-/** Why an aspect the architecture attaches to this file's type does not enforce on it. */
-export type TypeAspectDropReason = 'when-not-satisfied' | 'draft';
 
 export interface TypeAspectDrop {
   aspectId: string;
@@ -159,33 +162,6 @@ export function computeTypeReachableAspects(
  * mirroring the same containment their per-node loop already uses for a real
  * component.
  */
-
-/** An aspect `implies` cycle absorbed by `computeTypeAspectCascade` — see its exception contract above. */
-export interface TypeCascadeCycle {
-  /** The aspect id at which the cycle was detected (best-effort — the underlying `ImpliesCycleError`'s own field; absent for the rare iteration-bound-exceeded variant). */
-  aspectId: string | undefined;
-}
-
-/**
- * The `why` clause for an absorbed cascade cycle, shared VERBATIM by every
- * surface that reports one — `yg owner --file`, `yg context --file`, and `yg
- * check`'s per-type block/zero-enforcement rollup — so the wording can never
- * drift between them. Each surface still writes its own `what`/`next` around
- * this, since those differ (a single-file error vs. a repo-wide summary).
- */
-export function describeCascadeCycle(cycle: TypeCascadeCycle): string {
-  return `The aspect graph has an implies cycle${cycle.aspectId ? ` at '${cycle.aspectId}'` : ''} — the cascade cannot tell which of the type's rules apply until that cycle is broken.`;
-}
-/**
- * Why the implicit parent-chain walk (below) stopped where it did, computed
- * once per type — independent of any one file. `candidates` names the parent
- * ids at a fork (sorted, code-point order), the single type the walk cannot
- * revisit at a cycle, or the type the chain ends AT for the other two reasons.
- */
-export interface ChainTermination {
-  reason: 'fork' | 'no-parents' | 'empty-parents' | 'cycle';
-  candidates: string[];
-}
 
 export interface ChainWalkResult {
   /** Nearest-parent-first reachable prefix — exactly what the cascade below walks. */

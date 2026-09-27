@@ -48,7 +48,7 @@ aspects: []
 relations:
   - target: cli/core/check
     type: uses
-  - target: cli/core/check-codes
+  - target: cli/check-codes
     type: uses
   - target: cli/core/progressive-scope
     type: uses

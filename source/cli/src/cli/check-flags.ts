@@ -15,7 +15,7 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import { resolveTopValue, type CheckView } from './check-render-views.js';
+import { resolveTopValue, type CheckView } from '../formatters/check-render-views.js';
 
 /** The flags `yg check` parses. */
 export interface CheckFlags {

@@ -28,7 +28,7 @@ import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 import type { Graph } from '../../../src/model/graph.js';
-import { enrichCheckJson } from '../../../src/cli/check-render-views.js';
+import { enrichCheckJson } from '../../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 import type { CheckResult as ReportedResult } from '../../../src/core/check.js';
 

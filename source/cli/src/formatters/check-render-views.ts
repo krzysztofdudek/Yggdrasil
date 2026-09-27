@@ -1,4 +1,3 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (colour and glyphs); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 /**
  * The views of a check report, all in one hierarchy:
  *
@@ -14,16 +13,18 @@
  * word (with one block and nothing to add, there is no `next:` at all) — and
  * the same step is the JSON document's `suggestedNext` and `next`.
  */
-import type { CheckIssue, CheckResult } from '../core/check.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES, isConfigLoadFailure } from '../core/check-codes.js';
-import { countOutside } from '../core/check-progressive.js';
-import { issueViolations } from '../core/check-json.js';
+import type { CheckIssue } from '../model/check-issue.js';
+import type { CheckResult } from '../model/check-result.js';
+import { OUTSIDE_CODES, isConfigLoadFailure, countOutside } from '../utils/check-codes.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE } from './check-notices.js';
+import { issueViolations } from './check-json.js';
 import { COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, getIssueLabel } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderByteGuardNotice, renderBaselineNoiseNotice, renderExternalJudgesNotice } from './check-render-header.js';
 import { buildBlocks, renderBlocks, type CheckBlock, type BlockCost } from './check-render-groups.js';
 import { GRAPH_INVALID_CODES, CONFIGURE_REVIEWER_STEP, codeInfo } from './output-diagnostic.js';
-import { count, MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note, paint, commandArgv, costWords, fillStepFor, NO_FILL_COST, type FillStep } from './output.js';
-import type { CheckJsonDocument, CheckJsonGroup, CheckJsonIssue, CheckJsonNext } from '../formatters/check-json.js';
+import { MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note, paint, commandArgv, costWords, fillStepFor, NO_FILL_COST, type FillStep } from './output-grammar.js';
+import { count } from '../utils/count.js';
+import type { CheckJsonDocument, CheckJsonGroup, CheckJsonIssue, CheckJsonNext } from './check-json.js';
 import { toPosixPath } from '../utils/posix.js';
 
 // ── Views ──────────────────────────────────────────────────
@@ -199,7 +200,7 @@ function fillPlaceholders(text: string, b: CheckBlock, anyFile = false): string 
   if (first.nodePath !== undefined) out = out.split('<node>').join(toPosixPath(first.nodePath));
   // A path each member states for itself is the first member's, like its node.
   const own = b.slot?.values.get(first);
-  if (b.slot !== undefined && own !== undefined) out = out.split(b.slot.placeholder).join(own);
+  if (b.slot !== undefined && own !== undefined) out = out.split(b.slot.placeholder).join(toPosixPath(own));
   const files = b.members.flatMap((m) => m.uncoveredFiles ?? []);
   const file = files.find(isCodeFile) ?? (anyFile ? files[0] : undefined);
   if (file !== undefined) out = out.replace(/<(?:uncovered-)?path>/g, toPosixPath(file));
@@ -236,8 +237,9 @@ function blockAction(b: CheckBlock): Action | undefined {
   // A script rule's refusal is fixed where it is: the first violation's line.
   const located = issueViolations(first)?.find((v) => v.file !== '');
   if (located !== undefined) {
-    const where = `${located.file}${located.line !== null ? `:${located.line}` : ''}`;
-    return { text: `edit ${where}`, target: { ...target, file: located.file } };
+    const file = toPosixPath(located.file);
+    const where = `${file}${located.line !== null ? `:${located.line}` : ''}`;
+    return { text: `edit ${where}`, target: { ...target, file } };
   }
   // A refusal with no line to point at is still fixed in the code, never by
   // re-running what was just recorded for that same code.

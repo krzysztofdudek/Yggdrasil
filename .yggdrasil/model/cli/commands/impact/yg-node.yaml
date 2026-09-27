@@ -51,5 +51,9 @@ relations:
     type: uses
   - target: cli/model/lock
     type: uses
+  - target: cli/core/impact
+    type: calls
+  - target: cli/model/impact
+    type: uses
 mapping:
   - source/cli/src/cli/impact.ts

@@ -7,8 +7,9 @@ description: >-
   (a) the modules that shape the build's exit code, issue emission, and
   suggestedNext — matched by file-name glob so a newly split stage is fenced the
   moment it exists: core/check.ts and every core/check-*.ts, every
-  core/progressive-*.ts, cli/check.ts and every cli/check-*.ts, and
-  cli/group-issues.ts — must NOT import the structural-metrics core
+  core/progressive-*.ts, cli/check.ts and every cli/check-*.ts, the report's
+  render units formatters/check-render-*.ts, and formatters/group-issues.ts —
+  must NOT import the structural-metrics core
   (core/graph-metrics), the verdict-events reader (io/events-reader), or the
   node-churn instrument (core/node-churn); pulling ranking, telemetry, or churn
   into the gate would let an instrument influence whether the build passes.

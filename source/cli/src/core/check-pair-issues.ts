@@ -22,7 +22,7 @@ import {
 } from '../formatters/lock-issue-messages.js';
 import { cannotRunReasonFor, unverifiedIssueMessage, type TypeVisibilityReport } from './type-visibility.js';
 import type { CheckIssue } from './check-contract.js';
-import type { UnverifiedCause } from './check-codes.js';
+import type { UnverifiedCause } from '../model/check-issue.js';
 import type { IssueMessage } from '../model/validation.js';
 
 /**

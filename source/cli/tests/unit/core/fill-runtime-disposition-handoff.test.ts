@@ -19,7 +19,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
 import { runCheck } from '../../../src/core/check.js';
-import { renderTypeVisibilityBlock } from '../../../src/cli/check-render-header.js';
+import { renderTypeVisibilityBlock } from '../../../src/formatters/check-render-header.js';
 
 const V5_REVIEWER_CONFIG =
   'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';

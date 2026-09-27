@@ -1,5 +1,5 @@
 name: Progressive Preflight State Machine
-type: command-support
+type: engine
 description: "Pure decision table that turns the progressive-mode git probes
   (utils/git-introspect.ts's isAncestor/isShallowRepository/
   getToplevelAndPrefix/treesIdentical/hasCleanWorktree, plus the touched-set
@@ -14,9 +14,11 @@ description: "Pure decision table that turns the progressive-mode git probes
   null probe standing in for one) and an empty touched set that cannot prove
   itself clean lands in global-fallback rather than being mistaken for
   honest-empty — closing the silent-green hole an unproven empty diff would
-  otherwise open."
+  otherwise open. Every outcome that is not a measurement carries its own reason and next step as data, worded here, so the what-why-next rule judges those sentences here."
+aspects:
+  - what-why-next
 relations:
   - target: cli/utils
     type: calls
 mapping:
-  - source/cli/src/cli/progressive-preflight.ts
+  - source/cli/src/core/progressive-preflight.ts

@@ -1,29 +1,23 @@
 /**
  * Single source of truth for issue-code categories shared between the check
- * engine (core/check.ts — summary tallies) and the check command renderer
- * (cli/check.ts — error grouping). Keeping one definition means the count in the
- * summary line and the rendered "Structural" group can never drift apart, which
- * is exactly what happened when each file hard-coded its own set.
+ * engine (core/check.ts — summary tallies), the check report's renderers
+ * (formatters/check-render-*.ts — error grouping) and the fill stage. Keeping
+ * one definition means the count in the summary line and the rendered
+ * "Structural" group can never drift apart, which is exactly what happened when
+ * each file hard-coded its own set.
+ *
+ * A utility, not an engine module: the report renderers are formatters, which
+ * may call a utility but never the engine, and the engine and the command layer
+ * may call a utility too — so this is the one layer every reader of a code can
+ * reach. Pure data and pure functions over codes; nothing here reads a file.
  */
 
-import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from '../utils/rules-artifact-names.js';
-import { ARCHITECTURE_FILE, CONFIG_FILE } from './progressive-scope.js';
-// UnverifiedCause lives in the model layer (model/check-issue.ts) beside the issue that
-// carries it; re-exported for this module's callers.
-import type { UnverifiedCause } from '../model/check-issue.js';
+import type { CheckIssue, UnverifiedCause } from '../model/check-issue.js';
+// UnverifiedCause lives in the model layer beside the issue that carries it;
+// re-exported for this module's callers.
 export type { UnverifiedCause };
-
-/**
- * Standing notice: coverage.type_level is on, but no type in the architecture
- * declares when:, so the classification lattice can never match a single
- * file (classifyFile skips every type without when — core/type-classifier.ts)
- * — the flag is committed but does nothing yet. Shared verbatim between yg
- * check's coverage-section render and yg init's closing summary so the same
- * fact reads identically on both surfaces.
- */
-export const ZERO_CLASSIFYING_TYPES_NOTICE =
-  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
-
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from './rules-artifact-names.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from './graph-file-names.js';
 
 /**
  * The order causes are acted on in — shared by the `Next:` line and the grouped
@@ -51,14 +45,6 @@ export const UNVERIFIED_CAUSE_ORDER: readonly UnverifiedCause[] = [
 export function unverifiedCauseRank(cause: UnverifiedCause | undefined): number {
   return UNVERIFIED_CAUSE_ORDER.indexOf(cause ?? 'never-reviewed');
 }
-
-/**
- * Printed by `yg check` when it skipped the structural attention index because
- * the repository's .gitignore files do not ignore it. A check writes no tracked
- * file, so the line is added by `yg init --upgrade`, never by the check.
- */
-export const FEATURE_INDEX_NOT_IGNORED_NOTICE =
-  "The structural attention index (.yggdrasil/.feature-field.json) was not written: git does not ignore it here, and yg check never edits a tracked .gitignore. Run 'yg init --upgrade' to add the line.";
 
 /**
  * Structural validation codes — graph-shape and config errors that always block
@@ -394,6 +380,27 @@ const BASE_CODE_BY_OUTSIDE_TWIN: ReadonlyMap<string, string> = new Map(
 export const OUTSIDE_CODES = new Set<string>(BASE_CODE_BY_OUTSIDE_TWIN.keys());
 
 /**
+ * How many enforced obligations this run reports as outside the change.
+ *
+ * Counted from the CLASSIFIED list so there is exactly one definition of the
+ * number, shared by the result the command renders and the single next step it
+ * points at — two places that must never be able to disagree.
+ *
+ * One twin is one obligation, EXCEPT the aggregate coverage twin, which stands
+ * for the uncovered files it names and contributes that count instead: it is
+ * one finding about N obligations, and reporting it as 1 would understate the
+ * inherited debt by however many files it lists.
+ */
+export function countOutside(issues: CheckIssue[]): number {
+  let count = 0;
+  for (const issue of issues) {
+    if (!OUTSIDE_CODES.has(issue.code)) continue;
+    count += issue.uncoveredCount ?? 1;
+  }
+  return count;
+}
+
+/**
  * The code an outside twin stands for, or `undefined` when the code is not a
  * twin at all. Lets a renderer describe a twin exactly as it describes the
  * finding it mirrors — one label rule, derived — instead of falling through to
@@ -504,9 +511,10 @@ export function baseCodeOfOutsideTwin(code: string): string | undefined {
  * input it can never see. The three rules-distribution artifacts sit at the
  * repository root and are imported from the module that names them; the two
  * committed graph files sit UNDER the graph directory and are imported from the
- * burn table that spells that directory, rather than re-typed here. Both were
- * once written bare (`yg-config.yaml`, `yg-architecture.yaml`) and could not
- * have matched anything; importing is what stops that from recurring.
+ * module that spells them for the burn table too (utils/graph-file-names.ts),
+ * rather than re-typed here. Both were once written bare (`yg-config.yaml`,
+ * `yg-architecture.yaml`) and could not have matched anything; importing is
+ * what stops that from recurring.
  */
 export const SINGLETON_INPUTS: Map<string, string[]> = new Map([
   ['rules-digest-stale', [AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH]],

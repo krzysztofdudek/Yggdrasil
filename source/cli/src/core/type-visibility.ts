@@ -48,14 +48,15 @@
  * groups, counts, and shapes is one the producers above already decided (the
  * render layer, `check-render-header.ts`, turns a cascade-cycle group's
  * `aspectId` into the same `why` sentence `yg owner --file` / `yg context
- * --file` already print, via `type-effective.ts#describeCascadeCycle` — never
+ * --file` already print, via `describeCascadeCycle` (formatters/type-visibility-text.ts) — never
  * restated here, so the wording cannot drift between the three surfaces). The
  * things this module DOES compute itself are which of a type's declared law
  * is enforced ANYWHERE (a plain group-by over `appliedPairs`), where the
  * type's implicit parent chain stops — both pure graph facts, no file I/O,
  * independent of whether a relation-edge index is available — and, lower in
  * this file, the message TEXT for an already-decided reason
- * (`describeTypeVisibilityReason`, `cannotRunUnverifiedMessage`): composing a
+ * (`cannotRunUnverifiedMessage`, whose phrase for the reason comes from
+ * `describeTypeVisibilityReason`, formatters/type-visibility-text.ts): composing a
  * sentence out of a reason this module did not invent is not the same as
  * inventing one.
  */
@@ -63,87 +64,18 @@ import type { Graph } from '../model/graph.js';
 import type { AspectStatus } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { PairDrop, ExpectedPair, UncomputableTypeCoverage } from './pairs.js';
-import type { TypeAspectDropReason } from './type-effective.js';
 import { walkTypeParentChain } from './type-effective.js';
-import type { ChainTermination } from './type-effective.js';
-
-/**
- * Plain-language sentence for where a type's inherited chain stops and why —
- * shared verbatim between `yg check`'s per-type block and `yg context --file`
- * so the wording never drifts between the two surfaces.
- *
- * 'no-parents' phrasing deliberately does NOT claim whether the type omitted
- * `parents:` or wrote an explicit `parents: []`: the graph loader normalizes
- * both to the identical absent-parents state before either ever reaches this
- * function (`architecture-parser.ts` turns a YAML `parents: []` into
- * `undefined` at load time), so a real, loaded graph can never tell the two
- * apart here. Claiming "no parents declared" would be false for an author who
- * wrote the explicit empty list; this phrasing is true either way.
- * 'empty-parents' keeps its own distinct, accurate text — reachable only via
- * a hand-built Graph that bypasses the parser (never a real loaded project;
- * see type-effective.test.ts) — so it is not merged into 'no-parents'.
- */
-export function describeChainTermination(t: ChainTermination): string {
-  const reasonPhrase: Record<ChainTermination['reason'], string> = {
-    fork: `a fork (${t.candidates.join(' | ')})`,
-    cycle: `a cycle back to '${t.candidates[0]}'`,
-    'no-parents': `'${t.candidates[0]}' — it has no parent type to inherit from`,
-    'empty-parents': `'${t.candidates[0]}' — an explicit empty parents list`,
-  };
-  return `inherited rules stop at ${reasonPhrase[t.reason]}`;
-}
-
-/**
- * Every reason a rule attached to a file's type does not enforce on it: the
- * static reasons decided while enumerating which rules apply (reused
- * verbatim from `PairDropReason` — never restated, so a reason added
- * downstream cannot drift from its name there), widened by the ones only
- * running the rule can decide.
- *
- * The runtime reasons are a semantic layer over the structure runner's own
- * typed dispositions, not the raw codes themselves: 'read-beyond-architecture'
- * for a `StructureRunnerError` coded `STRUCTURE_UNDECLARED_FS_READ`,
- * 'node-context-required' for one coded `STRUCTURE_NODE_CONTEXT_UNAVAILABLE`.
- * 'companion-context-failed' has no producer yet: no `StructureRunnerError`
- * code maps to it in `RUNTIME_DISPOSITION_REASONS` below, so no caller ever
- * constructs a row with it.
- *
- * All three runtime reasons are FILL-ONLY: they can only ever be discovered
- * by actually running check.mjs, which happens nowhere except `yg check
- * --approve`'s fill stage. `build-context.ts` (`yg context --file`) and
- * `yg owner --file` both compute this report with `runtimeRows: []` always —
- * they never fill, so they have nothing to hand off; a file whose disposition
- * `yg check --approve` named in a prior run reads there exactly as it would
- * with no disposition known at all (the qualified "unverified" fallback,
- * never persisted — see `docs/configuration.md`'s `type_level` paragraph).
- * `check.ts`'s OWN classification (the plain, non-`--approve` read) is
- * likewise always `[]`; only the SAME run's `core/fill.ts`, having just
- * watched a component-free det pair's check.mjs fail with a
- * `StructureRunnerError`, translates its code via `classifyRunnerDisposition`
- * below and passes the row into that run's own post-fill `runCheck` call
- * (`RunCheckOptions.runtimeDispositions`) — the one and only live caller of
- * that function outside its own unit tests. `'companion-context-failed'`
- * still has no producer: no `StructureRunnerError` code maps to it in
- * `RUNTIME_DISPOSITION_REASONS` below, so no caller ever constructs a row
- * with it — wiring one is a distinct, still-undone change (an LLM pair's
- * companion-hook failure has no code-based disposition to translate).
- */
-export type TypeVisibilityReason =
-  | TypeAspectDropReason         // 'when-not-satisfied' | 'draft'
-  | 'whole-unit-rule'
-  | 'scope.files-excluded'
-  | 'aspect-undefined'
-  | 'unreadable'
-  | 'binary-subject'
-  | 'read-beyond-architecture'
-  | 'node-context-required'
-  | 'companion-context-failed';
-
-export interface TypeVisibilityRow {
-  file: string;
-  aspectId: string;
-  reason: TypeVisibilityReason;
-}
+// The report's shapes live in the model layer (model/type-visibility.ts) so the
+// renderers that print them never depend on this module; re-exported for this
+// module's callers.
+import { describeTypeVisibilityReason } from '../formatters/type-visibility-text.js';
+import type {
+  TypeVisibilityReason,
+  TypeVisibilityRow,
+  TypeVisibilityUncomputableGroup,
+  TypeVisibilityReport,
+} from '../model/type-visibility.js';
+export type { TypeVisibilityReason, TypeVisibilityRow, TypeVisibilityUncomputableGroup, TypeVisibilityReport };
 
 /**
  * One (file, aspectId) pair that ACTUALLY produced a pair — `core/pairs.ts`'s
@@ -162,51 +94,6 @@ export function toAppliedPairs(pairs: ExpectedPair[]): TypeVisibilityAppliedPair
   return pairs
     .filter((p) => p.nodePath === undefined)
     .map((p) => ({ file: p.subjectFiles[0], aspectId: p.aspectId, status: p.status }));
-}
-
-/**
- * Files whose rules could not be worked out at all, grouped by the cascade
- * cycle's aspect id (files sharing the SAME cycle) — the same shape `dropped`
- * groups by reason, applied to a distinct kind of fact: a `dropped` row means
- * "this rule does not run here"; a group here means "this type's rules were
- * never resolved for these files". `files` is sorted; a group with an
- * `undefined` aspectId is the rare iteration-bound-exceeded variant of
- * `TypeCascadeCycle` (no specific aspect to name).
- */
-export interface TypeVisibilityUncomputableGroup {
-  aspectId: string | undefined;
-  files: string[];
-}
-
-export interface TypeVisibilityReport {
-  /** One block per matched type, ordered by type id (code-point). */
-  byType: Array<{
-    typeId: string;
-    /** Covered files matched to this type, sorted. */
-    files: string[];
-    /** Aspect ids whose effective status is 'enforced' on AT LEAST ONE file of this type — a real pair exists; never inferred from the absence of a drop. */
-    enforced: string[];
-    /** Same aspect ids as `enforced`, each with the file count it actually runs on — a rule live on one accidental file reads as a count of 1, never just a bare name. */
-    enforcedCounts: Array<{ aspectId: string; count: number }>;
-    /** Aspect ids whose effective status is 'advisory' on AT LEAST ONE file of this type — it runs (a real pair exists) but never blocks. Kept separate from `enforced`/`enforcedCounts`: a rule that only warns must never be reported under a heading that claims enforcement. */
-    advisory: string[];
-    /** Same aspect ids as `advisory`, each with its file count. */
-    advisoryCounts: Array<{ aspectId: string; count: number }>;
-    /** Aspect ids attached to this type that do not enforce on some or all of its files, with the reason and a file count. */
-    dropped: Array<{ aspectId: string; reason: TypeVisibilityReason; count: number }>;
-    /** Named when a bundle's file-level half applies (enforced OR advisory) and its whole-unit half cannot. */
-    halfExpandedBundles: Array<{ bundleId: string; enforced: string[]; dropped: string[] }>;
-    /** This type's own files an aspect `implies` cycle stopped from being resolved at all — see `TypeVisibilityUncomputableGroup`'s own doc. Disjoint from `files` used for `enforced`/`advisory`/`dropped`/`zeroEnforcement`: a file here contributes to NONE of those, since its rules were never worked out. */
-    uncomputable: TypeVisibilityUncomputableGroup[];
-    /** Where the inherited chain stops, and why. */
-    chainTermination: ChainTermination;
-  }>;
-  /** Files with a matched type and no applicable rule at all (zero pairs, any status) — NEVER includes a file counted under `uncomputable` below: "resolution ran and found nothing" and "resolution never ran" are mutually exclusive outcomes for the same file. */
-  zeroEnforcement: { count: number; samples: string[] };
-  /** Every type-covered file (any type) an aspect `implies` cycle stopped from being resolved at all, grouped the same way each `byType[].uncomputable` is — see `TypeVisibilityUncomputableGroup`'s own doc. `count` is the total file count across every group, never capped (matches `zeroEnforcement.count`'s own contract; only the per-group `files` list is subject to the renderer's own display cap). */
-  uncomputable: { count: number; groups: TypeVisibilityUncomputableGroup[] };
-  /** Every (file, aspectId, reason) drop row, static and runtime, sorted code-point stable. */
-  rows: TypeVisibilityRow[];
 }
 
 /** Matches the rest of `yg check`'s own sample/member truncation (CAP_NODES). Counts are never capped — only the sample list. */
@@ -501,20 +388,4 @@ export function buildTypeVisibility(
     uncomputable: { count: uncomputable.length, groups: groupUncomputable(uncomputable) },
     rows,
   };
-}
-
-/** Short, plain-language phrase for a reason — shared by every render surface so the vocabulary never drifts between them. */
-export function describeTypeVisibilityReason(reason: TypeVisibilityReason): string {
-  switch (reason) {
-    case 'when-not-satisfied': return 'its attach condition (when:) was not satisfied on this file';
-    case 'draft': return 'the rule is still draft (reviewer skipped)';
-    case 'whole-unit-rule': return 'it is a per: node rule and this file has no component to run it on';
-    case 'scope.files-excluded': return "excluded by the rule's own scope.files filter";
-    case 'aspect-undefined': return 'the architecture attaches an aspect id with no matching aspect definition';
-    case 'unreadable': return 'the file could not be read, so it cannot be reviewed';
-    case 'binary-subject': return 'a binary file cannot be reviewed by a reviewer rule';
-    case 'read-beyond-architecture': return "it tried to read a file outside what the architecture allows this file's type to depend on";
-    case 'node-context-required': return 'it needs component context (ctx.node / ctx.graph) that a type-covered file does not have';
-    case 'companion-context-failed': return 'its companion could not resolve a dependency for this file';
-  }
 }

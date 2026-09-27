@@ -6,9 +6,14 @@ import type { LockFile } from '../../model/lock.js';
 import type { ExpectedPair } from '../../model/expected-pair.js';
 import { toPosix } from '../../utils/posix.js';
 import { buildOwnerIndex, guardOwnerIndex } from '../../relations/owner-index.js';
-// The exclusion set itself is resolved by the caller (cli/impact-handlers.ts); this module
+// The exclusion set itself is resolved by the caller (core/impact-cost.ts); this module
 // only names its type, a declared dependency on cli/io/stores like any other import.
 import type { GraphExclusionSet } from '../../io/repo-scanner.js';
+// Why a pair is invalidated, and a unit whose cost could not be worked out, live in
+// the model layer (model/impact.ts) so the formatter that words an impact report
+// names them without depending on this module; re-exported for this module's callers.
+import type { ImpactReason, UnresolvedUnit } from '../../model/impact.js';
+export type { ImpactReason, UnresolvedUnit };
 
 /**
  * Pure graph blast-radius / reverse-dependency algorithms for `yg impact`.
@@ -361,13 +366,6 @@ export function touchedReferencesFile(
 // classifyInvalidations — synchronous invalidation buckets
 // ============================================================
 
-export type ImpactReason =
-  | 'own'                           // F is in the pair's subject set
-  | 'reference'                     // a reviewer rule references F (hashed into every pair of the aspect)
-  | 'observe-companion'             // companion-LLM observation references F (warm lock OR cold-resolved)
-  | 'observe-deterministic'         // deterministic check observation references F (warm lock)
-  | 'cold-potential-deterministic'  // deterministic, no lock entry, F in allowed-reads (free, upper bound)
-  | 'cold-potential-companion';     // companion-LLM, no lock entry, F in allowed-reads (upper bound; the companion is never run to narrow it)
 
 export interface InvalidatedPair {
   aspectId: string;
@@ -379,13 +377,11 @@ export interface InvalidatedPair {
   mode: 'precise' | 'potential';
 }
 
-export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath?: string; why: string }
-
 export interface ImpactSet { pairs: InvalidatedPair[]; unresolved: UnresolvedUnit[] }
 
 /**
  * Sync classification. Returns admitted pairs + the cold companion-LLM pairs that still need
- * async companion resolution — the caller (`collectInvalidatedPairs`, cli/impact-handlers.ts)
+ * async companion resolution — the caller (`collectInvalidatedPairs`, core/impact-cost.ts)
  * resolves each one and folds a hit back into admitted pairs. A pair is a cold candidate ONLY
  * if nothing else already admitted it (no point running the resolver for a pair already known
  * invalidated).

@@ -11,11 +11,11 @@ relations:
     { target: cli/core/check, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/tests/fixtures, type: uses },
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
-    { target: cli/check-render-views, type: uses },
+    { target: cli/formatters, type: uses },
     { target: cli/core/progressive-scope, type: uses },
     { target: cli/model/graph, type: uses }
   ]

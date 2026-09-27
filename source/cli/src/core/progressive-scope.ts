@@ -13,6 +13,7 @@ import type { ExpectedPair } from './pairs.js';
 import { collectAncestors, collectDescendants } from './graph/traversal.js';
 import { touchedReferencesFile } from './graph/impact-graph.js';
 import { collectAllowedReadsForAspect } from '../structure/allowed-reads.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from '../utils/graph-file-names.js';
 import { isPathInMapping } from '../structure/expand-mapping-sync.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 
@@ -154,16 +155,6 @@ const YGG_DIR = '.yggdrasil';
 const MODEL_PREFIX = `${YGG_DIR}/model/`;
 const ASPECTS_PREFIX = `${YGG_DIR}/aspects/`;
 const FLOWS_PREFIX = `${YGG_DIR}/flows/`;
-/**
- * Exported because a code→fixed-input map elsewhere (`SINGLETON_INPUTS`,
- * core/check-codes.ts) has to intersect the SAME touched set this table reads,
- * and a second, hand-spelled copy of either path silently never matches: the
- * touched set spells them repo-relative, WITH this directory in front. That is
- * not hypothetical — both were once written bare and could never have matched
- * anything. One spelling, imported, is the only way that stays true.
- */
-export const ARCHITECTURE_FILE = `${YGG_DIR}/yg-architecture.yaml`;
-export const CONFIG_FILE = `${YGG_DIR}/yg-config.yaml`;
 const NODE_YAML = 'yg-node.yaml';
 const FLOW_YAML = 'yg-flow.yaml';
 const LOG_MD = 'log.md';

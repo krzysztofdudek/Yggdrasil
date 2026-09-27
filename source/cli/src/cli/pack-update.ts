@@ -15,6 +15,7 @@ import {
   installDirAbs,
   installDirRelative,
   installPackage,
+  isLocalDirectory,
   readInstalledAdapts,
   writePackagesLock,
 } from '../io/package-store.js';
@@ -28,7 +29,6 @@ import {
   differingFiles,
   failWith,
   installedRuleDirs,
-  isLocalDirectory,
   ownerRepoOf,
   projectRootOf,
   readLock,

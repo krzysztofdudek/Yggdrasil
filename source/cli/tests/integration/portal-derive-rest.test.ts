@@ -81,10 +81,12 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // check-issue model). cli/core/fill now ties cli/entry at 28; the tie breaks by
     // path, so cli/core/fill ranks first. aspect-test went from 21 to 22 (the AST report).
     // cli/tests/unit/cli/general went from 33 to 34 when the check command's flag parse
-    // moved into a module of its own, tested directly rather than only through the command.
+    // moved into a module of its own, tested directly rather than only through the command,
+    // and from 34 to 31 when the check report's renderers (views, header, blocks and the
+    // issue grouping) left the command layer for the formatter node it already relates to.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(34);
+    expect(data.hubs.fanOut[0].count).toBe(31);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(28);
     expect(data.hubs.fanOut[2].path).toBe('cli/entry');

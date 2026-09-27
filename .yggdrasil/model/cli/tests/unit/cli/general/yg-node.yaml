@@ -54,11 +54,7 @@ relations:
     { target: cli/commands/build-context, type: uses },
     { target: cli/commands/check, type: uses },
     { target: cli/det-concurrency, type: uses },
-    { target: cli/check-render-header, type: uses },
-    { target: cli/check-render-groups, type: uses },
-    { target: cli/check-render-views, type: uses },
     { target: cli/check-flags, type: uses },
-    { target: cli/group-issues, type: uses },
     { target: cli/commands/init, type: uses },
     { target: cli/init-reviewer-setup, type: uses },
     { target: cli/core/context, type: uses },
@@ -76,14 +72,15 @@ relations:
     { target: cli/utils, type: uses },
     { target: cli/relations/core, type: uses },
     { target: cli/tests/fixtures, type: uses },
-    { target: cli/progressive-preflight, type: uses },
-    { target: cli/progressive-scope-resolve, type: uses },
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/core/progressive-preflight, type: uses },
+    { target: cli/core/progressive-scope-resolve, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/core/progressive-scope, type: uses },
     { target: cli/tests/support, type: uses },
     { target: cli/core/type-visibility, type: uses },
     { target: cli/core/verify-lock, type: uses },
-    { target: cli/model/graph, type: uses }
+    { target: cli/model/graph, type: uses },
+    { target: cli/model/type-visibility, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts

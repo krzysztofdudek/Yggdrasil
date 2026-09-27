@@ -15,7 +15,7 @@
 
 import type { CheckResult, CheckIssue } from './check-contract.js';
 import type { VerifiedPair } from './verify-lock.js';
-import { CHECK_JSON_SCHEMA } from '../formatters/check-json.js';
+import { CHECK_JSON_SCHEMA, issueViolations } from '../formatters/check-json.js';
 import type {
   CheckJsonDocument,
   CheckJsonIssue,
@@ -23,7 +23,6 @@ import type {
   CheckJsonPair,
   CheckJsonProgressive,
   CheckJsonVerdict,
-  CheckJsonViolation,
   CheckJsonEdge,
 } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
@@ -103,35 +102,6 @@ function pairOf(vp: VerifiedPair): CheckJsonPair {
 }
 
 /** One finding, projected — the structured message, never the rendered block. */
-/** Codes whose `what` lists a script rule's violations under a `Violations:` line. */
-const VIOLATION_CODES = new Set(['aspect-violation-enforced', 'aspect-violation-advisory']);
-
-/**
- * A script refusal's violations, read back out of the report its check wrote:
- * each `<file>:<line>: <message>` line after `Violations:` is one violation;
- * a line that does not start a new one (an expected/actual pair a check
- * printed under its message) belongs to the violation above it.
- */
-function violationsOf(what: string): CheckJsonViolation[] | undefined {
-  const lines = what.split('\n');
-  const start = lines.findIndex((l) => l.trim() === 'Violations:');
-  if (start < 0) return undefined;
-  const out: CheckJsonViolation[] = [];
-  for (const raw of lines.slice(start + 1)) {
-    const line = raw.trimEnd();
-    if (line.trim() === '') continue;
-    const m = /^\s*(.+?):(\d+): (.*)$/.exec(line);
-    if (m !== null) {
-      out.push({ file: toPosixPath(m[1]), line: Number(m[2]), message: m[3] });
-    } else if (out.length > 0) {
-      out[out.length - 1].message += `\n${line.trim()}`;
-    } else {
-      out.push({ file: '', line: null, message: line.trim() });
-    }
-  }
-  return out;
-}
-
 /**
  * The edges a relation finding is about: the undeclared-dependency list
  * (`<file>:<line> → <node>` per line of `what`), or the type-relation gate's
@@ -148,17 +118,6 @@ function edgesOf(issue: CheckIssue): CheckJsonEdge[] | undefined {
     if (m !== null) out.push({ file: toPosixPath(m[1]), line: Number(m[2]), target: toPosixPath(m[3]) });
   }
   return out.length > 0 ? out : undefined;
-}
-
-/**
- * A refusal's violations as structured rows — the list its `what` carries
- * under `Violations:` — or undefined for any other finding. One reader of that
- * list, shared by the text report and this document, so the two can never
- * list different violations.
- */
-export function issueViolations(issue: CheckIssue): CheckJsonViolation[] | undefined {
-  if (!VIOLATION_CODES.has(issue.code) && !VIOLATION_CODES.has(issue.code.replace(/-outside$/, ''))) return undefined;
-  return violationsOf(issue.messageData.what);
 }
 
 function issueOf(issue: CheckIssue): CheckJsonIssue {

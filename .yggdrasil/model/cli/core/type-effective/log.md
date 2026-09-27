@@ -16,3 +16,7 @@ Reworded a trailing comment about why port-consumption matching can never succee
 A derived relation synthesized for a type-covered file's cascade now carries the implicit default port explicitly, since the model's relation shape no longer allows an absent port list.
 ## [2026-09-23T20:50:22.572Z]
 The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.
+## [2026-09-27T00:02:30.359Z]
+Three facts the cascade reports (why an attached rule drops, an absorbed implies cycle, and where a type parent chain stops) moved into the model layer, and this module now only re-exports them. They appear inside the type-level coverage report the check renders, and a renderer is a formatter that may not depend on the engine. Re-exporting keeps every engine caller unchanged.
+## [2026-09-27T00:25:46.230Z]
+The sentence for an absorbed implies cycle moved to the formatter layer with the other type-level coverage sentences. The check report that prints it is a formatter and may not call the engine; the cascade keeps computing the cycle and hands it over as data.

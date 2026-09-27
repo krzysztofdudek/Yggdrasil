@@ -15,11 +15,11 @@ import {
   isReachableForTypeCoveredFile,
   walkTypeParentChain,
   computeDeclaredAttachedAspects,
-  describeCascadeCycle,
   type TypeEffectiveAspect,
   type TypeAspectDrop,
   type TypeCascadeCycle,
 } from '../type-effective.js';
+import { describeCascadeCycle } from '../../formatters/type-visibility-text.js';
 
 /** Shared `next` clause for a dead-attach warning whose real cause is an absorbed aspect `implies` cycle — points at the SAME blocking error and fix every other cycle-naming surface (`yg owner --file`, `yg context --file`, `yg check`'s own rollup) already points at. */
 const CYCLE_NEXT = 'Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.';

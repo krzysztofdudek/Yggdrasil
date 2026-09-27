@@ -10,20 +10,16 @@ import {
   buildTransitiveChains,
   collectIndirectDependents,
 } from '../core/graph/impact-graph.js';
+import { handleAspectImpact, handleFlowImpact, handleTypeImpact } from './impact-handlers.js';
 import {
-  collectDescendants,
+  descendantPaths,
   collectInvalidatedPairs,
   computeGraduationPreview,
   computeNodeFillCost,
-  handleAspectImpact,
-  handleFlowImpact,
-  handleTypeImpact,
-  renderGraduationPreview,
-  renderNodeFillCost,
   summarizeImpact,
-  renderImpactTotal,
-} from './impact-handlers.js';
-import type { ImpactSummary } from './impact-handlers.js';
+} from '../core/impact-cost.js';
+import { renderGraduationPreview, renderNodeFillCost, renderImpactTotal } from '../formatters/impact-text.js';
+import type { ImpactSummary } from '../model/impact.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { readLock, LockInvalidError } from '../io/lock-store.js';
@@ -417,7 +413,7 @@ async function renderNodeImpact(graph: Graph, nodePath: string, lock: LockFile, 
   writeOut(`Impact of changes in ${nodePath}:\n\n`);
   renderDependents(nodePath, direct, relationFrom, eventDependents, chains);
 
-  const descendants = collectDescendants(graph, nodePath);
+  const descendants = descendantPaths(graph, nodePath);
   if (descendants.length > 0) {
     writeOut('\nDescendants (hierarchy impact):\n');
     for (const desc of descendants) {

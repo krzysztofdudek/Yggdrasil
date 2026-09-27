@@ -1,28 +1,10 @@
 name: Impact Handlers
 type: command-support
-description: "Command-layer support for the impact command: the aspect/flow/type blast-radius handlers (handleAspectImpact, handleFlowImpact, handleTypeImpact), the aspect re-fill cost computation and rendering (computeAspectFillCost, renderFillCost), and the hierarchy descendant collector (collectDescendants). Extracted from the impact command handler so the command file carries only Commander registration and the inline node-impact path. Registers no Commander subcommand; invoked by the impact command via direct import."
+description: "The three yg impact targets answered from a graph object rather than a file: a rule (--aspect), a flow (--flow) and a type (--type). Each refuses a target the graph does not hold, in the command's error grammar, asks the engine for the facts and prints them as the formatter words them; a type's answer is printed part by part as each part is known. Nothing is computed or worded here. Registers no Commander subcommand; invoked by the impact command via direct import."
 relations:
   - target: cli/output
     type: calls
-  - target: cli/core/context
-    type: calls
-  - target: cli/core/graph
-    type: calls
-  - target: cli/core/pairs
-    type: calls
-  - target: cli/core/check
-    type: calls
-  - target: cli/core/type-coverage
-    type: calls
-  - target: cli/core/companion-resolve
-    type: calls
-  - target: cli/core/reviewer-tiers
-    type: calls
-  - target: cli/core/file-when-evaluator
-    type: calls
-  - target: cli/io/file-content-cache
-    type: calls
-  - target: cli/io/stores
+  - target: cli/core/impact
     type: calls
   - target: cli/formatters
     type: calls

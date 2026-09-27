@@ -9,12 +9,12 @@
  * form on request.
  */
 import { describe, it, expect } from 'vitest';
-import { formatOutput, enrichCheckJson, previewCheckJson, formatAbort, THREE_WORD_GROUPS } from '../../../src/cli/check-render-views.js';
+import { formatOutput, enrichCheckJson, previewCheckJson, formatAbort, THREE_WORD_GROUPS } from '../../../src/formatters/check-render-views.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import { unverifiedCauseMessage, unverifiedMessage } from '../../../src/formatters/lock-issue-messages.js';
 import { buildCheckJson } from '../../../src/core/check-json.js';
 import { formatCheckJson, formatCompactCheckJson } from '../../../src/formatters/check-json.js';
-import { renderHeader } from '../../../src/cli/check-render-header.js';
+import { renderHeader } from '../../../src/formatters/check-render-header.js';
 
 function result(issues: CheckIssue[], extra: Partial<CheckResult> = {}): CheckResult {
   return {

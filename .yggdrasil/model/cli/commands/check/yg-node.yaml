@@ -42,13 +42,13 @@ relations:
     type: calls
   - target: cli/rules-artifacts
     type: calls
-  - target: cli/check-render-header
+  - target: cli/formatters
     type: calls
-  - target: cli/check-render-groups
+  - target: cli/formatters
     type: calls
-  - target: cli/check-render-views
+  - target: cli/formatters
     type: calls
-  - target: cli/progressive-scope-resolve
+  - target: cli/core/progressive-scope-resolve
     type: calls
   - target: cli/core/suppressions
     type: calls

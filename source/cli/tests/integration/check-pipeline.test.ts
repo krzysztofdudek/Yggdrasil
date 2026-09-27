@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck } from '../../src/core/check.js';
-import { enrichCheckJson } from '../../src/cli/check-render-views.js';
+import { enrichCheckJson } from '../../src/formatters/check-render-views.js';
 import { buildCheckJson } from '../../src/core/check-json.js';
 import type { CheckResult as ReportedResult } from '../../src/core/check.js';
 

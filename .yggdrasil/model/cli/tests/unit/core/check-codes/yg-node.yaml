@@ -9,7 +9,7 @@ description: "Unit tests for the check-codes issue-code partition — every
   with STRUCTURAL_CODES."
 aspects: []
 relations:
-  - target: cli/core/check-codes
+  - target: cli/check-codes
     type: uses
 mapping:
   - source/cli/tests/unit/core/check-codes-partition.test.ts

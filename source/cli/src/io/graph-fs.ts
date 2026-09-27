@@ -1,5 +1,5 @@
 import { access, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { existsSync, readFileSync, statSync, constants as fsConstants } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync, constants as fsConstants } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { debugWrite } from '../utils/debug-log.js';
 import { atomicWriteFile } from './atomic-write.js';
@@ -72,6 +72,20 @@ export function fileExistsSync(filePath: string): boolean {
  * value inline (no async boundary) and treat an absent/garbled source as "nothing
  * to say" rather than an error — e.g. the silent feature-field index reader.
  */
+/**
+ * The resolved form of a path (symbolic links followed), or null when it cannot
+ * be resolved — a path that does not exist or cannot be read. For a caller that
+ * compares two spellings of one directory and treats an unresolvable one as
+ * "not the same", never as an error.
+ */
+export function realPathSyncOrNull(targetPath: string): string | null {
+  try {
+    return realpathSync(targetPath);
+  } catch {
+    return null;
+  }
+}
+
 export function readTextFileSyncOrNull(filePath: string): string | null {
   try {
     return readFileSync(filePath, 'utf-8');

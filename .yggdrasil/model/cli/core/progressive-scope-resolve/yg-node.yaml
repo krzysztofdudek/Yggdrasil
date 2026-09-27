@@ -1,5 +1,5 @@
 name: Progressive Scope Resolve
-type: command-support
+type: engine
 description: "Resolves the CHANGE SCOPE a `yg check` run gates against: which of
   the run's obligations the current change is accountable for, measured against
   the reference branch the project names in its configuration. It resolves the
@@ -30,10 +30,18 @@ description: "Resolves the CHANGE SCOPE a `yg check` run gates against: which of
   the verdict record committed at the reference cannot be read, since 'the
   reference held no verdicts' and 'the record could not be read' are the same
   empty set, and reading the second as the first would silently switch off the
-  check that notices a change deleting verdicts outright."
-aspects: []
+  check that notices a change deleting verdicts outright.
+
+  It reads git only through the utility layer's git adapters and the files it
+  needs (the configuration as it stands, the resolved form of the project
+  root) only through the persistence layer, so the engine's no-process and
+  no-direct-file rules hold for it like any other engine module. The notices
+  it returns are agent-visible diagnostics worded here, so the what-why-next
+  rule judges them here."
+aspects:
+  - what-why-next
 relations:
-  - target: cli/progressive-preflight
+  - target: cli/core/progressive-preflight
     type: calls
   - target: cli/core/progressive-scope
     type: calls
@@ -55,5 +63,7 @@ relations:
     type: uses
   - target: cli/model/validation
     type: uses
+  - target: cli/io/stores
+    type: calls
 mapping:
-  - source/cli/src/cli/progressive-scope-resolve.ts
+  - source/cli/src/core/progressive-scope-resolve.ts

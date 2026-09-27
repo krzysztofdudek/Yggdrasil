@@ -87,7 +87,8 @@ import { runLockPhase } from './check-lock-phase.js';
 import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
-import { applyChangeScope, countOutside, countBaselineNoise } from './check-progressive.js';
+import { applyChangeScope, countBaselineNoise } from './check-progressive.js';
+import { countOutside } from '../utils/check-codes.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatOutput, resolveTopValue, enrichCheckJson } from '../../../src/cli/check-render-views.js';
-import type { CheckView } from '../../../src/cli/check-render-views.js';
+import { formatOutput, resolveTopValue, enrichCheckJson } from '../../../src/formatters/check-render-views.js';
+import type { CheckView } from '../../../src/formatters/check-render-views.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import {
   llmRefusedMessage,

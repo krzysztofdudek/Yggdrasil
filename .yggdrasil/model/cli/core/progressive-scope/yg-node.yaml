@@ -59,5 +59,7 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/core/progressive-scope.ts

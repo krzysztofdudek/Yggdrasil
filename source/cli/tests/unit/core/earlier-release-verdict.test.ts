@@ -16,7 +16,7 @@ import type { Graph, GraphNode, AspectDef } from '../../../src/model/graph.js';
 import { nodeUnit } from '../../../src/model/lock.js';
 import { runCheck } from '../../../src/core/check.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
-import { formatOutput } from '../../../src/cli/check-render-views.js';
+import { formatOutput } from '../../../src/formatters/check-render-views.js';
 
 let tmpDir: string;
 beforeEach(() => {

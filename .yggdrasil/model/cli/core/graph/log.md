@@ -157,3 +157,5 @@ The same idea went by several names across the docs, the agent manual and the CL
 Type-only imports now count as dependencies between components, the same as value imports. The impact graph named the expected-pair type through pair enumeration, which calls the graph module, a cycle between the two components; it now names the type from the model layer. A comment that said a type-only import creates no edge was corrected.
 ## [2026-09-26T01:09:47.495Z]
 Holds the one answer to which components an unmapped file most likely belongs to — those mapping other files in its directory — shared by the context and owner commands so they never disagree.
+## [2026-09-27T00:47:29.074Z]
+Why a pair is invalidated, and a unit whose cost could not be worked out, moved to the model layer and are re-exported here. The formatter that words an impact report glosses every reason and lists every unresolved unit, and a formatter may use plain data types but never the engine.

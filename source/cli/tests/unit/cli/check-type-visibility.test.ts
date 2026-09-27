@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runCheck } from '../../../src/core/check.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
-import { formatOutput } from '../../../src/cli/check-render-views.js';
+import { formatOutput } from '../../../src/formatters/check-render-views.js';
 import { FIXTURE_ZERO_ENFORCEMENT, FIXTURE_BINARY_SUBJECT } from '../../fixtures/type-level-engine/variants/index.js';
 import { copyFixtureTree } from '../../support/fixture-copy.js';
 

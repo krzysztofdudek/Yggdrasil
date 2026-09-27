@@ -94,7 +94,7 @@ relations:
     type: calls
   - target: cli/core/reviewer-tiers
     type: calls
-  - target: cli/group-issues
+  - target: cli/formatters
     type: calls
   - target: cli/relations/core
     type: calls

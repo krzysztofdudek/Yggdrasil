@@ -13,7 +13,7 @@ import {
   checkAspectReferences,
 } from '../../../src/core/checks/aspect-contracts.js';
 import { evaluateWhen } from '../../../src/core/when-evaluator.js';
-import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
+import { STRUCTURAL_CODES } from '../../../src/utils/check-codes.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 /**

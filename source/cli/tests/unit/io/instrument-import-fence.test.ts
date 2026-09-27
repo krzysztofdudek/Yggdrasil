@@ -157,13 +157,13 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     // its actual filename while leaving a non-gating importer (cli/advise.ts) alone.
     expect(existsSync(path.join(REPO_ROOT, 'source/cli/src/core/node-churn.ts'))).toBe(true);
     const IMPORT_CHURN = `import { countChurnByNode } from '../core/node-churn.js';\nexport const c = countChurnByNode;\n`;
-    writeSource('source/cli/src/cli/group-issues.ts', IMPORT_CHURN); // gating module — FLAGGED
+    writeSource('source/cli/src/formatters/group-issues.ts', IMPORT_CHURN); // gating module — FLAGGED
     writeSource('source/cli/src/cli/advise.ts', IMPORT_CHURN); // non-gating importer — allowed
     const flagged = await runGuard([
-      'source/cli/src/cli/group-issues.ts',
+      'source/cli/src/formatters/group-issues.ts',
       'source/cli/src/cli/advise.ts',
     ]);
-    expect(flagged.has('source/cli/src/cli/group-issues.ts')).toBe(true);
+    expect(flagged.has('source/cli/src/formatters/group-issues.ts')).toBe(true);
     expect(flagged.has('source/cli/src/cli/advise.ts')).toBe(false);
   });
 
@@ -174,19 +174,19 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     // residualAfterNext, issuePriorityRank-driven ordering) — the same reason
     // group-issues.ts is gated. Each must be fenced individually.
     const IMPORT_METRICS = `import { computeMetrics } from '../core/graph-metrics.js';\nexport const m = computeMetrics;\n`;
-    writeSource('source/cli/src/cli/check-render-header.ts', IMPORT_METRICS);
-    writeSource('source/cli/src/cli/check-render-groups.ts', IMPORT_METRICS);
-    writeSource('source/cli/src/cli/check-render-views.ts', IMPORT_METRICS);
+    writeSource('source/cli/src/formatters/check-render-header.ts', IMPORT_METRICS);
+    writeSource('source/cli/src/formatters/check-render-groups.ts', IMPORT_METRICS);
+    writeSource('source/cli/src/formatters/check-render-views.ts', IMPORT_METRICS);
     const flagged = await runGuard([
-      'source/cli/src/cli/check-render-header.ts',
-      'source/cli/src/cli/check-render-groups.ts',
-      'source/cli/src/cli/check-render-views.ts',
+      'source/cli/src/formatters/check-render-header.ts',
+      'source/cli/src/formatters/check-render-groups.ts',
+      'source/cli/src/formatters/check-render-views.ts',
     ]);
     expect(flagged).toEqual(
       new Set([
-        'source/cli/src/cli/check-render-header.ts',
-        'source/cli/src/cli/check-render-groups.ts',
-        'source/cli/src/cli/check-render-views.ts',
+        'source/cli/src/formatters/check-render-header.ts',
+        'source/cli/src/formatters/check-render-groups.ts',
+        'source/cli/src/formatters/check-render-views.ts',
       ]),
     );
   });
@@ -200,7 +200,8 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
     const gating: string[] = [];
     for (const [dir, re] of [
       ['source/cli/src/core', /^(check|check-[^/]+|progressive-[^/]+)\.ts$/],
-      ['source/cli/src/cli', /^(check|check-[^/]+|group-issues)\.ts$/],
+      ['source/cli/src/cli', /^(check|check-[^/]+)\.ts$/],
+      ['source/cli/src/formatters', /^(check-render-[^/]+|group-issues)\.ts$/],
     ] as const) {
       for (const name of readdirSync(path.join(REPO_ROOT, dir))) {
         if (re.test(name) && !name.endsWith('.test.ts')) gating.push(`${dir}/${name}`);

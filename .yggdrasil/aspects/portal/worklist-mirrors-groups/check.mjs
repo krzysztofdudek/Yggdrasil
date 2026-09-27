@@ -4,7 +4,7 @@ import { walk, report } from '@chrisdudek/yg/ast';
  * portal/worklist-mirrors-groups
  *
  * The portal worklist (`WorklistGroup`, portal/contract.ts) is a HAND-MAINTAINED view of
- * the CLI's own issue-grouping shape (`IssueGroup`, cli/group-issues.ts) — the two are
+ * the CLI's own issue-grouping shape (`IssueGroup`, formatters/group-issues.ts) — the two are
  * separate interfaces, so nothing in the compiler stops one from gaining a field the
  * other never learns about. That is exactly the defect this rule exists to catch: a
  * command-line grouping refinement (a new `IssueGroup` field) can silently never reach
@@ -66,7 +66,7 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *
  * Real graph access — production `yg check --approve` / `yg fill`, and
  * `aspect-test --node` (both via structure/runner.ts): both interfaces are read through
- * this node's ALREADY-declared relations (`calls cli/group-issues`, `uses
+ * this node's ALREADY-declared relations (`calls cli/formatters`, `uses
  * cli/portal/contract` — both already on cli/portal/engine-api, so this aspect adds no
  * new relation) and parsed live, so the verdict folds both files and self-invalidates
  * the moment either one changes. Mirrors the precedent on this same node
@@ -89,8 +89,8 @@ import { walk, report } from '@chrisdudek/yg/ast';
  * either), or a throw (the drill trap) all resolve to the correct branch.
  */
 
-const GROUP_ISSUES_NODE_ID = 'cli/group-issues';
-const GROUP_ISSUES_FILE_SUFFIX = '/cli/group-issues.ts';
+const GROUP_ISSUES_NODE_ID = 'cli/formatters';
+const GROUP_ISSUES_FILE_SUFFIX = '/formatters/group-issues.ts';
 const CONTRACT_NODE_ID = 'cli/portal/contract';
 const CONTRACT_FILE_SUFFIX = '/portal/contract.ts';
 

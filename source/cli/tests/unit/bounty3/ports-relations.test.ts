@@ -21,7 +21,7 @@ import {
   computeEffectiveAspectStatuses,
   getAspectStatusSources,
 } from '../../../src/core/graph/aspects.js';
-import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
+import { STRUCTURAL_CODES } from '../../../src/utils/check-codes.js';
 import type {
   Graph,
   GraphNode,

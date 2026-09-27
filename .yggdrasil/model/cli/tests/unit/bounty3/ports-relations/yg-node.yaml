@@ -7,7 +7,7 @@ relations:
     { target: cli/core/checks/architecture, type: uses },
     { target: cli/core/checks/relations, type: uses },
     { target: cli/core/graph, type: uses },
-    { target: cli/core/check-codes, type: uses },
+    { target: cli/check-codes, type: uses },
     { target: cli/model/graph, type: uses }
   ]
 mapping:
