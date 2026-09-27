@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { resolveApiKey, apiFetch } from '../../../src/llm/api-utils.js';
 import type { LlmConfig } from '../../../src/model/graph.js';
-import { describeHttpFailure, describeFetchFailure, unavailableKeyReason, DEFAULT_API_TIMEOUT_MS } from '../../../src/llm/api-utils.js';
+import { describeHttpFailure, describeFetchFailure, unavailableKeyReason, keyBlockReason, DEFAULT_API_TIMEOUT_MS } from '../../../src/llm/api-utils.js';
 import { withheldCommittedEndpoint } from '../../../src/utils/known-providers.js';
 
 const baseCfg: LlmConfig = {
@@ -120,5 +120,33 @@ describe('reviewer failure classification', () => {
 
   it('the hosted default timeout is 60s', () => {
     expect(DEFAULT_API_TIMEOUT_MS).toBe(60_000);
+  });
+});
+
+describe('keys the developer holds and endpoints they did not name', () => {
+  afterEach(() => {
+    delete process.env.OPENAI_COMPATIBLE_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it('a stored key goes to a committed openai-compatible endpoint only when that endpoint is named locally', () => {
+    const cfg: LlmConfig = { ...baseCfg, provider: 'openai-compatible', endpoint: 'https://gw.example.test/v1', endpointSource: 'committed', api_key: 'sk-stored' };
+    expect(resolveApiKey(cfg)).toBeUndefined();
+    expect(keyBlockReason(cfg)).toMatch(/^key withheld: .*yg-secrets\.yaml/);
+    expect(resolveApiKey({ ...cfg, endpointSource: 'local' })).toBe('sk-stored');
+  });
+
+  it('OPENAI_COMPATIBLE_API_KEY still reaches the committed openai-compatible endpoint, instead of the withheld stored key', () => {
+    process.env.OPENAI_COMPATIBLE_API_KEY = 'sk-compat';
+    const cfg: LlmConfig = { ...baseCfg, provider: 'openai-compatible', endpoint: 'https://gw.example.test/v1', endpointSource: 'committed', api_key: 'sk-stored' };
+    expect(keyBlockReason(cfg)).toBeUndefined();
+    expect(resolveApiKey(cfg)).toBe('sk-compat');
+  });
+
+  it('a tracked yg-secrets.yaml sends no key for any tier, not even the environment one to the provider itself', () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-env';
+    const cfg: LlmConfig = { ...baseCfg, provider: 'anthropic', secretsTracked: true };
+    expect(resolveApiKey(cfg)).toBeUndefined();
+    expect(unavailableKeyReason(cfg)).toContain('tracked by git');
   });
 });

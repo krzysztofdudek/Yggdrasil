@@ -285,9 +285,15 @@ reviewer reports itself unavailable (the pairs stay unverified) and \`yg check\`
 warns with \`reviewer-endpoint-committed\`. Whoever changes the shared file must
 not decide where your key goes. To use such an endpoint (a proxy or gateway you
 run), name it for the tier in \`yg-secrets.yaml\` (\`config.endpoint\`, the same
-URL is fine); in CI, write that file in the job. \`openai-compatible\` is not
-affected: its endpoint is always the one the tier names, and its key variable
-exists for it.
+URL is fine); in CI, write that file in the job. The same holds for an
+\`openai-compatible\` tier whose key is a \`config.api_key\` in
+\`yg-secrets.yaml\` (often stored for an earlier reviewer): it goes only to an
+endpoint named locally. \`OPENAI_COMPATIBLE_API_KEY\` is the one key that
+reaches a committed \`openai-compatible\` endpoint — it exists for whatever
+server the tier names. \`yg init\` writes such an endpoint to
+\`yg-secrets.yaml\` itself (\`--endpoint\` for a first-party provider; the
+server of a key typed for \`openai-compatible\`). While \`yg-secrets.yaml\` is
+tracked by git, nothing in it is local: no key is sent for any tier.
 
 ## Coverage config
 

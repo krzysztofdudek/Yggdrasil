@@ -34,23 +34,35 @@ function isCanonicalEndpoint(provider: { endpoint: string }, endpoint: string): 
 }
 
 /**
- * The committed endpoint a first-party provider (anthropic, openai, google)
- * refuses to send its key to, or undefined when the key may go.
+ * The committed endpoint a tier refuses to send the developer's key to, or
+ * undefined when the key may go.
  *
  * The key is the developer's own — their environment variable, or their
  * yg-secrets.yaml — while yg-config.yaml is shared: whoever last changed the
  * committed file would otherwise decide where that key travels on the next
- * `yg check --approve`. So a first-party key goes only to the provider's own
- * endpoint, or to an endpoint the developer names locally: the tier's
- * `config.endpoint` in yg-secrets.yaml (the same URL as the committed one is
- * the explicit way to accept it). The overlay's value then wins, so a later
- * change to the committed endpoint cannot move the key either. Other providers
- * are out of scope: openai-compatible exists to call the endpoint the tier
- * names and reads its own variable for that purpose; ollama and the CLI
- * providers send no key.
+ * `yg check --approve`. So a key goes to an endpoint named only in the
+ * committed file in two cases alone: it is a first-party provider's own
+ * canonical endpoint, or the key is `OPENAI_COMPATIBLE_API_KEY`, the variable
+ * that exists for whatever server an openai-compatible tier names. Everything
+ * else needs the endpoint named for the tier in yg-secrets.yaml — the same URL
+ * as the committed one is the explicit way to accept it — and then the local
+ * value wins, so a later committed change cannot move the key either:
+ *   - a first-party tier (anthropic, openai, google) at any other endpoint,
+ *     whatever the key's source;
+ *   - an openai-compatible tier whose key is a `config.api_key` (in practice
+ *     stored in yg-secrets.yaml for some earlier reviewer): switching the
+ *     committed provider to openai-compatible must not carry it to a new server.
+ * ollama and the CLI providers send no key.
  */
-export function withheldCommittedEndpoint(config: { provider: string; endpoint?: string; endpointSource?: 'committed' | 'local' }): string | undefined {
+export function withheldCommittedEndpoint(config: {
+  provider: string;
+  endpoint?: string;
+  endpointSource?: 'committed' | 'local';
+  api_key?: string;
+}): string | undefined {
+  if (config.endpoint === undefined || config.endpointSource !== 'committed') return undefined;
   const firstParty = firstPartyProvider(config.provider);
-  if (!firstParty || config.endpoint === undefined || config.endpointSource !== 'committed') return undefined;
-  return isCanonicalEndpoint(firstParty, config.endpoint) ? undefined : config.endpoint.trim();
+  if (firstParty !== undefined) return isCanonicalEndpoint(firstParty, config.endpoint) ? undefined : config.endpoint.trim();
+  if (config.provider === 'openai-compatible' && config.api_key) return config.endpoint.trim();
+  return undefined;
 }

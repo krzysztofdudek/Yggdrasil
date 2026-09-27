@@ -19,11 +19,12 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseJson, expectIssue, expectNoIssue, type OutputDoc } from '../support/assert-output.js';
+import { runGitFixture } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN_PATH = path.join(__dirname, '..', '..', 'dist', 'bin.js');
@@ -156,6 +157,82 @@ describe.skipIf(!distExists)('a committed first-party endpoint and the developer
       expect(server.keys.length).toBeGreaterThan(0);
       expect(server.keys.every((k) => k === LOCAL_KEY), JSON.stringify(server.keys)).toBe(true);
       expectNoIssue(parseJson<OutputDoc>(fill.stdout), { code: 'reviewer-endpoint-committed' });
+    } finally {
+      await server.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+const STORED = 'sk-STORED-FOR-AN-EARLIER-REVIEWER';
+
+/** An OpenAI-format server that approves everything and records each request's Authorization header. */
+async function openAiCapture(): Promise<{ endpoint: string; auth: Array<string | undefined>; close(): Promise<void> }> {
+  const auth: Array<string | undefined> = [];
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    req.on('data', () => {});
+    req.on('end', () => {
+      auth.push(req.headers.authorization);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ satisfied: true, reason: 'ok' }) } }] }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  const port = (server.address() as AddressInfo).port;
+  return { endpoint: `http://127.0.0.1:${port}/v1`, auth, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+}
+
+/** The same project, its committed tier switched to openai-compatible at `endpoint`. */
+function compatProject(endpoint: string): string {
+  const root = project(endpoint);
+  const cfg = path.join(root, '.yggdrasil', 'yg-config.yaml');
+  writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace('provider: anthropic', 'provider: openai-compatible'), 'utf-8');
+  return root;
+}
+
+// A key stored in yg-secrets.yaml for one reviewer must not follow a committed
+// switch of the provider to an openai-compatible server. Before: the switched
+// tier sent the stored key to whatever endpoint the committed file named.
+describe.skipIf(!distExists)('a key stored in yg-secrets.yaml and a committed openai-compatible endpoint', () => {
+  it('the committed server receives no stored key; naming it in yg-secrets.yaml is the opt-in', async () => {
+    const server = await openAiCapture();
+    const root = compatProject(server.endpoint);
+    try {
+      w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: ${STORED}\n`);
+      const fill = await run(['check', '--approve', '--json'], root);
+      expect(server.auth, fill.all).toEqual([]);
+      expect(fill.all).not.toContain(STORED);
+      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'reviewer-endpoint-committed', severity: 'warning' });
+
+      w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: ${STORED}\n        endpoint: "${server.endpoint}"\n`);
+      const optedIn = await run(['check', '--approve', '--json'], root);
+      expect(optedIn.status, optedIn.all).toBe(0);
+      expect(server.auth.length).toBeGreaterThan(0);
+      expect(server.auth.every((a) => a === `Bearer ${STORED}`), JSON.stringify(server.auth)).toBe(true);
+    } finally {
+      await server.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// A yg-secrets.yaml that is tracked by git is shared like the committed file:
+// it must not be able to forge the local opt-in. Before: a tracked overlay
+// naming the endpoint sent the developer's key there.
+describe.skipIf(!distExists)('a tracked yg-secrets.yaml', () => {
+  it('forges no opt-in: no key is sent, and secrets-file-tracked stands', async () => {
+    const server = await captureServer();
+    const root = project(server.endpoint);
+    try {
+      w(root, '.yggdrasil/yg-secrets.yaml', `reviewer:\n  tiers:\n    standard:\n      config:\n        endpoint: "${server.endpoint}"\n`);
+      runGitFixture(root, ['init', '-q', '-b', 'main']);
+      runGitFixture(root, ['add', '-A']);
+      runGitFixture(root, ['add', '-f', '.yggdrasil/yg-secrets.yaml']);
+      runGitFixture(root, ['commit', '-qm', 'project with a tracked overlay']);
+      const fill = await run(['check', '--approve', '--json'], root);
+      expect(server.keys, fill.all).toEqual([]);
+      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'secrets-file-tracked' });
+      expectIssue(parseJson<OutputDoc>(fill.stdout), { code: 'unverified', cause: 'reviewer-unreachable' });
     } finally {
       await server.close();
       rmSync(root, { recursive: true, force: true });

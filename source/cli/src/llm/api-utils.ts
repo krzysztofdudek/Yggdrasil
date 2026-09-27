@@ -26,20 +26,36 @@ export const DEFAULT_API_TIMEOUT_MS = 60_000;
  * withheldCommittedEndpoint).
  */
 export function resolveApiKey(config: LlmConfig): string | undefined {
-  if (withheldCommittedEndpoint(config) !== undefined) return undefined;
-  if (config.api_key) return config.api_key;
+  if (keyBlockReason(config) !== undefined) return undefined;
+  // A stored key withheld from a committed openai-compatible endpoint leaves
+  // that provider's own variable, which exists for exactly that endpoint.
+  if (config.api_key && withheldCommittedEndpoint(config) === undefined) return config.api_key;
   const envVar = ENV_VAR_MAP[config.provider];
   return envVar ? process.env[envVar] : undefined;
 }
 
 /**
- * Why a hosted provider is unavailable: its key is withheld from a committed
- * endpoint, or there is no key at all.
+ * Why no key may be sent for this tier at all, or undefined when one may: the
+ * yg-secrets.yaml overlay is tracked by git (nothing in it is local), or the
+ * tier's endpoint is a committed one the key is withheld from (see
+ * withheldCommittedEndpoint) and no key remains that may go there.
  */
-export function unavailableKeyReason(config: LlmConfig): string {
+export function keyBlockReason(config: LlmConfig): string | undefined {
+  if (config.secretsTracked === true) {
+    return 'key withheld: .yggdrasil/yg-secrets.yaml is tracked by git, so it is shared like the committed configuration and nothing in it is a local choice — no API key is sent for any tier until it is untracked (git rm --cached .yggdrasil/yg-secrets.yaml); nothing was sent';
+  }
   const withheld = withheldCommittedEndpoint(config);
-  if (withheld === undefined) return missingKeyReason(config.provider);
+  if (withheld === undefined) return undefined;
+  if (config.provider === 'openai-compatible') {
+    if (process.env[ENV_VAR_MAP['openai-compatible']]) return undefined;
+    return `key withheld: config.endpoint (${withheld}) comes from the committed yg-config.yaml, and the api_key this tier holds in yg-secrets.yaml is not sent to an endpoint named only there — if the endpoint is yours, name it for this tier in .yggdrasil/yg-secrets.yaml (config.endpoint), or set OPENAI_COMPATIBLE_API_KEY; nothing was sent`;
+  }
   return `key withheld: config.endpoint (${withheld}) comes from the committed yg-config.yaml and is not ${config.provider}'s own endpoint, so no API key is sent there — if the endpoint is yours, name it for this tier in .yggdrasil/yg-secrets.yaml (config.endpoint) to send the key; nothing was sent`;
+}
+
+/** Why a hosted provider is unavailable: no key may be sent for the tier, or there is none. */
+export function unavailableKeyReason(config: LlmConfig): string {
+  return keyBlockReason(config) ?? missingKeyReason(config.provider);
 }
 
 /** Where the key goes, for a message that says it is missing or refused. */

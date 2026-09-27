@@ -269,6 +269,13 @@ export interface LlmConfig {
    * able to point a developer's key somewhere new. Never a verdict input.
    */
   endpointSource?: 'committed' | 'local';
+  /**
+   * True when .yggdrasil/yg-secrets.yaml is tracked by git. Its contents are
+   * then shared like the committed file, so nothing in it is a local choice:
+   * no endpoint counts as local and no key is sent for any tier until the file
+   * is untracked (`secrets-file-tracked` says so). Never a verdict input.
+   */
+  secretsTracked?: boolean;
 }
 
 export interface NodeMeta {

@@ -66,8 +66,16 @@ export function checkReviewerCredentials(graph: Graph): ValidationIssue[] {
 
   for (const [tierName, tier] of Object.entries(graph.config.reviewer?.tiers ?? {})) {
     const withheld = withheldCommittedEndpoint(tier);
+    if (withheld === undefined) continue;
     const firstParty = firstPartyProvider(tier.provider);
-    if (withheld === undefined || !firstParty) continue;
+    if (firstParty === undefined) {
+      push('warning', 'reviewer-endpoint-committed', {
+        what: `Tier '${tierName}' (${tier.provider}) names ${withheld} as its endpoint in the committed yg-config.yaml only, so the api_key it holds in yg-secrets.yaml is not sent there.`,
+        why: 'A committed endpoint is set by whoever last changed the shared file, while a key in yg-secrets.yaml belongs to whoever runs yg check --approve — often stored for another reviewer; it goes to an endpoint only when that person names it locally.',
+        next: `If this endpoint is yours, name it for tier '${tierName}' in .yggdrasil/yg-secrets.yaml (reviewer.tiers.${tierName}.config.endpoint); otherwise remove the api_key there (OPENAI_COMPATIBLE_API_KEY still reaches the committed endpoint).`,
+      });
+      continue;
+    }
     const plainHttp = /^http:\/\//i.test(withheld);
     push('warning', 'reviewer-endpoint-committed', {
       what: `Tier '${tierName}' (${tier.provider}) names ${withheld}${plainHttp ? ', over plain http,' : ''} as its endpoint in the committed yg-config.yaml — not ${firstParty.endpoint} — so no API key is sent to it and the tier's reviewer pairs stay unverified.`,
