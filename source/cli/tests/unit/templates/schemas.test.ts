@@ -1,23 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import { SCHEMA_TOPICS } from '../../../src/templates/schemas/index.js';
+import { FILE_FORMATS } from '../../../src/utils/file-formats.js';
 
 describe('SCHEMA_TOPICS', () => {
-  it('exports exactly 5 schemas', () => {
-    expect(Object.keys(SCHEMA_TOPICS).length).toBe(5);
+  it('has one annotated example per file format the CLI reads, and no other', () => {
+    expect(Object.keys(SCHEMA_TOPICS).sort()).toEqual(FILE_FORMATS.map((f) => f.name).sort());
   });
 
   it('has expected schema names (regression pin)', () => {
     const names = Object.keys(SCHEMA_TOPICS).sort();
-    expect(names).toEqual(['architecture', 'aspect', 'config', 'flow', 'node']);
+    expect(names).toEqual(['architecture', 'aspect', 'aspect-adapt', 'config', 'flow', 'marketplace', 'node', 'package', 'packages', 'secrets']);
   });
 
   it('each schema has a non-empty summary and YAML-shaped content', () => {
-    for (const [slug, topic] of Object.entries(SCHEMA_TOPICS)) {
-      expect(topic.summary, slug).toBeDefined();
-      expect(topic.summary.length, slug).toBeGreaterThan(10);
-      expect(topic.content, slug).toBeDefined();
-      expect(topic.content.length, slug).toBeGreaterThan(100);
-      expect(topic.content, slug).toMatch(/^# yg-\w+\.yaml/m);
+    for (const format of FILE_FORMATS) {
+      expect(format.summary.length, format.name).toBeGreaterThan(10);
+      const topic = SCHEMA_TOPICS[format.name];
+      expect(topic.content.length, format.name).toBeGreaterThan(100);
+      expect(topic.content, format.name).toMatch(/^# yg-[\w.]+\.yaml/m);
     }
   });
 

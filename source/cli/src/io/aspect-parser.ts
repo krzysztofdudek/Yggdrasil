@@ -17,6 +17,8 @@ import { parseFileWhen, WhenPredicateInvalidError } from '../utils/file-when-par
 import { aspectStatusInvalidMessage, aspectReviewByMalformedMessage, impliesStatusInheritInvalidMessage } from '../formatters/aspect-status-messages.js';
 import { toPosixPath } from '../utils/posix.js';
 import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
+import { keysOf, retiredOf, schemaProblems } from '../utils/file-schema.js';
+import { ASPECT_REFERENCE, ASPECT_REVIEWER, ASPECT_ROOT, ASPECT_SCOPE } from '../utils/file-formats-graph.js';
 
 /**
  * Bare ISO calendar-date shape for `review_by:` — `YYYY-MM-DD`, nothing else.
@@ -40,23 +42,16 @@ const REVIEW_BY_DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 
 /**
- * The keys the top level of a yg-aspect.yaml accepts. Anything else is refused
- * by name with the nearest accepted key (aspect-unknown-key). A rule that needs a
- * key a later release adds says so through its package's requires.yg, which an
- * install enforces.
+ * The keys the top level of a yg-aspect.yaml accepts, from the aspect schema
+ * (utils/file-formats-graph.ts) that `yg schemas read aspect` prints. Anything
+ * else is refused by name with the nearest accepted key (aspect-unknown-key). A
+ * rule that needs a key a later release adds says so through its package's
+ * requires.yg, which an install enforces.
  */
-const ASPECT_KEYS = [
-  'name', 'description', 'reviewer', 'status', 'review_by', 'errs', 'implies',
-  'when', 'references', 'scope', 'companion', 'config',
-] as const;
+const ASPECT_KEYS = keysOf(ASPECT_ROOT);
 
 /** yg-aspect.yaml keys an earlier release read (or never read), and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_ASPECT_KEYS: RetiredKeys = {
-  id: "never read: a rule's id is its directory path under aspects/",
-  language: "removed in 5.0.0: a script rule reads each file's language from its extension",
-  stability: 'removed in 4.0.0',
-  anchors: 'removed in 4.0.0',
-};
+export const RETIRED_ASPECT_KEYS: RetiredKeys = retiredOf(ASPECT_ROOT);
 
 export function isValidReviewByDate(value: string): boolean {
   if (!REVIEW_BY_DATE.test(value)) return false;
@@ -215,14 +210,14 @@ function parseReferences(
           }],
         };
       }
-      const unknownRefKeys = findUnknownKeys(obj, ['path', 'description']);
+      const unknownRefKeys = findUnknownKeys(obj, keysOf(ASPECT_REFERENCE));
       if (unknownRefKeys.length > 0) {
         return {
           ok: false,
           errors: [{
             code: 'aspect-reference-invalid-form',
             messageData: {
-              what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys(`references[${i}]`, unknownRefKeys, ['path', 'description'])}`,
+              what: `yg-aspect.yaml at ${aspectYamlPath}: ${describeUnknownKeys(`references[${i}]`, unknownRefKeys, keysOf(ASPECT_REFERENCE))}`,
               why: 'each reference entry must be a string OR an object { path: string, description?: string }',
               next: `correct or remove '${unknownRefKeys[0].key}' in references[${i}]`,
             },
@@ -415,6 +410,9 @@ export async function parseAspect(
   if (!configResult.ok) return refused(configResult.errors);
   const config = configResult.value;
 
+  const schemaResult = schemaFloor(raw, idTrimmed, adapt.present ? `${aspectYamlPath} (with ${adaptFilePath})` : aspectYamlPath);
+  if (!schemaResult.ok) return refused(schemaResult.errors);
+
   // An externally-named companion joins the aspect's artifacts under the name the
   // rest of the system already looks for. That is what keeps the verdict honest:
   // the companion hash is taken from the artifacts, so an edit to YOUR module
@@ -448,6 +446,22 @@ export async function parseAspect(
       ...(supportFiles.length > 0 && { supportFiles }),
     },
   };
+}
+
+/**
+ * The schema's floor under the field checks: a value of the wrong type none of
+ * them looks at (a description that is a list, a reference description that is
+ * a number) would otherwise be dropped without a word. Run over the definition
+ * as it is enforced — the rule's own file with any adaptation merged in.
+ */
+function schemaFloor(raw: Record<string, unknown>, idTrimmed: string, where: string): FieldResult<null> {
+  const problems = schemaProblems(raw, ASPECT_ROOT);
+  if (problems.length === 0) return { ok: true, value: null };
+  return fieldRefusal('aspect-field-invalid', {
+    what: `yg-aspect.yaml at ${where}: ${problems[0].message}`,
+    why: `Rule '${idTrimmed}' is not loaded until the value is corrected: a value of the wrong type would be ignored, so the rule would run differently from what its file says.`,
+    next: `Correct '${problems[0].where}' (yg schemas read aspect gives each key's type).`,
+  });
 }
 
 /** The refusals a field parse can end in, in the parser's one error shape. */
@@ -958,7 +972,7 @@ function parseReviewer(
   }
 
   // Step 3: unknown keys — INDEPENDENT of type presence/validity
-  const allowedKeys = new Set(['type', 'tier']);
+  const allowedKeys = new Set(keysOf(ASPECT_REVIEWER));
   for (const k of Object.keys(obj)) {
     if (!allowedKeys.has(k)) {
       errors.push({
@@ -1068,7 +1082,7 @@ function parseScope(
   const obj = rawScope as Record<string, unknown>;
 
   // Reject unknown keys (only 'per' and 'files' are allowed)
-  const ALLOWED_SCOPE_KEYS = new Set(['per', 'files']);
+  const ALLOWED_SCOPE_KEYS = new Set(keysOf(ASPECT_SCOPE));
   const unknownScopeKeys = Object.keys(obj).filter(k => !ALLOWED_SCOPE_KEYS.has(k));
   if (unknownScopeKeys.length > 0) {
     return {

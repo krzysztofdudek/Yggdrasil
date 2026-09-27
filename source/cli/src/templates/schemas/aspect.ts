@@ -1,4 +1,3 @@
-export const summary = 'Aspect definition — rule kind, scope, status, review_by, errs, implies, references, companion, when.';
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file

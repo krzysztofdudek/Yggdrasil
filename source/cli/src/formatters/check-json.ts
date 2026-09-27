@@ -288,6 +288,18 @@ export interface CheckJsonDocument {
   compact?: true;
 }
 
+/**
+ * One finding in the compact form: `why` and `next` left out where its group
+ * states them, `label` where it is its group's, `unitRef` where `unit` states it.
+ */
+export type CompactCheckJsonIssue = Omit<CheckJsonIssue, 'why' | 'next' | 'label' | 'unitRef'> & Partial<Pick<CheckJsonIssue, 'why' | 'next' | 'label' | 'unitRef'>>;
+
+/** The compact form of a check document (`yg check --json --compact`); see {@link formatCompactCheckJson}. */
+export type CompactCheckJsonDocument = Omit<CheckJsonDocument, 'issues' | 'compact'> & { issues: CompactCheckJsonIssue[]; compact: true };
+
+/** Either form a `yg-check/1` document takes: the full one, or the compact one. */
+export type CheckJsonAnyDocument = CheckJsonDocument | CompactCheckJsonDocument;
+
 /** Render one check document as pretty-printed JSON with a trailing newline. */
 export function formatCheckJson(doc: CheckJsonDocument): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
@@ -305,7 +317,7 @@ export function formatCheckJson(doc: CheckJsonDocument): string {
 export function formatCompactCheckJson(doc: CheckJsonDocument): string {
   const groupOf = new Map<number, CheckJsonGroup>();
   for (const g of doc.groups ?? []) for (const m of g.members) groupOf.set(m, g);
-  const issues = doc.issues.map((issue, i) => {
+  const issues = doc.issues.map((issue, i): CompactCheckJsonIssue => {
     const g = groupOf.get(i);
     // `label` is its group's, `unitRef` is `unit` parsed: both recomputable.
     const { why, next, label, unitRef, ...rest } = issue;
@@ -317,7 +329,7 @@ export function formatCompactCheckJson(doc: CheckJsonDocument): string {
       ...(g?.next !== undefined && g.next !== null && g.next === next ? {} : { next }),
     };
   });
-  const compact = { ...doc, pairs: doc.pairs.filter((p) => p.verdict !== 'approved'), issues, compact: true as const };
+  const compact: CompactCheckJsonDocument = { ...doc, pairs: doc.pairs.filter((p) => p.verdict !== 'approved'), issues, compact: true };
   return `${JSON.stringify(compact)}\n`;
 }
 

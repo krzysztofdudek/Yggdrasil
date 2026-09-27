@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-log-1.schema.json",
+  "title": "Component log (yg log read --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-log/1"
+    },
+    "node": {
+      "description": "The node, as its path under model/.",
+      "type": "string"
+    },
+    "entries": {
+      "description": "Its log entries, newest first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "datetime": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "datetime",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "verdictEvents": {
+      "description": "Present with --with-verdicts: the fill events attributed to the node.",
+      "type": "object",
+      "properties": {
+        "since": {
+          "description": "The earliest event considered, or null for the whole history.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "sharedHistory": {
+          "description": "Whether the event stream is committed (shared with the team) rather than local.",
+          "type": "boolean"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VerdictEvent"
+          }
+        }
+      },
+      "required": [
+        "since",
+        "sharedHistory",
+        "events"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "node",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "VerdictEvent": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "description": "Line-schema version. Readers treat an absent `v` as v1.",
+          "const": 1
+        },
+        "ts": {
+          "description": "ISO 8601 UTC timestamp — from the fill's injected clock, never Date.now() in core/.",
+          "type": "string"
+        },
+        "sha": {
+          "description": "Commit the fill ran at (`git rev-parse HEAD`), resolved by the CLI before entering fill — never computed in core/. Absent without a git repository, before the first commit, or with git missing from PATH. NEVER a hash ingredient.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Discriminator for the emitting subsystem. 'fill' = yg check --approve (core); 'drill' = yg drill (LLM case runs); 'diag' = yg aspect-test (--repeat / --tier). NEVER a hash ingredient. Every reader MUST filter by this field before aggregating — mixing regimes is corruption risk #1.",
+          "enum": [
+            "diag",
+            "drill",
+            "fill"
+          ]
+        },
+        "aspectId": {
+          "type": "string"
+        },
+        "unitKey": {
+          "description": "POSIX-normalized unit key: 'node:<path>' or 'file:<path>' for verification units, and 'drill:<aspect>/<case>' for a drill case run (source: 'drill').",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "deterministic",
+            "llm"
+          ]
+        },
+        "disposition": {
+          "enum": [
+            "approved",
+            "companion-runtime-error",
+            "infra",
+            "malformed-suppress",
+            "refused",
+            "runtime-error"
+          ]
+        },
+        "hash": {
+          "description": "inputHash — present on approved/refused only.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "The reviewer's reason. On REFUSED it mirrors the lock. On an LLM APPROVED line it is the approval's own reason, which the lock never records — kept here, on the local line only, so approvals can be audited (a vague rule that approves everything, or an approval a subject file argued the reviewer into, shows up in its reason). The committed stream strips it either way. Absent on deterministic approvals and older lines.",
+          "type": "string"
+        },
+        "tier": {
+          "description": "LLM only — tier NAME.",
+          "type": "string"
+        },
+        "promptRev": {
+          "description": "LLM only — PROMPT_FORMAT_REV at emission time.",
+          "type": "number"
+        },
+        "promptHash": {
+          "description": "`source: 'diag'` only — sha256 of the exact prompt the reviewer was given. Two diagnostic runs judged the same input exactly when their promptHash (and judge) match; `yg advise` counts a split vote only among such runs, so a refusal before a code fix and an approval after it are never read as one ambiguous rule. Absent on older lines, which advise therefore ignores. NEVER a hash ingredient.",
+          "type": "string"
+        },
+        "votes": {
+          "description": "LLM verdicts only — the consensus vote split for this pair: how many of the tier's independent review passes were satisfied (`satisfied`) out of the passes that returned a verdict (`total`). A pass that failed on a provider error is not a verdict and counts in neither figure, so `total` can be below the tier's consensus. A single-vote tier (consensus <= 1) records the length-1 case, `total: 1`. Absent on deterministic verdicts and on every no-write disposition.",
+          "type": "object",
+          "properties": {
+            "satisfied": {
+              "type": "number"
+            },
+            "total": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "satisfied",
+            "total"
+          ],
+          "additionalProperties": false
+        },
+        "judge": {
+          "description": "LLM only — identity of the resolved judge at call time. Tier re-pointing is deliberately invisible to the lock, so without this field a quarter of telemetry mixes judge regimes undetectably. Absent ⇒ regime unknown (all pre-wave-2 lines). NEVER a hash ingredient.",
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "model"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "v",
+        "ts",
+        "source",
+        "aspectId",
+        "unitKey",
+        "kind",
+        "disposition"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

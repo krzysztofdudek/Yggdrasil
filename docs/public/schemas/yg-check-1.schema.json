@@ -1,0 +1,1218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-check-1.schema.json",
+  "title": "Run report (yg check --json, and its --compact form)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/CheckJsonDocument"
+    },
+    {
+      "$ref": "#/$defs/CompactCheckJsonDocument"
+    }
+  ],
+  "$defs": {
+    "CheckJsonAbort": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "description": "`log-gate`: components owe a justification entry; `structural`: a problem leaves the run unsafe.",
+          "enum": [
+            "log-gate",
+            "structural"
+          ]
+        },
+        "issues": {
+          "description": "The findings that stopped the run, in the same shape as `issues`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonIssue"
+          }
+        }
+      },
+      "required": [
+        "stage",
+        "issues"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonDocument": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "yg-check/1"
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "nodes": {
+              "type": "number"
+            },
+            "aspects": {
+              "type": "number"
+            },
+            "flows": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "name",
+            "nodes",
+            "aspects",
+            "flows"
+          ],
+          "additionalProperties": false
+        },
+        "exit": {
+          "description": "`preview` on `yg check --approve --dry-run --json`: a cost preview always exits 0, so `code` is 0 whatever the tree holds; `reason` still says what the tree's own gate would say.",
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "status": {
+              "enum": [
+                "aborted",
+                "fail",
+                "pass",
+                "preview"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "number"
+            },
+            "covered": {
+              "type": "number"
+            },
+            "nodeOwned": {
+              "description": "Owned by a component's mapping. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "typeCovered": {
+              "description": "Satisfied by an architecture type alone. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "excluded": {
+              "description": "Excluded from coverage by design. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "requiresNothing": {
+              "description": "True when nothing is required to be covered, so an uncovered file can never fail.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "files",
+            "covered",
+            "nodeOwned",
+            "typeCovered",
+            "excluded",
+            "requiresNothing"
+          ],
+          "additionalProperties": false
+        },
+        "totals": {
+          "type": "object",
+          "properties": {
+            "errors": {
+              "type": "number"
+            },
+            "warnings": {
+              "type": "number"
+            },
+            "draftSkipped": {
+              "description": "How many rules stand at draft — each one's pairs are removed from the expected set entirely. A count of rules, not of pairs (it always was; the description said pairs until 6.1.0).",
+              "type": "number"
+            },
+            "verdicts": {
+              "description": "Pair counts by what the lock says, summing to `pairs.length`.",
+              "type": "object",
+              "properties": {
+                "approved": {
+                  "type": "number"
+                },
+                "refused": {
+                  "type": "number"
+                },
+                "unverified": {
+                  "type": "number"
+                },
+                "stale": {
+                  "type": "number"
+                },
+                "prompt-too-large": {
+                  "type": "number"
+                },
+                "companion-error": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "approved",
+                "refused",
+                "unverified",
+                "stale",
+                "prompt-too-large",
+                "companion-error"
+              ],
+              "additionalProperties": false
+            },
+            "verified": {
+              "description": "Verified pairs split by reviewer kind, as the header reports them.",
+              "type": "object",
+              "properties": {
+                "deterministic": {
+                  "type": "number"
+                },
+                "llm": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "deterministic",
+                "llm"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "errors",
+            "warnings",
+            "draftSkipped",
+            "verdicts",
+            "verified"
+          ],
+          "additionalProperties": false
+        },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonPair"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonIssue"
+          }
+        },
+        "judges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonJudge"
+          }
+        },
+        "progressive": {
+          "description": "Null on a project that does not measure changes against a branch.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/CheckJsonProgressive"
+            }
+          ]
+        },
+        "suggestedNext": {
+          "description": "The one concrete step the run points at, or null when there is nothing to do.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "dryRunBudget": {
+          "description": "Present only on `yg check --approve --dry-run --json`: what the fill would cost, as numbers — the same counts the human budget header on stderr states.",
+          "type": "object",
+          "properties": {
+            "pairs": {
+              "type": "number"
+            },
+            "nodes": {
+              "type": "number"
+            },
+            "files": {
+              "type": "number"
+            },
+            "deterministic": {
+              "type": "number"
+            },
+            "reviewerCalls": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "pairs",
+            "nodes",
+            "files",
+            "deterministic",
+            "reviewerCalls"
+          ],
+          "additionalProperties": false
+        },
+        "groups": {
+          "description": "The text report's groups, in its order (added by the command layer).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonGroup"
+          }
+        },
+        "next": {
+          "description": "The step `suggestedNext` names, as data (added by the command layer); null on a run with nothing to do.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/CheckJsonNext"
+            }
+          ]
+        },
+        "banner": {
+          "description": "The text report's partial-result banner, or null: set when part of the graph did not load as written, so every other number here describes a fallback.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "aborted": {
+          "description": "Present only when a recording run stopped at a gate (exit.status `aborted`).",
+          "$ref": "#/$defs/CheckJsonAbort"
+        },
+        "notes": {
+          "description": "The text report's standing `note:` lines, in its order — facts that are not findings (added by the command layer).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compact": {
+          "description": "Present (true) only on `yg check --json --compact`: the same document with what a reader can recompute left out — `pairs` lists only the pairs that are not approved (`totals.verdicts.approved` still counts them all), an issue omits its `why` and `next` when its group (`groups[]`) states them, its `label` (its group's) and its `unitRef` (its `unit`, parsed), and the JSON is not indented. Every other field keeps its shape.",
+          "const": true
+        }
+      },
+      "required": [
+        "schema",
+        "project",
+        "exit",
+        "coverage",
+        "totals",
+        "pairs",
+        "issues",
+        "judges",
+        "progressive",
+        "suggestedNext"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonEdge": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "line",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonGroup": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "aspect": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "subject": {
+          "description": "The block's heading sentence, as the text report prints it after `error[<label>]`.",
+          "type": "string"
+        },
+        "cause": {
+          "description": "For an unverified block: why its pairs have no verdict.",
+          "type": "string"
+        },
+        "why": {
+          "description": "The shared rationale, or null when the members' rationales differ.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "next": {
+          "description": "The shared remedy, or null when the members' remedies differ.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "label",
+        "aspect",
+        "severity",
+        "why",
+        "next",
+        "members"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonIssue": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "aspect": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        },
+        "cause": {
+          "description": "On an `unverified` finding (or its outside twin): why the pair has no valid verdict. `reviewer-missing`, `reviewer-unreachable`, `reviewer-failed`, `check-failed-to-run` and `suppress-marker-invalid` are infrastructure — re-running the same fill cannot clear them, and `next` names what does; the four fill-time ones appear on the report of the recording run that witnessed them. `stale`, `never-reviewed` and `deterministic-not-run` are pairs waiting for a fill.",
+          "type": "string"
+        },
+        "label": {
+          "description": "The word a text report heads this finding with — `refused`, `unmapped`, `unverified`, or the code itself — the same word the text prints in `error[<label>]`.",
+          "type": "string"
+        },
+        "unitRef": {
+          "description": "`unit` as a structured subject, the same shape as a pair's `unit`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "file",
+                "node"
+              ]
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "violations": {
+          "description": "A script rule's violations, one per reported location, never cut.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonViolation"
+          }
+        },
+        "edges": {
+          "description": "The dependency edges a relation finding is about, never cut.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonEdge"
+          }
+        },
+        "files": {
+          "description": "Every file a coverage finding names, never cut (its `what` may list fewer).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "what",
+        "why",
+        "next"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonJudge": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "pairs": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "pairs"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonNext": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "target": {
+          "description": "What the step is about: the node or file it names, when it names one.",
+          "type": "object",
+          "properties": {
+            "node": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "cost": {
+          "description": "What running `command` costs — the whole command, never one block's share of it: every pending pair it would fill, advisory ones included. Script pairs are free; reviewer pairs are paid, and `reviewerCalls` is what they bill — each pair its tier's consensus — so the three numbers equal the `dryRunBudget` of `command --dry-run --json` on the same tree (`free` its `deterministic`, `reviewerCalls` its `reviewerCalls`). Zero for a step that is not a fill. A fill whose pending pairs are all script pairs is named as `yg check --approve --only-deterministic`, which cannot call the reviewer. (`reviewerCalls` added in 6.1.0.)",
+          "type": "object",
+          "properties": {
+            "free": {
+              "type": "number"
+            },
+            "reviewerPairs": {
+              "type": "number"
+            },
+            "reviewerCalls": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "free",
+            "reviewerPairs",
+            "reviewerCalls"
+          ],
+          "additionalProperties": false
+        },
+        "remaining": {
+          "description": "The errors the run leaves, each in exactly one bucket by what clears it: `needsFix` a code or graph fix, `fillable` pairs a recording run records, `needsUser` a decision only the user makes (configuring a reviewer), and `waitingOnReviewer` pairs no run can judge until a reviewer is configured or reachable. (`needsUser` and `waitingOnReviewer` added in 6.1.0.)",
+          "type": "object",
+          "properties": {
+            "needsFix": {
+              "type": "number"
+            },
+            "fillable": {
+              "type": "number"
+            },
+            "needsUser": {
+              "type": "number"
+            },
+            "waitingOnReviewer": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "needsFix",
+            "fillable"
+          ],
+          "additionalProperties": false
+        },
+        "requiresUser": {
+          "description": "True when the step needs the user's approval before it runs: a decision that is the user's (configuring a reviewer sends code to that provider). Such a step is asked for, never run blindly, and its `command` is null. A paid fill is not one — an agent runs it once its change is final, and its price is in `cost`.",
+          "type": "boolean"
+        },
+        "then": {
+          "description": "The step after this one, as the text report's `then:` line prints it, or null.",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "command",
+        "text",
+        "target",
+        "cost",
+        "remaining",
+        "then"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonPair": {
+      "type": "object",
+      "properties": {
+        "aspect": {
+          "type": "string"
+        },
+        "unit": {
+          "description": "The subject: one component, or one file governed by its architecture type.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "file",
+                "node"
+              ]
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "node": {
+          "description": "The owning component, or null for a file no component owns.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "kind": {
+          "description": "Which reviewer kind answers for this pair.",
+          "enum": [
+            "deterministic",
+            "llm"
+          ]
+        },
+        "status": {
+          "description": "Effective status on this subject — what decides whether a finding blocks.",
+          "enum": [
+            "advisory",
+            "draft",
+            "enforced"
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "approved",
+            "companion-error",
+            "prompt-too-large",
+            "refused",
+            "stale",
+            "unverified"
+          ]
+        },
+        "reviewer": {
+          "description": "Who answered: `deterministic` for a local check, the judge's name for a verdict recorded outside the configured reviewer, otherwise the reviewer tier the rule resolves to. Null when nothing has answered yet.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "hash": {
+          "description": "The hash the recorded verdict is bound to, when the lock holds an entry at all.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "filled": {
+          "description": "WHEN `--approve` filled this verdict, and at which commit — independent of whether the verdict is still in force, so a stale or refused pair still reports it. Null for a deterministic pair (filling one costs nothing, so there is nothing to attribute) and for any pair the lock has never filled. `sha` is null when no commit was resolvable at fill time (no repository, no commit yet, git missing from PATH) — the key is present regardless, so a consumer always finds it.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ts": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "ts",
+                "sha"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "report": {
+          "description": "The violation report, on a refusal in force.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "aspect",
+        "unit",
+        "node",
+        "kind",
+        "status",
+        "verdict",
+        "reviewer",
+        "hash",
+        "filled"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonProgressive": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "description": "The branch or ref the change was measured against.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "changedInputs": {
+          "description": "How many changed paths the measurement accounted for.",
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "outside": {
+          "description": "Enforced obligations held outside the change.",
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "byteGuardKept": {
+          "description": "Findings the content guard kept blocking despite git reporting their files unchanged.",
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "byteGuardUnavailable": {
+          "description": "The reference tree's object ids could not be reproduced, so no content check was made.",
+          "type": "boolean"
+        },
+        "noiseFloor": {
+          "description": "The standing floor: advisory refusals, and enforced findings, on untouched code.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "advisory": {
+                  "type": "number"
+                },
+                "enforcedOutside": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "advisory",
+                "enforcedOutside"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "reference",
+        "changedInputs",
+        "outside",
+        "byteGuardKept",
+        "byteGuardUnavailable",
+        "noiseFloor"
+      ],
+      "additionalProperties": false
+    },
+    "CheckJsonViolation": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "line",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "CompactCheckJsonDocument": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "yg-check/1"
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "nodes": {
+              "type": "number"
+            },
+            "aspects": {
+              "type": "number"
+            },
+            "flows": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "name",
+            "nodes",
+            "aspects",
+            "flows"
+          ],
+          "additionalProperties": false
+        },
+        "exit": {
+          "description": "`preview` on `yg check --approve --dry-run --json`: a cost preview always exits 0, so `code` is 0 whatever the tree holds; `reason` still says what the tree's own gate would say.",
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "status": {
+              "enum": [
+                "aborted",
+                "fail",
+                "pass",
+                "preview"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "number"
+            },
+            "covered": {
+              "type": "number"
+            },
+            "nodeOwned": {
+              "description": "Owned by a component's mapping. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "typeCovered": {
+              "description": "Satisfied by an architecture type alone. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "excluded": {
+              "description": "Excluded from coverage by design. Null when the type-level tier is off.",
+              "type": [
+                "null",
+                "number"
+              ]
+            },
+            "requiresNothing": {
+              "description": "True when nothing is required to be covered, so an uncovered file can never fail.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "files",
+            "covered",
+            "nodeOwned",
+            "typeCovered",
+            "excluded",
+            "requiresNothing"
+          ],
+          "additionalProperties": false
+        },
+        "totals": {
+          "type": "object",
+          "properties": {
+            "errors": {
+              "type": "number"
+            },
+            "warnings": {
+              "type": "number"
+            },
+            "draftSkipped": {
+              "description": "How many rules stand at draft — each one's pairs are removed from the expected set entirely. A count of rules, not of pairs (it always was; the description said pairs until 6.1.0).",
+              "type": "number"
+            },
+            "verdicts": {
+              "description": "Pair counts by what the lock says, summing to `pairs.length`.",
+              "type": "object",
+              "properties": {
+                "approved": {
+                  "type": "number"
+                },
+                "refused": {
+                  "type": "number"
+                },
+                "unverified": {
+                  "type": "number"
+                },
+                "stale": {
+                  "type": "number"
+                },
+                "prompt-too-large": {
+                  "type": "number"
+                },
+                "companion-error": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "approved",
+                "refused",
+                "unverified",
+                "stale",
+                "prompt-too-large",
+                "companion-error"
+              ],
+              "additionalProperties": false
+            },
+            "verified": {
+              "description": "Verified pairs split by reviewer kind, as the header reports them.",
+              "type": "object",
+              "properties": {
+                "deterministic": {
+                  "type": "number"
+                },
+                "llm": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "deterministic",
+                "llm"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "errors",
+            "warnings",
+            "draftSkipped",
+            "verdicts",
+            "verified"
+          ],
+          "additionalProperties": false
+        },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonPair"
+          }
+        },
+        "judges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonJudge"
+          }
+        },
+        "progressive": {
+          "description": "Null on a project that does not measure changes against a branch.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/CheckJsonProgressive"
+            }
+          ]
+        },
+        "suggestedNext": {
+          "description": "The one concrete step the run points at, or null when there is nothing to do.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "dryRunBudget": {
+          "description": "Present only on `yg check --approve --dry-run --json`: what the fill would cost, as numbers — the same counts the human budget header on stderr states.",
+          "type": "object",
+          "properties": {
+            "pairs": {
+              "type": "number"
+            },
+            "nodes": {
+              "type": "number"
+            },
+            "files": {
+              "type": "number"
+            },
+            "deterministic": {
+              "type": "number"
+            },
+            "reviewerCalls": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "pairs",
+            "nodes",
+            "files",
+            "deterministic",
+            "reviewerCalls"
+          ],
+          "additionalProperties": false
+        },
+        "groups": {
+          "description": "The text report's groups, in its order (added by the command layer).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonGroup"
+          }
+        },
+        "next": {
+          "description": "The step `suggestedNext` names, as data (added by the command layer); null on a run with nothing to do.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/CheckJsonNext"
+            }
+          ]
+        },
+        "banner": {
+          "description": "The text report's partial-result banner, or null: set when part of the graph did not load as written, so every other number here describes a fallback.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "aborted": {
+          "description": "Present only when a recording run stopped at a gate (exit.status `aborted`).",
+          "$ref": "#/$defs/CheckJsonAbort"
+        },
+        "notes": {
+          "description": "The text report's standing `note:` lines, in its order — facts that are not findings (added by the command layer).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompactCheckJsonIssue"
+          }
+        },
+        "compact": {
+          "const": true
+        }
+      },
+      "required": [
+        "schema",
+        "project",
+        "exit",
+        "coverage",
+        "totals",
+        "pairs",
+        "judges",
+        "progressive",
+        "suggestedNext",
+        "issues",
+        "compact"
+      ],
+      "additionalProperties": false
+    },
+    "CompactCheckJsonIssue": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "aspect": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "cause": {
+          "description": "On an `unverified` finding (or its outside twin): why the pair has no valid verdict. `reviewer-missing`, `reviewer-unreachable`, `reviewer-failed`, `check-failed-to-run` and `suppress-marker-invalid` are infrastructure — re-running the same fill cannot clear them, and `next` names what does; the four fill-time ones appear on the report of the recording run that witnessed them. `stale`, `never-reviewed` and `deterministic-not-run` are pairs waiting for a fill.",
+          "type": "string"
+        },
+        "violations": {
+          "description": "A script rule's violations, one per reported location, never cut.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonViolation"
+          }
+        },
+        "edges": {
+          "description": "The dependency edges a relation finding is about, never cut.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckJsonEdge"
+          }
+        },
+        "files": {
+          "description": "Every file a coverage finding names, never cut (its `what` may list fewer).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        },
+        "label": {
+          "description": "The word a text report heads this finding with — `refused`, `unmapped`, `unverified`, or the code itself — the same word the text prints in `error[<label>]`.",
+          "type": "string"
+        },
+        "unitRef": {
+          "description": "`unit` as a structured subject, the same shape as a pair's `unit`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "file",
+                "node"
+              ]
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "what"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

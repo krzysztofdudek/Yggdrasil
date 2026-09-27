@@ -228,6 +228,17 @@ describe('a graph that did not load as written leads the report', () => {
     expect(next.target.file).toBe('.yggdrasil/yg-config.yaml');
   });
 
+  it('names a flow file that did not load as a flow, not as a rule file', () => {
+    const flowInvalid = {
+      severity: 'error',
+      code: 'yaml-invalid',
+      rule: 'invalid-flow-yaml',
+      messageData: { what: '.yggdrasil/flows/checkout/yg-flow.yaml breaks the flow schema: x', why: 'not loaded', next: 'Correct it.', step: { file: '.yggdrasil/flows/checkout/yg-flow.yaml' } },
+    } as CheckIssue;
+    const lines = stripAnsi(formatOutput(result([unverified('app/a', 'r'), flowInvalid]), { kind: 'full' }, false, false)).split('\n');
+    expect(lines[2]).toBe('partial: 1 flow file did not load, so that flow was left out — the findings below were computed without it and may be symptoms of it; fix it first.');
+  });
+
   it('prints no banner on an ordinary run', () => {
     expect(stripAnsi(formatOutput(result([unverified('app/a', 'r')]), { kind: 'full' }, false, false))).not.toContain('partial:');
   });

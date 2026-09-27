@@ -1437,11 +1437,12 @@ yg knowledge read <name>       # print full topic content
 
 ## yg schemas
 
-Browse the embedded graph-element schema references — the field reference for
-each graph element. Graph-independent: works without a \`.yggdrasil/\` present.
+Browse the schema of every YAML file the CLI reads — an annotated example and a
+field table (key, type, required, meaning) rendered from the schema the file's
+parser enforces. Graph-independent: works without a \`.yggdrasil/\` present.
 
 \`\`\`bash
-yg schemas list                # list the schemas (node, aspect, architecture, config, flow)
+yg schemas list                # list the schemas (config, secrets, architecture, node, aspect, aspect-adapt, flow, package, marketplace, packages)
 yg schemas read <name>         # print one schema's field reference
 \`\`\`
 

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-owner-1.schema.json",
+  "title": "File owner (yg owner --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-owner/1"
+    },
+    "file": {
+      "type": "string"
+    },
+    "kind": {
+      "description": "`node`: a component maps it; `type`: its architecture type alone covers it; `unmapped`: it exists and nothing covers it; `missing`: no such file; `excluded`: coverage never looks at it, by design.",
+      "enum": [
+        "excluded",
+        "missing",
+        "node",
+        "type",
+        "unmapped"
+      ]
+    },
+    "node": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "type": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "direct": {
+      "description": "For a node owner: whether a mapping names the file itself (false: an ancestor directory does).",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "mappingPath": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "enforced": {
+      "description": "For a type owner: whether any of the type's rules apply to the file.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "excludedBecause": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "candidates": {
+      "description": "For an unmapped file: the components that map other files in its directory, most first — the likely owners to add it to (empty when none does, and for every other kind). Added in 6.1.0.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "sameDirEntries": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "node",
+          "sameDirEntries"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "next": {
+      "description": "The command that shows the file's rules, when there is one.",
+      "type": [
+        "null",
+        "string"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "file",
+    "kind",
+    "node",
+    "type",
+    "direct",
+    "mappingPath",
+    "enforced",
+    "excludedBecause",
+    "candidates",
+    "next"
+  ],
+  "additionalProperties": false
+}

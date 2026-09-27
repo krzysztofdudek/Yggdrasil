@@ -161,3 +161,40 @@ A rule's id is its folder path under the rules directory, so ids can nest: `logg
 ## Positive and negative rules
 
 A rule can require something to be present ("every handler validates its input") or forbid something ("nothing reaches the data store directly") — that's just how the rule is worded. A powerful shape is a broad **negative** rule attached to a parent so it applies to every component beneath it, with the one component type that's legitimately allowed to do the forbidden thing carved out — that type carries its own **positive** rules ensuring it does it correctly. The carve-out is a [conditional rule](/conditional-aspects): `when: { not: { node: { type: data-access } } }`. The pattern is general — "no raw outbound HTTP except the gateway", and so on.
+
+## Field reference
+
+### `yg-aspect.yaml` {#fields-aspect}
+
+Generated from the schema the parser enforces — the same table `yg schemas read aspect` prints.
+
+<!-- file-schema:aspect:start — generated from the aspect schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `name` | string | yes | Display name. |
+| `description` | string | yes (description-missing without it) | What the rule demands; a reviewer rule's reviewer is told it. |
+| `reviewer` | mapping | no | Optional: the kind is inferred from the rule source. |
+| `reviewer.type` | `llm` \| `deterministic` \| `aggregate` | yes, when reviewer: is present | The rule kind; must agree with the rule source (content.md, check.mjs, or neither). |
+| `reviewer.tier` | string | no | The reviewer tier of yg-config.yaml a reviewer rule is judged by; the default tier when absent. |
+| `status` | `draft` \| `advisory` \| `enforced` | no | How much the rule's refusals count. Default: `enforced`. |
+| `review_by` | YYYY-MM-DD | no | A review date; once past, yg check warns without blocking. The user's to set. |
+| `errs` | `over` \| `under` \| `exact` | no | A script rule's honest error direction: under means it fires only on provable violations. |
+| `implies` | list of string or mapping | no | Rules this one brings with it wherever it applies (channel 7); a rule with implies: and no rule source is a bundle. |
+| `implies[].id` | string | yes | The implied rule's id. |
+| `implies[].when` | node predicate | no | Imply the rule only where this node predicate holds. |
+| `implies[].status_inherit` | `strictest` \| `own-default` | no | strictest: the implied rule takes the implier's status when that is higher; own-default: it keeps its own. Default: `strictest`. |
+| `when` | node predicate | no | Apply the rule only to nodes where this node predicate holds. |
+| `references` | list of string or mapping | no | Supporting files shown to a reviewer rule's reviewer (not allowed on a script rule or a bundle). |
+| `references[].path` | string | yes | A repository-relative file. |
+| `references[].description` | string | no | What the reviewer should take from it. |
+| `scope` | mapping | no | Review granularity (not allowed on a bundle). Default: `per: node`. |
+| `scope.per` | `node` \| `file` | yes, when scope: is present | One verdict per node, or one per subject file. |
+| `scope.files` | file predicate | no | Which of the unit's files the rule looks at (path and content atoms). |
+| `companion` | string | no | A repository-relative companion module to use instead of a companion.mjs beside the rule. |
+| `config` | mapping of &lt;key&gt; to string, number or boolean | no | Values a package rule's check reads through ctx.config; only the keys its package declares. |
+
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `id` (never read: a rule's id is its directory path under aspects/); `language` (removed in 5.0.0: a script rule reads each file's language from its extension); `stability` (removed in 4.0.0); `anchors` (removed in 4.0.0).
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:aspect:end -->

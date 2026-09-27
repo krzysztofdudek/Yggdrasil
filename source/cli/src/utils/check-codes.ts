@@ -144,6 +144,9 @@ export const STRUCTURAL_CODES: ReadonlySet<string> = new Set<CheckCode>([
   // not loaded until it is corrected, rather than loaded at the defaults the
   // misspelled key was meant to override.
   'aspect-unknown-key',
+  // A value of the wrong type for a key yg-aspect.yaml accepts; the rule is not
+  // loaded until it is corrected, like an unknown key.
+  'aspect-field-invalid',
   'mapping-escapes-repo',
   // The lock file is unparseable, garbled, conflict-markered, or an unknown
   // version. Fail closed — blocking, structural, independent of any pair state.

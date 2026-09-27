@@ -9,36 +9,32 @@ import { DEFAULT_PORT_NAME } from '../model/graph.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
 import { describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
+import { keysOf, retiredOf, schemaProblems } from '../utils/file-schema.js';
+import { NODE_MAX_DIRECT_RELATIONS, NODE_PORT, NODE_RELATION, NODE_ROOT } from '../utils/file-formats-graph.js';
 
 /**
- * The keys each block of a yg-node.yaml accepts. Anything else is refused by
- * name (with the nearest accepted key): a misspelled `relation:` or `aspect:`
- * would otherwise leave the relation or rule it declares out of the graph, and
- * the check would pass without it.
+ * The keys each block of a yg-node.yaml accepts, taken from the node schema
+ * (utils/file-formats-graph.ts) — the same one `yg schemas read node` prints.
+ * Anything else is refused by name (with the nearest accepted key): a
+ * misspelled `relation:` or `aspect:` would otherwise leave the relation or rule
+ * it declares out of the graph, and the check would pass without it.
  */
-const NODE_KEYS = ['name', 'type', 'description', 'aspects', 'relations', 'mapping', 'ports', 'max_direct_relations'] as const;
-const NODE_RELATION_KEYS = ['target', 'type', 'portNames', 'consumes', 'event_name'] as const;
-const NODE_PORT_KEYS = ['description', 'aspects'] as const;
-const NODE_MAX_DIRECT_RELATIONS_KEYS = ['limit', 'reason'] as const;
+const NODE_KEYS = keysOf(NODE_ROOT);
+const NODE_RELATION_KEYS = keysOf(NODE_RELATION);
+const NODE_PORT_KEYS = keysOf(NODE_PORT);
+const NODE_MAX_DIRECT_RELATIONS_KEYS = keysOf(NODE_MAX_DIRECT_RELATIONS);
 
 /** Node keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_NODE_KEYS: RetiredKeys = {
-  sizeExempt: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
-};
+export const RETIRED_NODE_KEYS: RetiredKeys = retiredOf(NODE_ROOT);
 
 /**
  * Port keys an earlier release read, and what became of each. The parser refuses
  * them with its own message below; `yg init --upgrade` removes them.
  */
-export const RETIRED_NODE_PORT_KEYS: RetiredKeys = {
-  version: "removed in 6.0.0: contract versions are Horde's job now",
-  test: "removed in 6.0.0: contract tests are Horde's job now",
-};
+export const RETIRED_NODE_PORT_KEYS: RetiredKeys = retiredOf(NODE_PORT);
 
 /** Relation keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_NODE_RELATION_KEYS: RetiredKeys = {
-  failure: 'removed in 4.0.0',
-};
+export const RETIRED_NODE_RELATION_KEYS: RetiredKeys = retiredOf(NODE_RELATION);
 
 /** Throw naming every key of `block` outside `known`. */
 function refuseUnknownKeys(block: Record<string, unknown>, known: readonly string[], filePath: string, where: string, retired: RetiredKeys = {}): void {
@@ -82,6 +78,11 @@ export async function parseNodeYaml(filePath: string): Promise<NodeMeta> {
   const aspectsResult = parseAspects(raw.aspects, filePath);
   const ports = parsePorts(raw.ports, filePath);
   const maxDirectRelations = parseMaxDirectRelations(raw.max_direct_relations, filePath);
+  // The schema's floor under the checks above: a value of the wrong type that
+  // none of them looks at (a description that is a number, an event_name that is
+  // a list) would otherwise be dropped without a word.
+  const problems = schemaProblems(raw, NODE_ROOT);
+  if (problems.length > 0) throw new Error(`yg-node.yaml at ${filePath}: ${problems[0].message}`);
   return {
     name: (raw.name as string).trim(),
     type: (raw.type as string).trim(),

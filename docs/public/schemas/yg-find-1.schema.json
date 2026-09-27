@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-find-1.schema.json",
+  "title": "Search results (yg find --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-find/1"
+    },
+    "query": {
+      "description": "The query, trimmed.",
+      "type": "string"
+    },
+    "results": {
+      "description": "At most five results; empty when nothing matched or the graph is empty.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FindJsonResult"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "query",
+    "results"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "FindJsonResult": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "aspect",
+            "file",
+            "node"
+          ]
+        },
+        "id": {
+          "description": "A node's path (a valid --node argument), a rule's id, or a file's path.",
+          "type": "string"
+        },
+        "type": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "status": {
+          "description": "A rule's default status; null for anything else.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "score": {
+          "description": "Relevance relative to the best match (1 for the top result).",
+          "type": "number"
+        },
+        "matched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next": {
+          "description": "The command that shows this result's context, or null for a rule (read its file).",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "type",
+        "status",
+        "description",
+        "score",
+        "matched",
+        "next"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

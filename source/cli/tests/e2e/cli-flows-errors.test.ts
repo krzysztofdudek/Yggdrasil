@@ -44,15 +44,15 @@ import { fileURLToPath } from 'node:url';
 //       the cascaded aspect catches one drifted node; this pins isolation across
 //       a 2-node fill: one PASS + one FAIL in the same invocation).
 //
-// Flow-load FILESYSTEM/parse failures are classified as a flow-specific
-// what/why/next by the loader preamble (they name the offending yg-flow.yaml and
-// say it is missing/malformed on an ALREADY-INITIALIZED graph):
+// Flow-load FILESYSTEM/parse failures are ONE flow's finding (yaml-invalid,
+// naming the offending yg-flow.yaml), exactly like a yg-node.yaml that fails —
+// the flow is left out and every command still runs on the rest of the graph:
 //   * A flow directory with a MISSING yg-flow.yaml (ENOENT) is NOT mis-reported
-//     as "No .yggdrasil/ directory found" — the graph IS initialized; the error
-//     names the absent flow file instead.
-//   * yg-flow.yaml being a DIRECTORY (EISDIR) / unparseable YAML surfaces as the
-//     SAME structured flow finding, not an unclassified "Unexpected error ...
-//     This is a bug" abort.
+//     as "No .yggdrasil/ directory found" — the graph IS initialized; the
+//     finding names the absent flow file instead.
+//   * yg-flow.yaml being a DIRECTORY (EISDIR) / unparseable YAML is the SAME
+//     kind of finding, not an unclassified "Unexpected error ... This is a bug"
+//     abort, and not a stop of every command.
 // A genuinely-missing `.yggdrasil/` still yields the "run yg init" message
 // (G1) — the narrowing preserves that path.
 //
@@ -162,7 +162,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
     }
   });
 
-  it('N2: the same name parse throw surfaces via `yg flows` as a flow-specific finding (exit 1)', () => {
+  it('N2: the same name parse throw is listed by `yg flows` as a flow that did not load, and the listing still runs', () => {
     const dir = deterministicFixture('n2');
     try {
       writeFlowYaml(dir, [
@@ -171,12 +171,11 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
         '  - services/orders',
       ]);
       const flows = run(['flows'], dir);
-      expect(flows.status).toBe(1);
+      // One bad flow file no longer stops the command: the listing runs, and
+      // names the flow that did not load with the parser's reason.
+      expect(flows.status).toBe(0);
       expect(flows.all).toContain("missing or empty 'name'");
-      // A malformed flow file is a USER graph error, not an internal bug — it is
-      // classified as a flow-specific finding naming the file, NOT the generic
-      // "Unexpected error ... file an issue" abort.
-      expect(flows.all).toContain('could not be loaded');
+      expect(flows.all).toContain('not loaded');
       expect(flows.all).toContain('yg-flow.yaml');
       expect(flows.all).not.toContain('Unexpected error while listing flows');
       expect(flows.all).not.toContain('file an issue');
@@ -321,9 +320,9 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       // both exist); the absent yg-flow.yaml raises ENOENT but is classified as a
       // flow-load fault naming the file — NOT the misleading not-initialized
       // message that would send the user to `yg init`.
-      expect(check.all).toContain('could not be loaded');
+      expect(check.all).toContain('error[yaml-invalid]');
       expect(check.all).toContain('order-processing/yg-flow.yaml');
-      expect(check.all).toContain('missing, unreadable, or malformed');
+      expect(check.all).toContain('has no yg-flow.yaml file');
       expect(check.all).not.toContain('No .yggdrasil/ directory found');
       expect(check.all).not.toContain("Run 'yg init'");
     } finally {
@@ -337,9 +336,9 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       rmSync(flowYaml(dir), { force: true });
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // The graph cannot load, so the fill aborts up front — but with the
-      // flow-specific message, never the not-initialized misclassification.
-      expect(fill.all).toContain('could not be loaded');
+      // The rest of the graph loads and the fill runs over it; the missing flow
+      // file is its own blocking finding, never the not-initialized message.
+      expect(fill.all).toContain('error[yaml-invalid]');
       expect(fill.all).toContain('order-processing/yg-flow.yaml');
       expect(fill.all).not.toContain('No .yggdrasil/ directory found');
     } finally {
@@ -354,11 +353,11 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       mkdirSync(flowYaml(dir), { recursive: true });
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // A flow YAML that is a directory raises EISDIR on read; it is classified
-      // as a flow-load fault (naming the file + the EISDIR detail), NOT a generic
+      // A flow YAML that is a directory raises EISDIR on read; it is that one
+      // flow's finding (the file is not there to read), NOT a generic
       // "Unexpected error ... file an issue" abort.
-      expect(check.all).toContain('could not be loaded');
-      expect(check.all).toContain('EISDIR');
+      expect(check.all).toContain('error[yaml-invalid]');
+      expect(check.all).toContain('order-processing/yg-flow.yaml');
       expect(check.all).not.toContain('Unexpected error while running check');
       expect(check.all).not.toContain('file an issue');
     } finally {
@@ -373,9 +372,10 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       writeFileSync(flowYaml(dir), 'name: X\n\tnodes: [a]\n', 'utf-8');
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // A YAML syntax error in a flow file is classified as a flow-load fault
-      // (naming the file + the parser detail), NOT a generic unclassified abort.
-      expect(check.all).toContain('could not be loaded');
+      // A YAML syntax error in a flow file is that flow's finding (naming the
+      // file + the parser detail), NOT a generic unclassified abort.
+      expect(check.all).toContain('error[yaml-invalid]');
+      expect(check.all).toContain('does not parse');
       expect(check.all).toContain('Tabs are not allowed as indentation');
       expect(check.all).not.toContain('Unexpected error while running check');
       expect(check.all).not.toContain('file an issue');

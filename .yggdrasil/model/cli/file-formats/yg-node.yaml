@@ -1,0 +1,15 @@
+name: File Formats
+type: utility
+description: "One schema object per YAML file format the CLI reads — yg-config.yaml and its yg-secrets.yaml overlay, yg-architecture.yaml, yg-node.yaml, yg-aspect.yaml and the yg-aspect.adapt.yaml a consumer writes beside an installed rule, yg-flow.yaml, and the three versioned package documents (yg-package.yaml, yg-marketplace.yaml, yg-packages.yaml) — and the pure machinery over them: the keys a block accepts, the keys it names as retired or refuses with a reason, where a parsed value departs from its schema (a key a closed block does not declare, or a value of the wrong type), and the rendered field table. Each parser takes its accepted and retired keys from these objects and runs the departure check after its own, more specific checks; `yg schemas read` prints the field table; the docs field tables and the published JSON Schemas of the package documents are generated from them. One description per format is the point: before it, the parser, the schema reference and the docs each described the file separately, some parsers ignored unknown keys, and a typo silently turned enforcement off. The package documents' mappings are open — a key not declared is ignored rather than refused — because a versioned document may gain a field within /1 and an older reader must still read it. Pure data and pure functions: no IO."
+aspects: []
+relations:
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/utils/file-schema.ts
+  - source/cli/src/utils/file-formats.ts
+  - source/cli/src/utils/file-formats-graph.ts
+  - source/cli/src/utils/file-formats-config.ts
+  - source/cli/src/utils/file-formats-package.ts

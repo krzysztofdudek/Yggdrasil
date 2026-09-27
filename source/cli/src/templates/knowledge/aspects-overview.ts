@@ -61,7 +61,7 @@ An aspect with a rule source may declare \`scope:\`:
 
 \`\`\`yaml
 scope:
-  per: node | file        # default: node
+  per: node               # or file; default: node
   files:                  # optional — file-predicate filter (path/content atoms)
     all_of:
       - path: "src/**/*.ts"

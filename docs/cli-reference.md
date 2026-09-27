@@ -98,10 +98,11 @@ chain it inherits along nearest-first (`chain` — a component and its type at e
 link, or `node: null` and a type for a type-covered file), and every effective
 rule. Each rule carries its `id`, effective `status`,
 rule `kind` (`llm`, `deterministic` or `aggregate`), `name`, `description`,
-the `channels` it arrived through (the numbered cascade channel, its kind, a
-machine-readable origin such as `type:command` or `flow:checkout`, and — when
-the attachment site itself declares one — that channel's `declaredStatus`), any
-`impliedBy` rules, and the `read` paths an agent must open before editing.
+the `channels` it arrived through (each with its cascade channel `number`, 1–7,
+its `kind`, a machine-readable `origin` such as `type:command` or
+`flow:checkout`, and — when the attachment site itself declares one — that
+channel's `declaredStatus`), any `impliedBy` rules, and the `read` paths an
+agent must open before editing.
 
 ```json
 {
@@ -131,7 +132,7 @@ the attachment site itself declares one — that channel's `declaredStatus`), an
 
 Every outcome the command has gets a document, not only the ones with rules. A
 type-covered file reports `owner.kind: "type"` with
-the matched type, where the inherited chain stops (`chainTermination`), and a
+the matched type (`typeId`), where the inherited chain stops (`chainTermination`), and a
 `dropped` list of the type's rules that do not apply here with the reason for
 each. A file nothing governs reports `owner.kind: "none"` with
 `reason: "unmapped"` and an `explanation` sentence beside it (and still exits
@@ -305,11 +306,12 @@ yg check --json
 yg check --approve --only-deterministic --json
 ```
 
-The document carries what the report says: the project's counts, the exit code
-with the reason for it, `coverage` (files, covered, the node-owned, type-covered
-and excluded-by-design counts — those three `null` when type-level coverage is
-off — and whether anything is required to be covered at all), the `totals` by
-severity (counted in findings, the unit the verdict line counts; `groups` holds the blocks the text report shows) and by verdict plus how many expected pairs a draft rule dropped
+The document carries what the report says: the project's counts
+(`project: { name, nodes, aspects, flows }`), the exit code with the reason for
+it, `coverage` (`files`, `covered`, the `nodeOwned`, `typeCovered` and
+`excluded`-by-design counts — those three `null` when type-level coverage is off
+— and `requiresNothing`, whether nothing at all is required to be covered), the `totals` by
+severity (counted in findings, the unit the verdict line counts; `groups` holds the blocks the text report shows) and by verdict (`totals.verdicts`: `approved`, `refused`, `unverified`, `stale`, `prompt-too-large`, `companion-error`, summing to the pair count) plus how many expected pairs a draft rule dropped
 (`draftSkipped`, a count of draft rules — how many pairs each would have fanned out to is never enumerated) and the same verified split the text header shows
 (`verified: { deterministic, llm }`), every expected pair, every finding as
 structured `what` / `why` / `next`, who judged outside the configured reviewer,
@@ -388,9 +390,9 @@ changed paths the measurement accounted for (`changedInputs`), the enforced
 obligations held outside the change (`outside`), the findings the content guard
 kept blocking despite git reporting their files unchanged (`byteGuardKept`),
 whether the reference tree's object ids could not be reproduced so no content
-check was made (`byteGuardUnavailable`), and `noiseFloor` — `{ advisory,
-enforcedOutside }`, the advisory refusals and the enforced findings sitting on
-untouched code. Every count in it is `null` when that particular figure is not
+check was made (`byteGuardUnavailable`), and `noiseFloor` —
+`{ advisory, enforcedOutside }`, the advisory refusals and the enforced findings
+sitting on untouched code. Every count in it is `null` when that particular figure is not
 available.
 
 Each pair names its rule; its subject, `unit: { kind: 'node' | 'file', path }`;
@@ -852,7 +854,10 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
   before editing a node to understand past decisions. `--json` prints the `yg-log/1`
   document instead: `node` and `entries` (each `datetime` and `body`); with
-  `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`.
+  `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`, each
+  event the verification-event line the fill wrote (`aspectId`, `unitKey`,
+  `kind`, `disposition` — what the fill did with the pair — and, where they
+  apply, `promptRev`, `promptHash`, `votes` and the rest of the line).
   - `--with-verdicts` — Interleave the node's own recent verification events with its
     log entries, newest first, under a `local telemetry since <timestamp>` header. The
     events come from a local, gitignored telemetry sidecar written during
@@ -940,7 +945,8 @@ yg tree [--root <path>] [--depth <n>] [--long] [--json]
   sentence, whitespace collapsed, at most 120 characters)
 - `--json` — Print the `yg-tree/1` document: `root`, `maxDepth`, `nodes` (each
   `path`, `type`, whole `description`, `parent`, `depth`) and `typeCovered` (the
-  counts below as numbers, `null` when the flag is off)
+  counts below as numbers — `total`, `enforced`, `unverifiedEnforced`,
+  `unenforced`, `uncomputable` — `null` when the flag is off)
 
 With `coverage.type_level` on, a summary line follows the node listing naming
 how many type-covered files there are, with no component of
@@ -1111,7 +1117,7 @@ never calls a reviewer.
 #### `yg aspects --json` {#yg-aspects-json}
 
 The rule inventory as one `yg-aspects/1` document: each rule's id, name and
-description, its rule kind and tier, its status, its `review_by:` date,
+description, its rule kind and tier, its status, its `review_by:` date (`reviewBy`),
 its error direction, what it implies, how many places it reaches (a split into
 `own` / `architecture` / `flow` / `inherited` (declared on an ancestor, or on an
 ancestor's type) / `port` / `implied` (reached only through another rule's
@@ -1120,8 +1126,9 @@ and how many cases sit in its drill corpus. The
 corpus is counted, never run. `--health` is a different and far more expensive
 projection with its own document: `yg aspects --health --json` prints
 `yg-aspects-health/1` (below), never folded into this one. Each rule also carries the last
-thing its own log recorded — when, and what it said about where the rule stands —
-so a reader of the document does not have to open files.
+thing its own log recorded — when, and what it said about where the rule stands
+(`statusChange: { from, to }`, `null` when the entry recorded no change) — so a
+reader of the document does not have to open files.
 
 ```bash
 yg aspects --json
@@ -1298,8 +1305,10 @@ copy — not a shipped default.
 #### `yg advise --json`
 
 The same feed as one `yg-advise/1` document: the attention aggregates, the ranked
-items, and the ones a recorded decision currently hides, each with its stable id,
-its what / why / next, and the hash of the evidence it rests on. `--json` prints
+`items`, and the ones a recorded decision currently hides (`suppressed`, each
+naming that decision as `suppressed: { action, until, reason }` — `action` one of
+`dismiss`, `defer`, `done`), each with its stable id, its what / why / next, and
+the hash of the evidence it rests on (`evidenceHash`). `--json` prints
 every visible item — the ten-item cap is a rendering choice for a reader, not part
 of the data — so `--all` changes nothing about which items appear and is refused
 together with `--json`; `--ids` is likewise refused, because every item carries its
@@ -1557,7 +1566,7 @@ offers and what each one answers.
 | Command                              | Purpose                        |
 |--------------------------------------|--------------------------------|
 | `yg knowledge list` / `read <name>` | Built-in deep-dive documentation |
-| `yg schemas list` / `read <name>`   | Field reference for each graph element |
+| `yg schemas list` / `read <name>`   | Field reference for each YAML file format |
 
 ### `yg knowledge`
 
@@ -1579,13 +1588,18 @@ Run `yg knowledge list` to see the current list with one-line descriptions.
 
 ### `yg schemas`
 
-Prints the field reference for a graph element — the schema for a `yg-node.yaml`,
-`yg-aspect.yaml`, `yg-architecture.yaml`, `yg-config.yaml`, or `yg-flow.yaml`. Read
-the relevant schema before hand-authoring one of these files. Works without a
+Prints the field reference for a YAML file the CLI reads — `yg-config.yaml` and
+its local `yg-secrets.yaml` overlay, `yg-architecture.yaml`, `yg-node.yaml`,
+`yg-aspect.yaml`, the `yg-aspect.adapt.yaml` beside an installed rule,
+`yg-flow.yaml`, and the package documents `yg-package.yaml`,
+`yg-marketplace.yaml` and `yg-packages.yaml`. Each is an annotated example
+followed by a field table (key, type, required, meaning) rendered from the same
+schema the file's parser enforces; the docs carry the same tables. Read the
+relevant schema before hand-authoring one of these files. Works without a
 `.yggdrasil/` present.
 
 ```bash
-yg schemas list                # node, aspect, architecture, config, flow
+yg schemas list                # config, secrets, architecture, node, aspect, aspect-adapt, flow, package, marketplace, packages
 yg schemas read node
 ```
 
@@ -2176,6 +2190,13 @@ Machine-readable documents `yg pack` and `yg marketplace` read and write:
 | Per-rule adaptation | (no schema key) | `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/<rule>/yg-aspect.adapt.yaml` |
 | Last-seen published versions | `yg-package-versions/1` | `.yggdrasil/.yg-packages-versions.json` (local, never committed) |
 
+The package record keeps, per installed package, its `source`, install directory
+(`package`), `version`, the optional `requested`, `tag`, `commit` and `identity`,
+when it was installed (`installed_at`) and every copied file's hash (`files`);
+`yg schemas read packages` lists each field. The versions cache keeps, per
+installed package, every version tag its source was last seen publishing
+(`published`) and when that was read (`checked_at`).
+
 ### `yg marketplace`
 
 Publishes rules from this repository. A marketplace is an ordinary git repository
@@ -2234,7 +2255,7 @@ severity says so — see [Aspect Status](/aspect-status).
 
 | Code | Severity | Meaning | Fix |
 |------|----------|---------|-----|
-| `yaml-invalid` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow) is not valid YAML or not a YAML mapping, so what it declares is not loaded. | Fix the YAML syntax in the file the finding names; the rest of the report may be a symptom of it. |
+| `yaml-invalid` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow's yg-flow.yaml) does not parse, is not a YAML mapping or breaks its schema — or a directory under flows/ has no yg-flow.yaml — so what it declares is not loaded; the rest of the graph is. | Fix the file the finding names (yg schemas read gives each file's keys); the rest of the report may be a symptom of it. |
 | `config-invalid` | error | yg-config.yaml (or yg-secrets.yaml) does not parse or holds a value of the wrong shape; every setting falls back to its default until it does. | Correct what the finding quotes in .yggdrasil/yg-config.yaml; findings computed on the defaults clear with it. |
 | `architecture-invalid` | error | yg-architecture.yaml does not parse, so no architecture rule (types, parents, allowed relations) is checked. | Fix the YAML in .yggdrasil/yg-architecture.yaml. |
 | `lock-invalid` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
@@ -2267,6 +2288,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-invalid-id` | error | A rule directory yields an empty rule id. | Rename the directory under aspects/ to the intended rule id. |
 | `aspect-name-missing` | error | A yg-aspect.yaml has no name:. | Add name: to the file. |
 | `aspect-unknown-key` | error | A yg-aspect.yaml holds a key it does not accept (a typo such as `stauts:`); the rule is not loaded until it is corrected. | Rename the key to the one it is a typo of (the finding names it), or remove it. |
+| `aspect-field-invalid` | error | A yg-aspect.yaml (with its adaptation, for an installed rule) holds a value of the wrong type for a key it accepts — a description that is a list, a reference description that is a number; the rule is not loaded until it is corrected. | Set the value the finding names to the type it asks for; yg schemas read aspect gives each key's type. |
 | `aspect-status-invalid` | error | A declared status: is not one of draft, advisory, enforced. | Set status: to draft, advisory or enforced. |
 | `aspect-review-by-malformed` | error | A rule's review_by: is present but not a calendar-valid bare YYYY-MM-DD date (2027-13-01, 2027-02-30). Fired only on the rule that carries the field. | Write review_by: as a real YYYY-MM-DD date — with the user's approval, since the date is theirs. |
 | `aspect-errs-invalid` | error | errs: is not one of over, under, exact, or is declared on a rule that is not a script rule. | Set errs to over, under or exact on a script rule, or remove it. |

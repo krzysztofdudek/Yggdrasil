@@ -1,9 +1,8 @@
 /**
  * source/cli/src/utils/known-keys.ts — the one reading of "a key this block does
  * not know", shared by the parsers of yg-config.yaml (and its yg-secrets.yaml
- * overlay), yg-architecture.yaml, yg-node.yaml and yg-aspect.yaml. Flow files
- * are not held to it yet: a flow that fails to load still stops every command,
- * so refusing its keys waits on flow errors becoming per-file findings.
+ * overlay), yg-architecture.yaml, yg-node.yaml, yg-aspect.yaml and yg-flow.yaml,
+ * through the file-format schemas (file-schema.ts) that name each block's keys.
  *
  * A key the schema does not declare is almost always a typo (`relation` for
  * `relations`, `stauts` for `status`), and a parser that ignored it would drop
@@ -13,8 +12,8 @@
  * through this module, with the nearest accepted key when there is a plausible
  * one.
  *
- * Pure: no IO, no parser state. Each parser keeps its own list of accepted keys
- * beside the code that reads them.
+ * Pure: no IO, no parser state. The accepted keys of each block are declared in
+ * that file's schema object (file-formats*.ts).
  */
 
 /**

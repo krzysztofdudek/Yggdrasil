@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-package-1.schema.json",
+  "title": "Package manifest (yg-package.yaml)",
+  "description": "Package manifest (yg-package/1) — name, version, requires.yg, the rules it ships, their settings. Read from <package directory>/yg-package.yaml. A key not listed is ignored by this reader (the /1 rule), so additionalProperties is true.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "description": "The document version.",
+      "const": "yg-package/1"
+    },
+    "name": {
+      "description": "The package name, one path segment; the directory it installs under.",
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "description": "The package version.",
+      "type": "string",
+      "minLength": 1
+    },
+    "requires": {
+      "description": "What the package needs.",
+      "type": "object",
+      "properties": {
+        "yg": {
+          "description": "The Yggdrasil versions the package runs on (e.g. \"6.x\"); checked when it is installed.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "yg"
+      ],
+      "additionalProperties": true
+    },
+    "aspects": {
+      "description": "The rule directories beside the manifest, each one path segment; every directory must be declared and every declared one present.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "config": {
+      "description": "The settings each rule reads through ctx.config, with their types and defaults.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "description": "The type a consumer's value must have.",
+              "enum": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "default": {
+              "description": "The value the rule reads until a consumer adapts it; of the declared type.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "default"
+          ],
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "name",
+    "version",
+    "requires",
+    "aspects"
+  ],
+  "additionalProperties": true
+}

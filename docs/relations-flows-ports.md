@@ -204,3 +204,26 @@ Every aspect on the flow applies to every participant. So `correlation-tracking`
 Declaring a parent node as a participant includes all of its descendants. List `orders` and every node under it joins the flow; add a new child later and it is already included, no edit to the flow file.
 
 A flow is not a call chain. It describes the *why* — the business process being served — while relations describe the *how*, what calls what. Both can exist between the same nodes at once. Use a flow when a real-world process spans multiple components and a shared rule applies across them; if you only need to apply a rule to a subset of participants, an aspect can carry a [`when` predicate](/conditional-aspects) per attach site.
+
+A key the flow schema does not declare is refused by name, with the key it is probably a typo of, and so is a value of the wrong type. A flow that cannot be loaded — a directory under `flows/` with no `yg-flow.yaml`, or a file that does not parse or breaks the schema — is one `yaml-invalid` finding for that flow: the flow is left out, and every command still runs on the rest of the graph. Flows are one level deep: each directory directly under `flows/` is one flow.
+
+### `yg-flow.yaml` {#fields-flow}
+
+Generated from the schema the parser enforces — the same table `yg schemas read flow` prints.
+
+<!-- file-schema:flow:start — generated from the flow schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `name` | string | yes | Display name of the business process. |
+| `description` | string | yes (description-missing without it) | What the process does. |
+| `nodes` | list of string | yes, non-empty (or participants) | Participant nodes, as paths under model/; each participant's descendants take part too. |
+| `participants` | list of string | no | Alias of nodes. |
+| `aspects` | list of string or mapping | no | Rules every participant carries (channel 5). |
+| `aspects[].id` | string | yes | The rule id — its directory path under aspects/. |
+| `aspects[].when` | node predicate | no | Attach the rule here only where this node predicate holds (yg knowledge read conditional-aspects). |
+| `aspects[].status` | `draft` \| `advisory` \| `enforced` | no | Raise the rule's status at this site; lowering it is refused. |
+
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:flow:end -->

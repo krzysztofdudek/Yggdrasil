@@ -5,6 +5,17 @@ import { parse as parseYaml } from 'yaml';
 import type { AspectStatus, FlowDef } from '../model/graph.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
+import { schemaProblems } from '../utils/file-schema.js';
+import { FLOW_ROOT } from '../utils/file-formats-graph.js';
+
+/**
+ * Read one flow. Held to the flow schema (utils/file-formats-graph.ts) like
+ * every other graph file: a key it does not declare is refused by name, with the
+ * key it is probably a typo of, and so is a value of the wrong type — a
+ * misspelled `aspect:` would otherwise leave every participant without the
+ * rules the flow was written to give them. A refusal is one flow's finding
+ * (the graph loader reports it and loads the rest), never a stop of the run.
+ */
 
 export async function parseFlow(flowDir: string, flowYamlPath: string): Promise<FlowDef> {
   const content = await readFile(flowYamlPath, 'utf-8');
@@ -64,6 +75,10 @@ export async function parseFlow(flowDir: string, flowYamlPath: string): Promise<
       }
     }
   }
+
+  // After the checks above, whose messages say more about the fields they know.
+  const problems = schemaProblems(raw, FLOW_ROOT);
+  if (problems.length > 0) throw new Error(`yg-flow.yaml at ${flowYamlPath}: ${problems[0].message}`);
 
   return {
     path: path.basename(flowDir),

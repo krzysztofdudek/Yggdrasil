@@ -234,6 +234,37 @@ describe('checkAspectEffectiveNowhere (C4 dead-attach linter)', () => {
   });
 });
 
+describe('a flow that did not load', () => {
+  it('withholds aspect-effective-nowhere for a rule only that flow attached — the load error is the finding', async () => {
+    const yggDir = await createTempYggdrasil();
+    const base = path.dirname(yggDir);
+    await writeFile(path.join(yggDir, 'yg-config.yaml'), 'version: "6.0.0"\n');
+    await writeFile(path.join(yggDir, 'yg-architecture.yaml'), 'node_types:\n  service:\n    description: A service.\n');
+    await mkdir(path.join(yggDir, 'model', 'svc'), { recursive: true });
+    await writeFile(path.join(yggDir, 'model', 'svc', 'yg-node.yaml'), 'name: Svc\ntype: service\ndescription: d\nmapping: [src/a.ts]\n');
+    await mkdir(path.join(base, 'src'), { recursive: true });
+    await writeFile(path.join(base, 'src', 'a.ts'), 'export const a = 1;\n');
+    const aspectDir = path.join(yggDir, 'aspects', 'flow-only');
+    await mkdir(aspectDir, { recursive: true });
+    await writeFile(path.join(aspectDir, 'yg-aspect.yaml'), 'name: FlowOnly\ndescription: d\n');
+    await writeFile(path.join(aspectDir, 'check.mjs'), 'export function check() { return []; }\n');
+    const flowDir = path.join(yggDir, 'flows', 'checkout');
+    await mkdir(flowDir, { recursive: true });
+    // A misspelled key breaks the flow schema: the flow — the rule's only attach site — does not load.
+    await writeFile(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout\ndescription: d\nnodes: [svc]\naspects: [flow-only]\nparticipant: []\n');
+
+    const broken = await loadGraph(base);
+    expect(broken.flowParseErrors?.map((e) => e.flowPath)).toEqual(['checkout']);
+    expect(checkAspectEffectiveNowhere(broken).filter((i) => i.code === 'aspect-effective-nowhere')).toEqual([]);
+
+    // The same graph with the flow fixed is live: the rule reaches svc and nothing is reported either.
+    await writeFile(path.join(flowDir, 'yg-flow.yaml'), 'name: Checkout\ndescription: d\nnodes: [svc]\naspects: [flow-only]\n');
+    const fixed = await loadGraph(base);
+    expect(fixed.flowParseErrors).toBeUndefined();
+    expect(checkAspectEffectiveNowhere(fixed)).toEqual([]);
+  });
+});
+
 describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter)', () => {
   // Architecture attaches `pinned` as a default of type 'module', but the aspect's
   // own when targets a different type ('ghost'), so it is filtered off every module

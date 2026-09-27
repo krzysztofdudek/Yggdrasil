@@ -1,4 +1,3 @@
-export const summary = 'Reviewer config — tiers, quality thresholds, parallelism, auto_approve (automatic fill), schema version.';
 
 export const content = `# yg-config.yaml — Schema for the Yggdrasil project configuration
 # Located at .yggdrasil/yg-config.yaml — one per project.

@@ -512,6 +512,13 @@ export interface Graph {
   configUnknownKeys?: Array<{ file: string; key: string; suggestion?: string; messageData: IssueMessage }>;
   /** Parse errors for yg-node.yaml files; reported as yaml-invalid */
   nodeParseErrors?: Array<{ nodePath: string; messageData: IssueMessage }>;
+  /**
+   * Flows that could not be loaded — a directory under flows/ with no
+   * yg-flow.yaml, or one that does not parse or breaks the flow schema. Each is
+   * left out of `flows` and reported as yaml-invalid; the rest of the graph
+   * loads as usual.
+   */
+  flowParseErrors?: Array<{ flowPath: string; messageData: IssueMessage }>;
   /** Parse errors for yg-aspect.yaml files. Each carries the structured
    *  validator code for the validator to emit downstream. */
   aspectParseErrors?: Array<{

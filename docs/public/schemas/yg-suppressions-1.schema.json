@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-suppressions-1.schema.json",
+  "title": "Waiver inventory (yg suppressions --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-suppressions/1"
+    },
+    "markers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SuppressionsJsonMarker"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SuppressionsJsonWarning"
+      }
+    },
+    "totals": {
+      "$ref": "#/$defs/SuppressionsJsonTotals"
+    }
+  },
+  "required": [
+    "schema",
+    "markers",
+    "warnings",
+    "totals"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "SuppressionsJsonMarker": {
+      "type": "object",
+      "properties": {
+        "aspect": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "disable",
+            "enable",
+            "file-level",
+            "single"
+          ]
+        },
+        "wildcard": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "range": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/SuppressionsJsonRange"
+            }
+          ]
+        }
+      },
+      "required": [
+        "aspect",
+        "file",
+        "line",
+        "kind",
+        "wildcard",
+        "reason",
+        "range"
+      ],
+      "additionalProperties": false
+    },
+    "SuppressionsJsonRange": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": [
+            "null",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "SuppressionsJsonTotals": {
+      "type": "object",
+      "properties": {
+        "markers": {
+          "type": "number"
+        },
+        "files": {
+          "type": "number"
+        },
+        "fileLevel": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "markers",
+        "files",
+        "fileLevel"
+      ],
+      "additionalProperties": false
+    },
+    "SuppressionsJsonWarning": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "missing-reason",
+            "unbounded-range",
+            "unknown-aspect",
+            "waives-under",
+            "wildcard"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "number"
+        },
+        "aspect": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "file",
+        "line",
+        "aspect",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

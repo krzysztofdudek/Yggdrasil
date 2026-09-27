@@ -18,6 +18,8 @@ relations:
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/file-formats
+    type: calls
   - target: cli/formatters
     type: calls
   - target: cli/io/stores

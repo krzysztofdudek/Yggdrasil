@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-drill-1.schema.json",
+  "title": "Drill run (yg drill --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-drill/1"
+    },
+    "aspect": {
+      "type": "string"
+    },
+    "corpus": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "description": "The run's corpus label: `dev`, the `--dir` basename, or `--corpus`.",
+          "type": "string"
+        },
+        "source": {
+          "description": "`dev` = the rule's own `drills/` directory; `holdout` = a `--dir` corpus.",
+          "enum": [
+            "dev",
+            "holdout"
+          ]
+        },
+        "path": {
+          "description": "Where the cases were read from, repo-relative (or as given to `--dir`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "source",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "counts": {
+      "$ref": "#/$defs/DrillJsonCounts"
+    },
+    "total": {
+      "description": "Number of cases run; 0 when the corpus holds none.",
+      "type": "number"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DrillJsonCase"
+      }
+    },
+    "exitCode": {
+      "description": "The exit code the command ends with: 1 when any case missed or false-alarmed, 2 when a case did not run and none missed, 0 otherwise (also for an empty corpus, which is not a pass: `total` is 0).",
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "aspect",
+    "corpus",
+    "counts",
+    "total",
+    "cases",
+    "exitCode"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "DrillJsonCase": {
+      "type": "object",
+      "properties": {
+        "case": {
+          "description": "Corpus-relative label, e.g. `violates-todo/bad`.",
+          "type": "string"
+        },
+        "expect": {
+          "description": "What the case directory says the rule must answer.",
+          "enum": [
+            "refused",
+            "satisfied"
+          ]
+        },
+        "got": {
+          "description": "What the rule answered, or why it did not.",
+          "enum": [
+            "refused",
+            "satisfied",
+            "unrun",
+            "unsupported"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "false-alarm",
+            "miss",
+            "pass",
+            "unrun",
+            "unsupported"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "deterministic",
+            "llm"
+          ]
+        },
+        "caseHash": {
+          "type": "string"
+        },
+        "ruleHash": {
+          "type": "string"
+        },
+        "tier": {
+          "description": "Reviewer tier, for a reviewer rule.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "votes": {
+          "description": "Consensus votes, for a reviewer rule that was answered.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "satisfied": {
+                  "type": "number"
+                },
+                "total": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "satisfied",
+                "total"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "detail": {
+          "description": "Why a case did not run (a prompt over the limit, say), when the runner said.",
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "case",
+        "expect",
+        "got",
+        "outcome",
+        "kind",
+        "caseHash",
+        "ruleHash",
+        "tier",
+        "votes",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "DrillJsonCounts": {
+      "type": "object",
+      "properties": {
+        "pass": {
+          "type": "number"
+        },
+        "miss": {
+          "type": "number"
+        },
+        "falseAlarm": {
+          "type": "number"
+        },
+        "unrun": {
+          "type": "number"
+        },
+        "unsupported": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "pass",
+        "miss",
+        "falseAlarm",
+        "unrun",
+        "unsupported"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

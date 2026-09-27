@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://krzysztofdudek.github.io/Yggdrasil/schemas/yg-impact-1.schema.json",
+  "title": "Blast radius (yg impact --json)",
+  "$comment": "This schema describes exactly what this release of Yggdrasil writes: every mapping is closed and every enumeration lists only the values this release uses. Use it to check a producer. Do not use it to reject a document you read: under the family rule a later release may add a field or a value within /1, and a /1 reader ignores what it does not know (see family-contracts).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "yg-impact/1"
+    },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "node"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ImpactJsonPort"
+      }
+    },
+    "dependents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ImpactJsonDependent"
+      }
+    },
+    "transitive": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ImpactJsonTransitive"
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "subject",
+    "ports",
+    "dependents",
+    "transitive"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ImpactJsonDependent": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "direct": {
+          "type": "boolean"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImpactJsonDependentRelation"
+          }
+        }
+      },
+      "required": [
+        "node",
+        "direct",
+        "relations"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactJsonDependentRelation": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "ports": {
+          "description": "Ports this relation consumes — an empty list when it names none.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "ports"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactJsonPort": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "consumers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImpactJsonPortConsumer"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "consumers"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactJsonPortConsumer": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "description": "Model-relative path of the consuming component.",
+          "type": "string"
+        },
+        "relation": {
+          "description": "Relation type the consumption is declared on — `uses`, `calls`, `emits`, …",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "relation"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactJsonTransitive": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "via": {
+          "description": "Intermediate components, subject-first — never includes the subject or `node` itself.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "node",
+        "via"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

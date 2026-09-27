@@ -179,3 +179,74 @@ The architecture file is the foundation of the graph, so changes to it ripple ac
 ## A note on prompt size
 
 Keep nodes a sensible size, because a component's files all reach the reviewer in one prompt. For a reviewer rule, all of the component's subject files go to the reviewer together with the rule, reference files, and — when the aspect ships a `companion.mjs` hook — any companion files resolved for that unit. All of these count toward the `max_prompt_chars` ceiling a reviewer tier can set. If an assembled prompt would exceed it, `yg check` reports `prompt-too-large` instead of letting the oversized pair through. The usual fix is to split an oversized node into smaller ones, or narrow which files a rule reviews. Script rules read files directly and have no prompt, so this never applies to them. See [Configuration](/configuration).
+
+## Field reference
+
+### `yg-node.yaml` {#fields-node}
+
+Generated from the schema the parser enforces — the same table `yg schemas read node` prints.
+
+<!-- file-schema:node:start — generated from the node schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `name` | string | yes | Display name. |
+| `type` | string | yes | A node type yg-architecture.yaml defines. |
+| `description` | string | yes (description-missing without it) | What the component does; shown in context output. |
+| `aspects` | list of string or mapping | no | Rules attached to this node and every node under it (channel 1). |
+| `aspects[].id` | string | yes | The rule id — its directory path under aspects/. |
+| `aspects[].when` | node predicate | no | Attach the rule here only where this node predicate holds (yg knowledge read conditional-aspects). |
+| `aspects[].status` | `draft` \| `advisory` \| `enforced` | no | Raise the rule's status at this site; lowering it is refused. |
+| `relations` | list of mapping | no | This node's dependencies on other nodes. A code dependency on a mapped node that is not declared here is refused (relation-undeclared-dependency). |
+| `relations[].target` | string | yes | The node depended on, as its path under model/. |
+| `relations[].type` | `calls` \| `uses` \| `extends` \| `implements` \| `emits` \| `listens` | yes | calls, uses, extends and implements are structural and must form no cycle; emits and listens are events and must be paired. |
+| `relations[].portNames` | list of string | no | The target's ports this relation enters through; each port's rules then apply to this node. Absent means the implicit `default` port; an empty list is refused. |
+| `relations[].consumes` | list of string | no | Deprecated alias of portNames; declaring both is refused. |
+| `relations[].event_name` | string | no | A label for the event channel of an emits or listens relation. Documentation only: pairing compares node paths. |
+| `mapping` | list of string | no | Files, directories and globs this node owns, relative to the repository root. An empty list is refused. |
+| `ports` | mapping of &lt;port&gt; to mapping | no | Named entry points, each with the rules a relation entering through it must satisfy. |
+| `ports.<port>.description` | string | yes, except on a port named `default` | What the port provides. |
+| `ports.<port>.aspects` | list of string or mapping | no | Rules a node relating through this port must satisfy (channel 6). |
+| `ports.<port>.aspects[].id` | string | yes | The rule id — its directory path under aspects/. |
+| `ports.<port>.aspects[].when` | node predicate | no | Attach the rule here only where this node predicate holds (yg knowledge read conditional-aspects). |
+| `ports.<port>.aspects[].status` | `draft` \| `advisory` \| `enforced` | no | Raise the rule's status at this site; lowering it is refused. |
+| `max_direct_relations` | mapping | no | A reviewed override of the high-fan-out ceiling for this node only. A malformed value is ignored: an override missing either field, or with a limit below 1, leaves the global ceiling in force. |
+| `max_direct_relations.limit` | integer ≥ 1 | yes | This node's own relation ceiling, above or below the global quality.max_direct_relations. A malformed value is ignored: an override missing either field, or with a limit below 1, leaves the global ceiling in force. |
+| `max_direct_relations.reason` | string | yes | Why this node gets its own ceiling. A malformed value is ignored: an override missing either field, or with a limit below 1, leaves the global ceiling in force. |
+
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `sizeExempt` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `relations[].failure` (removed in 4.0.0); `ports.<port>.version` (removed in 6.0.0: contract versions are Horde's job now); `ports.<port>.test` (removed in 6.0.0: contract tests are Horde's job now).
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:node:end -->
+
+### `yg-architecture.yaml` {#fields-architecture}
+
+Generated from the schema the parser enforces — the same table `yg schemas read architecture` prints.
+
+<!-- file-schema:architecture:start — generated from the architecture schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `node_types` | mapping of &lt;type&gt; to mapping | no | The node types of this graph, by name (`*` is reserved). |
+| `node_types.<type>.description` | string | yes | What a node of this type is. |
+| `node_types.<type>.aspects` | list of string or mapping | no | Rules every node of this type carries (channel 3). |
+| `node_types.<type>.aspects[].id` | string | yes | The rule id — its directory path under aspects/. |
+| `node_types.<type>.aspects[].when` | node predicate | no | Attach the rule here only where this node predicate holds (yg knowledge read conditional-aspects). |
+| `node_types.<type>.aspects[].status` | `draft` \| `advisory` \| `enforced` | no | Raise the rule's status at this site; lowering it is refused. |
+| `node_types.<type>.parents` | list of string | no | Node types a node of this type may sit under. |
+| `node_types.<type>.relations` | mapping | no | Which node types each relation type from this type may target. |
+| `node_types.<type>.relations.calls` | list of string | no | Node types a calls relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.uses` | list of string | no | Node types a uses relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.extends` | list of string | no | Node types a extends relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.implements` | list of string | no | Node types a implements relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.emits` | list of string | no | Node types a emits relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.listens` | list of string | no | Node types a listens relation may target (`*` for any); an empty list allows none. |
+| `node_types.<type>.relations.default` | `allow` \| `deny` | no | What a relation type not listed here may target. Default: `allow`. |
+| `node_types.<type>.log_required` | boolean | no | Whether a node of this type needs a log entry when its files change. |
+| `node_types.<type>.when` | file predicate | no | The files this type classifies (path and content atoms). |
+| `node_types.<type>.enforce` | `strict` | no | strict: a file matching when must be mapped to a node of this type, and a node of this type may map only matching files. |
+
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `node_types.<type>.sizeExempt` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it).
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:architecture:end -->

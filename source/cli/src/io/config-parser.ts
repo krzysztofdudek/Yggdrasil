@@ -17,6 +17,18 @@ import { loadConfigOverlay, deepMerge } from './secrets-parser.js';
 import { readFileOrDefault } from './read-or-default.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { closestKnownKey, describeUnknownKeys, findUnknownKeys, type RetiredKeys } from '../utils/known-keys.js';
+import { keysOf, retiredOf, schemaProblems } from '../utils/file-schema.js';
+import {
+  CONFIG_COVERAGE,
+  CONFIG_EVENTS,
+  CONFIG_PROGRESSIVE,
+  CONFIG_QUALITY,
+  CONFIG_REVIEWER,
+  CONFIG_ROOT,
+  CONFIG_SIGNALS,
+  REVIEWER_TIER,
+  TIER_CONFIG,
+} from '../utils/file-formats-config.js';
 
 export { KNOWN_PROVIDERS };
 
@@ -26,21 +38,18 @@ export class ConfigParseError extends Error {
   }
 }
 
+// Every accepted and retired key below is taken from the configuration schema
+// (utils/file-formats-config.ts) — the one `yg schemas read config` prints and
+// the docs field table is generated from.
+
 /** The keys `quality:` accepts. */
-const QUALITY_KEYS = ['max_direct_relations'] as const;
+const QUALITY_KEYS = keysOf(CONFIG_QUALITY);
 
 /** `quality:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_QUALITY_KEYS: RetiredKeys = {
-  max_node_chars: 'removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it',
-  max_mapping_source_files: 'removed in 5.0.0 with the wide-node warning',
-};
+export const RETIRED_QUALITY_KEYS: RetiredKeys = retiredOf(CONFIG_QUALITY);
 
 /** Tier `config:` keys an earlier release read, and what became of each. `yg init --upgrade` removes them. */
-export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
-  max_tokens: 'removed in 5.0.0; the reviewer no longer caps its reply',
-  context_length_field: 'never read by any release since 5.0.0',
-  references: 'removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them',
-};
+export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = retiredOf(TIER_CONFIG);
 
 /**
  * The keys a tier's `config:` block accepts. Every provider reads its settings
@@ -49,7 +58,7 @@ export const RETIRED_TIER_CONFIG_KEYS: RetiredKeys = {
  * the CLI providers (claude-code, codex, gemini-cli, copilot-cli) take `model`
  * and `timeout` and ignore `temperature` and `endpoint` — but each key is known.
  */
-const TIER_CONFIG_KEYS = ['model', 'endpoint', 'temperature', 'timeout', 'api_key'] as const;
+const TIER_CONFIG_KEYS = keysOf(TIER_CONFIG);
 
 const DEFAULT_QUALITY: QualityConfig = {
   max_direct_relations: 10,
@@ -120,10 +129,7 @@ export function parseSchemaVersionText(content: string): SchemaVersionField | nu
  * otherwise fall back to its default without a word, and the configuration in
  * effect would quietly differ from the one the file appears to state.
  */
-const KNOWN_TOP_LEVEL_KEYS = [
-  'version', 'quality', 'reviewer', 'parallel', 'debug', 'auto_approve',
-  'signals', 'events', 'coverage', 'progressive', 'rules_artifacts',
-];
+const KNOWN_TOP_LEVEL_KEYS = keysOf(CONFIG_ROOT);
 
 /**
  * One top-level key the configuration does not know, with the file it sits in
@@ -201,7 +207,7 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
     }, 'config-invalid');
   }
   const cov = raw as Record<string, unknown>;
-  const KNOWN_COVERAGE_KEYS = ['required', 'excluded', 'type_level'];
+  const KNOWN_COVERAGE_KEYS = keysOf(CONFIG_COVERAGE);
   for (const key of Object.keys(cov)) {
     if (!KNOWN_COVERAGE_KEYS.includes(key)) {
       throw new ConfigParseError({
@@ -514,7 +520,7 @@ async function parseConfigInner(
       }, 'config-invalid');
     }
     const sig = raw.signals as Record<string, unknown>;
-    const allowedSignalKeys = new Set(['attention']);
+    const allowedSignalKeys = new Set(keysOf(CONFIG_SIGNALS));
     for (const k of Object.keys(sig)) {
       if (!allowedSignalKeys.has(k)) {
         throw new ConfigParseError({
@@ -553,7 +559,7 @@ async function parseConfigInner(
       }, 'config-invalid');
     }
     const ev = raw.events as Record<string, unknown>;
-    const allowedEventKeys = new Set(['committed_llm']);
+    const allowedEventKeys = new Set(keysOf(CONFIG_EVENTS));
     for (const k of Object.keys(ev)) {
       if (!allowedEventKeys.has(k)) {
         throw new ConfigParseError({
@@ -613,7 +619,7 @@ async function parseConfigInner(
       }, 'config-invalid');
     }
     const prog = committedProgressive as Record<string, unknown>;
-    const allowedProgressiveKeys = new Set(['reference']);
+    const allowedProgressiveKeys = new Set(keysOf(CONFIG_PROGRESSIVE));
     for (const k of Object.keys(prog)) {
       if (!allowedProgressiveKeys.has(k)) {
         throw new ConfigParseError({
@@ -660,6 +666,14 @@ async function parseConfigInner(
   // whatever a local overlay adds on top (see YggConfig.committedReviewer).
   const committedReviewer = readCommittedReviewer(baseRaw.reviewer);
 
+  refuseSchemaProblems(baseRaw, filename);
+  if (overlay) {
+    // The overlay's committed-only blocks are never read (see progressive and
+    // rules_artifacts above), so they are not held to the schema either.
+    const read = Object.fromEntries(Object.entries(overlay).filter(([key]) => key !== 'progressive' && key !== 'rules_artifacts'));
+    refuseSchemaProblems(read, 'yg-secrets.yaml');
+  }
+
   return {
     version,
     quality,
@@ -674,6 +688,23 @@ async function parseConfigInner(
     rulesArtifacts,
     ...(committedReviewer && { committedReviewer }),
   };
+}
+
+/**
+ * The schema's floor under every check above, run on each file under its own
+ * name: a value of the wrong type none of them looks at (`debug: "yes"`, which
+ * read as off) would otherwise be dropped without a word. An unknown top-level
+ * key is left out — it is reported beside the configuration, not thrown (see
+ * parseConfigDetailed).
+ */
+function refuseSchemaProblems(raw: Record<string, unknown>, filename: string): void {
+  const problem = schemaProblems(raw, CONFIG_ROOT).find((p) => !(p.kind === 'unknown-key' && p.where === ''));
+  if (problem === undefined) return;
+  throw new ConfigParseError({
+    what: `${filename}: ${problem.message}`,
+    why: 'A value of the wrong type is not read at all, so the setting would silently not be what the file says.',
+    next: `Correct '${problem.where}' in ${filename} (yg schemas read config gives each key's type), or remove it.`,
+  }, 'config-invalid');
 }
 
 /**
@@ -731,7 +762,7 @@ export async function readRulesArtifactsConfig(yggRoot: string): Promise<RulesAr
 }
 
 function parseReviewer(raw: Record<string, unknown>, filename: string): ReviewerConfig {
-  const allowedTopKeys = new Set(['default', 'tiers']);
+  const allowedTopKeys = new Set(keysOf(CONFIG_REVIEWER));
   for (const k of Object.keys(raw)) {
     if (!allowedTopKeys.has(k)) {
       throw new ConfigParseError({
@@ -973,7 +1004,7 @@ function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
   }
 
   // Unknown-key check AFTER structural checks
-  const allowed = new Set(['provider', 'consensus', 'config', 'max_prompt_chars']);
+  const allowed = new Set(keysOf(REVIEWER_TIER));
   for (const k of Object.keys(t)) {
     if (!allowed.has(k)) {
       throw new ConfigParseError({

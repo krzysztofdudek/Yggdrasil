@@ -60,7 +60,13 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   pin a sentence of prose instead (a literal of five or more words), which the
   end-to-end ratchet counts. The tests README states the convention: the exact
   words live in the golden corpus, and a sentence is asserted only where it is
-  the contract. Both helpers import only vitest's expect and Node builtins."
+  the contract. Both helpers import only vitest's expect and Node builtins.
+
+  It also owns a small JSON Schema validator for exactly the keywords the
+  published yg-*/1 schemas use (types, constants, enumerations, required and
+  closed properties, items, alternatives and definitions), so a suite can check
+  an emitted document against its schema without a new dependency. It imports
+  nothing at all."
 aspects: []
 relations: []
 mapping:
@@ -72,6 +78,7 @@ mapping:
   - source/cli/tests/support/fs-op-counter.mjs
   - source/cli/tests/support/tmpdir.ts
   - source/cli/tests/support/global-tmpdir.ts
+  - source/cli/tests/support/json-schema-validate.ts
   - source/cli/tests/support/assert-output.ts
   - source/cli/tests/support/prose-assertions.ts
   - source/cli/tests/README.md

@@ -1,13 +1,21 @@
 import { Command } from 'commander';
 import { SCHEMA_TOPICS } from '../templates/schemas/index.js';
+import { FILE_FORMATS, fileFormat } from '../utils/file-formats.js';
+import { renderFieldTable } from '../utils/file-schema.js';
 import { abortOnUnexpectedError } from './preamble.js';
 import { paint, writeOut, failAndExit } from './output.js';
 
+/**
+ * One entry per file format the CLI reads. The list, each summary and each
+ * field table come from the schema objects the parsers enforce
+ * (utils/file-formats*.ts); the annotated example above a field table is the
+ * format's schema document (templates/schemas/).
+ */
 export function listSchemas(): void {
   writeOut('\nAvailable schemas:\n\n');
-  const sorted = Object.entries(SCHEMA_TOPICS).sort(([a], [b]) => a.localeCompare(b));
-  for (const [name, topic] of sorted) {
-    writeOut(`  ${paint.bold(name.padEnd(28))} ${topic.summary}\n`);
+  const sorted = [...FILE_FORMATS].sort((a, b) => a.name.localeCompare(b.name));
+  for (const format of sorted) {
+    writeOut(`  ${paint.bold(format.name.padEnd(28))} ${format.summary}\n`);
   }
   writeOut('\nTo read a schema: yg schemas read <name>\n\n');
 }
@@ -18,26 +26,28 @@ export function readSchema(name: string): void {
   // chain, so a bare `SCHEMA_TOPICS[name] === undefined` check would let it
   // through and then crash on `topic.content` with the generic "this is a bug"
   // abort instead of the guided unknown-schema error. Mirror readKnowledge.
-  if (!Object.prototype.hasOwnProperty.call(SCHEMA_TOPICS, name)) {
-    const available = Object.keys(SCHEMA_TOPICS).sort().join(', ');
+  const format = fileFormat(name);
+  if (format === undefined || !Object.prototype.hasOwnProperty.call(SCHEMA_TOPICS, name)) {
+    const available = FILE_FORMATS.map((f) => f.name).sort().join(', ');
     failAndExit({
           what: `Unknown schema '${name}'.`,
-          why: 'The schema name does not match any embedded graph-element schema.',
+          why: 'The schema name does not match any file format the CLI reads.',
           next: `Available: ${available}. Run 'yg schemas list' for summaries.`,
         }, 'command-error');
   }
   const topic = SCHEMA_TOPICS[name];
   writeOut(topic.content);
+  writeOut(`\n# Fields of ${format.file} — the schema the parser enforces\n\n${renderFieldTable(format)}\n`);
 }
 
 export function registerSchemasCommand(program: Command): void {
   const schemas = program
     .command('schemas')
-    .description('Graph-element schemas — field reference for nodes, aspects, architecture, config, flows');
+    .description('File-format schemas — field reference for every YAML file the CLI reads (graph, config, packages)');
 
   schemas
     .command('list')
-    .description('List all available graph-element schemas with summaries')
+    .description('List every file-format schema with its summary')
     .action(() => {
       try {
         listSchemas();
@@ -48,7 +58,7 @@ export function registerSchemasCommand(program: Command): void {
 
   schemas
     .command('read <name>')
-    .description('Print the full reference for a graph-element schema')
+    .description('Print a file format\'s annotated example and its field table')
     .action((name: string) => {
       try {
         readSchema(name);

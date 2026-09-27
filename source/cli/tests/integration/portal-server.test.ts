@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { readFileSync, statSync, existsSync, cpSync, mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, existsSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
@@ -467,7 +467,7 @@ describe('portal loopback server — handler error surfaces as a structured 500 
 });
 
 describe('portal loopback server — a graph that stops loading mid-session never kills the server', () => {
-  // An ordinary edit (a half-written flow file, a branch switch) can leave the graph
+  // An ordinary edit (a branch switch, an upgrade in progress) can leave the graph
   // unloadable while the portal is running. The server's whole job is to stay up
   // while the graph is edited: the request fails with the loader's own diagnosis,
   // and the next request after the fix succeeds. The load path must THROW, never
@@ -477,7 +477,7 @@ describe('portal loopback server — a graph that stops loading mid-session neve
   const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
     throw new Error(`process.exit(${code}) called by the portal`);
   }) as never);
-  const brokenFlowDir = () => path.join(project, '.yggdrasil', 'flows', 'half-written');
+  const configFile = () => path.join(project, '.yggdrasil', 'yg-config.yaml');
 
   beforeAll(async () => {
     project = freshFixture();
@@ -489,11 +489,13 @@ describe('portal loopback server — a graph that stops loading mid-session neve
     exitSpy.mockRestore();
   });
 
-  it('serves, fails with the loader diagnosis while the flow is broken, then serves again', async () => {
+  it('serves, fails with the loader diagnosis while the graph cannot load, then serves again', async () => {
     expect((await apiFetch(`${handle.url}/data`)).status).toBe(200);
 
-    mkdirSync(brokenFlowDir(), { recursive: true });
-    writeFileSync(path.join(brokenFlowDir(), 'yg-flow.yaml'), 'name: Half written\nnodes: []\n');
+    // A graph written for a newer schema cannot be read at all. (A broken flow
+    // file no longer does this: it is one flow's finding and the rest loads.)
+    const original = readFileSync(configFile(), 'utf-8');
+    writeFileSync(configFile(), original.replace(/^version:.*$/m, 'version: "99.0.0"'));
 
     // The API route keeps its generic, detail-free 500; the page a person sees
     // carries the loader's what/why/next.
@@ -501,12 +503,12 @@ describe('portal loopback server — a graph that stops loading mid-session neve
     const page = await fetch(`${handle.url}/render`);
     expect(page.status).toBe(500);
     const html = await page.text();
-    expect(html).toContain('could not be loaded');
+    expect(html).toContain('newer than this CLI supports');
     expect(html).not.toContain('process.exit');
 
     expect(exitSpy).not.toHaveBeenCalled();
 
-    rmSync(brokenFlowDir(), { recursive: true, force: true });
+    writeFileSync(configFile(), original);
     expect((await apiFetch(`${handle.url}/data`)).status).toBe(200);
   }, 120_000);
 });

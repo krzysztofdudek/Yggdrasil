@@ -622,3 +622,100 @@ no signatures, and anyone who can change the committed record can change it
 together with the copy. Review a change to `.yggdrasil/yg-packages.yaml` the way
 you review code. Re-read the warning at the top of this page: installing a
 package is running someone else's code, every time you check.
+
+## Field reference
+
+### `yg-aspect.adapt.yaml` {#fields-aspect-adapt}
+
+Generated from the schema the parser enforces — the same table `yg schemas read aspect-adapt` prints.
+
+<!-- file-schema:aspect-adapt:start — generated from the aspect-adapt schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `scope` | mapping | no | Replace or narrow the rule's scope (merged key by key). Default: `per: node`. |
+| `scope.per` | `node` \| `file` | yes, when scope: is present | One verdict per node, or one per subject file. |
+| `scope.files` | file predicate | no | Which of the unit's files the rule looks at (path and content atoms). |
+| `reviewer` | mapping | no | Change the rule's reviewer tier (merged key by key; type stays the package's). |
+| `reviewer.type` | `llm` \| `deterministic` \| `aggregate` | yes, when reviewer: is present | The rule kind; must agree with the rule source (content.md, check.mjs, or neither). |
+| `reviewer.tier` | string | no | The reviewer tier of yg-config.yaml a reviewer rule is judged by; the default tier when absent. |
+| `review_by` | YYYY-MM-DD | no | A review date; once past, yg check warns without blocking. The user's to set. |
+| `references` | list of string or mapping | no | Replace the rule's reference files with files of this repository. |
+| `references[].path` | string | yes | A repository-relative file. |
+| `references[].description` | string | no | What the reviewer should take from it. |
+| `status` | `draft` \| `advisory` \| `enforced` | no | How much the rule's refusals count. Default: `enforced`. |
+| `config` | mapping of &lt;key&gt; to string, number or boolean | no | Override the defaults of the settings the package declares for this rule. |
+| `companion` | string | no | Point the rule at a companion module written in this repository. |
+
+`name` is refused: the name identifies the rule the package published.
+`description` is refused: the description is what the reviewer is told the rule means — changing it changes the rule, not its fit.
+`implies` is refused: which other rules a rule pulls in is part of what the rule is.
+`errs` is refused: the error direction states how the rule was built to fail, which only its author knows.
+`when` is refused: when the rule applies is the package author's claim about where it is valid — narrow it with scope: instead.
+Any other key is refused by name, with the key it is probably a typo of.
+
+<!-- file-schema:aspect-adapt:end -->
+
+### `yg-package.yaml` {#fields-package}
+
+Generated from the schema the parser enforces — the same table `yg schemas read package` prints.
+
+<!-- file-schema:package:start — generated from the package schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `schema` | `yg-package/1` | yes | The document version. |
+| `name` | string | yes | The package name, one path segment; the directory it installs under. |
+| `version` | semver | yes | The package version. |
+| `requires` | mapping | yes | What the package needs. |
+| `requires.yg` | semver range | yes | The Yggdrasil versions the package runs on (e.g. "6.x"); checked when it is installed. |
+| `aspects` | list of string | yes | The rule directories beside the manifest, each one path segment; every directory must be declared and every declared one present. |
+| `config` | mapping of &lt;rule&gt; to mapping of &lt;key&gt; to mapping | no | The settings each rule reads through ctx.config, with their types and defaults. |
+| `config.<rule>.<key>.type` | `string` \| `number` \| `boolean` | yes | The type a consumer's value must have. |
+| `config.<rule>.<key>.default` | string, number or boolean | yes | The value the rule reads until a consumer adapts it; of the declared type. |
+
+A top-level key not listed here is ignored rather than refused: a field added within a /1 document is ignored by a reader that does not know it, the rule every versioned family document follows (family-contracts).
+
+<!-- file-schema:package:end -->
+
+### `yg-marketplace.yaml` {#fields-marketplace}
+
+Generated from the schema the parser enforces — the same table `yg schemas read marketplace` prints.
+
+<!-- file-schema:marketplace:start — generated from the marketplace schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `schema` | `yg-marketplace/1` | yes | The document version. |
+| `packages` | list of mapping | yes | The packages this marketplace publishes (an empty list is legal). |
+| `packages[].name` | string | yes | The package name, one path segment, unique in the marketplace. |
+| `packages[].path` | string | yes | The package directory, relative to the marketplace root. |
+| `packages[].version` | semver | yes | The version published. |
+
+A top-level key not listed here is ignored rather than refused: a field added within a /1 document is ignored by a reader that does not know it, the rule every versioned family document follows (family-contracts).
+
+<!-- file-schema:marketplace:end -->
+
+### `yg-packages.yaml` {#fields-packages}
+
+Generated from the schema the parser enforces — the same table `yg schemas read packages` prints.
+
+<!-- file-schema:packages:start — generated from the packages schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->
+
+| Key | Type | Required | Meaning |
+|-----|------|----------|---------|
+| `schema` | `yg-packages/1` | yes | The document version. |
+| `packages` | mapping of &lt;package&gt; to mapping | no | The installed packages, by name. |
+| `packages.<package>.source` | string | yes | Where the package was installed from. |
+| `packages.<package>.package` | &lt;owner&gt;/&lt;repo&gt;/&lt;name&gt; | yes | The install directory under aspects/packages/. |
+| `packages.<package>.version` | semver | yes | The installed version. |
+| `packages.<package>.requested` | string | no | What was asked for: latest, or a version. |
+| `packages.<package>.tag` | pack/&lt;name&gt;@&lt;version&gt; | no | The tag the copy came from. |
+| `packages.<package>.commit` | git commit id | no | The commit that tag pointed at. |
+| `packages.<package>.identity` | `given` | no | given when the install identity was named by hand. |
+| `packages.<package>.installed_at` | ISO timestamp | yes | When it was installed. |
+| `packages.<package>.files` | mapping of &lt;path&gt; to sha256 hex | yes | Every copied file, with its hash at install; the package-file-modified rail compares against it. |
+
+A top-level key not listed here is ignored rather than refused: a field added within a /1 document is ignored by a reader that does not know it, the rule every versioned family document follows (family-contracts).
+
+<!-- file-schema:packages:end -->

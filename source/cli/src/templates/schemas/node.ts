@@ -1,4 +1,3 @@
-export const summary = 'Node definition — type, mapping, aspects, relations, ports, log.';
 
 export const content = `# yg-node.yaml — Schema for model nodes
 # Every node is a directory under .yggdrasil/model/ containing this file.

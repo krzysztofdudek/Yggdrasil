@@ -158,6 +158,16 @@ export async function validate(
     });
   }
 
+  for (const { flowPath, messageData } of graph.flowParseErrors ?? []) {
+    issues.push({
+      severity: 'error',
+      code: 'yaml-invalid',
+      rule: 'invalid-flow-yaml',
+      ...issueMsg(messageData),
+      messageData: messageData.step !== undefined ? messageData : { ...messageData, step: { file: `.yggdrasil/flows/${toPosixPath(flowPath)}/yg-flow.yaml` } },
+    });
+  }
+
   for (const { aspectId, code, messageData } of graph.aspectParseErrors ?? []) {
     issues.push({
       severity: 'error',
