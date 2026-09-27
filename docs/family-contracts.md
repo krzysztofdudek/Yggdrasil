@@ -12,7 +12,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | --- | --- | --- | --- | --- | --- |
 | Graph files (`.yggdrasil/model/**/yg-node.yaml`, `yg-architecture.yaml`) | no schema id — the graph's own format | Yggdrasil, and whoever edits the graph | Grain — `grain advise` and `grain propose` over a graph that already exists read them directly | before 6.0.0 | [Configuration](/configuration) |
 | Run report (`yg check --json`) | `yg-check/1` | Yggdrasil | Horde — the rule ladder (`node.mjs promote`, `demote`, `ladder`) and the wave close's quality index | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Context package (`yg context --json`) | `yg-context/1` | Yggdrasil | Horde — node resolution, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
+| Context package (`yg context --json`) | `yg-context/1` | Yggdrasil | Horde — node resolution, `land`; neither reads the log fields | before 6.0.0; the optional `typeDecisions` (decisions in force for the type and the types above it) and `nodeLog` (the component's own log) fields arrived in 6.1.0 | [CLI Reference](/cli-reference) |
 | Blast radius (`yg impact --json`) | `yg-impact/1` | Yggdrasil | Horde — port consumers | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Component (`yg node --json`) | `yg-node/1` | Yggdrasil | Horde — node existence and structure | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Rule list (`yg aspects --json`) | `yg-aspects/1` | Yggdrasil | Horde — `init`, the rule ladder and the quality index, the legislator's brief, `law`, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |

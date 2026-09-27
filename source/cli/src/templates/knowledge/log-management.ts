@@ -1,3 +1,5 @@
+import { TYPE_DECISION_TEST } from './shared-text.js';
+
 export const summary =
   'Log purpose (WHY-first), opt-in gate, positive-closure cycle, source-fingerprint gate, lock as baseline home, format constraints, Supersedes, type decision logs, typo recovery, revert recipe, git-merge resolution, large logs';
 
@@ -210,6 +212,8 @@ so an add refuses a rewritten or conflicted log. \`yg log read --type <type>\`
 prints the decisions in force; \`--all\` adds the replaced ones. A log whose
 type the architecture no longer defines is reported as \`type-log-orphaned\`.
 
+${TYPE_DECISION_TEST}
+
 An add lists the decisions in force for the type and the types above it, and
 when any exists it needs \`--supersedes <datetime>\` (the one it replaces) or
 \`--adds\` (it replaces none); with neither it is refused as
@@ -220,6 +224,10 @@ keeps every entry and records the baseline but exits with
 \`log-merge-supersedes-conflict\`: two successors would both be in force. Finish
 the merge, then add one entry that supersedes both and says which holds — ask
 the user which one that is.
+
+## What \`yg context\` carries
+
+\`yg context\` (text and \`--json\`, \`--node\` and \`--file\` alike) puts two logs in front of an agent, each under its own heading. First the decisions in force for the subject's type and for every type above it along its parent chain, nearest type first, each in full: a decision recorded on a type holds for the whole subtree of types below it. Then, for a subject a component owns, that component's own log — whole, except on a node whose type sets \`log_required\`, where it grows with every change and only its newest 10 entries in force are given, with a count of the rest and \`yg log read --node <path> --all\` to read them. An entry a later one replaced is history: it stays in its file and is left out of the context. A file governed by its type alone gets its type's decisions and no node log. A rule's own log never enters the context: it is for whoever changes the rule. Reading the logs changes nothing — no entry is part of any pair's hash.
 
 ## Recovery from typo in a fresh entry (BEFORE the node reaches closure)
 

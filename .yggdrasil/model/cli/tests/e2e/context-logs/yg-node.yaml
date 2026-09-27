@@ -1,0 +1,21 @@
+name: E2E Tests — the logs a context package carries
+type: test-suite
+description: >-
+  Subprocess E2E for the logs yg context gives an agent, in the text view and
+  the machine document alike. A component gets the decisions in force for its
+  type and for the type above it, nearest first, then its own log whole; a
+  replaced decision or entry is left out, and a rule own log never appears. A
+  component whose type requires an entry per change gets only its newest ten
+  entries in force, with the count of the rest and the command that reads
+  them. A file governed by its type alone gets its type decisions and no
+  component log. A subject with no log gets neither the headings nor the
+  document fields. And reading the logs changes no pair hash: a recorded
+  project stays verified after type and component entries are added.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-context-logs.test.ts

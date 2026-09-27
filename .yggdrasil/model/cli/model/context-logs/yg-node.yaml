@@ -1,0 +1,7 @@
+name: ContextLogsTypes
+type: types
+description: "The shapes of the logs a context package carries: one log entry (its datetime and its text), the decisions in force for one type of the subject type chain (with the reason when its log cannot be read), and a component own log as the context gives it (whole, or trimmed to its newest entries with a count of the ones left out when the node type requires an entry per change). Pure types in the model layer, so the renderer that prints them names them without depending on the engine that reads the log files."
+aspects: []
+relations: []
+mapping:
+  - source/cli/src/model/context-logs.ts

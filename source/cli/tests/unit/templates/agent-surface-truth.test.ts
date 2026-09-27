@@ -27,6 +27,7 @@ import {
   AUTO_APPROVE_READ_ONLY_CASES,
   RULE_SUPPORT_FILES,
   SUPPRESS_SINGLE_LINE_SCOPE,
+  TYPE_DECISION_TEST,
 } from '../../../src/templates/knowledge/shared-text.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,11 @@ const SHARED: Array<{ name: string; text: string; topics: string[] }> = [
     name: 'the line a single-line or trailing yg-suppress marker waives',
     text: SUPPRESS_SINGLE_LINE_SCOPE,
     topics: ['suppress-syntax'],
+  },
+  {
+    name: 'the test for a type decision and the user\'s consent to it',
+    text: TYPE_DECISION_TEST,
+    topics: ['log-management'],
   },
 ];
 

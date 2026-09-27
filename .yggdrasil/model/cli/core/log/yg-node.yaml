@@ -32,7 +32,11 @@ description: >-
   checking that the history being extended is still the one last recorded,
   because a type has no verdicts and so no closure. The decisions in force for a
   type and for the types above it on its parent chain are read in one place, for
-  the context an agent receives.
+  the context an agent receives. That context also gets the component's own
+  log, whole, or only its newest entries in force when the component's type
+  requires an entry for every change, with a count of the ones left out;
+  entries a later one replaced are left out of both, and a rule's own log is
+  never read for it. Nothing in that read writes a log, a lock or a verdict.
   Every log append — a component's or a rule's — reads, composes and replaces
   the file under a short repository-wide log-write lock, so two concurrent
   writers take turns instead of the later one silently dropping the earlier
@@ -64,6 +68,8 @@ relations:
     type: uses
   - target: cli/core/type-effective
     type: calls
+  - target: cli/model/context-logs
+    type: uses
 mapping:
   - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/aspect-status.ts
@@ -74,3 +80,4 @@ mapping:
   - source/cli/src/core/log/type-log.ts
   - source/cli/src/core/log/log-merge-resolve.ts
   - source/cli/src/core/log/log-gate.ts
+  - source/cli/src/core/log/context-logs.ts

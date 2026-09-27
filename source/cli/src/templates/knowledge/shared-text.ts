@@ -27,3 +27,7 @@ export const RULE_SUPPORT_FILES =
 /** Which line a single-line `yg-suppress` marker waives, trailing markers included. */
 export const SUPPRESS_SINGLE_LINE_SCOPE =
   'A single-line marker waives exactly one line: the line directly below it — or, when its comment trails code on the same line (`doThing(); // yg-suppress(<aspect-path>) <reason>`), that line itself, never the one below. A trailing `yg-suppress-disable` opens its range on its own line, and a trailing `yg-suppress-enable` closes it after its own line. A trailing marker is read only in a file whose language has a registered grammar; anywhere else, put the marker on its own line, directly above the line it waives. `yg suppressions` prints the lines each marker actually waives.';
+
+/** When a decision belongs in a node type's log rather than a node's, and who admits it. */
+export const TYPE_DECISION_TEST =
+  "A decision goes into a type's log (`yg log add --type <type>`) only when it passes one test: must an agent touching ANOTHER file of this type know it? If it concerns only the component in front of you, it is that component's WHY and goes in its node log (`yg log add --node`), which you write freely. A type decision reaches every file of the type and of every type below it, and `yg context` puts it in front of every agent working there, so it is the user's to admit, not yours: propose the one-sentence decision and the type it would sit on, and write it only after the user agrees. Keep it to the coarse decisions that shape the whole area; a detail of one change never belongs there.";

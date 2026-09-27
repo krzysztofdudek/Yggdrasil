@@ -447,6 +447,8 @@ including \`0 files — vacuous\`), flows, dependents, source files, and the log
 state line (\`log entry required before --approve: yes/no; fresh entry present:
 yes/no\`).
 
+Both forms also carry, under headings of their own, the decisions in force for the subject's type and every type above it (nearest first, each in full), then the owning component's log (whole, or its newest 10 entries in force when the node's type sets \`log_required\`, with a count of the rest). Replaced entries and a rule's own log are left out; a file governed by its type alone gets its type's decisions only. Details: \`yg knowledge read log-management\`.
+
 Read the files listed under \`read:\` before editing any source file — they
 contain the rules the reviewer will check your code against.
 
@@ -473,7 +475,12 @@ form's per-aspect subject-file counts (including \`0 files — vacuous\`), its
 flows, dependents and source files, the file form's dependency list, and the
 log-state line (\`log entry required before --approve: yes/no; fresh entry
 present: yes/no\`) have no field in \`yg-context/1\` today — \`--json --node\`
-never computes the mapped files and never reads the lock. An agent that needs
+never computes the mapped files and never reads the lock. The logs do have
+fields: \`typeDecisions\` (per type, nearest first: \`type\`, \`log\` path,
+\`entries\` in force with \`datetime\` and \`body\`) and \`nodeLog\` (\`node\`,
+\`log\`, \`entries\`, \`trimmed\`, \`omitted\`), each present only when it has
+something in it, either with \`unreadable\` (\`what\`, \`why\`, \`next\`)
+when its file does not parse or holds conflict markers. An agent that needs
 the log-gate fact before \`--approve\` must use the text \`--node\` view.
 The document names the subject, its \`owner\`, the
 \`chain\` it inherits along nearest-first (a component and its type per link;
