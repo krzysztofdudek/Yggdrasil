@@ -54,3 +54,5 @@ Two release lines met here: one that routes every piece of CLI output through th
 The Approve preview's fallback line called script-rule pairs deterministic; it says script rules now, the Glossary's word, like the rest of the portal.
 ## [2026-09-27T21:08:44.224Z]
 The Approve button kept answering 409 for an approval lock held from another machine however old it was, while the CLI replaces such a lock after twelve hours; the button now applies the same age test, so a lock the CLI would take over no longer blocks it forever.
+## [2026-09-27T21:43:02.010Z]
+The portal's Approve action now treats an approval lock held from another machine as abandoned after twelve hours, as the CLI does; this arrived beside the previous batch's portal wording fixes and both are kept.

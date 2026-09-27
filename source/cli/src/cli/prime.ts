@@ -10,6 +10,7 @@ import { MARKETPLACE_FILENAME, PACKAGES_LOCK_FILENAME } from '../model/packages.
 import { cliVersion } from './cli-version.js';
 import { abortOnUnexpectedError } from './preamble.js';
 import { writeOut } from './output.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 /**
  * Whether this repository publishes packages, consumes them, or neither.
@@ -35,7 +36,8 @@ function recordsAPackage(lockPath: string): boolean {
     const packages = raw?.packages;
     if (packages === undefined || packages === null) return false;
     return typeof packages !== 'object' || Array.isArray(packages) || Object.keys(packages).length > 0;
-  } catch {
+  } catch (err) {
+    debugWrite(`[prime] ${lockPath} does not parse; counted as recording a package: ${err instanceof Error ? err.message : String(err)}`);
     return true;
   }
 }

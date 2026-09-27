@@ -96,7 +96,7 @@ async function classifyTypeLogs(graph: Graph, projectRoot: string, lock: LockFil
       messageData: {
         what: `Type log ${logRel} belongs to node type '${entry.name}', which yg-architecture.yaml no longer defines`,
         why: 'A type log carries decisions about the nodes of one type into their context; with the type gone, nothing reads these decisions any more.',
-        next: `Move the entries that still hold to the log of the type that replaced it (yg log add --type <type> --reason '<the decision>'), then delete .yggdrasil/${TYPE_LOGS_DIR}/${entry.name}/ — or restore the type.`,
+        next: `Move the entries that still hold to the log of the type that replaced it (yg log add --type <type> --reason '<the decision>'), then delete the directory .yggdrasil/${TYPE_LOGS_DIR}/${entry.name} — or restore the type.`,
       },
       unitKey: `file:${logRel}`,
     });

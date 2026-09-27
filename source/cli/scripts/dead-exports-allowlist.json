@@ -179,6 +179,13 @@
       "exports": [
         "src/utils/file-schema.ts#fieldRows"
       ]
+    },
+    {
+      "reason": "The portal's Approve action keeps its own copy of the approval lock's staleness window instead of importing the lock store; a parity test reads both copies and fails when they drift apart.",
+      "exports": [
+        "src/io/lock-store.ts#APPROVE_LOCK_STALE_MS",
+        "src/portal/server/approve.ts#APPROVE_LOCK_STALE_MS"
+      ]
     }
   ]
 }

@@ -36,3 +36,5 @@ The shared fill primitives gained the one rewrite that makes a message name the 
 Comments named the retired pseudo-code aspect-check-runtime-error for a script check that failed to run; they now name the real cause, check-failed-to-run, which the fill notices print.
 ## [2026-09-27T21:08:38.639Z]
 The fill contract described the dry-run preview as a per-node and per-aspect breakdown; the preview prints one line per reviewer pair and counts the script pairs, and the description now says so.
+## [2026-09-27T21:43:28.990Z]
+The dry-run comment now says what the preview prints: the budget, one line per reviewer pair with the script pairs counted, not a per-node breakdown. The approval lock's staleness window is exported so the portal's Approve action counts a lock held from another machine as abandoned after the same twelve hours the CLI uses.

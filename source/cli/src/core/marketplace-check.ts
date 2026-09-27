@@ -765,7 +765,7 @@ async function checkDrills(
         {
           what: `The rule '${aspectDir}' in package '${pkg.name}' has ${(await statKind(drillsDir)) !== 'dir' ? 'no drills/ directory' : `drills/ with ${count(violates.length, 'case file')} that must be refused and ${satisfies.length} that must pass`}.`,
           why: 'A published rule runs somebody else\'s code against somebody else\'s repository. The pair of cases is the only thing that shows what it refuses and what it lets through, and it is the only thing a consumer can run to see the rule work before they trust it.',
-          next: `Add ${relDir}/drills/violates-<name>/ and ${relDir}/drills/satisfies-<name>/, each holding one source file, then run 'yg drill --aspect <id>' in a repository that has the rule installed.`,
+          next: `Add ${relDir}/drills/violates-<name>/ and ${relDir}/drills/satisfies-<name>/, each holding one source file, then run 'yg drill --aspect ${PACKAGES_DIR}/<owner>/<repo>/${pkg.name}/${aspectDir}' in a repository that has the rule installed (<owner>/<repo> is where that repository installed it from).`,
         },
         relDir,
       ),

@@ -132,15 +132,32 @@ async function makeProject(label: string, opts: { extraConfig?: string; asPropos
   return { root, marker, mock };
 }
 
-function run(args: string[], cwd: string, extraEnv: Record<string, string> = {}): Promise<{ status: number | null; all: string }> {
+/**
+ * Run one command to its end. With `serve`, the command is a portal server that
+ * never ends by itself: once it prints its address, the page it serves is
+ * rendered once (the fresh extraction a browser's first load runs), and the
+ * server is stopped.
+ */
+function run(args: string[], cwd: string, extraEnv: Record<string, string> = {}, serve = false): Promise<{ status: number | null; all: string }> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const k of ['CI', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_COMPATIBLE_API_KEY']) delete env[k];
   Object.assign(env, extraEnv);
   return new Promise((resolve) => {
     const child = spawn('node', [BIN_PATH, ...args], { cwd, env });
     let all = '';
-    child.stdout.on('data', (d) => { all += String(d); });
-    child.stderr.on('data', (d) => { all += String(d); });
+    let served = false;
+    const onData = (d: unknown): void => {
+      all += String(d);
+      const url = serve && !served ? /Portal running at (http:\/\/\S+?)(?:\s|$)/.exec(all)?.[1] : undefined;
+      if (url === undefined) return;
+      served = true;
+      void fetch(`${url}/render`)
+        .then((res) => res.text())
+        .catch((err: unknown) => { all += `\nrender failed: ${String(err)}\n`; })
+        .finally(() => child.kill('SIGTERM'));
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
     child.on('close', (status) => resolve({ status, all }));
   });
 }
@@ -180,6 +197,8 @@ interface Row {
   env?: Record<string, string>;
   /** Commit the project to a fresh git repository first — `yg simulate` replays history. */
   git?: boolean;
+  /** A served portal: render its page once, then stop it (see run). */
+  serve?: boolean;
 }
 
 /** Make the project one commit of a fresh git repository, isolated from any user or system git config. */
@@ -205,30 +224,33 @@ const ROWS: Row[] = [
   { name: 'yg tree', table: [1, 'yg tree'], args: ['tree'], expected: NOTHING },
   { name: 'yg impact', table: [1, 'yg impact'], args: ['impact', '--file', FILE], expected: NOTHING },
   { name: 'yg aspects', table: [1, 'yg aspects'], args: ['aspects'], expected: NOTHING },
-  { name: 'yg portal --static', table: [1, 'yg portal'], args: ['portal', '--static', '--out', 'portal.html'], expected: NOTHING },
+  { name: 'yg portal --static', table: [1, 'yg portal --static'], args: ['portal', '--static', '--out', 'portal.html'], expected: NOTHING },
+  { name: 'yg portal --no-write', table: [1, 'yg portal --no-write'], args: ['portal', '--no-write', '--port', '0'], expected: NOTHING, serve: true },
   // Row 2 — the free CI step: every check.mjs, nothing else.
   { name: 'yg check --approve --only-deterministic', table: [2, 'yg check --approve --only-deterministic'], args: ['check', '--approve', '--only-deterministic'], expected: SCRIPT_ONLY },
   // Row 3 — the full fill.
   { name: 'yg check --approve', table: [3, 'yg check --approve'], args: ['check', '--approve'], expected: EVERYTHING },
-  // Row 4 — adopt baselines the free verdicts only.
+  // Row 2 also — adopt baselines the free verdicts only.
   { name: 'yg adopt', table: [2, 'yg adopt'], args: ['adopt', 'proposal'], expected: SCRIPT_ONLY, asProposal: true },
+  // Row 4 — the served portal runs nothing by itself (its Approve button is row 3's fill).
+  { name: 'yg portal (served)', table: [4, 'yg portal'], args: ['portal', '--port', '0'], expected: NOTHING, serve: true },
   // Row 5 — the rule under test.
-  { name: 'yg aspect-test (script rule)', table: [4, 'yg aspect-test'], args: ['aspect-test', '--aspect', DET, '--node', NODE], expected: SCRIPT_ONLY },
-  { name: 'yg aspect-test (reviewer rule)', table: [4, 'yg aspect-test'], args: ['aspect-test', '--aspect', LLM, '--node', NODE], expected: { checkMjs: false, companionMjs: true, sourceToReviewer: true } },
-  { name: 'yg drill (script rule)', table: [4, 'yg drill'], args: ['drill', '--aspect', DET], expected: SCRIPT_ONLY, drillCase: DET },
-  { name: 'yg drill (reviewer rule)', table: [4, 'yg drill'], args: ['drill', '--aspect', LLM_PLAIN], expected: { checkMjs: false, companionMjs: false, sourceToReviewer: true }, drillCase: LLM_PLAIN },
+  { name: 'yg aspect-test (script rule)', table: [5, 'yg aspect-test'], args: ['aspect-test', '--aspect', DET, '--node', NODE], expected: SCRIPT_ONLY },
+  { name: 'yg aspect-test (reviewer rule)', table: [5, 'yg aspect-test'], args: ['aspect-test', '--aspect', LLM, '--node', NODE], expected: { checkMjs: false, companionMjs: true, sourceToReviewer: true } },
+  { name: 'yg drill (script rule)', table: [5, 'yg drill'], args: ['drill', '--aspect', DET], expected: SCRIPT_ONLY, drillCase: DET },
+  { name: 'yg drill (reviewer rule)', table: [5, 'yg drill'], args: ['drill', '--aspect', LLM_PLAIN], expected: { checkMjs: false, companionMjs: false, sourceToReviewer: true }, drillCase: LLM_PLAIN },
   // A reviewer rule that ships companion.mjs is recorded unsupported by drill: nothing of it runs.
-  { name: 'yg drill (reviewer rule with companion.mjs)', table: [4, 'yg drill'], args: ['drill', '--aspect', LLM], expected: NOTHING, drillCase: LLM },
+  { name: 'yg drill (reviewer rule with companion.mjs)', table: [5, 'yg drill'], args: ['drill', '--aspect', LLM], expected: NOTHING, drillCase: LLM },
   // yg simulate replays the candidate script rule in a throwaway clone: it writes nothing here, but runs check.mjs.
-  { name: 'yg simulate', table: [4, 'yg simulate'], args: ['simulate', DET, '--node', NODE], expected: SCRIPT_ONLY, git: true },
+  { name: 'yg simulate', table: [5, 'yg simulate'], args: ['simulate', DET, '--node', NODE], expected: SCRIPT_ONLY, git: true },
   // Row 6 — auto_approve turns a bare check into the matching --approve form (outside CI).
-  { name: 'bare yg check, auto_approve: deterministic', table: [5, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n' },
-  { name: 'bare yg check, auto_approve: full', table: [5, 'yg check'], args: ['check'], expected: EVERYTHING, extraConfig: 'auto_approve: full\n' },
+  { name: 'bare yg check, auto_approve: deterministic', table: [6, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n' },
+  { name: 'bare yg check, auto_approve: full', table: [6, 'yg check'], args: ['check'], expected: EVERYTHING, extraConfig: 'auto_approve: full\n' },
   // Under CI a committed `full` is held back — nothing runs; `deterministic` is not held back.
-  { name: 'bare yg check under CI, auto_approve: full', table: [5, 'yg check'], args: ['check'], expected: NOTHING, extraConfig: 'auto_approve: full\n', env: { CI: 'true' } },
-  { name: 'bare yg check under CI, auto_approve: deterministic', table: [5, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n', env: { CI: 'true' } },
+  { name: 'bare yg check under CI, auto_approve: full', table: [6, 'yg check'], args: ['check'], expected: NOTHING, extraConfig: 'auto_approve: full\n', env: { CI: 'true' } },
+  { name: 'bare yg check under CI, auto_approve: deterministic', table: [6, 'yg check'], args: ['check'], expected: SCRIPT_ONLY, extraConfig: 'auto_approve: deterministic\n', env: { CI: 'true' } },
   // A triage view never fills, whatever auto_approve says.
-  { name: 'yg check --summary, auto_approve: full', table: [5, 'yg check'], args: ['check', '--summary'], expected: NOTHING, extraConfig: 'auto_approve: full\n' },
+  { name: 'yg check --summary, auto_approve: full', table: [6, 'yg check'], args: ['check', '--summary'], expected: NOTHING, extraConfig: 'auto_approve: full\n' },
 ];
 
 // The read-only rows are also run over a project whose reviewer verdict is on
@@ -284,7 +306,7 @@ describe.skipIf(!distExists)('the-lock.md trust table — every row, as the CLI 
     try {
       if (row.drillCase) w(p.root, `.yggdrasil/aspects/${row.drillCase}/drills/satisfies-plain/ok.ts`, 'export const ok = 1;\n');
       if (row.git) commitProject(p.root);
-      const r = await run(row.args, p.root, row.env);
+      const r = await run(row.args, p.root, row.env, row.serve);
       expect(r.all).not.toContain('Unknown command');
       expect(observe(p), `${row.name}\n${r.all}`).toEqual(row.expected);
     } finally {
@@ -300,7 +322,7 @@ describe.skipIf(!distExists)('the-lock.md trust table — every row, as the CLI 
       writeFileSync(path.join(p.root, FILE), 'export const app = 2;\n', 'utf-8');
       rmSync(p.marker, { force: true });
       const before = p.mock.chatCount();
-      const r = await run(row.args, p.root, row.env);
+      const r = await run(row.args, p.root, row.env, row.serve);
       const seen = observe(p);
       expect({ ...seen, sourceToReviewer: p.mock.chatCount() > before }, `${row.name}\n${r.all}`).toEqual(NOTHING);
     } finally {

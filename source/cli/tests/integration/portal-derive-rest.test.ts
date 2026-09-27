@@ -100,12 +100,13 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[2].count).toBe(28);
 
     // cli/commands/build-context joined cli/core/check at 26 when its answers began
-    // draining stdout before the process ends (the shared drain-then-exit helper);
-    // the tie breaks by path, so build-context ranks first.
-    expect(data.hubs.fanOut[3].path).toBe('cli/commands/build-context');
-    expect(data.hubs.fanOut[3].count).toBe(26);
-    expect(data.hubs.fanOut[4].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[4].count).toBe(26);
+    // draining stdout before the process ends (the shared drain-then-exit helper).
+    // Dropping the declared relations no code backs took cli/core/check to 25 and
+    // build-context to 24, so cli/core/check ranks first again.
+    expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
+    expect(data.hubs.fanOut[3].count).toBe(25);
+    expect(data.hubs.fanOut[4].path).toBe('cli/commands/build-context');
+    expect(data.hubs.fanOut[4].count).toBe(24);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
     // 20 since the suppression scan moved into the engine: the facade dropped the
@@ -121,8 +122,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     const aspectTest = data.hubs.fanOut.find((h) => h.path === 'cli/commands/aspect-test');
     expect(aspectTest).toBeDefined();
     // 21 since its errors go through the shared CLI output layer, one more edge;
-    // 22 since its type import of the AST report became a declared relation.
-    expect(aspectTest!.count).toBe(22);
+    // 22 since its type import of the AST report became a declared relation;
+    // 20 since its relations to the loader and the config parser, which no code
+    // of it backs, were dropped.
+    expect(aspectTest!.count).toBe(20);
     expect(aspectTest!.count).toBeLessThan(23);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {

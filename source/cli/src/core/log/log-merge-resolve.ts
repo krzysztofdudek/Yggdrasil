@@ -480,7 +480,10 @@ function holdBaselineWriters(yggRoot: string, target: LogTarget, nowMs: number):
   try {
     return { release: acquireApproveLock(yggRoot, nowMs, `yg log merge-resolve ${target.flag}`) };
   } catch (err) {
-    if (err instanceof LockEnvironmentError) return { ...err.messageData, code: 'lock-environment' };
+    if (err instanceof LockEnvironmentError) {
+      debugWrite(`[log-merge-resolve] the approval lock is held for ${target.flag}: ${err.message}`);
+      return { ...err.messageData, code: 'lock-environment' };
+    }
     throw err;
   }
 }

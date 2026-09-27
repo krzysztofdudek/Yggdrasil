@@ -72,3 +72,5 @@ yg log add --type takes --adds, the writer answer that the new decision replaces
 The log command takes --ratify on a rule's log to record that the user admitted the rule as law over the node types it reaches, and refuses it on a node's or a type's log with the same usage refusal the status flags have, since only a rule has type law to admit. --by now also names who admitted it.
 ## [2026-09-27T21:08:35.359Z]
 merge-resolve now takes the fill's approval lock for a node's baseline, and the engine reads no clock of its own, so the command passes the wall clock in. Reading a type log with --top and --all together, or with an invalid --top, is a flag used wrongly and is now reported as a usage error, as every other command reports one.
+## [2026-09-27T21:42:58.943Z]
+The log read and merge-resolve usage fixes (a wrong --top reported as a usage error, merge-resolve under the log-write and approval locks) arrived beside the previous batch's type-log commands; both sides are kept as written.
