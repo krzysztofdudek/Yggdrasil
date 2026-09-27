@@ -81,6 +81,22 @@ describe('mergeLockTexts — the yg-lock merge driver', () => {
     expect(mergeLockTexts('', typesFile({}), base).ok).toBe(false);
   });
 
+  it('refuses a type baseline side of any other shape: an unknown key, types not an object, an entry that is not { log? }', () => {
+    const t = typesFile({});
+    expect(mergeLockTexts('', JSON.stringify({ version: 1, types: {}, extra: 1 }), t)).toEqual({ ok: false, why: 'ours has keys this CLI does not know (extra)' });
+    expect(mergeLockTexts('', JSON.stringify({ version: 1, types: [] }), t)).toEqual({ ok: false, why: 'ours "types" is not a JSON object' });
+    expect(mergeLockTexts('', JSON.stringify({ version: 1, types: { t: { other: 1 } } }), t)).toEqual({ ok: false, why: 'ours "types.t" is not { log? }' });
+    expect(mergeLockTexts('', JSON.stringify({ version: 1, types: { t: 'x' } }), t).ok).toBe(false);
+  });
+
+  it('keeps a type with no log baseline, and merges the rules\' remembered status like any other section', () => {
+    const u = { log: { last_entry_datetime: 'du', prefix_hash: 'pu' } };
+    expect(JSON.parse(merged('', typesFile({ t: {} }), typesFile({ t: {}, u })))).toEqual({ version: 1, types: { t: {}, u } });
+    const withAspects = (status: string): string => serializeLock({ version: 1, verdicts: {}, nodes: {}, aspects: { r: { status } } });
+    const out = merged(withAspects('advisory'), withAspects('enforced'), withAspects('advisory'));
+    expect((JSON.parse(out) as LockFile).aspects).toEqual({ r: { status: 'enforced' } });
+  });
+
   it('is independent of the direction of the merge for random lock triples (property)', () => {
     let seed = 473;
     const rnd = (n: number): number => {

@@ -35,7 +35,7 @@ export const REFUSED_GITIGNORE_LINE = `${REFUSED_DIRNAME}/`;
  * large would be a poor pair to learn from anyway. The refusal itself is recorded
  * in the lock and the events line as always.
  */
-export const REFUSED_MAX_BYTES = 2 * 1024 * 1024;
+const REFUSED_MAX_BYTES = 2 * 1024 * 1024;
 
 /** One stored refusal. `v` is the record-schema version. */
 export interface RefusedRecord {

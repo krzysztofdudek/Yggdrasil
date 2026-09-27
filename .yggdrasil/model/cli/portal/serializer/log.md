@@ -32,3 +32,5 @@ them keeps each file inside that budget without shrinking what the page is able
 to say.
 ## [2026-09-27T22:19:47.080Z]
 The glossary entries moved out of glossary.js into two data files, glossary-entries.js and glossary-entries-rest.js, because the vocabulary outgrew the portal's per-file line cap; the serializer inlines both ahead of glossary.js, which builds the tooltip lookup from the list they assemble, so the page loads the same entries in the same order as before.
+## [2026-09-27T22:25:06.488Z]
+The serializer inlines the two glossary data files ahead of glossary.js, because the entries moved out of glossary.js to stay under the portal's per-file line cap. In the same batch the release's own glossary additions, positive closure, the lock's three files and the four package terms, were carried into those data files, so the page still loads every entry of both lines of work in the same order.

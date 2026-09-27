@@ -76,3 +76,5 @@ After a merge whose drivers combined the logs, the baselines of the merged logs 
 merge-resolve now takes the fill's approval lock for a node's baseline, and the engine reads no clock of its own, so the command passes the wall clock in. Reading a type log with --top and --all together, or with an invalid --top, is a flag used wrongly and is now reported as a usage error, as every other command reports one.
 ## [2026-09-27T21:42:58.943Z]
 The log read and merge-resolve usage fixes (a wrong --top reported as a usage error, merge-resolve under the log-write and approval locks) arrived beside the previous batch's type-log commands; both sides are kept as written.
+## [2026-09-27T22:25:00.362Z]
+Merge-resolve with no log named reconciles every node and type log the merge at hand changed, read off the merge itself, so a post-merge hook or a tool that merges branches runs one command, and the type flag names the types lock where a type's decision-log baseline lives. It arrived in one batch with the coverage and verdict-vocabulary work, which does not change the log command.

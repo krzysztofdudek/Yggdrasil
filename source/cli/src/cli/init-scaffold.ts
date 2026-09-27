@@ -143,13 +143,13 @@ function runningCliPath(given?: string): string | null {
  * driver commands through its own POSIX shell on every platform (Git for
  * Windows ships one, with grep), so `if … fi` is portable; nothing in it is bash.
  */
-export function mergeDriverCommand(cli: string, kind: 'log' | 'lock'): string {
+function mergeDriverCommand(cli: string, kind: 'log' | 'lock'): string {
   const textMerge = 'git merge-file -L ours -L base -L theirs %A %O %B';
   return `if [ -f "${cli}" ] && command -v node >/dev/null 2>&1; then node "${cli}" merge-driver ${kind} %O %A %B %P; s=$?; if [ $s -ne 0 ] && ! grep -q '^<<<<<<< ' %A; then ${textMerge}; exit 1; fi; exit $s; else ${textMerge}; fi`;
 }
 
 /** The post-merge hook `yg init` writes when the repository has none. */
-export function postMergeHook(cli: string): string {
+function postMergeHook(cli: string): string {
   return [
     '#!/bin/sh',
     POST_MERGE_MARKER,

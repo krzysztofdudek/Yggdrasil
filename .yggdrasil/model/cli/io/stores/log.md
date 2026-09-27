@@ -228,3 +228,7 @@ The adaptation stub now lists description among the keys that are not adaptable.
 The adaptation stub a package install writes now lists description among the keys that cannot be adapted, which is what the adaptation parser already refused.
 ## [2026-09-27T22:08:05.875Z]
 A new store keeps the refused content of each refusal a fill records: one JSON record per verdict hash, holding the rule, the unit, the reason and the subject files as they were refused, text as text and other bytes as base64. It is content-addressed, so a record already present is never rewritten; a unit whose files exceed two mebibytes is skipped rather than copied; and it is write-only and best-effort like the verdict-events sidecar, because nothing in the engine may read it back or fail on it.
+## [2026-09-27T22:25:05.251Z]
+A new write-only, best-effort store keeps the refused content of each refusal a fill records, one content-addressed record per verdict hash, skipping units over two mebibytes. It arrived in one batch with the git merge drivers, which do not touch the stores.
+## [2026-09-27T22:32:21.924Z]
+The refused-content store's two-mebibyte cap is private to the store: nothing outside it reads the constant, and the repository gate refuses an export only a test reads, so the test states the cap as a number instead. The cap and what the store writes are unchanged.

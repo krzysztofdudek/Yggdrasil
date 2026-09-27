@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { logMergeResolve, looksLikeInterleavedMerge } from '../../../src/core/log/log-merge-resolve.js';
+import { logMergeResolve, logMergeResolveAll, looksLikeInterleavedMerge } from '../../../src/core/log/log-merge-resolve.js';
 import { readLock, writeLock, acquireApproveLock } from '../../../src/io/lock-store.js';
 import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
@@ -816,5 +816,44 @@ describe('logMergeResolve — a side whose log an earlier merge reordered by dat
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
     expect(result.ok).toBe(true);
     expect(await readFile(logPath, 'utf-8')).toBe(E0 + M1 + X);
+  });
+});
+
+describe('logMergeResolveAll — the post-merge step with no log named', () => {
+  it('reconciles every log the merge commit at HEAD changed, and records each baseline', async () => {
+    const { projectRoot } = await setupMergeRepo();
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolveAll({ graph, repoRoot: projectRoot });
+    expect(result.merge).toBe('commit');
+    expect(result.failed).toEqual([]);
+    expect(result.resolved.map((r) => r.logPath)).toEqual(['.yggdrasil/model/billing/log.md']);
+    expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(RESOLVED_LOG_GOOD));
+  });
+
+  it('reads the sides off a merge still stopped on a conflict, writing the union', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, PARENT1_LOG);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolveAll({ graph, repoRoot: projectRoot });
+    expect(result.merge).toBe('in-progress');
+    expect(result.resolved).toHaveLength(1);
+    expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
+  });
+
+  it('names a log that cannot be reconciled with its own refusal, as the flag that reconciles it alone', async () => {
+    const { projectRoot } = await setupMergeRepo();
+    await writeFile(path.join(projectRoot, '.yggdrasil', 'model', 'billing', 'log.md'), `${RESOLVED_LOG_GOOD}## [2026-05-11T13:00:00.000Z]\nnever written on either branch.\n`);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolveAll({ graph, repoRoot: projectRoot });
+    expect(result.resolved).toEqual([]);
+    expect(result.failed.map((f) => [f.logPath, f.target])).toEqual([['.yggdrasil/model/billing/log.md', '--node billing']]);
+  });
+
+  it('has nothing to do when HEAD is no merge and none is in progress', async () => {
+    const { projectRoot } = await setupMergeRepo();
+    const r = (cmd: string) => execSync(cmd, { cwd: projectRoot, stdio: 'pipe', env: gitFixtureEnv(projectRoot) });
+    await writeFile(path.join(projectRoot, 'README.md'), 'after the merge\n');
+    r('git add -A && git commit -qm after');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    expect(await logMergeResolveAll({ graph, repoRoot: projectRoot })).toEqual({ merge: 'none', resolved: [], failed: [] });
   });
 });

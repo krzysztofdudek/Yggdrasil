@@ -155,16 +155,19 @@ export function createVerdictWriter(params: {
   let refusedStoreEnabled: Promise<boolean> | undefined;
   const storeRefusal = async (pair: ExpectedPair, entry: VerdictEntry): Promise<void> => {
     if (entry.verdict !== 'refused') return;
-    refusedStoreEnabled ??= isFileGitignored(projectRoot, `${path.basename(graph.rootPath)}/${REFUSED_DIRNAME}/x.json`).catch(() => false);
+    refusedStoreEnabled ??= isFileGitignored(projectRoot, `${path.basename(graph.rootPath)}/${REFUSED_DIRNAME}/x.json`).catch((e: unknown) => {
+      debugWrite(`[fill] refused-content store: could not ask whether its directory is gitignored, so it stays off this run: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    });
     storeRefusedContent(graph.rootPath, projectRoot, {
       hash: entry.hash,
       ts: new Date(now()).toISOString(),
       ...(sha !== undefined ? { sha } : {}),
       aspectId: pair.aspectId,
-      unitKey: pair.unitKey,
+      unitKey: toPosixPath(pair.unitKey),
       kind: pair.kind,
       reason: entry.reason ?? '',
-      subjectFiles: pair.subjectFiles,
+      subjectFiles: pair.subjectFiles.map((f) => toPosixPath(f)),
     }, await refusedStoreEnabled);
   };
 

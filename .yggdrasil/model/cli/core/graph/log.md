@@ -163,3 +163,7 @@ Why a pair is invalidated, and a unit whose cost could not be worked out, moved 
 The live dependency boundary (the relation pass joined with the architecture matrix) moved here from the portal so yg advise, yg structure and the portal facade read one engine implementation, and no command depends on portal internals for it.
 ## [2026-09-27T22:08:05.019Z]
 Every edge between two distinct unrelated nodes spans at least two hierarchy hops, so ranking edges by span alone presented sibling dependencies as tunnels. The metrics core now names the sibling span and a predicate for a sibling edge: span two and one parent path. The parent-path half keeps an edge that touches a type-covered file a tunnel whenever its path places it elsewhere in the tree, since such a file is pinned at depth one for ranking. The tunnel ranking shared by the structure view and the portal applies it, and the advise count uses the same predicate.
+## [2026-09-27T22:25:03.436Z]
+The graph metrics name the sibling span and a predicate for a sibling edge, so the tunnel ranking shared by the structure view, the portal and advise stops presenting dependencies between siblings as tunnels. It arrived in one batch with the git merge drivers, which do not change the graph metrics.
+## [2026-09-27T22:32:21.323Z]
+The sibling-span constant is private to the metrics core: only the sibling-edge predicate reads it, and the repository gate refuses an export no other file reads. Nothing the metrics compute changes.

@@ -24,3 +24,5 @@ Every byte this command prints now goes through the output layer: stdout and std
 The detected and type-level edges are now read from the engine's dependency boundary instead of the portal's internals, so this command no longer depends on the portal at all.
 ## [2026-09-27T22:08:01.344Z]
 The tunnels section listed an edge between siblings as one that jumps two levels across the tree and called a declared relation 'no declared contract', although what the flag measures is whether a relation names a port other than the implicit default one. Sibling edges are no longer tunnels (they stay in the module view and in change reach), the section says plainly when no dependency reaches past a sibling, and each tunnel line says 'through a named port' or 'no named port', the words for what is actually measured.
+## [2026-09-27T22:25:01.562Z]
+The tunnels section no longer lists an edge between siblings as a tunnel, says plainly when no dependency reaches past a sibling, and describes each tunnel as going through a named port or not, the words for what is actually measured. It arrived in one batch with the git merge drivers, which do not touch the structure view.

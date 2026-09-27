@@ -68,6 +68,27 @@ describe('mergeLogTexts — the yg-log merge driver', () => {
     expect(merged.ok).toBe(true);
   });
 
+  it('returns identical sides unchanged', () => {
+    const same = entry(T0, 'shared') + entry(T1, 'both');
+    expect(mergeLogTexts(entry(T0, 'shared'), same, same)).toEqual({ ok: true, text: same });
+  });
+
+  it('refuses sides that differ before their first entry, marking the whole of both', () => {
+    const ours = `intro A\n${entry(T0, 'x')}`;
+    const theirs = `intro B\n${entry(T0, 'x')}`;
+    const merged = mergeLogTexts('', ours, theirs);
+    expect(merged.ok).toBe(false);
+    expect(merged.ok ? '' : merged.reason).toBe('history-rewritten');
+    expect(merged.text).toBe(`<<<<<<< ours\n${ours}=======\n${theirs}>>>>>>> theirs\n`);
+  });
+
+  it('ends each side between the markers with a newline, even a side whose last line had none', () => {
+    const base = entry(T0, 'shared');
+    const merged = mergeLogTexts(base, entry(T0, 'rewritten').trimEnd(), base + entry(T1, 'theirs'));
+    expect(merged.ok).toBe(false);
+    expect(merged.text).toMatch(/rewritten\n=======\n/);
+  });
+
   it('refuses a side that already carries conflict markers', () => {
     const base = entry(T0, 'shared');
     const merged = mergeLogTexts(base, `${base}<<<<<<< x\n`, base + entry(T1, 't'));

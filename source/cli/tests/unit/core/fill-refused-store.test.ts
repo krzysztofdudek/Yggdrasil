@@ -16,7 +16,7 @@ import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
 import { readLock } from '../../../src/io/lock-store.js';
 import { EVENTS_FILENAME } from '../../../src/io/events-store.js';
-import { REFUSED_DIRNAME, REFUSED_MAX_BYTES, storeRefusedContent, type RefusedRecord } from '../../../src/io/refused-store.js';
+import { REFUSED_DIRNAME, storeRefusedContent, type RefusedRecord } from '../../../src/io/refused-store.js';
 
 const DET_PASS = 'export function check(ctx) { void ctx; return []; }\n';
 const DET_FAIL =
@@ -124,10 +124,24 @@ describe('storeRefusedContent', () => {
 
   it('stores nothing when disabled, for a malformed hash, or past the size cap', async () => {
     const { projectRoot, yggRoot } = await tmpProject();
-    await writeFile(path.join(projectRoot, 'big.txt'), 'x'.repeat(REFUSED_MAX_BYTES + 1));
+    // One byte over the store's two-mebibyte cap.
+    await writeFile(path.join(projectRoot, 'big.txt'), 'x'.repeat(2 * 1024 * 1024 + 1));
     expect(storeRefusedContent(yggRoot, projectRoot, { ...base, subjectFiles: [] }, false)).toBe(false);
     expect(storeRefusedContent(yggRoot, projectRoot, { ...base, hash: '../x', subjectFiles: [] }, true)).toBe(false);
     expect(storeRefusedContent(yggRoot, projectRoot, { ...base, subjectFiles: ['big.txt'] }, true)).toBe(false);
     expect(existsSync(path.join(yggRoot, REFUSED_DIRNAME))).toBe(false);
+  });
+
+  it('records the commit when one is given, names a deleted subject with empty content, and a write that fails returns false', async () => {
+    const { projectRoot, yggRoot } = await tmpProject();
+    expect(storeRefusedContent(yggRoot, projectRoot, { ...base, sha: 'abc123', unitKey: 'file:src\\gone.ts', subjectFiles: ['src\\gone.ts'] }, true)).toBe(true);
+    const rec = JSON.parse(readFileSync(path.join(yggRoot, REFUSED_DIRNAME, `${HASH}.json`), 'utf-8')) as RefusedRecord;
+    expect(rec.sha).toBe('abc123');
+    expect(rec.unitKey).toBe('file:src/gone.ts');
+    expect(rec.files).toEqual([{ path: 'src/gone.ts', content: '' }]);
+    // The store's directory cannot be made where a file already sits: best-effort, no throw.
+    const blocked = path.join(projectRoot, 'blocked-ygg');
+    writeFileSync(blocked, 'not a directory');
+    expect(storeRefusedContent(path.join(blocked, 'inner'), projectRoot, { ...base, subjectFiles: [] }, true)).toBe(false);
   });
 });

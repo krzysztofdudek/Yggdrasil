@@ -8,3 +8,5 @@ Exported values that no other file reads were found across the source, left over
 The merge driver is a command git runs rather than one a person types, but it is part of the surface and appears in the grouped help under setup with the exact shape git invokes it with, so a reader who meets it in a git configuration can find what it is.
 ## [2026-09-27T21:08:34.588Z]
 The top-level and check help examples called a bare yg check a read-only gate, which is false on a project that sets auto_approve; the example now says it is read-only unless auto_approve is set.
+## [2026-09-27T22:24:59.103Z]
+The grouped help lists the merge-driver command under setup with the exact shape git invokes it with, so a reader who meets it in a git configuration can find what it is. It arrived in one batch with the verdict-vocabulary and coverage work, and the help text written earlier about a bare check being read-only unless auto_approve is set is kept unchanged.

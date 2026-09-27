@@ -356,7 +356,7 @@ export async function runCheck(
         code: 'suppress-marker-missing-reason',
         rule: 'suppress-marker-missing-reason',
         messageData: m.messageData,
-        unitKey: fileUnit(m.file),
+        unitKey: fileUnit(toPosixPath(m.file)),
       }))
     : [];
 

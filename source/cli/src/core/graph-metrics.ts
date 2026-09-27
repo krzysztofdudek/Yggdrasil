@@ -197,7 +197,7 @@ export const TOP_TUNNELS = 10;
  * top-level ones included. Every edge between two distinct, unrelated nodes
  * spans at least this much (lineage pairs are never edges).
  */
-export const SIBLING_SPAN = 2;
+const SIBLING_SPAN = 2;
 
 /** The parent path of a `/`-delimited id — `''` for a top-level one. */
 function parentPathOf(id: string): string {

@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 34, ahead of cli/core/fill and cli/entry at 28', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 31, ahead of cli/entry at 29 and cli/core/fill at 28', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -87,17 +87,19 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(31);
-    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[1].count).toBe(28);
-    expect(data.hubs.fanOut[2].path).toBe('cli/entry');
+    // cli/entry passed cli/core/fill at 29 when the merge-driver command joined.
+    expect(data.hubs.fanOut[1].path).toBe('cli/entry');
+    expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[2].count).toBe(28);
     // 27 since the marketplace command joined, 26 again since the verdict
     // command left (the configured reviewer is the only judge), 27 again since
     // a hidden stub took its name to point callers at the replacement, 28 since
     // the grouped `yg help` registration joined: the
     // dispatcher necessarily references one node per command, so this number
     // moves by one with every command the CLI gains or loses — that is the
-    // dispatcher working, and its own node carries a reviewed allowance saying so.
-    expect(data.hubs.fanOut[2].count).toBe(28);
+    // dispatcher working, and its own node carries a reviewed allowance saying so;
+    // 29 since the merge-driver command joined.
+    expect(data.hubs.fanOut[1].count).toBe(29);
 
     // cli/commands/build-context joined cli/core/check at 26 when its answers began
     // draining stdout before the process ends (the shared drain-then-exit helper).

@@ -5,6 +5,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { mergeLogTexts } from '../core/log/log-merge-driver.js';
 import { mergeLockTexts } from '../io/lock-store.js';
 import { fail } from './output.js';
+import { abortOnUnexpectedError } from './preamble.js';
 
 /**
  * `yg merge-driver <log|lock> <base> <ours> <theirs> [path]` — the git merge
@@ -45,8 +46,12 @@ export function registerMergeDriverCommand(program: Command): void {
     });
 }
 
-/** The driver itself: 0 when <ours> now holds a clean merge, 1 when it holds conflict markers. */
-export function runMergeDriver(kind: string, basePath: string, oursPath: string, theirsPath: string, shownPath: string): number {
+/**
+ * The driver itself: 0 when <ours> now holds a clean merge, 1 when it holds conflict markers.
+ * An unexpected error first writes git's own markers over <ours>, then aborts with exit 1
+ * and the error on stderr, so git stops on the file and the person merging sees why.
+ */
+function runMergeDriver(kind: string, basePath: string, oursPath: string, theirsPath: string, shownPath: string): number {
   try {
     if (kind !== 'log' && kind !== 'lock') {
       fail({
@@ -85,7 +90,8 @@ export function runMergeDriver(kind: string, basePath: string, oursPath: string,
     return fallBack(basePath, oursPath, theirsPath);
   } catch (err) {
     debugWrite(`[merge-driver] ${kind} failed on ${shownPath}, falling back to git merge-file: ${err instanceof Error ? err.message : String(err)}`);
-    return fallBack(basePath, oursPath, theirsPath);
+    fallBack(basePath, oursPath, theirsPath);
+    abortOnUnexpectedError(err, `yg merge-driver ${kind} on ${shownPath}`);
   }
 }
 
