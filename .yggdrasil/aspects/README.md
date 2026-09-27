@@ -217,8 +217,8 @@ The three values (canonical definitions from `yg schemas read aspect`):
   fully decidable from what it reads (an existence fact, list-membership, or a
   static structural contract).
 
-One aspect is a genuine **mixed** case and intentionally leaves `errs` **absent**
-(see the note below the table) — forcing a single label there would be
+Two aspects are genuine **mixed** cases and intentionally leave `errs` **absent**
+(see the notes below the table) — forcing a single label there would be
 dishonest.
 
 | aspect id | errs | justification (from the check's code) |
@@ -279,6 +279,8 @@ reads of the literal `options` identifier, silently skipping the documented
 shapes: an aliased options object, a short-flag-only spec, a dynamically-built
 spec, and a rest-pattern capture. Neither direction dominates, so no single
 label would be honest.
+
+**Mixed / absent — `output-through-layer`.** It is *over* because the count form reads any substitution directly before `pairs`, `nodes` or `files` as a number, so `${lang} files` is flagged. It is *under* because it knows only those three nouns and only a plural written out or spliced on as `file${…}`: a count of any other noun (`${n} obligation${n === 1 ? '' : 's'}`), a noun chosen by a whole-word conditional (`${n} ${n === 1 ? 'pair' : 'pairs'}`) and a stream reached through an alias all pass. Neither direction dominates.
 
 ## Graph-context aspects (no drill corpus in v1)
 
