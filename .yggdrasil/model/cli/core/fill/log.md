@@ -228,3 +228,5 @@ Every message a fill prints now names, in its re-run line, the command the run w
 A full recording run now drops the log baseline of a node type the architecture no longer defines. Left behind, it would make a type created later under the same name read its fresh log as a truncated history.
 ## [2026-09-27T09:37:49.864Z]
 The comment on the hand-changed status path names the command that records such a change by its new name; behaviour is unchanged.
+## [2026-09-27T10:05:50.708Z]
+The prune of a type baseline whose type is gone now reads and rewrites the type baselines file itself, under the log-write lock a concurrent type decision also takes, and only on a full run, because the fill lock write no longer carries that file.

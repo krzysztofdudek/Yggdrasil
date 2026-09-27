@@ -190,9 +190,12 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 on disk it is partitioned across three files, read back into one and split again
 only at the I/O boundary:
 - \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of reviewer rules.
-- \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines),
-  and, once a node type has a decision log, the \`types\` section (each type
-  log's append-only baseline, recorded by \`yg log add --type\`).
+- \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines).
+- \`yg-lock.types.json\` (committed, only once a node type has a decision log) —
+  each type log's append-only baseline, written by \`yg log add --type\`,
+  \`yg log merge-resolve --type\` and a full fill's prune of a type that is gone,
+  never by a fill's lock write. A file of its own so no release before 6.1.0
+  ever reads it.
 - \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of script
   rules, PLUS the whole \`aspects\` section. The remembered statuses ride with
   the rebuildable cache rather than a committed file because they record what
@@ -455,8 +458,10 @@ The current lock FORMAT version is 1: \`{ version, verdicts, nodes }\` plus the
 OPTIONAL \`aspects\` section described above. Optional is load-bearing here —
 \`aspects\` was added WITHOUT a version bump, so a perfectly valid v1 file may
 legitimately carry three top-level keys or four, and a lock you inspect by hand
-carrying \`aspects\` is current, not damaged. Beyond those four, an unknown
-top-level key is \`lock-invalid\`. There is no separate relation section and no
+carrying \`aspects\` is current, not damaged. An unknown top-level key is a
+section a later release added: it is IGNORED (dropped on read, never written
+back), not \`lock-invalid\` — so a newer CLI in one checkout never takes an older
+one down. Inside the known sections the shape stays strict. There is no separate relation section and no
 migration to perform: relation conformance is computed live (see above), so
 nothing about it ever lands in the lock. The addition of \`companion.mjs\` support
 (including \`companionHash\` in the inputHash and \`touched\` on companion-bearing

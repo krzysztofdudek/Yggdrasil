@@ -16,7 +16,8 @@ import { firstParentAncestors,
 import { readTextFile, writeTextFile, statKind } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
-import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
+import { readLock, writeLock, readTypeLock, writeTypeLock, LockInvalidError } from '../../io/lock-store.js';
+import { withLogWriteLock } from '../../io/log-store.js';
 import { computeLogBaselineFromContent, computeLogGateState, logGateStateBlocks } from './log-gate.js';
 import { validateAppendOnly } from '../log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from '../log-format.js';
@@ -383,6 +384,25 @@ async function recordBaseline(graph: Graph, target: LogTarget, currentLog: strin
   const yggRoot = graph.rootPath;
   const baseline = computeLogBaselineFromContent(currentLog);
   if (!baseline) return { error: null, entryOwed: false };
+  if (target.typeId !== undefined) {
+    // A type's baseline sits in its own committed file, read and written under
+    // the log-write lock every type baseline writer takes; a type has no source
+    // of its own, so it never owes an entry for merged code.
+    const typeId = target.typeId;
+    const written = await withLogWriteLock(yggRoot, async (): Promise<IssueMessage | null> => {
+      try {
+        await writeTypeLock(yggRoot, { ...readTypeLock(yggRoot), [typeId]: { log: baseline } });
+        return null;
+      } catch (err) {
+        if (err instanceof LockInvalidError) {
+          debugWrite(`[log-merge-resolve] the type baseline file is invalid for ${target.flag}: ${err.message}`);
+          return err.messageData;
+        }
+        throw err;
+      }
+    });
+    return { error: written.ok ? written.value : written.error, entryOwed: false };
+  }
   let lock;
   try {
     lock = readLock(yggRoot);
@@ -392,13 +412,6 @@ async function recordBaseline(graph: Graph, target: LogTarget, currentLog: strin
       return { error: err.messageData, entryOwed: false };
     }
     throw err;
-  }
-  if (target.typeId !== undefined) {
-    // A type's baseline sits in the `types` section beside the nodes; a type has
-    // no source of its own, so it never owes an entry for merged code.
-    lock.types = { ...(lock.types ?? {}), [target.typeId]: { log: baseline } };
-    await writeLock(yggRoot, lock, { scope: 'logs' });
-    return { error: null, entryOwed: false };
   }
   const nodePath = target.nodePath as string;
   const entry = lock.nodes[nodePath] ?? {};

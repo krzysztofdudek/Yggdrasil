@@ -30,6 +30,7 @@ The CLI (\`yg\`) never modifies your source files, and during normal review it n
   flows/               ← flows: business processes with node participation
   yg-lock.nondeterministic.json ← committed: reviewer verdicts; written only by the CLI. Never hand-edit. On a merge conflict take ONE side wholesale, then run yg check --approve.
   yg-lock.logs.json    ← committed: per-node log/closure baseline; written only by the CLI.
+  yg-lock.types.json   ← committed, once a type has a decision log: type-log baselines; written only by the CLI.
   .yg-lock.deterministic.json ← gitignored cache: script verdicts. Rebuilt free by \`yg check --approve --only-deterministic\`. Never commit/hand-edit. (yg knowledge read verification-and-lock)
 \`\`\`
 

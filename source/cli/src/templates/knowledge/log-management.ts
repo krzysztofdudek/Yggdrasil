@@ -205,7 +205,7 @@ decision about the whole area a node type stands for, in
 \`.yggdrasil/types/<type>/log.md\`. It is never required and invalidates no
 verdict. It has the same entry rules, \`--supersedes\`, integrity, format and
 conflict checks and \`yg log merge-resolve --type <type>\` as a node's log; its
-baseline (the \`types\` section of \`yg-lock.logs.json\`) moves with each add,
+baseline (in the committed \`yg-lock.types.json\`) moves with each add,
 so an add refuses a rewritten or conflicted log. \`yg log read --type <type>\`
 prints the decisions in force; \`--all\` adds the replaced ones. A log whose
 type the architecture no longer defines is reported as \`type-log-orphaned\`.

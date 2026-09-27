@@ -5,7 +5,7 @@
 // type. It is held to what a node's log is held to, and these scenarios pin it:
 //
 //   1. add/read   → the entry lands in .yggdrasil/types/<type>/log.md, its
-//                   baseline in the committed logs lock, and reads back as a
+//                   baseline in the committed yg-lock.types.json, and reads back as a
 //                   yg-type-log/1 document
 //   2. in force   → a replaced decision leaves the default read; --all shows it,
 //                   marked
@@ -82,7 +82,7 @@ function checkDoc(dir: string): { issues: OutputIssue[] } {
 }
 
 const logsLock = (dir: string): { types?: Record<string, { log?: { last_entry_datetime: string } }> } =>
-  JSON.parse(readFileSync(path.join(dir, '.yggdrasil', 'yg-lock.logs.json'), 'utf-8'));
+  JSON.parse(readFileSync(path.join(dir, '.yggdrasil', 'yg-lock.types.json'), 'utf-8'));
 
 describe.skipIf(!distExists)('CLI E2E — a node type keeps a decision log', () => {
   it('1: an entry lands beside the type, its baseline in the logs lock, and reads back as yg-type-log/1', () => {
@@ -206,7 +206,7 @@ describe.skipIf(!distExists)('CLI E2E — a node type keeps a decision log', () 
 
       runGitFixture(dir, ['merge', 'b']);
       expect(readFileSync(path.join(dir, LOG_REL), 'utf-8')).toMatch(/^<<<<<<< /m);
-      runGitFixture(dir, ['checkout', '--ours', '--', '.yggdrasil/yg-lock.logs.json']);
+      runGitFixture(dir, ['checkout', '--ours', '--', '.yggdrasil/yg-lock.types.json']);
       expectIssue(checkDoc(dir), { code: 'log-conflict', unit: UNIT });
 
       const resolved = yg(dir, ['log', 'merge-resolve', '--type', TYPE]);

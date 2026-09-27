@@ -19,7 +19,7 @@
  * never reads it, coverage never counts it, and no verdict folds it in.
  *
  * It is held to what a node's log is held to — the same entry composer, the same
- * append-only baseline in the committed `yg-lock.logs.json` (under `types`), the
+ * append-only baseline (in the committed `yg-lock.types.json`), the
  * same format and conflict checks in `yg check`, the same `yg log merge-resolve`.
  * The one difference is WHEN the baseline moves: a type has no verdicts, so there
  * is no closure to record it at; it is recorded by the add itself, after checking
@@ -33,9 +33,9 @@ import path from 'node:path';
 
 import type { Graph } from '../../model/graph.js';
 import type { CodedIssueMessage } from '../../model/validation.js';
-import type { LockFile } from '../../model/lock.js';
+import type { LockTypeEntry } from '../../model/lock.js';
 import { readLogSafe, statLogFile, withLogWriteLock, writeLogFile } from '../../io/log-store.js';
-import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
+import { readTypeLock, writeTypeLock, LockInvalidError } from '../../io/lock-store.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat, logHasConflictMarkers } from '../log-format.js';
 import { validateAppendOnly } from '../log-integrity.js';
@@ -137,9 +137,9 @@ export async function appendTypeLogEntry(input: {
   }
 
   const locked = await withLogWriteLock(graph.rootPath, async (): Promise<TypeLogAddResult> => {
-    let lock: LockFile;
+    let baselines: Record<string, LockTypeEntry>;
     try {
-      lock = readLock(graph.rootPath);
+      baselines = readTypeLock(graph.rootPath);
     } catch (err) {
       if (err instanceof LockInvalidError) {
         debugWrite(`[type-log] appendTypeLogEntry: lock unreadable for type ${typeId}: ${err.message}`);
@@ -148,7 +148,7 @@ export async function appendTypeLogEntry(input: {
       throw err;
     }
     const existing = await readLogSafe(logAbs);
-    const unsettled = unsettledLogRefusal(existing, lock.types?.[typeId]?.log, typeId, logRel);
+    const unsettled = unsettledLogRefusal(existing, baselines[typeId]?.log, typeId, logRel);
     if (unsettled !== null) return { ok: false, error: unsettled };
 
     const composed = composeLogEntry(existing, input.reasonText, input.nowMs, { supersedes: input.supersedes });
@@ -157,8 +157,9 @@ export async function appendTypeLogEntry(input: {
 
     const baseline = computeLogBaselineFromContent(composed.content);
     if (baseline !== undefined) {
-      lock.types = { ...(lock.types ?? {}), [typeId]: { log: baseline } };
-      await writeLock(graph.rootPath, lock, { scope: 'logs' });
+      // Only the type baselines' own file is written: a fill running beside
+      // this add never writes that file, so neither write can undo the other.
+      await writeTypeLock(graph.rootPath, { ...baselines, [typeId]: { log: baseline } });
     }
     return { ok: true, datetime: composed.datetime, logPath: logRel };
   });

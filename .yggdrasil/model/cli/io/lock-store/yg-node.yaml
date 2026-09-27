@@ -27,11 +27,15 @@ description: >-
   still fail-closed — while refusing over it would take the whole gate down on
   any version skew that widens the schema, which is how this actually breaks in
   the field rather than through corruption.
-  The committed logs file also carries, beside the per-component baselines, the
-  append-only baseline of each node type's decision log. That section is written
-  only once a type has one, so a project that never records a type decision
-  keeps a committed file an earlier release still reads, and it is validated as
-  strictly as a component's baseline.
+  The append-only baseline of each node type's decision log lives in a committed
+  file of its own, read and written apart from the lock's other files: no
+  release before this one opens it, so recording a type decision never makes an
+  older checkout's reader fail closed, and no fill's lock write touches it, so a
+  fill running beside a type decision cannot write a stale copy back. Every
+  committed lock file now ignores a top-level key this release does not know —
+  a section a later release added — instead of refusing it, so the next
+  extension does not take older checkouts down either; inside a known section
+  the shape stays strict.
   Writes are cheap to repeat: a caller can narrow a write to the split files it
   changed, and the store remembers a digest of what it last wrote to each file
   together with that file's size and time, so an unchanged file is skipped and

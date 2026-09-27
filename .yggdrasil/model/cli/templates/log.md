@@ -236,3 +236,5 @@ The agent-facing manual, the log-management knowledge and the CLI reference know
 The CLI reference, log-management and lock knowledge now describe the node type decision log: where it lives, that it is never required and re-opens no verdict, the checks it shares with a node log, its baseline section in the committed logs file, and the orphaned-log warning.
 ## [2026-09-27T09:37:51.795Z]
 The agent manual and the CLI reference knowledge teach the rule history as yg log with --aspect, drop the removed alias of --top, and describe what differs from the other logs: the whole history by default, the status flags, no merge baseline.
+## [2026-09-27T10:05:54.261Z]
+The lock knowledge and the agent manual describe the committed type baselines file, why it is separate, and that an unknown top-level key in a committed lock file is now ignored rather than lock-invalid.

@@ -1124,8 +1124,8 @@ yg log merge-resolve --type handler
 
 A type's log lives in \`.yggdrasil/types/<type>/log.md\`. It gets the same
 integrity, format and conflict checks as a node's (findings carry the log file
-as \`unit\`), with its baseline in the \`types\` section of
-\`yg-lock.logs.json\`, recorded by each add — so an add refuses a rewritten
+as \`unit\`), with its baseline in the committed \`yg-lock.types.json\`
+(a file of its own, never written by a fill), recorded by each add — so an add refuses a rewritten
 history (\`log-integrity\`) or conflict markers (\`log-conflict\`). An unknown
 type is \`type-not-found\`. A type log whose type is gone from
 \`yg-architecture.yaml\` is the \`type-log-orphaned\` warning. \`--json\` on a

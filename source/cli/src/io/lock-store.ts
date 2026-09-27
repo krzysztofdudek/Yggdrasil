@@ -9,6 +9,7 @@ import {
   LOCK_NONDET_FILE_NAME,
   LOCK_LOGS_FILE_NAME,
   LOCK_DET_FILE_NAME,
+  LOCK_TYPES_FILE_NAME,
 } from '../model/lock.js';
 import { atomicWriteFile, atomicWriteFileSync, onProcessInterrupt, tryAcquireExclusiveFile } from '../io/atomic-write.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -112,8 +113,7 @@ export function acquireApproveLock(yggRoot: string, nowMs: number, command = 'yg
 // ── File layout (the 5.1.0 triad) ─────────────────────────────────────────────
 // The lock is split across three files; the in-memory LockFile stays unified.
 //   - nondeterministic.json (committed) → LLM verdicts
-//   - logs.json             (committed) → the `nodes` section, and the `types`
-//     section (each node type's decision-log baseline) when there is one
+//   - logs.json             (committed) → the `nodes` section
 //   - .deterministic.json   (gitignored) → deterministic verdicts + the `aspects`
 //     section (each rule's last-seen standing — local, rebuildable memory)
 // readLock merges all three; writeLock partitions one LockFile back out, by
@@ -148,7 +148,7 @@ export function detLockPath(yggRoot: string): string {
  */
 export function committedLockContentHash(yggRoot: string): string {
   const parts: Buffer[] = [];
-  for (const file of [nondetLockPath(yggRoot), logsLockPath(yggRoot)]) {
+  for (const file of [nondetLockPath(yggRoot), logsLockPath(yggRoot), typesLockPath(yggRoot)]) {
     if (!existsSync(file)) continue;
     try {
       parts.push(readFileSync(file));
@@ -238,10 +238,110 @@ export function readLock(yggRoot: string): LockFile {
   // Absent, not empty, when nothing has been seen — "no memory yet" and "seen
   // and standing nowhere" are different facts, and only the first is true here.
   if (Object.keys(det.aspects).length > 0) merged.aspects = det.aspects;
-  // The type-log baselines ride in the committed logs file beside the node ones.
-  // Absent when none is recorded, for the same reason.
-  if (Object.keys(logs.types).length > 0) merged.types = logs.types;
+  // The type-log baselines live in a committed file of their own (see
+  // readTypeLock). Absent when none is recorded, for the same reason.
+  const types = readTypeLock(yggRoot);
+  if (Object.keys(types).length > 0) merged.types = types;
   return merged;
+}
+
+/** Absolute path to the committed type-log baseline file. */
+function typesLockPath(yggRoot: string): string {
+  return path.join(yggRoot, LOCK_TYPES_FILE_NAME);
+}
+
+/**
+ * The append-only baselines of the node types' decision logs, from their own
+ * committed file, `yg-lock.types.json`: `{ "version": 1, "types": { <type>: {
+ * "log": { last_entry_datetime, prefix_hash } } } }`.
+ *
+ * A file of its own rather than a section of `yg-lock.logs.json` for two
+ * reasons. A release before 6.1.0 reads the logs file with a reader that
+ * refuses any key it does not know, so a new section there would have made
+ * every older checkout and CI runner of the repository fail closed the moment
+ * one person recorded a type decision; an older release never opens this file.
+ * And nothing that records verdicts writes it: a type baseline moves when a
+ * type decision is added or a merge of one reconciled, never at a fill, so a
+ * full `--approve` running beside `yg log add --type` cannot write a stale copy
+ * of it back.
+ *
+ * Absent reads as no baselines. Committed, so a file that does not parse fails
+ * closed like the other committed lock files; a key it does not know, at the
+ * top or in an entry, is ignored, so a later extension reads here as absent
+ * rather than as corruption.
+ */
+export function readTypeLock(yggRoot: string): Record<string, LockTypeEntry> {
+  const ctx: ParseCtx = { fileName: LOCK_TYPES_FILE_NAME, committed: true };
+  let raw: string;
+  try {
+    raw = readFileSync(typesLockPath(yggRoot), 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
+    throw err;
+  }
+  if (/^(?:<<<<<<<|=======|>>>>>>>)/m.test(raw)) {
+    throw lockInvalid(ctx, 'take one side of', {
+      what: `${LOCK_TYPES_FILE_NAME} contains git conflict markers — the file was not resolved after a merge`,
+      why: 'a conflict-markered lock file cannot be parsed; a type log baseline read from it could report an honest log as rewritten or let a rewritten one pass',
+      next:
+        `take one side of it wholesale (git checkout --ours -- .yggdrasil/${LOCK_TYPES_FILE_NAME}), then run \`yg log merge-resolve --type <type>\` for each type log the same merge conflicted, which records its baseline again.`,
+    });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw lockInvalid(ctx, 'restore', { what: `${LOCK_TYPES_FILE_NAME} contains unparseable JSON`, why: 'a garbled lock file cannot be read; treating it as empty would stop checking the type logs it guards', next: recoveryNext(ctx) });
+  }
+  if (!isPlainObject(parsed) || typeof parsed.version !== 'number') {
+    throwMalformed('it must be a JSON object with a numeric version field', ctx);
+  }
+  if (parsed.version !== 1) {
+    throw lockInvalid(ctx, 'restore', {
+      what: `${LOCK_TYPES_FILE_NAME} has unsupported version ${String(parsed.version)} (this CLI reads version 1)`,
+      why: 'an unrecognized version means the file was written by a newer CLI; reading it would risk misinterpreting its structure',
+      next: recoveryNext(ctx),
+    });
+  }
+  const types = parsed.types ?? {};
+  if (!isPlainObject(types)) throwMalformed('"types" must be a JSON object (found ' + describe(types) + ')', ctx);
+  const out: Record<string, LockTypeEntry> = {};
+  for (const [typeId, entry] of Object.entries(types)) {
+    if (!isPlainObject(entry)) throwMalformed(`"types.${typeId}" must be a JSON object (found ${describe(entry)})`, ctx);
+    if (entry.log === undefined) {
+      out[typeId] = {};
+      continue;
+    }
+    const log = entry.log;
+    if (!isPlainObject(log) || typeof log.last_entry_datetime !== 'string' || typeof log.prefix_hash !== 'string') {
+      throwMalformed(`"types.${typeId}.log" must be { last_entry_datetime: string, prefix_hash: string }`, ctx);
+    }
+    out[typeId] = { log: { last_entry_datetime: log.last_entry_datetime, prefix_hash: log.prefix_hash } };
+  }
+  return out;
+}
+
+/**
+ * Write the type-log baselines to their own committed file, keys sorted and one
+ * entry per line so git merges them entry by entry; the file is removed when it
+ * would hold nothing. The caller owns the read-modify-write: it runs under the
+ * repository's log-write lock, the lock every log writer takes.
+ */
+export async function writeTypeLock(yggRoot: string, types: Record<string, LockTypeEntry>): Promise<void> {
+  const filePath = typesLockPath(yggRoot);
+  const ids = Object.keys(types).sort();
+  if (ids.length === 0) {
+    removeFileIfExists(filePath);
+    return;
+  }
+  const lines = ['{', `  "version": 1,`, '  "types": {'];
+  ids.forEach((id, i) => {
+    const log = types[id].log;
+    const entry = log === undefined ? '{}' : `{"log":{"last_entry_datetime":${JSON.stringify(log.last_entry_datetime)},"prefix_hash":${JSON.stringify(log.prefix_hash)}}}`;
+    lines.push(`    ${JSON.stringify(id)}: ${entry}${i === ids.length - 1 ? '' : ','}`);
+  });
+  lines.push('  }', '}', '');
+  await writeFileIfChanged(filePath, lines.join('\n'));
 }
 
 /**
@@ -278,17 +378,16 @@ export function readLegacyLock(yggRoot: string): LockFile | null {
   return legacy;
 }
 
-/** The sections one lock file projects to. */
+/** The three sections one lock file projects to. */
 interface LockSections {
   verdicts: Record<string, Record<string, VerdictEntry>>;
   nodes: Record<string, LockNodeEntry>;
   aspects: Record<string, LockAspectEntry>;
-  types: Record<string, LockTypeEntry>;
 }
 
 /** Cold-start / discarded state: the file contributes nothing to the merge. */
 function emptySections(): LockSections {
-  return { verdicts: {}, nodes: {}, aspects: {}, types: {} };
+  return { verdicts: {}, nodes: {}, aspects: {} };
 }
 
 /**
@@ -413,10 +512,22 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   // relation conformance is computed live now, so the section is moot.
   if ('relation_verdicts' in obj) delete obj.relation_verdicts;
 
+  // A top-level key this release does not know is a section a later release
+  // added, not corruption: it is dropped here and never written back. A strict
+  // top level made every earlier release fail closed over any file a later one
+  // extended — the committed files included, where there is no rebuilding past
+  // it — so one person on a newer CLI took down every older checkout and CI
+  // runner of the repository. Inside the known sections the shape stays strict.
+  for (const key of Object.keys(obj)) {
+    if (!KNOWN_TOP_KEYS.has(key)) {
+      debugWrite(`[lock-store] ${ctx.fileName}: ignoring top-level key "${key}" this release does not know`);
+      delete obj[key];
+    }
+  }
+
   // Validate the SHAPE. The lock is the only persisted verification state; a malformed
   // shape must fail CLOSED, never silently coerce to empty (which would be fail-open).
-  // Strict-by-design: the format is fully enumerated and version-gated; unknown keys are
-  // corruption, not forward-compatible extension.
+  // Every known section is fully enumerated; only an unknown TOP-LEVEL key is tolerated.
   validateLockShape(obj, ctx);
 
   // Shape is valid — the cast is sound because validateLockShape threw on anything else.
@@ -427,9 +538,6 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
     // older file is simply one where nothing has been seen yet, not a corrupt
     // one, so it reads as an empty section rather than failing closed.
     aspects: (obj.aspects as Record<string, LockAspectEntry> | undefined) ?? {},
-    // Absent in every lock written before node types had a decision log of
-    // their own, and in any project that never recorded one — read as empty.
-    types: (obj.types as Record<string, LockTypeEntry> | undefined) ?? {},
   };
 }
 
@@ -460,9 +568,9 @@ function throwMalformed(detail: string, ctx: ParseCtx): never {
 /**
  * Validate the SHAPE of a parsed lock object (version already checked by the caller).
  *
- * Throws LockInvalidError on any structural deviation. Strict-by-design: only the known keys are
- * accepted at every level; unknown keys are rejected (the format is version-gated, so unknown
- * keys mean corruption, not forward-compatible extension).
+ * Throws LockInvalidError on any structural deviation. Only the known keys are accepted inside
+ * every section; an unknown TOP-LEVEL key was already dropped by the caller as a section a later
+ * release added.
  *
  * Accepted shape:
  * - top level: exactly { version, verdicts, nodes } (version validated by caller). Each split
@@ -476,16 +584,11 @@ function throwMalformed(detail: string, ctx: ParseCtx): never {
  *   `log` = plain object { last_entry_datetime: string, prefix_hash: string }.
  * - aspects (optional — absent in a lock written before rules had a remembered standing): plain
  *   object; every value is a plain object with an optional string `status`.
- * - types (optional — absent in a lock written before node types had a decision log, and
- *   whenever no type log baseline is recorded): plain object; every value is a plain object with
- *   an optional `log`, validated exactly like a node entry's.
  */
+/** The top-level keys this release reads in a lock file; any other is dropped on read. */
+const KNOWN_TOP_KEYS: ReadonlySet<string> = new Set(['version', 'verdicts', 'nodes', 'aspects']);
+
 function validateLockShape(obj: Record<string, unknown>, ctx: ParseCtx): void {
-  // Top-level keys: only version / verdicts / nodes / aspects are allowed.
-  const TOP_KEYS = new Set(['version', 'verdicts', 'nodes', 'aspects', 'types']);
-  for (const key of Object.keys(obj)) {
-    if (!TOP_KEYS.has(key)) throwMalformed(`unexpected top-level key "${key}" (allowed: version, verdicts, nodes, aspects, types)`, ctx);
-  }
 
   // verdicts must be a plain object of aspectId → (unitKey → entry).
   if (!isPlainObject(obj.verdicts)) {
@@ -522,27 +625,6 @@ function validateLockShape(obj: Record<string, unknown>, ctx: ParseCtx): void {
       validateAspectEntry(obj.aspects[aspectId], `aspects.${aspectId}`, ctx);
     }
   }
-
-  // types is OPTIONAL too. Present, it is held to the same shape as a node's
-  // log baseline: a garbled baseline would either report an honest log as
-  // rewritten or let a rewritten one pass.
-  if (obj.types !== undefined) {
-    if (!isPlainObject(obj.types)) {
-      throwMalformed('"types" must be a JSON object (found ' + describe(obj.types) + ')', ctx);
-    }
-    for (const typeId of Object.keys(obj.types)) {
-      validateTypeEntry(obj.types[typeId], `types.${typeId}`, ctx);
-    }
-  }
-}
-
-/** Validate a single LockTypeEntry (log optional {datetime, prefix_hash}; no other keys). */
-function validateTypeEntry(entry: unknown, at: string, ctx: ParseCtx): void {
-  if (!isPlainObject(entry)) throwMalformed(`"${at}" must be a JSON object (found ${describe(entry)})`, ctx);
-  for (const key of Object.keys(entry)) {
-    if (key !== 'log') throwMalformed(`"${at}" has unexpected key "${key}" (allowed: log)`, ctx);
-  }
-  if (entry.log !== undefined) validateLogBaseline(entry.log, `${at}.log`, ctx);
 }
 
 /** Validate a single LockAspectEntry (status optional string; no other keys). */
@@ -650,23 +732,20 @@ function validateNodeEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (entry.source !== undefined && typeof entry.source !== 'string') {
     throwMalformed(`"${at}.source" must be a string when present (found ${describe(entry.source)})`, ctx);
   }
-  if (entry.log !== undefined) validateLogBaseline(entry.log, `${at}.log`, ctx);
-}
-
-/** Validate an append-only log baseline — a node's or a type's (last_entry_datetime + prefix_hash). */
-function validateLogBaseline(log: unknown, at: string, ctx: ParseCtx): void {
-  if (!isPlainObject(log)) {
-    throwMalformed(`"${at}" must be a JSON object when present (found ${describe(log)})`, ctx);
-  }
-  const LOG_KEYS = new Set(['last_entry_datetime', 'prefix_hash']);
-  for (const key of Object.keys(log)) {
-    if (!LOG_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: last_entry_datetime, prefix_hash)`, ctx);
-  }
-  if (typeof log.last_entry_datetime !== 'string') {
-    throwMalformed(`"${at}.last_entry_datetime" must be a string (found ${describe(log.last_entry_datetime)})`, ctx);
-  }
-  if (typeof log.prefix_hash !== 'string') {
-    throwMalformed(`"${at}.prefix_hash" must be a string (found ${describe(log.prefix_hash)})`, ctx);
+  if (entry.log !== undefined) {
+    if (!isPlainObject(entry.log)) {
+      throwMalformed(`"${at}.log" must be a JSON object when present (found ${describe(entry.log)})`, ctx);
+    }
+    const LOG_KEYS = new Set(['last_entry_datetime', 'prefix_hash']);
+    for (const key of Object.keys(entry.log)) {
+      if (!LOG_KEYS.has(key)) throwMalformed(`"${at}.log" has unexpected key "${key}" (allowed: last_entry_datetime, prefix_hash)`, ctx);
+    }
+    if (typeof entry.log.last_entry_datetime !== 'string') {
+      throwMalformed(`"${at}.log.last_entry_datetime" must be a string (found ${describe(entry.log.last_entry_datetime)})`, ctx);
+    }
+    if (typeof entry.log.prefix_hash !== 'string') {
+      throwMalformed(`"${at}.log.prefix_hash" must be a string (found ${describe(entry.log.prefix_hash)})`, ctx);
+    }
   }
 }
 
@@ -727,39 +806,33 @@ export function serializeLock(lock: LockFile): string {
     lines.push(`    ${JSON.stringify(nodePath)}: ${serializeNodeEntry(nodeEntry)}${comma}`);
   }
 
-  // The `aspects` and `types` sections are written only when they hold
-  // something. Every lock file predates them, and an always-present empty husk
-  // would rewrite each one for no content at all — the same reason a split file
-  // with nothing in it is removed rather than written. It also keeps a project
-  // that never records a type decision readable by an earlier release, whose
-  // strict reader refuses a key it does not know.
-  const optional: Array<{ key: string; lines: string[] }> = [];
+  // The `aspects` section is written only when it holds something. Every lock
+  // file predates it, and an always-present empty husk would rewrite each one
+  // for no content at all — the same reason a split file with nothing in it is
+  // removed rather than written.
   const aspectFacts = lock.aspects ?? {};
   const aspectIdsWithFacts = Object.keys(aspectFacts).sort();
-  if (aspectIdsWithFacts.length > 0) {
-    optional.push({ key: 'aspects', lines: aspectIdsWithFacts.map((id, i) => `    ${JSON.stringify(id)}: ${serializeAspectEntry(aspectFacts[id])}${i === aspectIdsWithFacts.length - 1 ? '' : ','}`) });
-  }
-  const typeFacts = lock.types ?? {};
-  const typeIds = Object.keys(typeFacts).sort();
-  if (typeIds.length > 0) {
-    optional.push({ key: 'types', lines: typeIds.map((id, i) => `    ${JSON.stringify(id)}: ${serializeTypeEntry(typeFacts[id])}${i === typeIds.length - 1 ? '' : ','}`) });
+  if (aspectIdsWithFacts.length === 0) {
+    lines.push('  }'); // end nodes
+    lines.push('}');
+    lines.push('');
+    return lines.join('\n');
   }
 
-  lines.push(optional.length === 0 ? '  }' : '  },'); // end nodes
-  optional.forEach((section, i) => {
-    lines.push(`  ${JSON.stringify(section.key)}: {`);
-    lines.push(...section.lines);
-    lines.push(i === optional.length - 1 ? '  }' : '  },');
-  });
+  lines.push('  },'); // end nodes
+  lines.push('  "aspects": {');
+
+  for (let i = 0; i < aspectIdsWithFacts.length; i++) {
+    const aspectId = aspectIdsWithFacts[i];
+    const comma = i === aspectIdsWithFacts.length - 1 ? '' : ',';
+    lines.push(`    ${JSON.stringify(aspectId)}: ${serializeAspectEntry(aspectFacts[aspectId])}${comma}`);
+  }
+
+  lines.push('  }'); // end aspects
   lines.push('}');
   lines.push(''); // trailing newline (join adds \n between, so this creates the trailing \n)
 
   return lines.join('\n');
-}
-
-/** One per-type entry on a single line, keys sorted — the node entry's form. */
-function serializeTypeEntry(entry: LockTypeEntry): string {
-  return entry.log === undefined ? '{}' : `{"log":${JSON.stringify(entry.log)}}`;
 }
 
 /**
@@ -908,18 +981,16 @@ async function writeOrRemoveSplitFile(
   verdicts: Record<string, Record<string, VerdictEntry>>,
   nodes: Record<string, LockNodeEntry>,
   aspects: Record<string, LockAspectEntry> = {},
-  types: Record<string, LockTypeEntry> = {},
 ): Promise<void> {
   if (
     Object.keys(verdicts).length === 0 &&
     Object.keys(nodes).length === 0 &&
-    Object.keys(aspects).length === 0 &&
-    Object.keys(types).length === 0
+    Object.keys(aspects).length === 0
   ) {
     removeFileIfExists(filePath);
     return;
   }
-  await writeFileIfChanged(filePath, serializeLock({ version, verdicts, nodes, aspects, types }));
+  await writeFileIfChanged(filePath, serializeLock({ version, verdicts, nodes, aspects }));
 }
 
 /** Options for {@link writeLock}. */
@@ -930,8 +1001,8 @@ export interface WriteLockOptions {
    * - 'deterministic': ONLY the gitignored det file (committed files untouched —
    *   the `--only-deterministic` / CI path produces zero committed-lock churn).
    *   Requires deterministicAspectIds.
-   * - 'logs': ONLY the logs file (the `nodes` and `types` sections). No partition, so no set
-   *   needed (used by `yg log merge-resolve` and `yg log add --type`, which only mutate those).
+   * - 'logs': ONLY the logs file (the `nodes` section). No partition, so no set needed
+   *   (used by `yg log merge-resolve`, which only mutates `nodes`).
    */
   scope?: 'all' | 'deterministic' | 'logs';
   /** Aspect ids whose verdicts belong in the gitignored deterministic file (reviewer.type === 'deterministic'). */
@@ -961,7 +1032,7 @@ export async function writeLock(yggRoot: string, lock: LockFile, opts: WriteLock
   // verdict files hold the LLM and deterministic verdicts. readLock treats an
   // absent file as empty state, so this is transparent to every reader.
   if (scope === 'logs') {
-    await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes, {}, lock.types ?? {});
+    await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes);
     return;
   }
 
@@ -979,7 +1050,7 @@ export async function writeLock(yggRoot: string, lock: LockFile, opts: WriteLock
 
   // scope === 'all'
   if (want.nondet) await writeOrRemoveSplitFile(nondetLockPath(yggRoot), lock.version, nondet, {});
-  if (want.logs) await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes, {}, lock.types ?? {});
+  if (want.logs) await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes);
   if (want.det) await writeOrRemoveSplitFile(detLockPath(yggRoot), lock.version, det, {}, lock.aspects ?? {});
 }
 
@@ -991,16 +1062,16 @@ export async function writeLock(yggRoot: string, lock: LockFile, opts: WriteLock
  */
 export function writeLockSync(yggRoot: string, lock: LockFile, opts: WriteLockOptions = {}): void {
   const scope = opts.scope ?? 'all';
-  const put = (filePath: string, verdicts: Record<string, Record<string, VerdictEntry>>, nodes: Record<string, LockNodeEntry>, aspects: Record<string, LockAspectEntry> = {}, types: Record<string, LockTypeEntry> = {}): void => {
-    if (Object.keys(verdicts).length === 0 && Object.keys(nodes).length === 0 && Object.keys(aspects).length === 0 && Object.keys(types).length === 0) {
+  const put = (filePath: string, verdicts: Record<string, Record<string, VerdictEntry>>, nodes: Record<string, LockNodeEntry>, aspects: Record<string, LockAspectEntry> = {}): void => {
+    if (Object.keys(verdicts).length === 0 && Object.keys(nodes).length === 0 && Object.keys(aspects).length === 0) {
       removeFileIfExists(filePath);
       return;
     }
     lastWritten.delete(filePath);
-    atomicWriteFileSync(filePath, serializeLock({ version: lock.version, verdicts, nodes, aspects, types }));
+    atomicWriteFileSync(filePath, serializeLock({ version: lock.version, verdicts, nodes, aspects }));
   };
   if (scope === 'logs') {
-    put(logsLockPath(yggRoot), {}, lock.nodes, {}, lock.types ?? {});
+    put(logsLockPath(yggRoot), {}, lock.nodes);
     return;
   }
   const detIds = opts.deterministicAspectIds;
@@ -1008,7 +1079,7 @@ export function writeLockSync(yggRoot: string, lock: LockFile, opts: WriteLockOp
   const { det, nondet } = partitionVerdicts(lock.verdicts, detIds);
   if (scope === 'all') {
     put(nondetLockPath(yggRoot), nondet, {});
-    put(logsLockPath(yggRoot), {}, lock.nodes, {}, lock.types ?? {});
+    put(logsLockPath(yggRoot), {}, lock.nodes);
   }
   put(detLockPath(yggRoot), det, {}, lock.aspects ?? {});
 }

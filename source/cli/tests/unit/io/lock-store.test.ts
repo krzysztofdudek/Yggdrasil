@@ -447,21 +447,14 @@ describe('lock-store', () => {
     );
   });
 
-  it('readLock throws LockInvalidError on an unexpected top-level key', async () => {
+  it('readLock ignores a top-level key a later release added, and reads the known sections', async () => {
     const tmpDir = await writeRawLock(
       'tmp-lock-extra-top-key',
-      JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {}, extra: 1 }),
+      JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: { a: { 'node:b': { verdict: 'approved', hash: 'h' } } }, nodes: {}, extra: 1 }),
     );
-    let thrown: unknown;
-    try {
-      readLock(tmpDir);
-    } catch (e) {
-      thrown = e;
-    }
-    expect(thrown).toBeInstanceOf(LockInvalidError);
-    expect((thrown as InstanceType<typeof LockInvalidError>).messageData.what).toMatch(
-      /unexpected top-level key "extra"/,
-    );
+    const lock = readLock(tmpDir);
+    expect(lock.verdicts.a['node:b'].hash).toBe('h');
+    expect(lock).not.toHaveProperty('extra');
   });
 
   it('readLock throws LockInvalidError when verdicts.<aspectId> is not an object (the unit map)', async () => {
@@ -1024,8 +1017,27 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
     cohorts: { 'style/naming': { generation: 4 } },
   });
 
+  /** A det lock whose one verdict entry is garbled — a content fault in a known section. */
+  const BROKEN_DET = JSON.stringify({
+    version: LOCK_FORMAT_VERSION,
+    verdicts: { 'style/naming': { 'node:billing/cancel': { verdict: 'maybe', hash: 'h1' } } },
+    nodes: {},
+    aspects: { 'style/naming': { status: 'enforced' } },
+  });
+
+  it('a top-level section a newer yg added is ignored in the derived AND the committed files — the version skew no longer refuses', async () => {
+    const tmpDir = await freshDir('tmp-lock-newer-section');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: { 'llm/prose': { 'node:a': { verdict: 'approved', hash: 'h' } } }, nodes: {}, cohorts: {} }), 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    const lock = readLock(tmpDir);
+    expect(lock.verdicts['style/naming']['node:billing/cancel'].hash).toBe('h1');
+    expect(lock.verdicts['llm/prose']['node:a'].hash).toBe('h');
+    expect(lock).not.toHaveProperty('cohorts');
+    expect(readLegacyLock(tmpDir)?.verdicts['style/naming']).toBeDefined();
+  });
+
   const DERIVED_FAULTS: ReadonlyArray<readonly [string, string]> = [
-    ['an unknown top-level key written by a newer yg (version skew)', FROM_A_NEWER_YG],
     ['completely unparseable JSON', '{"version": 2, "verdicts": {'],
     ['truncated mid-write', '{"version":2,"verdicts":{"style/naming":{"node:a":{"verdict":"appr'],
     ['a JSON array instead of an object', '[1,2,3]'],
@@ -1060,9 +1072,9 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
     },
   );
 
-  it('the LEGACY committed single-file lock still refuses an unknown top-level key (readLegacyLock)', async () => {
+  it('the LEGACY committed single-file lock still refuses a garbled section (readLegacyLock)', async () => {
     const tmpDir = await freshDir('tmp-lock-legacy-fault');
-    await writeFile(path.join(tmpDir, LOCK_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_FILE_NAME), BROKEN_DET, 'utf-8');
     expect(() => readLegacyLock(tmpDir)).toThrow(LockInvalidError);
   });
 
@@ -1082,7 +1094,7 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
       JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: { 'billing/cancel': { source: 'fp-billing' } } }),
       'utf-8',
     );
-    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), BROKEN_DET, 'utf-8');
 
     const result = readLock(tmpDir);
     expect(result.verdicts['llm/prose']).toBeDefined();
@@ -1094,13 +1106,13 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
 
   it('readDetLockAspectIds reads a broken det lock as EMPTY rather than throwing', async () => {
     const tmpDir = await freshDir('tmp-lock-det-ids-broken');
-    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), BROKEN_DET, 'utf-8');
     expect(readDetLockAspectIds(tmpDir)).toEqual(new Set<string>());
   });
 
   it('the discard is self-healing: the next write replaces the broken det file with a valid one', async () => {
     const tmpDir = await freshDir('tmp-lock-det-selfheal');
-    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), BROKEN_DET, 'utf-8');
 
     const rebuilt = readLock(tmpDir);
     rebuilt.verdicts['det/aspect'] = { 'node:billing/cancel': { verdict: 'approved', hash: 'fresh' } };
@@ -1110,14 +1122,14 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
     });
 
     const onDisk = readFileSync(path.join(tmpDir, LOCK_DET_FILE_NAME), 'utf-8');
-    expect(onDisk).not.toContain('cohorts');
+    expect(onDisk).not.toContain('maybe');
     // And it reads back cleanly, with no throw anywhere in the round trip.
     expect(readLock(tmpDir).verdicts['det/aspect']['node:billing/cancel'].hash).toBe('fresh');
   });
 
   it('the discard leaves a breadcrumb in the debug log (silent on stdout, not invisible)', async () => {
     const tmpDir = await freshDir('tmp-lock-det-breadcrumb');
-    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), BROKEN_DET, 'utf-8');
 
     const lines: string[] = [];
     _resetForTesting();
@@ -1134,7 +1146,7 @@ describe('lock store — derived locks rebuild, committed locks refuse', () => {
     expect(logged).toContain(LOCK_DET_FILE_NAME);
     expect(logged).toMatch(/discarded and rebuilt/);
     // The diagnosis itself rides along, so a debug run says WHAT was wrong.
-    expect(logged).toMatch(/unexpected top-level key "cohorts"/);
+    expect(logged).toMatch(/must be "approved" or "refused"/);
   });
 
   it('a real I/O failure still propagates from the derived file — only content faults are tolerated', async () => {

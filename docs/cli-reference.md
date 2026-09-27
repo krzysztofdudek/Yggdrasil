@@ -865,8 +865,8 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 Neither log is a verdict input: adding an entry to either re-opens no pair.
 
 A type's log is held to what a node's is: the same entry rules, the same append-only
-baseline in the committed `yg-lock.logs.json` (in its `types` section, written only
-once a type has a baseline), the same `log-integrity`, `log-format` and `log-conflict`
+baseline — in a committed file of its own, `yg-lock.types.json`, written only once a
+type has a baseline and never by a fill, which a release before 6.1.0 never opens — the same `log-integrity`, `log-format` and `log-conflict`
 findings in `yg check` — reported with the log file as their `unit`, since there is no
 node — and the same `yg log merge-resolve`. Its baseline moves when an entry is added:
 a type has no verdicts, so there is no closure to record it at. An add therefore
@@ -2320,7 +2320,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `yaml-invalid` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow's yg-flow.yaml) does not parse, is not a YAML mapping or breaks its schema — or a directory under flows/ has no yg-flow.yaml — so what it declares is not loaded; the rest of the graph is. | Fix the file the finding names (yg schemas read gives each file's keys); the rest of the report may be a symptom of it. |
 | `config-invalid` | error | yg-config.yaml (or yg-secrets.yaml) does not parse or holds a value of the wrong shape; every setting falls back to its default until it does. | Correct what the finding quotes in .yggdrasil/yg-config.yaml; findings computed on the defaults clear with it. |
 | `architecture-invalid` | error | yg-architecture.yaml does not parse, so no architecture rule (types, parents, allowed relations) is checked. | Fix the YAML in .yggdrasil/yg-architecture.yaml. |
-| `lock-invalid` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
+| `lock-invalid` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, yg-lock.types.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
 | `when-predicate-invalid` | error | A `when:` predicate in yg-architecture.yaml does not parse, so the architecture is not loaded. | Fix the predicate; yg schemas read architecture gives the grammar. |
 | `config-unknown-key` | error | A top-level key yg-config.yaml or yg-secrets.yaml does not know — whatever it was meant to set is not set. The rest of the configuration is in effect. | Rename the key to the one it is a typo of (the finding names it) or remove it. |
 | `config-reviewer-unknown-key` | error · stops `--approve` | reviewer: holds a key other than `default` and `tiers`. | Move provider settings into a tier's config: section, or remove the key. |
