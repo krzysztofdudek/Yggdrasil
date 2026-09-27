@@ -86,6 +86,23 @@ describe('apiFetch', () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  it('never retries a timeout: the request may already be billed on the provider side', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(Object.assign(new Error('timed out'), { name: 'TimeoutError' }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    await expect(apiFetch('http://example.com/api', { method: 'POST' }, 'test')).rejects.toThrow('timed out');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a network error once', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const res = await apiFetch('http://example.com/api', { method: 'POST' }, 'test');
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
   it('throws after second failure', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockRejectedValueOnce(new Error('fail1'))

@@ -466,7 +466,7 @@ describe('parseAspect v5 error paths', () => {
     const dir = await newDir(`name: Foo\ndescription: x\n`);
     const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'foo');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-reviewer-missing')).toBe(true);
+    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-rule-source-missing')).toBe(true);
   });
 
   it('errors on reviewer: null', async () => {

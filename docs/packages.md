@@ -112,8 +112,13 @@ Installing a second `house-style` from another publisher is refused, naming the
 one you have.
 
 Identity is still checked rather than assumed: if any rule the package would
-install already exists in this repository under that exact name, `yg pack add`
-refuses and names it, rather than let one quietly take the other's place.
+install is already loaded in this repository under that exact name, `yg pack add`
+refuses and names it, rather than let one quietly take the other's place. A
+directory already sitting where the copy goes, under `aspects/packages/`, is
+not a loaded rule — that directory is reserved for installs, `yg check` reports
+a rule of your own there as `aspect-packages-dir-reserved`, and an install
+replaces whatever it finds there (a copy an interrupted install left behind
+looks exactly the same).
 
 ## Adapting, not editing
 
@@ -185,7 +190,10 @@ entry written with `yg log add --aspect` — lives in `log.md` beside a rule of 
 own. An installed rule's directory is the package's copy and holds nothing the
 package did not ship, so its history is written beside the adaptation instead,
 as `yg-aspect.adapt.log.md`. Like the adaptation it is yours: the copy rail never
-judges it, and an update or a reinstall carries it across.
+judges it, and an update or a reinstall carries it across. It goes where the
+adaptation goes: a rule a new version drops loses both, and so does every rule of
+a removed package — each command names what it deleted, and version control
+still has it.
 
 A rule's regression cases (`drills/`) are part of the package. `yg drill add` on
 an installed rule is refused: send the case to its author, so it ships with the
@@ -263,8 +271,9 @@ yg pack update house-style --to 1.2.0 --allow-downgrade
 The copied files are replaced. **Your adaptations — and the rule's history
 beside them — are carried across byte for byte.** Rules whose content actually
 changed go back to unverified, and `yg check --approve` judges them again; rules
-that did not change keep their verdicts. Before it swaps anything in, `update`
-says what the new version changes about each rule: rules added and removed, a
+that did not change keep their verdicts. Once the copy is replaced, `update`
+reports what the new version changed about each rule (it does not ask first; a
+refusal below stops it before anything is replaced): rules added and removed, a
 change of status (a `draft` rule that is now `enforced`), a change to what a
 rule implies or to its scope, which of its files changed, and every setting that
 was added, removed, or got a new default — including one your adaptation sets.
@@ -288,8 +297,8 @@ A record written by an earlier release names no tag or commit. The next `update`
 that reaches the tag of the installed version records both, even when there is
 nothing newer to take, so `yg pack verify` can notice a moved tag from then on.
 
-A rule the new version no longer ships is removed with its adaptation; the update
-says so. While anything in your graph still names such a rule — a component, one
+A rule the new version no longer ships is removed with its adaptation and its
+history (`yg-aspect.adapt.log.md`); the update says so. While anything in your graph still names such a rule — a component, one
 of its ports, a type, a flow, or another rule's `implies:` — the update is
 refused, listing what does. Detach it, or attach whatever replaces it, and run
 the update again.
@@ -297,7 +306,7 @@ the update again.
 A setting you set in an adaptation that the new version no longer declares is
 refused when the graph loads, naming the key — a setting that quietly stopped
 being read would leave your repository enforcing something other than what you
-configured. The update warns you about it first.
+configured. The update names it in what it reports.
 
 ## Repairing a copy
 
@@ -322,8 +331,8 @@ yg pack update house-style --reinstall --accept-republished
 ```
 
 It takes the content the tag names today under the version already installed,
-keeping your adaptation and its history, says what it changes about each rule
-first, records the new commit and file hashes, and is refused like an update if
+keeping your adaptation and its history, reports what it changed about each rule,
+records the new commit and file hashes, and is refused like an update if
 it would drop a rule your graph still attaches. A plain `update`, or `--to` the
 installed version, never takes it: both say the number was re-used and change
 nothing.
@@ -372,7 +381,7 @@ Running `yg pack list` (or `add`, or `update`) also writes down what each source
 told it, in a small local file beside the graph
 (`.yggdrasil/.yg-packages-versions.json`, never committed — it is knowledge about
 someone else's repository, and it is thrown away and rebuilt freely). `yg advise`
-then reads that and carries it as an attention item, ranked below everything the
+then reads that and carries it as a nomination (`package-update`), ranked below everything the
 graph works out about your own code, with the command that takes the newest
 version and leaves the package as it was: `yg pack update <name>` for one that
 follows the newest, `yg pack update <name> --to <version>` for a pinned one
@@ -590,17 +599,17 @@ parsers) is reported as unsupported by a drill, not as failing.
 | A file among the copies that no package installed | `yg check` blocks — that is how a rule nobody chose would wear a package's name. A dot-named file counts too (a `.helper.mjs` is code a rule can import); an install never copies one, so nothing it puts in place is ever refused. Only a file named `.DS_Store`, which macOS writes into any directory Finder shows, and the install's own `.staging-*` / `.replaced-*` directories directly under `packages/` are left out. `yg pack list` and `yg pack verify` report the same files — a file outside every installed package too: `list` names it, and `verify` with no package named fails over it |
 | A rule of your own under `.yggdrasil/aspects/packages/` | It is not loaded, and `yg check` names the directory as reserved for installed packages |
 | The package record names an install directory other than `<owner>/<repo>/<name>` | `yg check` blocks, and every pack command refuses it — that value is a directory the commands delete |
-| An adaptation names a key that is not adaptable | The graph refuses to load, naming the key |
-| An adaptation puts `references:` on a rule with a `check.mjs` | The graph refuses to load, naming the adaptation — use `config` instead |
-| A setting the package does not declare | The graph refuses to load, naming the key and the package |
-| `implies` reaching outside the package | The graph refuses to load, naming both rules |
+| An adaptation names a key that is not adaptable | The rule does not load and `yg check` blocks, naming the key |
+| An adaptation puts `references:` on a rule with a `check.mjs` | The rule does not load and `yg check` blocks, naming the adaptation — use `config` instead |
+| A setting the package does not declare | The rule does not load and `yg check` blocks, naming the key and the package |
+| `implies` reaching outside the package | The rule does not load and `yg check` blocks, naming both rules |
 | The package needs a newer Yggdrasil | Installing refuses, naming both versions |
 | The source publishes no version of the package | Installing refuses — a version is a tag, and nothing is read at the default branch |
 | The tag, `yg-package.yaml` and the marketplace entry disagree on the version | Installing and updating refuse, naming all three |
 | A version older than the installed one | `update --to` refuses without `--allow-downgrade`; a plain `update` leaves the package and says so |
 | The recorded source now says it belongs to another publisher | Updating refuses |
 | A rule the new version drops is still named in your graph | Updating refuses, listing what names it |
-| A rule the package would install has the same name as one already here | `yg pack add` refuses, naming it — remove the existing rule, or install under a different `--as <owner>/<repo>` |
+| A rule the package would install has the same name as one already loaded here | `yg pack add` refuses, naming it — remove the existing rule, or install under a different `--as <owner>/<repo>` |
 | A package with the same name is already installed from another publisher | `yg pack add` refuses, naming both |
 | The package carries a symbolic link | Installing refuses, naming the link — a link published elsewhere would resolve against *your* filesystem once copied in |
 | The package carries a binary file | Installing refuses, naming the file — a package ships rules and case files |

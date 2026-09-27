@@ -13,6 +13,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import {
   ADAPT_FILENAME,
+  ADAPT_LOG_FILENAME,
   MARKETPLACE_FILENAME,
   PACKAGE_FILENAME,
   PACKAGES_DIR,
@@ -40,6 +41,7 @@ import {
   differingFiles,
   failWith,
   installedRuleDirs,
+  maskCredentials,
   ownerRepoOf,
   parsePackageSpec,
   projectRootOf,
@@ -264,7 +266,7 @@ async function runNew(rawName: string): Promise<number> {
       what: `There is no ${MARKETPLACE_FILENAME} at ${toPosixPath(cwd)} or above it.`,
       why: 'A package is published BY a marketplace — the manifest at the repository root is what names it and what a consumer reads to find it. Without one there is nothing for a new package to belong to.',
       next: 'Run `yg marketplace init` in the repository that should publish this package, then run this again.',
-    });
+    }, 'marketplace-manifest-missing');
   }
 
   const packageDir = path.join(root, PACKAGES_DIR, name);
@@ -281,7 +283,7 @@ async function runNew(rawName: string): Promise<number> {
   // is what keeps a failure from leaving a package directory nothing publishes.
   const manifestPath = path.join(root, MARKETPLACE_FILENAME);
   const existing = await parseMarketplaceManifest(manifestPath);
-  if (!existing.ok) failWith(existing.errors[0].messageData);
+  if (!existing.ok) failWith(existing.errors[0].messageData, existing.errors[0].code);
   if (existing.value.packages.some((entry) => entry.name === name)) {
     failWith({
       what: `${MARKETPLACE_FILENAME} already publishes a package called '${name}'.`,
@@ -476,7 +478,7 @@ async function runAdd(rawSpec: string, opts: { as?: string }): Promise<number> {
           ...(opts.as !== undefined && { identity: 'given' as const }),
         },
       });
-      if (!result.ok) failWith(result.messageData);
+      if (!result.ok) failWith(result.messageData, result.code);
 
       const fileCount = Object.keys(result.value.files).length;
       const from = fetched.tag === undefined ? '' : ` from ${fetched.tag} (commit ${shortCommit(fetched.commit)})`;
@@ -548,7 +550,7 @@ async function runList(): Promise<number> {
     writeOut(
       `  ${name}  ${entry.version}  ${requested === REQUESTED_LATEST ? 'follows the newest version' : `pinned at ${requested}`}  ` +
         `${intact ? paint.green('copy untouched') : paint.red('copy changed')}\n` +
-        `    from ${entry.source}  (${provenance})\n` +
+        `    from ${maskCredentials(entry.source)}  (${provenance})\n` +
         `    at   .yggdrasil/aspects/${installDirRelative(entry.package)}/\n`,
     );
   }
@@ -664,7 +666,7 @@ async function runVerify(name: string | undefined): Promise<number> {
               next.splice(0, next.length, `put the edited files back from version control: git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}`);
             }
             untagged =
-              `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release: '${entry.source}' publishes no version ${entry.version} of it ` +
+              `'${pkgName}' ${entry.version} was installed from an untagged source by an earlier release: '${maskCredentials(entry.source)}' publishes no version ${entry.version} of it ` +
               `(no tag pack/${pkgName}@${entry.version}), so there is nothing to compare the copy with.`;
             next.push(
               others.length > 0
@@ -681,7 +683,7 @@ async function runVerify(name: string | undefined): Promise<number> {
             const marketEntry = await readMarketplaceEntry(fetched.rootAbs, pkgName);
             const { packageRootAbs } = await readPackage(fetched.rootAbs, marketEntry);
             const now = await hashPackageTree(packageRootAbs, entry.package);
-            if (!now.ok) failWith(now.messageData);
+            if (!now.ok) failWith(now.messageData, now.code);
             const moved = entry.commit !== undefined && fetched.commit !== entry.commit;
             if (moved) {
               problems.push(`${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}`);
@@ -706,7 +708,7 @@ async function runVerify(name: string | undefined): Promise<number> {
             against =
               fetched.tag !== undefined
                 ? `${fetched.tag} at commit ${shortCommit(fetched.commit)}${entry.commit === undefined ? ` (the record names no commit, so only the files were compared; the next yg pack update ${pkgName} records the tag and commit)` : ''}`
-                : `the directory '${entry.source}' as it is now (it publishes no versions)`;
+                : `the directory '${maskCredentials(entry.source)}' as it is now (it publishes no versions)`;
           }
         } catch (err) {
           if (!(err instanceof PackRefusal)) throw err;
@@ -789,7 +791,9 @@ async function runRemove(name: string): Promise<number> {
       });
     }
 
-    const adapted = (await readInstalledAdapts(projectRoot, entry.package, [...own].map((id) => id.slice(idPrefix.length + 1)))).size;
+    const ownRules = [...own].map((id) => id.slice(idPrefix.length + 1));
+    const adapted = (await readInstalledAdapts(projectRoot, entry.package, ownRules)).size;
+    const histories = (await readInstalledAdapts(projectRoot, entry.package, ownRules, ADAPT_LOG_FILENAME)).size;
     const strays = (await collectPackagesDrift(projectRoot, lock)).byPackage.get(name)?.unknown ?? [];
     await removePackageFiles(projectRoot, entry.package);
     const rest = { ...lock.packages };
@@ -806,9 +810,13 @@ async function runRemove(name: string): Promise<number> {
         ),
       );
     }
-    if (adapted > 0) {
+    if (adapted > 0 || histories > 0) {
+      const gone = [
+        ...(adapted > 0 ? [`${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME})`] : []),
+        ...(histories > 0 ? [`${histories} rule ${histories === 1 ? 'history' : 'histories'} (${ADAPT_LOG_FILENAME})`] : []),
+      ];
       writeOut(
-        `Its ${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME}) went with it; version control still has ${adapted === 1 ? 'it' : 'them'}.\n`,
+        `Its ${gone.join(' and ')} went with it; version control still has ${adapted + histories === 1 ? 'it' : 'them'}.\n`,
       );
     }
     if (Object.keys(rest).length === 0) {

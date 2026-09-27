@@ -104,3 +104,5 @@ The reviewer-credential findings are warnings only. The repository owner decided
 Messages for a rule whose files do not match its reviewer type said the rule has reviewer llm or deterministic, and told the user to change reviewer to a token. The config key is reviewer.type; the messages now name that key and say which rule kind each token means, as the Glossary maps them.
 ## [2026-09-27T20:36:58.434Z]
 A companion named by the companion: key of yg-aspect.yaml was accepted on a script rule, a bundle and a rule without content.md, where it never runs, while a sibling companion.mjs is refused there. The owner ruled that the key is refused in the same places, so the rule-source check now treats the key as a companion and its messages name the key.
+## [2026-09-27T21:14:02.650Z]
+An unattached rule installed from a package now gets a next step that names yg pack remove for its package, or leaving it unattached, instead of telling the reader to remove the rule. Removing an installed rule by hand deletes files of a verbatim copy, which the package-file-modified rail then blocks, so the old advice led straight into a blocking error.

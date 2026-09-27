@@ -249,6 +249,20 @@ export function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
  * `implies`) is never reported by effective-nowhere, so it keeps this finding
  * always. Absent ⇒ every orphan is reported, as before.
  */
+/**
+ * What to do about an unattached rule. A rule installed from a package is a
+ * verbatim copy: deleting its directory by hand breaks the package-file-modified
+ * rail, so the step names the package command instead — or leaving it be, since
+ * an installed rule nothing attaches costs nothing.
+ */
+function orphanNext(aspectId: string): string {
+  const parts = aspectId.split('/');
+  if (parts[0] === 'packages' && parts.length >= 5) {
+    return `Attach it to a node, architecture type or flow, or leave it unattached (an installed rule nothing uses costs nothing). Never delete the copy by hand: to uninstall the whole package, run yg pack remove ${parts[3]}.`;
+  }
+  return `Either add it to a node/architecture/flow or remove it.`;
+}
+
 export function checkOrphanedAspects(
   graph: Graph,
   effectiveNowhere: readonly ValidationIssue[] = [],
@@ -312,7 +326,7 @@ export function checkOrphanedAspects(
         ...issueMsg({
           what: `Aspect '${aspect.id}' is defined but not referenced by any node, architecture type, or flow.`,
           why: `Orphaned aspects add noise to the graph without enforcing any requirements.`,
-          next: `Either add it to a node/architecture/flow or remove it.`,
+          next: orphanNext(aspect.id),
         }),
       });
     }

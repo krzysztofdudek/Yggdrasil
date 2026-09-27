@@ -54,14 +54,14 @@ describe('aspect-parser — aggregating aspect (inferred kind)', () => {
     writeFileSync(yamlPath, 'name: Foo\ndescription: x\n');
     const r = await parseAspect(aspectDir, yamlPath, 'bundle');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-reviewer-missing')).toBe(true);
+    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-rule-source-missing')).toBe(true);
   });
 
   it('errors when an empty implies list is the only thing and no reviewer block', async () => {
     writeFileSync(yamlPath, 'name: Foo\ndescription: x\nimplies: []\n');
     const r = await parseAspect(aspectDir, yamlPath, 'bundle');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-reviewer-missing')).toBe(true);
+    if (!r.ok) expect(r.errors.some(e => e.code === 'aspect-rule-source-missing')).toBe(true);
   });
 
   it('accepts an explicit reviewer.type: aggregate that agrees with the inferred kind', async () => {

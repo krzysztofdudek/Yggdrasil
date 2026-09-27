@@ -259,7 +259,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
 
       for (const rule of ['rule-a', 'rule-b', 'rule-c']) {
         const stub = read(dir, path.join('.yggdrasil', 'aspects', ...INSTALL.split('/'), rule, 'yg-aspect.adapt.yaml'));
-        expect(stub).toContain('Not adaptable: name, implies, errs, when');
+        expect(stub).toContain('Not adaptable: name, description, implies, errs, when');
         expect(stub).toContain('#   status:');
       }
       // The package's own default, listed where a rule reads one — commented
@@ -726,6 +726,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(removed.status).toBe(1);
         expect(removed.all).toContain(`'${id}'`);
         expect(removed.all).toContain('<owner>/<repo>/helper');
+        // The record parser's own code, not the generic command-error.
+        expect(removed.all).toContain('error[packages-lock-package-invalid]');
         expect(removed.all).not.toContain('Removed');
         expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
         expect(existsSync(path.join(dir, '.yggdrasil', 'model', 'app', 'yg-node.yaml'))).toBe(true);
@@ -776,6 +778,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.status).toBe(1);
       expect(added.all).toContain('>=99.0.0');
       expect(added.all).toMatch(/this one is \d+\.\d+\.\d+/);
+      expect(added.all).toContain('error[package-requires-unsatisfied]');
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -879,6 +882,23 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
     10_000,
   );
 
+  it(
+    '21b: credentials written into a source URL are masked in what the refusal prints',
+    () => {
+      const dir = consumer('masked');
+      try {
+        const added = run(['pack', 'add', `${UNREACHABLE_SOURCE.replace('http://', 'http://user:s3cret@')}#demo`], dir);
+        expect(added.status).toBe(1);
+        expect(added.all).toContain('Could not reach');
+        expect(added.all).toContain('http://***@yg-nothing-here.invalid');
+        expect(added.all).not.toContain('s3cret');
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    },
+    10_000,
+  );
+
   it('a package whose own name disagrees with the marketplace is refused, naming both', () => {
     // Every later command addresses a package by name, so the two documents have
     // to agree on what that name is before anything is filed under one of them.
@@ -893,6 +913,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.status).toBe(1);
       expect(added.all).toContain("'demo'");
       expect(added.all).toContain("'something-else'");
+      expect(added.all).toContain('error[package-name-mismatch]');
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -907,6 +928,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       const added = run(['pack', 'add', `${empty}#demo`, '--as', 'acme/law'], dir);
       expect(added.status).toBe(1);
       expect(added.all).toContain('yg-marketplace.yaml');
+      expect(added.all).toContain('error[marketplace-manifest-missing]');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
       rmSync(empty, FIXTURE_RM_OPTIONS);

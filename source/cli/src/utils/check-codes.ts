@@ -216,7 +216,7 @@ export const APPROVE_GATING_CODES: ReadonlySet<string> = new Set<CheckCode>([
   'config-reviewer-unknown-key',
   'config-tier-unknown-key',
   'config-tier-config-invalid',
-  'aspect-reviewer-missing',
+  'aspect-rule-source-missing',
   'aspect-reviewer-not-mapping',
   'aspect-reviewer-type-missing',
   'aspect-reviewer-type-invalid',

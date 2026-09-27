@@ -430,6 +430,13 @@
         "code": {
           "type": "string"
         },
+        "aliases": {
+          "description": "The names `code` was reported under before it was renamed, oldest first; absent for a code never renamed.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "severity": {
           "enum": [
             "error",
@@ -1142,6 +1149,13 @@
         },
         "code": {
           "type": "string"
+        },
+        "aliases": {
+          "description": "The names `code` was reported under before it was renamed, oldest first; absent for a code never renamed.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "severity": {
           "enum": [

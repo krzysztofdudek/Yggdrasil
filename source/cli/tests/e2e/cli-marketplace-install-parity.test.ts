@@ -172,4 +172,24 @@ describe.skipIf(!distExists)('CLI E2E — marketplace check passes ⇒ pack add 
       }
     });
   }
+
+  it('a refusal over a git source names the file inside the marketplace, not the deleted clone', () => {
+    const { cleanup, market } = build({
+      name: 'ghost rule in a tagged repository',
+      patch: { 'packages/demo/yg-package.yaml': GOOD['packages/demo/yg-package.yaml'].replace('  - rule\n', '  - rule\n  - ghost\n') },
+      git: 'root',
+      sound: false,
+    });
+    const consumer = mkdtempSync(path.join(tmpdir(), 'yg-mkt-parity-consumer-'));
+    try {
+      cpSync(CONSUMER, consumer, { recursive: true });
+      const added = run(['pack', 'add', `${market}#demo`, '--as', 'acme/law'], consumer);
+      expect(added.status).toBe(1);
+      expect(added.all).toContain('packages/demo/yg-package.yaml');
+      expect(added.all).not.toContain('pack-fetch');
+    } finally {
+      rmSync(cleanup, FIXTURE_RM_OPTIONS);
+      rmSync(consumer, FIXTURE_RM_OPTIONS);
+    }
+  });
 });

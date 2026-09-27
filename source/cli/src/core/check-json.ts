@@ -26,6 +26,7 @@ import type {
   CheckJsonEdge,
 } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
+import { formerCodes } from '../utils/issue-code-registry.js';
 
 /** Every verdict word the document can carry, so the totals map is always complete. */
 const VERDICT_WORDS: CheckJsonVerdict[] = [
@@ -132,6 +133,8 @@ function issueOf(issue: CheckIssue): CheckJsonIssue {
     why: issue.messageData.why,
     next: issue.messageData.next,
   };
+  const aliases = formerCodes(issue.code);
+  if (aliases !== undefined) row.aliases = aliases;
   if (issue.aspectId !== undefined) row.aspect = issue.aspectId;
   if (issue.nodePath !== undefined) row.node = toPosixPath(issue.nodePath);
   if (issue.unitKey !== undefined) row.unit = toPosixPath(issue.unitKey);

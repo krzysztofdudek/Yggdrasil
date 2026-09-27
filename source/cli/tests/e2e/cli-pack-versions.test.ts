@@ -320,6 +320,21 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(read(dir, LOCK)).toContain('version: "0.2.0"');
   }, 90_000);
 
+  it('V3c: --to latest records that the package follows the newest, even when the newest published is older than the copy', () => {
+    const own = temp('latest-older');
+    const work = path.join(own, 'w');
+    cpSync(market.work, work, { recursive: true });
+    const dir = consumer('latest-older');
+    expect(run(['pack', 'add', `${work}#demo@0.2.0`, '--as', 'acme/law'], dir).status).toBe(0);
+    expect(read(dir, LOCK)).toContain('requested: "0.2.0"');
+    git(work, ['tag', '-d', 'pack/demo@0.2.0']);
+
+    const follow = run(['pack', 'update', 'demo', '--to', 'latest'], dir);
+    expect(follow.status, follow.all).toBe(0);
+    expect(read(dir, LOCK)).toContain('requested: "latest"');
+    expect(read(dir, LOCK)).toContain('version: "0.2.0"');
+  }, 90_000);
+
   // The command pack list and advise name for a newer version must leave the
   // package following or pinned as it was. Before: both said `--to <version>`,
   // and running it pinned a package that followed the newest.
@@ -398,6 +413,14 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(moved.status).toBe(1);
     expect(moved.stdout).toContain('now points at commit');
     expect(moved.stdout).toContain('rule-a/check.mjs is not what the source publishes');
+
+    // Naming the installed version with --to refuses, as it does for a re-used
+    // number: recording the pin would claim the copy the moved tag names now.
+    const recordBefore = read(dir, LOCK);
+    const pinned = run(['pack', 'update', 'demo', '--to', '0.2.0'], dir);
+    expect(pinned.status).toBe(1);
+    expect(pinned.all).toContain("'demo' was not moved");
+    expect(read(dir, LOCK)).toBe(recordBefore);
 
     write(dir, CHECK_A, `${read(dir, CHECK_A)}// mine\n`);
     const reinstall = run(['pack', 'update', 'demo', '--reinstall'], dir);
@@ -522,7 +545,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     detach(dir);
     const updated = run(['pack', 'update', 'demo'], dir);
     expect(updated.status, updated.all).toBe(0);
-    expect(updated.stdout).toContain('rules no longer shipped, removed with their adaptations: rule-b');
+    expect(updated.stdout).toContain('rules no longer shipped, removed with their adaptations and histories (yg-aspect.adapt.log.md): rule-b');
     expect(updated.stdout).toContain('rule-c: status draft → enforced');
   }, 90_000);
 
@@ -688,9 +711,11 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(ported.all).toContain('port api of component app');
 
     write(dir, node, read(dir, node).replace(/ports:\n[\s\S]*$/, ''));
+    // A rule history beside an adaptation goes with the package too, and is named.
+    write(dir, path.join(path.dirname(ADAPT_A), 'yg-aspect.adapt.log.md'), '# Log\n');
     const removed = run(['pack', 'remove', 'demo'], dir);
     expect(removed.status, removed.all).toBe(0);
-    expect(removed.stdout).toContain('adaptations (yg-aspect.adapt.yaml) went with it');
+    expect(removed.stdout).toContain('adaptations (yg-aspect.adapt.yaml) and 1 rule history (yg-aspect.adapt.log.md) went with it');
   });
 
   it('B2: a second package of the same name from another publisher is refused, saying why', () => {

@@ -11,13 +11,15 @@ description: "Reads and validates the three documents of package consumption: a
   stop checking every copied rule. Whether the running build satisfies a
   package's requires.yg is asked separately, at install time only: judging it
   while loading a graph would strand an installed package as unloadable — and
-  therefore un-removable — after an upgrade."
+  therefore un-removable — after an upgrade. For the author's yg marketplace check alone, it also lists the keys a manifest carries that its /1 file-format schema does not declare: what every reader ignores, and keeps ignoring."
 relations:
   - target: cli/model/graph
     type: uses
   - target: cli/model/packages
     type: uses
   - target: cli/utils
+    type: calls
+  - target: cli/file-formats
     type: calls
   - target: cli/io/stores
     type: calls

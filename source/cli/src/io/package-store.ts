@@ -300,7 +300,7 @@ export function renderAdaptStub(
     '# Adaptable keys (uncomment and edit):',
     ...adaptable,
     '#',
-    '# Not adaptable: name, implies, errs, when, and every code file. Those are what',
+    '# Not adaptable: name, description, implies, errs, when, and every code file. Those are what',
     '# the rule IS; changing them would make it a different rule wearing this name.',
   ];
 

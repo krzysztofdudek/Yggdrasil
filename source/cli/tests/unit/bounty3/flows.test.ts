@@ -339,6 +339,19 @@ describe('checkOrphanedAspects — flow references count as usage', () => {
     expect(orphans[0].severity).toBe('warning');
   });
 
+  it('an unattached rule installed from a package names yg pack remove, never a hand deletion', () => {
+    const g = buildTestGraph({
+      aspects: [{ id: 'packages/acme/law/house-style/example' }, { id: 'lonely' }],
+      nodes: [{ path: 'svc', type: 'service' }],
+    });
+    const orphans = checkOrphanedAspects(g).filter((i) => i.code === 'orphaned-aspect');
+    const installed = orphans.find((i) => i.messageData.what.includes('packages/acme/law/house-style/example'));
+    expect(installed?.messageData.next).toContain('yg pack remove house-style');
+    expect(installed?.messageData.next).not.toContain('or remove it');
+    const own = orphans.find((i) => i.messageData.what.includes("'lonely'"));
+    expect(own?.messageData.next).toContain('remove it');
+  });
+
   it('an aspect IMPLIED by a flow-referenced aspect is also exempt (implies fixpoint over flow refs)', () => {
     const g = buildTestGraph({
       aspects: [

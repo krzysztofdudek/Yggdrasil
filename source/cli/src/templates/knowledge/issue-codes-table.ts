@@ -49,7 +49,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`aspect-implies-not-array\` | error | implies: is not a list. | Write implies: as a list of rule ids (or { id, when, status_inherit } entries). |
 | \`aspect-implies-invalid\` | error | An implies: entry is neither a rule id nor an { id, when?, status_inherit? } mapping. | Fix the entry; yg schemas read aspect gives the shape. |
 | \`implies-status-inherit-invalid\` | error | An implies entry's status_inherit: is not \`strictest\` or \`own-default\`. | Set status_inherit: to strictest or own-default. |
-| \`aspect-reviewer-missing\` | error · stops \`--approve\` | A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing. | Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle. |
+| \`aspect-rule-source-missing\` (formerly \`aspect-reviewer-missing\`) | error · stops \`--approve\` | A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing. | Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle. |
 | \`aspect-reviewer-not-mapping\` | error · stops \`--approve\` | reviewer: is present but not a mapping. | Write reviewer: as a mapping with type: and optionally tier:, or remove it (the kind is inferred from the rule source). |
 | \`aspect-reviewer-type-missing\` | error · stops \`--approve\` | reviewer: is a mapping without type:. | Add type: llm, deterministic or aggregate, or remove reviewer: to have the kind inferred. |
 | \`aspect-reviewer-type-invalid\` | error · stops \`--approve\` | reviewer.type is not llm, deterministic or aggregate. | Set reviewer.type to llm, deterministic or aggregate. |
@@ -250,12 +250,12 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`package-manifest-missing\` | error | A package directory has no yg-package.yaml. | Point the pack command at a directory that holds yg-package.yaml. |
 | \`package-symlink-refused\` | error | A package carries a symbolic link; installing refuses it, and yg marketplace check reports it, because a copied link resolves against the consumer's file system. | As the package author, replace the link with the file itself. |
 | \`package-binary-file-refused\` | error | A package carries a binary file; installing refuses it, and yg marketplace check reports it — a rule is text a reviewer and a consumer can read. | As the package author, remove the binary file from the package. |
-| \`packages-lock-invalid\` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML or its packages: is not a mapping. | Restore yg-packages.yaml from version control. |
+| \`packages-lock-invalid\` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML, or it, a record in it or a record's files: is not a mapping. yg check reports every packages-lock-* problem as package-file-modified. | Restore yg-packages.yaml from version control. |
 | \`packages-lock-schema-unknown\` | error | yg-packages.yaml declares a schema this build does not know. | Upgrade the CLI, or restore the file from version control. |
 | \`packages-lock-package-invalid\` | error | A record in yg-packages.yaml names an install directory that is not <owner>/<repo>/<package>. | Restore yg-packages.yaml from version control. |
-| \`packages-lock-entry-invalid\` | error | A record in yg-packages.yaml is not a mapping, or holds a field value of the wrong form. | Restore yg-packages.yaml from version control, or re-run yg pack add for the package. |
-| \`packages-lock-entry-incomplete\` | error | A record in yg-packages.yaml lacks a field every install writes. | Re-run yg pack add for the package. |
-| \`packages-lock-hash-invalid\` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest, or a files: that is not a mapping. | Re-run yg pack add for the package. |
+| \`packages-lock-entry-invalid\` | error | A record in yg-packages.yaml holds a field value of the wrong form. | Restore yg-packages.yaml from version control. |
+| \`packages-lock-entry-incomplete\` | error | A record in yg-packages.yaml lacks a field every install writes. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
+| \`packages-lock-hash-invalid\` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
 | \`packages-lock-path-escape\` | error | A record in yg-packages.yaml names a file outside the package's install directory. | Restore yg-packages.yaml from version control. |
 
 ### Suppression markers (\`yg suppressions\`)
@@ -297,4 +297,6 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`package-config-dynamic\` | warning | A published rule reaches its settings through a name not written out in the source, so the check cannot tell which it reads. | Read each setting by a literal name. |
 | \`package-reviewer-tier\` | warning | A published rule asks for a reviewer tier by name, which a consumer's configuration may not have. | Remove reviewer.tier and let the consumer pick through an adaptation. |
 | \`package-drills-unrecognized\` | warning | A drills/ directory of a published rule is named neither violates-… nor satisfies-…, so no drill runs it. | Rename it with the violates- or satisfies- prefix. |
+| \`marketplace-manifest-key-unknown\` | warning | yg-marketplace.yaml carries a key yg-marketplace/1 does not declare. A reader ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read marketplace lists the keys), or remove the key. |
+| \`package-manifest-key-unknown\` | warning | A yg-package.yaml carries a key yg-package/1 does not declare. A consumer's install ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read package lists the keys), or remove the key. |
 `;

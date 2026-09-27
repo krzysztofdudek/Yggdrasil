@@ -222,3 +222,5 @@ The rule hash stopped at the rule directory, so a helper several rules share (..
 The walk over installed copies left out every dot-named entry directly under packages/, wider than the documented exemptions; it now leaves out only a file named .DS_Store and the install's own .staging- and .replaced- directories, so a dot-named directory dropped there is checked like any other.
 ## [2026-09-27T20:25:15.158Z]
 The package file listing no longer rewrites backslashes: it joins paths with '/' itself, Windows never returns a separator inside a directory entry, and on a POSIX file system a backslash is part of a name, so rewriting it made a file called rule\check.mjs pass for the recorded rule/check.mjs.
+## [2026-09-27T21:14:03.117Z]
+The adaptation stub now lists description among the keys that are not adaptable. The adaptation parser has always refused description, and the stub is the file an adopter actually opens, so leaving it out invited an edit that could only fail at load.

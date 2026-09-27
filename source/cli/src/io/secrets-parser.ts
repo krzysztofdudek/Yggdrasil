@@ -4,9 +4,10 @@
 // overridden locally (most often a tier's provider/model/endpoint/api_key)
 // without touching the committed config. Gitignored — never committed.
 //
-// Because the verdict hash folds only the tier NAME, an overlay never
-// invalidates recorded baselines: each developer points the same named tier at
-// their own reviewer.
+// Because the verdict hash folds only the tier NAME, overriding a tier's
+// provider or config never invalidates recorded baselines: each developer points
+// the same named tier at their own reviewer. (An overlay that changes
+// reviewer.default, the tier names or coverage does move pairs.)
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';

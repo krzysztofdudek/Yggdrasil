@@ -145,7 +145,8 @@ built-in \`config.model\` fallback, applied when a tier omits it:
 \`copilot-cli\` has none: the Copilot plan decides which models a seat may use and
 the CLI refuses any other, so the tier names one (\`auto\` lets Copilot pick). It runs
 the real CLI (\`YG_COPILOT_BIN\`, else the first \`copilot\` on PATH outside the VS Code
-extension's stub) with an empty \`COPILOT_HOME\` and no tools.
+extension's stub) with an empty \`COPILOT_HOME\`, denying its shell, write, network
+and memory tools (its read-only tools stay available).
 Every other provider MUST declare \`config.model\` — a missing one is a hard
 \`config-tier-config-missing\`-class error. (Distinct from \`yg init --model\`, whose
 own default is \`sonnet\` for \`claude-code\` and required for every other provider:
@@ -175,7 +176,8 @@ re-reviews its pairs. The trade-off is per tier, not global.
 
 Optional cap on the assembled reviewer prompt for any pair resolving to this tier —
 scaffold + content.md + references + resolved companion files (when
-\`companion.mjs\` is present) + the unit's subject files + node descriptor.
+\`companion.mjs\` is present) + the unit's subject files (with their line-number
+prefixes) + any suppressed-range spans + the node path (never its description).
 Absent defaults to 50000. \`yg init\` writes \`50000\` into the generated config so
 out-of-box adopters keep a guard.
 
@@ -196,6 +198,7 @@ Provider-specific options passed to the LLM client:
 | \`model\` | string | Required, except for \`claude-code\`, \`codex\` and \`gemini-cli\`, which fall back to a model of their own (above). Provider-specific model identifier. |
 | \`temperature\` | number | Defaults to 0. Higher = more varied responses. |
 | \`endpoint\` | string | Required for \`openai-compatible\` (no default host — else falls back to api.openai.com); \`ollama\` defaults to http://localhost:11434. |
+| \`api_key\` | string | The provider key. Belongs in \`yg-secrets.yaml\`, never here; outranks the provider's environment variable. Ignored by \`ollama\` and the CLI providers. |
 | \`timeout\` | number | Timeout in seconds, honored by every provider. Default 300 for the CLI providers and \`ollama\`, 60 for the hosted APIs (anthropic/openai/google/openai-compatible). Not folded into a verdict's hash (a transport knob). |
 
 These (and \`api_key\`, from the local overlay) are the only keys \`config:\`
@@ -206,9 +209,9 @@ gemini-cli, copilot-cli) read only \`model\` and \`timeout\`; \`temperature\` an
 \`endpoint\` are accepted there and have no effect.
 
 API keys do NOT belong in the committed config — put them in \`yg-secrets.yaml\`,
-the local overlay (see "Secrets and local overrides" below). API providers also
-read the provider API key from the standard \`*_API_KEY\` environment variable as
-a fallback when it is not present in \`yg-secrets.yaml\`.
+the local overlay (see "Secrets and local overrides" below). A tier's
+\`config.api_key\` there outranks the provider's own environment variable (listed
+under "Secrets and local overrides").
 
 ## Multi-tier example
 
@@ -262,13 +265,19 @@ reviewer:
         api_key: sk-ant-...
 \`\`\`
 
-Because only the tier NAME is folded into a verdict's hash, an overlay never
-invalidates recorded baselines: the committed config names a canonical reviewer
-while each machine points the same named tier at its own provider, model, or key.
+Because only the tier NAME is folded into a verdict's hash, overriding a tier's
+provider or config (model, endpoint, key, timeout) never invalidates recorded
+baselines: the committed config names a canonical reviewer while each machine
+points the same named tier at its own provider, model, or key. An overlay that
+changes \`reviewer.default\`, renames or adds a tier, or changes
+\`coverage.required\` / \`coverage.excluded\` does move pairs, and re-opens them.
 
-API providers also read the provider API key from the standard \`*_API_KEY\`
-environment variable as a fallback. If the env var is set, the key is not needed
-in \`yg-secrets.yaml\`.
+Each API provider reads its own environment variable when the tier has no
+\`config.api_key\`: \`anthropic\` → \`ANTHROPIC_API_KEY\`, \`openai\` →
+\`OPENAI_API_KEY\`, \`google\` → \`GOOGLE_API_KEY\`, \`openai-compatible\` →
+\`OPENAI_COMPATIBLE_API_KEY\` (never \`OPENAI_API_KEY\`; with neither it sends no
+key, which suits a keyless local server). \`ollama\` and the CLI providers take no
+key. If the variable is set, the key is not needed in \`yg-secrets.yaml\`.
 
 PRECEDENCE: a tier's \`config.api_key\` in \`yg-secrets.yaml\` wins over the
 environment variable. So \`yg init\` never writes a key it read from the
@@ -441,7 +450,9 @@ the writer may normalize indentation, so review the diff. Every block of
 \`yg-config.yaml\`, \`yg-architecture.yaml\`, every \`yg-node.yaml\`, every
 \`yg-aspect.yaml\` and every \`yg-flow.yaml\` refuses a key it does not accept, and
 a typo is named with the key it
-probably meant (\`consesnsus\` → did you mean \`consensus\`?). Run from the
+probably meant (\`max_prompt_char\` → did you mean \`max_prompt_chars\`?; a
+misspelled REQUIRED key — \`consesnsus\`, \`provder\` — reports as that key missing,
+e.g. \`config-tier-consensus-invalid\`, since the missing key is checked first). Run from the
 repository root only. Review the diff before committing.
 
 ### Prompt size, not reference caps
@@ -461,7 +472,7 @@ not a human approval. Three modes:
 
 | Value | Behavior |
 |---|---|
-| \`false\` (default) | Read-only. No writes, no LLM calls, no API keys. |
+| \`false\` (default) | Read-only. No verdicts and no committed file written (only its own gitignored caches), no LLM calls, no API keys. |
 | \`"deterministic"\` | Behaves as \`yg check --approve --only-deterministic\` — fills only script pairs (free, keyless, local). |
 | \`"full"\` | Behaves as \`yg check --approve\` — fills the unverified pairs that run answers for, and may call the reviewer (requires keys). Held back under CI: see below. |
 

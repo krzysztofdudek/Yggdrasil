@@ -211,6 +211,37 @@ export function schemaProblems(value: unknown, type: FieldType, where = ''): Sch
   }
 }
 
+/** `type` with every open mapping in it closed, so a key it does not declare is reported. */
+function closedType(type: FieldType): FieldType {
+  switch (type.kind) {
+    case 'list':
+      return { ...type, of: closedType(type.of) };
+    case 'map':
+      return { ...type, of: closedType(type.of) };
+    case 'oneOf':
+      return { ...type, of: type.of.map(closedType) };
+    case 'object':
+      return {
+        kind: 'object',
+        fields: Object.fromEntries(Object.entries(type.fields).map(([k, f]) => [k, { ...f, type: closedType(f.type) }])),
+        ...(type.retired !== undefined && { retired: type.retired }),
+        ...(type.refused !== undefined && { refused: type.refused }),
+      };
+    default:
+      return type;
+  }
+}
+
+/**
+ * The keys an open mapping in `value` does not declare — the ones a reader of a
+ * versioned document ignores by design (a field a later release added). Not a
+ * refusal anywhere: it is what lets the author of such a document learn that a
+ * key they wrote (a misspelling, most often) will be read by nobody.
+ */
+export function ignoredKeyProblems(value: unknown, type: FieldType): SchemaProblem[] {
+  return schemaProblems(value, closedType(type)).filter((p) => p.kind === 'unknown-key');
+}
+
 function objectProblems(obj: Record<string, unknown>, type: ObjectType, where: string): SchemaProblem[] {
   const out: SchemaProblem[] = [];
   if (type.open === undefined) {

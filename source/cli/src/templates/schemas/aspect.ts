@@ -56,7 +56,7 @@ description: "Short description"   # required — shown in yg aspects output and
                                    #                   reviewer and produces no verdict of its own. An
                                    #                   aspect with no rule source, no implies:, and no
                                    #                   reviewer: block is rejected as
-                                   #                   aspect-reviewer-missing.
+                                   #                   aspect-rule-source-missing.
   # type: llm                      #   REQUIRED whenever the reviewer: block is present (one of
                                    #     'llm', 'deterministic', 'aggregate'). The block itself is
                                    #     optional — omit it entirely to infer the kind — but you
@@ -245,9 +245,11 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # a script rule has no reviewer to put supporting
                                    # material in front of, so references: on one is refused
                                    # (aspect-references-on-deterministic). A script rule
-                                   # that needs a value from outside itself takes it through
-                                   # ctx.config, where the value it READS becomes part of that
-                                   # rule's verdict — something a reference file cannot offer.
+                                   # installed from a package that needs a value from outside
+                                   # itself takes it through ctx.config, where the value it READS
+                                   # becomes part of that rule's verdict — something a reference
+                                   # file cannot offer. A rule of your own has no settings
+                                   # (ctx.config is empty): write the value in its check.mjs.
                                    #   Permitted on reviewer rules ONLY (forbidden on script rules).
                                    #   Each entry is a string (shorthand) OR an object { path, description? }.
                                    #
@@ -356,6 +358,6 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #
                                    # Lock version remains 1 — no schema/format bump.
                                    # yg impact --file <file> previews the precise companion
-                                   # blast radius, including cold companion-bearing reviewer pairs (it runs
-                                   # the resolver, no reviewer call).
+                                   # blast radius once the lock records what each pair touched; a cold
+                                   # companion pair is an upper bound (impact never runs companion.mjs).
 `;

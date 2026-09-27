@@ -975,7 +975,7 @@ function parseReviewer(
     return {
       ok: false,
       errors: [{
-        code: 'aspect-reviewer-missing',
+        code: 'aspect-rule-source-missing',
         messageData: {
           what: `Aspect '${aspectId}' has no rule source to infer its kind from: no content.md, no check.mjs, and no implies:.`,
           why: 'A rule\'s kind comes from what it ships — content.md makes a reviewer rule, check.mjs a script rule, implies: a bundle. With none of them it does nothing.',

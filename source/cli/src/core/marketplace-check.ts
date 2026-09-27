@@ -5,15 +5,17 @@ import type { MarketplaceCode } from '../model/issue-code.js';
 import type { AspectDef, FileWhenPredicate } from '../model/graph.js';
 import type { PackageManifest, MarketplaceEntry } from '../model/packages.js';
 import { MARKETPLACE_FILENAME, PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
-import { checkPackageRequires, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
+import { checkPackageRequires, manifestIgnoredKeys, parseMarketplaceManifest, parsePackageManifest } from '../io/package-manifest-parser.js';
 import { inspectPackageTree, listPackageAspectDirs } from '../io/package-store.js';
 import { listIgnoredUntrackedPaths } from '../utils/git-introspect.js';
 import { isGitRepositoryRoot } from '../utils/git-pack-fetch.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { listDirEntries, readTextFile, statKind } from '../io/graph-fs.js';
 import { collectConfigReads } from '../structure/config-reads.js';
+import { discoverDrillCases } from './drill-runner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
 
 /**
  * source/cli/src/core/marketplace-check.ts — everything a marketplace should be
@@ -92,6 +94,8 @@ export const MARKETPLACE_WARNING_CODES = [
   'package-config-dynamic',
   'package-reviewer-tier',
   'package-drills-unrecognized',
+  'marketplace-manifest-key-unknown',
+  'package-manifest-key-unknown',
 ] as const;
 
 
@@ -226,8 +230,12 @@ export async function checkMarketplace(root: string, opts: MarketplaceCheckOptio
     return { errors, warnings };
   }
 
+  for (const sentence of await manifestIgnoredKeys(manifestPath, 'marketplace')) {
+    record(issue('marketplace-manifest-key-unknown', 'warning', ignoredKeyMessage(MARKETPLACE_FILENAME, sentence, 'marketplace'), MARKETPLACE_FILENAME));
+  }
+
   const entries = manifest.value.packages;
-  const claimed = new Set(entries.map((e) => e.path));
+  const claimed = new Set(entries.map((e) => entryPath(e.path)));
 
   for (const dirName of await subdirectories(path.join(root, PACKAGES_DIR))) {
     const dirPath = `${PACKAGES_DIR}/${dirName}`;
@@ -254,6 +262,31 @@ export async function checkMarketplace(root: string, opts: MarketplaceCheckOptio
   return { errors, warnings };
 }
 
+/**
+ * A key a manifest carries that no reader of its `/1` document reads. Only a
+ * warning: the family rule for a versioned document is that a reader ignores a
+ * field it does not know, so a key a later release reads must stay publishable;
+ * the author is told so a misspelling is not published unnoticed.
+ */
+function ignoredKeyMessage(file: string, sentence: string, schema: 'package' | 'marketplace'): IssueMessage {
+  return {
+    what: `${file}: ${sentence.split('. ')[0]}.`,
+    why: `A yg-${schema}/1 reader ignores a key it does not declare, so a later release can add one without breaking this one — which means a misspelled key is ignored too, in every repository that installs from here.`,
+    next: `Fix the key's spelling (yg schemas read ${schema} lists the keys it declares), or remove it; keep it only if a later Yggdrasil reads it.`,
+  };
+}
+
+/**
+ * An entry's `path:` as the repository-relative POSIX form every comparison and
+ * message uses: `./packages/demo/` and `packages\\demo` name the directory
+ * `packages/demo`, so neither may be reported as a directory the manifest does
+ * not list.
+ */
+function entryPath(raw: string): string {
+  const normalized = path.posix.normalize(toPosixPath(raw)).replace(/\/+$/, '');
+  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+}
+
 /** Everything asked of one published package. */
 async function checkOnePackage(
   root: string,
@@ -264,7 +297,7 @@ async function checkOnePackage(
 ): Promise<void> {
   // The manifest's path may carry native separators or a trailing slash; every
   // subject and message below names the repository-relative POSIX form.
-  const entry: MarketplaceEntry = { ...declared, path: toPosixPath(declared.path) };
+  const entry: MarketplaceEntry = { ...declared, path: entryPath(declared.path) };
   const pkgDir = path.join(root, entry.path);
   const pkgManifestPath = path.join(pkgDir, PACKAGE_FILENAME);
 
@@ -300,6 +333,9 @@ async function checkOnePackage(
     return;
   }
   const pkg = parsed.value;
+  for (const sentence of await manifestIgnoredKeys(pkgManifestPath, 'package')) {
+    record(issue('package-manifest-key-unknown', 'warning', ignoredKeyMessage(rel(root, pkgManifestPath), sentence, 'package'), rel(root, pkgManifestPath)));
+  }
 
   const dirName = path.basename(entry.path);
   if (pkg.name !== entry.name || pkg.name !== dirName) {
@@ -712,9 +748,14 @@ async function checkDrills(
   record: (i: MarketplaceIssue) => void,
 ): Promise<void> {
   const drillsDir = path.join(dir, 'drills');
+  // A case is what `yg drill` runs: every file whose first segment under drills/
+  // carries the prefix — a file directly under drills/ too, never a .md or a
+  // yg-aspect.yaml — asked of the runner's own discovery, so the two cannot
+  // disagree about what a case is.
+  const found = await discoverDrillCases({ aspectId: aspectDir, projectRoot: dir, dir: drillsDir });
+  const violates = found.filter((c) => c.expect === 'refused');
+  const satisfies = found.filter((c) => c.expect === 'satisfied');
   const cases = await subdirectories(drillsDir);
-  const violates = cases.filter((c) => c.startsWith('violates-'));
-  const satisfies = cases.filter((c) => c.startsWith('satisfies-'));
 
   if (violates.length === 0 || satisfies.length === 0) {
     record(
@@ -722,7 +763,7 @@ async function checkDrills(
         'package-drills-missing',
         'error',
         {
-          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${cases.length === 0 ? 'no drills/ directory' : `drills/ with ${violates.length} case that must be refused and ${satisfies.length} that must pass`}.`,
+          what: `The rule '${aspectDir}' in package '${pkg.name}' has ${(await statKind(drillsDir)) !== 'dir' ? 'no drills/ directory' : `drills/ with ${count(violates.length, 'case file')} that must be refused and ${satisfies.length} that must pass`}.`,
           why: 'A published rule runs somebody else\'s code against somebody else\'s repository. The pair of cases is the only thing that shows what it refuses and what it lets through, and it is the only thing a consumer can run to see the rule work before they trust it.',
           next: `Add ${relDir}/drills/violates-<name>/ and ${relDir}/drills/satisfies-<name>/, each holding one source file, then run 'yg drill --aspect <id>' in a repository that has the rule installed.`,
         },

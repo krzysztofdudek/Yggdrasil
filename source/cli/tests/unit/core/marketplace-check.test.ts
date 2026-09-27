@@ -156,6 +156,13 @@ describe('(a) the manifests against what is on disk', () => {
     expect(result.errors[0].subject).toBe('packages/stray');
   });
 
+  it('5b: an entry path written with ./ or a trailing slash names the same directory', async () => {
+    const result = await run('dotpath', {
+      'yg-marketplace.yaml': ['schema: yg-marketplace/1', 'packages:', '  - name: demo', '    path: ./packages/demo/', '    version: 1.0.0', ''].join('\n'),
+    });
+    expect(codesOf(result)).toEqual([]);
+  });
+
   it('6: a version that is not semver is refused', async () => {
     const result = await run('badversion', {
       'yg-marketplace.yaml': [
@@ -199,6 +206,29 @@ describe('(a) the manifests against what is on disk', () => {
         ['config:', '  rule:', '    threshold:', '      type: number', '      default: "three"', ''].join('\n'),
     });
     expect(result.errors.map((e) => e.code)).toEqual(['package-manifest-invalid']);
+  });
+
+  it('9b: a key yg-package/1 does not declare is a WARNING naming it — every reader ignores it', async () => {
+    const result = await run('pkgkey', {
+      'packages/demo/yg-package.yaml': BASE['packages/demo/yg-package.yaml'].replace('requires:\n  yg: ">=6.0.0"\n', 'requires:\n  yg: ">=6.0.0"\n  node: ">=22"\ndescripton: typo\n'),
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((w) => w.code)).toEqual(['package-manifest-key-unknown', 'package-manifest-key-unknown']);
+    const what = result.warnings.map((w) => w.messageData.what).join('\n');
+    expect(what).toContain("'descripton'");
+    expect(what).toContain("'node' in requires");
+    expect(result.warnings[0].subject).toBe('packages/demo/yg-package.yaml');
+  });
+
+  it('9c: a key yg-marketplace/1 does not declare, top level or in an entry, is a WARNING naming it', async () => {
+    const result = await run('mktkey', {
+      'yg-marketplace.yaml': ['schema: yg-marketplace/1', 'owner: acme', 'packages:', '  - name: demo', '    path: packages/demo', '    version: 1.0.0', '    verison: 1.0.1', ''].join('\n'),
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((w) => w.code)).toEqual(['marketplace-manifest-key-unknown', 'marketplace-manifest-key-unknown']);
+    const what = result.warnings.map((w) => w.messageData.what).join('\n');
+    expect(what).toContain("'owner'");
+    expect(what).toContain("'verison'");
   });
 });
 
@@ -504,6 +534,22 @@ describe('(e) portability and proof', () => {
       'packages/demo/rule/drills/satisfies-good/src/a.ts': null,
     });
     expect(result.errors.map((e) => e.code)).toEqual(['package-drills-missing']);
+  });
+
+  it('33b: a case is what the drill runner runs — a file directly under drills/ counts, a directory of notes does not', async () => {
+    const fileCases = await run('filecases', {
+      'packages/demo/rule/drills/violates-bad/src/a.ts': null,
+      'packages/demo/rule/drills/satisfies-good/src/a.ts': null,
+      'packages/demo/rule/drills/violates-bad.ts': 'export const a = 1;\n',
+      'packages/demo/rule/drills/satisfies-good.ts': 'export const a = 1;\n',
+    });
+    expect(codesOf(fileCases)).toEqual([]);
+
+    const notesOnly = await run('notecases', {
+      'packages/demo/rule/drills/satisfies-good/src/a.ts': null,
+      'packages/demo/rule/drills/satisfies-good/README.md': '# what this case proves\n',
+    });
+    expect(notesOnly.errors.map((e) => e.code)).toEqual(['package-drills-missing']);
   });
 
   it('34: a case directory under neither prefix is a WARNING — the runner skips it silently', async () => {

@@ -24,7 +24,8 @@ auto_approve: false               # optional — controls the behavior of bare \
                                   #   --approve / --no-approve / --only-deterministic flag): whether it
                                   #   runs a fill by itself. A fill is not a human approval.
                                   #
-                                  #   false (default): read-only. No writes, no LLM calls, no API keys
+                                  #   false (default): read-only. No verdicts and no committed file
+                                  #     written (only its own gitignored caches), no LLM calls, no API keys
                                   #     needed. Equivalent to running \`yg check\` with no flags.
                                   #   "deterministic": bare \`yg check\` behaves as
                                   #     \`yg check --approve --only-deterministic\` — fills only
@@ -145,7 +146,7 @@ reviewer:                         # required only once a reviewer rule is actual
         model: "qwen3.5:9b"       #       model id
         endpoint: "http://localhost:11434"   # custom endpoint (required for openai-compatible; ollama defaults to http://localhost:11434)
         temperature: 0            #       reduces variability — keep at 0
-        # timeout: 300            #       Per-call timeout in SECONDS, honored by every provider. Default 300 for the CLI providers and ollama, 60 for the hosted APIs.
+        # timeout: 300            #       Per-call timeout in SECONDS, honored by every provider (default 300 for the CLI providers and ollama, 60 for the hosted APIs).
       # max_prompt_chars: 200000  # optional — assembled reviewer-prompt character cap (positive integer).
                                   #   Checked deterministically before the reviewer call. Absent defaults to 50000.
                                   #   Exceeding this limit renders a blocking error naming remedies
@@ -167,6 +168,8 @@ reviewer:                         # required only once a reviewer rule is actual
     # yg init removes it when it points the tier at another provider/endpoint.
     # A key goes to a config.endpoint set only here too; yg check warns
     # (reviewer-endpoint-committed) when it is not the provider's own.
-    # Only the tier NAME is folded into a verdict hash, so a local override never
-    # invalidates recorded baselines. Keep credentials out of this committed file.
+    # Only the tier NAME is folded into a verdict hash, so overriding a tier's
+    # provider or config never invalidates recorded baselines; changing
+    # reviewer.default, the tier names or coverage there does. Keep credentials
+    # out of this committed file.
 `;

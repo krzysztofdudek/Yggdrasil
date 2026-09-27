@@ -27,6 +27,7 @@ import type { IssueCode, OutsideTwinCode } from '../model/issue-code.js';
 import { type Diagnostic, fromIssueMessage, toIssueMessage, isDiagnostic } from '../formatters/output-diagnostic.js';
 import { block, commandArgv, stepText } from '../formatters/output-grammar.js';
 import { neutralizeStream } from '../utils/terminal-safe.js';
+import { formerCodes } from '../utils/issue-code-registry.js';
 
 // ── Terminal safety ────────────────────────────────────────
 
@@ -112,6 +113,8 @@ export const ERROR_JSON_SCHEMA = 'yg-error/1';
 export interface ErrorDocument {
   schema: typeof ERROR_JSON_SCHEMA;
   code: IssueCode | OutsideTwinCode;
+  /** The names `code` was reported under before it was renamed, oldest first; absent for a code never renamed. */
+  aliases?: string[];
   what: string;
   why: string | null;
   next: { command: string[] | null; text: string };
@@ -141,9 +144,11 @@ export function isJsonOutput(): boolean {
 /** The yg-error/1 document for a diagnostic. */
 export function errorDocument(d: Diagnostic): ErrorDocument {
   const msg = toIssueMessage(d);
+  const aliases = formerCodes(d.code);
   return {
     schema: ERROR_JSON_SCHEMA,
     code: d.code,
+    ...(aliases !== undefined && { aliases }),
     what: msg.what,
     why: msg.why !== '' ? msg.why : null,
     next: { command: commandArgv(d.fix?.command), text: stepText(msg.next) },

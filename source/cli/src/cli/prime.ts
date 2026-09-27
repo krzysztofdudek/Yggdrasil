@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { parse as parseYaml } from 'yaml';
 import { AGENT_RULES_CONTENT } from '../templates/rules.js';
 import { digestBlockBody } from '../templates/digest.js';
 import { marketplaceNoticeLine } from '../templates/knowledge/packages-and-marketplaces.js';
@@ -20,6 +21,25 @@ import { writeOut } from './output.js';
  * it PUBLISHES, since the ones it consumes are already covered by the rules it
  * runs against them.
  */
+/**
+ * Whether the package record at `lockPath` names at least one installed package.
+ * `yg pack remove` of the last package leaves the file behind holding
+ * `packages: {}`, and a repository that installs nothing must not be told it
+ * runs rules from another repository. A record that does not parse still counts
+ * — something is there, and `yg check` reports what is wrong with it.
+ */
+function recordsAPackage(lockPath: string): boolean {
+  if (!existsSync(lockPath)) return false;
+  try {
+    const raw = parseYaml(readFileSync(lockPath, 'utf-8')) as { packages?: unknown } | null;
+    const packages = raw?.packages;
+    if (packages === undefined || packages === null) return false;
+    return typeof packages !== 'object' || Array.isArray(packages) || Object.keys(packages).length > 0;
+  } catch {
+    return true;
+  }
+}
+
 function packageRepoKind(cwd: string): PackageRepoKind | null {
   // Asked of the repository, not of the directory the agent happens to be in:
   // run from `src/sub`, the answer is the one the repository root gives. The
@@ -27,7 +47,7 @@ function packageRepoKind(cwd: string): PackageRepoKind | null {
   let dir = path.resolve(cwd);
   for (;;) {
     if (existsSync(path.join(dir, MARKETPLACE_FILENAME))) return 'publisher';
-    if (existsSync(path.join(dir, '.yggdrasil', PACKAGES_LOCK_FILENAME))) return 'consumer';
+    if (recordsAPackage(path.join(dir, '.yggdrasil', PACKAGES_LOCK_FILENAME))) return 'consumer';
     if (existsSync(path.join(dir, '.yggdrasil'))) return null;
     const parent = path.dirname(dir);
     if (parent === dir) return null;

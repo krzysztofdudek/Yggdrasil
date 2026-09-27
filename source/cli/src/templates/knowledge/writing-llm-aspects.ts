@@ -419,9 +419,10 @@ always use \`--node\` or \`--file\`.)
 
 Because the verdict folds everything the hook reads to decide, editing any
 read-to-decide file (not only a returned one) re-verifies its readers.
-\`yg impact --file <path>\` previews this precisely — including cold
-companion-backed pairs with no lock entry yet (it runs the resolver, no reviewer
-call).
+\`yg impact --file <path>\` previews this precisely once the lock records what
+each pair touched. For a cold companion-backed pair (no lock entry yet) it names
+every pair of the companion rule as one that MAY read the file — an upper bound,
+since \`yg impact\` never runs \`companion.mjs\`.
 
 ## Reference files
 

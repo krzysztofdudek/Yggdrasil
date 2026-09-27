@@ -72,7 +72,7 @@ function ensureKnownProvider(provider: string): asserts provider is ReviewerProv
       what: `Unknown provider '${provider}'.`,
       why: 'The --provider value must match one of the supported reviewer providers.',
       next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
-    }, 'command-error');
+    }, 'usage');
   }
 }
 
@@ -952,7 +952,7 @@ export function registerInitCommand(program: Command): void {
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
     .option('--upgrade', 'Non-interactive: refresh agent rules, lift the config version (running its migrations), top up .yggdrasil/.gitignore with any missing entries, remove files retired installers left behind, remove keys earlier releases read and this one refuses (naming each), and split a legacy yg-lock.json into the lock triad')
-    .option('--platform <name>', `Deprecated — accepted for backward compatibility only; agent rules now install identically for every agent, so this only prints a notice and is otherwise ignored (formerly one of: ${DEPRECATED_PLATFORMS.join(', ')})`)
+    .option('--platform <name>', `Deprecated — accepted for backward compatibility only; agent rules now install identically for every agent, so it prints a notice and selects nothing; on an already-adopted repository with no terminal it still refreshes the agent rules, as a bare non-interactive init does not (formerly one of: ${DEPRECATED_PLATFORMS.join(', ')})`)
     .option('--provider <name>', `Configure a reviewer non-interactively — fresh or existing repo (${ALL_PROVIDERS.join(', ')})`)
     .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
     .option('--endpoint <url>', 'Reviewer endpoint (ollama defaults localhost; required for openai-compatible)')
@@ -983,7 +983,7 @@ export function registerInitCommand(program: Command): void {
             what: '--no-reviewer was combined with reviewer flags (--provider / --model / --endpoint).',
             why: 'They ask for opposite things: --no-reviewer bootstraps with no reviewer at all, while --provider configures one. Honoring both would mean ignoring one silently.',
             next: 'Keep exactly one: yg init --no-reviewer to start without a reviewer, or yg init --provider <name> [--model <m>] to configure one.',
-          }, 'command-error');
+          }, 'usage');
         }
 
         // Non-interactive upgrade: --upgrade [--platform <name>]
@@ -1000,7 +1000,7 @@ export function registerInitCommand(program: Command): void {
                   what: '--upgrade was combined with reviewer flags (--provider / --model / --endpoint).',
                   why: '--upgrade only refreshes the agent rules files; it does not configure a reviewer, so those flags would be silently ignored.',
                   next: 'Run the upgrade alone (yg init --upgrade), then configure the reviewer separately: yg init --provider <name> [--model <m>].',
-                }, 'command-error');
+                }, 'usage');
           }
           noticeDeprecatedPlatform(options.platform);
           // init is the one command that runs before a graph exists; delegate the
@@ -1099,7 +1099,7 @@ export function registerInitCommand(program: Command): void {
             what: '--model/--endpoint given without --provider.',
             why: 'A model or endpoint only configures a reviewer; without --provider there is no reviewer to configure.',
             next: 'Add --provider <name>, or drop --model/--endpoint (and pass --no-reviewer to start without one).',
-          }, 'command-error');
+          }, 'usage');
         }
 
         if (exists && noReviewer) {

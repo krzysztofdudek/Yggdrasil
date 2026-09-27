@@ -31,7 +31,7 @@
 
 import type { CheckCode, IssueCode } from '../model/issue-code.js';
 import type { UnverifiedCause } from '../model/check-issue.js';
-import { UNVERIFIED_CAUSE_ORDER } from './check-codes.js';
+import { UNVERIFIED_CAUSE_ORDER, baseCodeOfOutsideTwin, outsideTwin } from './check-codes.js';
 import { ASPECT_ADAPT_ROOT, ASPECT_SCOPE } from './file-formats-graph.js';
 import { keysOf, refusedOf } from './file-schema.js';
 import { providersWithDefaultModel } from './known-providers.js';
@@ -113,6 +113,13 @@ export interface IssueCodeEntry<S extends IssueStage = IssueStage> {
    * report's `next:` names for this code, worded as one to ask the user for.
    */
   decision?: string;
+  /**
+   * The names this code was reported under before it was renamed, oldest
+   * first. A finding or a command error under a renamed code carries them as
+   * `aliases` in its JSON form, so a consumer matching the old name can find
+   * it; the rendered code tables say "formerly".
+   */
+  formerly?: readonly string[];
 }
 
 /**
@@ -191,7 +198,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'aspect-implies-not-array': { severity: 'error', stage: 'load', meaning: 'implies: is not a list.', fix: 'Write implies: as a list of rule ids (or { id, when, status_inherit } entries).' },
   'aspect-implies-invalid': { severity: 'error', stage: 'load', meaning: 'An implies: entry is neither a rule id nor an { id, when?, status_inherit? } mapping.', fix: 'Fix the entry; yg schemas read aspect gives the shape.' },
   'implies-status-inherit-invalid': { severity: 'error', stage: 'load', meaning: 'An implies entry\'s status_inherit: is not `strictest` or `own-default`.', fix: 'Set status_inherit: to strictest or own-default.' },
-  'aspect-reviewer-missing': { severity: 'error', stage: 'load', meaning: 'A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing.', fix: 'Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle.' },
+  'aspect-rule-source-missing': { severity: 'error', stage: 'load', formerly: ['aspect-reviewer-missing'], meaning: 'A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing.', fix: 'Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle.' },
   'aspect-reviewer-not-mapping': { severity: 'error', stage: 'load', meaning: 'reviewer: is present but not a mapping.', fix: 'Write reviewer: as a mapping with type: and optionally tier:, or remove it (the kind is inferred from the rule source).' },
   'aspect-reviewer-type-missing': { severity: 'error', stage: 'load', meaning: 'reviewer: is a mapping without type:.', fix: 'Add type: llm, deterministic or aggregate, or remove reviewer: to have the kind inferred.' },
   'aspect-reviewer-type-invalid': { severity: 'error', stage: 'load', meaning: 'reviewer.type is not llm, deterministic or aggregate.', fix: 'Set reviewer.type to llm, deterministic or aggregate.' },
@@ -368,12 +375,12 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'package-manifest-missing': { severity: 'error', stage: 'package', meaning: 'A package directory has no yg-package.yaml.', fix: 'Point the pack command at a directory that holds yg-package.yaml.' },
   'package-symlink-refused': { severity: 'error', stage: 'package', meaning: 'A package carries a symbolic link; installing refuses it, and yg marketplace check reports it, because a copied link resolves against the consumer\'s file system.', fix: 'As the package author, replace the link with the file itself.' },
   'package-binary-file-refused': { severity: 'error', stage: 'package', meaning: 'A package carries a binary file; installing refuses it, and yg marketplace check reports it — a rule is text a reviewer and a consumer can read.', fix: 'As the package author, remove the binary file from the package.' },
-  'packages-lock-invalid': { severity: 'error', stage: 'package', meaning: '.yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML or its packages: is not a mapping.', fix: 'Restore yg-packages.yaml from version control.' },
+  'packages-lock-invalid': { severity: 'error', stage: 'package', meaning: '.yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML, or it, a record in it or a record\'s files: is not a mapping. yg check reports every packages-lock-* problem as package-file-modified.', fix: 'Restore yg-packages.yaml from version control.' },
   'packages-lock-schema-unknown': { severity: 'error', stage: 'package', meaning: 'yg-packages.yaml declares a schema this build does not know.', fix: 'Upgrade the CLI, or restore the file from version control.' },
   'packages-lock-package-invalid': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml names an install directory that is not <owner>/<repo>/<package>.', fix: 'Restore yg-packages.yaml from version control.' },
-  'packages-lock-entry-invalid': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml is not a mapping, or holds a field value of the wrong form.', fix: 'Restore yg-packages.yaml from version control, or re-run yg pack add for the package.' },
-  'packages-lock-entry-incomplete': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml lacks a field every install writes.', fix: 'Re-run yg pack add for the package.' },
-  'packages-lock-hash-invalid': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml holds a file hash that is not a sha256 digest, or a files: that is not a mapping.', fix: 'Re-run yg pack add for the package.' },
+  'packages-lock-entry-invalid': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml holds a field value of the wrong form.', fix: 'Restore yg-packages.yaml from version control.' },
+  'packages-lock-entry-incomplete': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml lacks a field every install writes.', fix: 'Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse).' },
+  'packages-lock-hash-invalid': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml holds a file hash that is not a sha256 digest.', fix: 'Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse).' },
   'packages-lock-path-escape': { severity: 'error', stage: 'package', meaning: 'A record in yg-packages.yaml names a file outside the package\'s install directory.', fix: 'Restore yg-packages.yaml from version control.' },
 
   // ── suppressions: yg suppressions ───────────────────────────────────
@@ -409,6 +416,8 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'package-config-dynamic': { severity: 'warning', stage: 'marketplace', meaning: 'A published rule reaches its settings through a name not written out in the source, so the check cannot tell which it reads.', fix: 'Read each setting by a literal name.' },
   'package-reviewer-tier': { severity: 'warning', stage: 'marketplace', meaning: "A published rule asks for a reviewer tier by name, which a consumer's configuration may not have.", fix: 'Remove reviewer.tier and let the consumer pick through an adaptation.' },
   'package-drills-unrecognized': { severity: 'warning', stage: 'marketplace', meaning: "A drills/ directory of a published rule is named neither violates-… nor satisfies-…, so no drill runs it.", fix: 'Rename it with the violates- or satisfies- prefix.' },
+  'marketplace-manifest-key-unknown': { severity: 'warning', stage: 'marketplace', meaning: 'yg-marketplace.yaml carries a key yg-marketplace/1 does not declare. A reader ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere.', fix: 'Fix the spelling (yg schemas read marketplace lists the keys), or remove the key.' },
+  'package-manifest-key-unknown': { severity: 'warning', stage: 'marketplace', meaning: 'A yg-package.yaml carries a key yg-package/1 does not declare. A consumer\'s install ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere.', fix: 'Fix the spelling (yg schemas read package lists the keys), or remove the key.' },
 };
 
 /** Every registered code, in the registry's order. */
@@ -423,4 +432,16 @@ const BY_CODE: ReadonlyMap<string, IssueCodeEntry> = new Map(Object.entries(ISSU
  */
 export function issueCodeEntry(code: string): IssueCodeEntry | undefined {
   return BY_CODE.get(code);
+}
+
+/**
+ * The names a code was reported under before a rename — the `aliases` its
+ * finding or command error carries in JSON. An outside twin's former names are
+ * its base code's, twinned. Undefined when the code was never renamed.
+ */
+export function formerCodes(code: string): string[] | undefined {
+  const base = baseCodeOfOutsideTwin(code);
+  const formerly = issueCodeEntry(base ?? code)?.formerly;
+  if (formerly === undefined || formerly.length === 0) return undefined;
+  return base === undefined ? [...formerly] : formerly.map((old) => outsideTwin(old));
 }

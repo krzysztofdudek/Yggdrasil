@@ -116,16 +116,8 @@ agent-rules files it wrote plus `.gitattributes`), `debug` and
 a `rules_artifacts:` block only when you switch an artifact off — the absent
 block already means all three are on.
 
-::: warning Configuring a reviewer strips the file's comments
-The scaffolded config is comment-heavy on purpose — it is meant to be read and
-hand-edited. But writing the `reviewer:` section round-trips the whole file
-through a YAML parse and re-serialize, so **every comment in `yg-config.yaml`
-is dropped**, not only the ones near the reviewer block. That is
-`yg init --provider …` and the interactive "Configure reviewer" menu entry;
-`--no-agents-md` / `--no-claude-md` / `--no-clinerules` edit the YAML document
-in place instead and leave comments alone. Review the diff after configuring a
-reviewer, and keep anything you care about somewhere other than a comment in
-this file.
+::: tip Configuring a reviewer keeps the file's comments
+`yg init --provider …` and the interactive "Configure reviewer" menu entry edit `yg-config.yaml` in place: they replace the `reviewer:` section (all of it — every tier and `reviewer.default`), add `parallel: 4` for a CLI provider when the file sets no `parallel`, and leave everything else, comments included, as it was. `yg-secrets.yaml` is re-serialized whenever init writes or removes a key in it, so comments there are lost.
 :::
 
 ---
@@ -197,7 +189,7 @@ reviewer:
 | `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible` / `copilot-cli`; optional for the other CLI providers | Provider-specific model identifier. Two different defaults exist. `yg init` always writes a model into the file: `sonnet` for `claude-code` when `--model` is omitted, and whatever `--model` names for every other provider (init requires it). Only when a tier in the file has no `config.model` does the run-time fallback apply: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. `copilot-cli` has no default and must name one (`auto` lets Copilot pick). |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
-| `config.timeout` | no | Per-call timeout in seconds, honored by every provider. Defaults to `300` for the CLI providers and `ollama`, and to `60` for the hosted APIs (`anthropic`, `openai`, `google`, `openai-compatible`). A call that runs past it is reported as timed out, naming this setting. |
+| `config.timeout` | no | Per-call timeout in seconds, honored by every provider. Defaults to `300` for the CLI providers and `ollama`, and to `60` for the hosted APIs (`anthropic`, `openai`, `google`, `openai-compatible`). A call that runs past it is reported as timed out, naming this setting, and is not retried (the request may already be billed). A hosted-API request that got no answer at all — connection refused, unknown host — is retried once, and a 429 once after two seconds. |
 | `config.api_key` | no | Provider API key. Takes precedence over the provider's environment variable. Do not put it in `yg-config.yaml` — supply it through the gitignored `yg-secrets.yaml` overlay (see the Secrets section below). |
 
 Any other `config.*` key is refused (`config-tier-unknown-key`, with the key it
@@ -206,6 +198,8 @@ is probably a typo of), and a value of the wrong type — `temperature: hot`,
 to the default. The CLI providers (`claude-code`, `codex`, `gemini-cli`,
 `copilot-cli`) read only `model` and `timeout`; `temperature` and `endpoint` are
 accepted there and have no effect.
+
+The `config:` mapping itself is required on every tier, even for a CLI provider whose model has a built-in default: write `config: {}` there (a tier without it is `config-tier-config-missing`).
 
 ### Supported providers
 
@@ -264,10 +258,7 @@ counts as covered, how much of the project a run answers for, and which files
 Yggdrasil maintains — so a gitignored local file must not be able to move it for
 one developer alone.
 
-Because only the tier **name** is folded into a verdict's hash, a local override
-never invalidates recorded baselines: the committed config names a canonical
-reviewer, and each machine points the same named tier at its own provider, model,
-or key.
+Because only the tier **name** is folded into a verdict's hash, overriding a tier's `config` or `provider` (its model, endpoint, key or timeout) never invalidates recorded baselines: the committed config names a canonical reviewer, and each machine points the same named tier at its own provider, model, or key. An overlay that changes which tier a rule resolves to — a different `reviewer.default`, a renamed or added tier — or changes `coverage.required` / `coverage.excluded` does change what is recorded or expected, and re-opens the pairs it moves.
 
 API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 (`openai` only), `OPENAI_COMPATIBLE_API_KEY` (`openai-compatible` only), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
@@ -443,7 +434,7 @@ separately.
 | `.family-candidates.*.json` | Look-alike group analysis, one file per producer (`.family-candidates.<producer>.json`); freshness-gated when read and rebuilt by rerunning the producer. |
 | `.yg-packages-versions.json` | What each installed package's source was last seen to publish — a local cache the `yg pack` commands write while they are already talking to a source. |
 | `.yg-*.lock` | The run-exclusion lock files — `.yg-approve.lock`, held for the length of `yg check --approve`, and `.yg-log.lock`, held for the moment a log entry is written (see [Running in parallel](/concurrency)). They exist only while a command runs; `yg init --upgrade` adds this line to an older graph's `.gitignore`. |
-| `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. |
+| `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. The same line covers what the package commands leave while they run: `pack-fetch-<hex>.tmp/` (a clone of a marketplace, removed when the command ends and swept by the next pack command after a hard kill) and `pack-command.lock.tmp` (the lock that lets one pack command change the package record at a time). |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal
 state, not a broken one. The only thing a fresh clone *notices* is the absent
@@ -507,7 +498,7 @@ diff before committing.
 
 | Value | Behavior |
 | --- | --- |
-| `false` (default) | Read-only: recomputes hashes, validates, reports. Writes nothing, makes no LLM calls, needs no keys. |
+| `false` (default) | Read-only: recomputes hashes, validates, reports. Writes no verdict and no committed file, makes no LLM calls, needs no keys; it does maintain its own gitignored caches under `.yggdrasil/` (and sweeps stale `*.tmp` files). |
 | `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only script pairs (free, keyless), writes the gitignored cache. |
 | `full` | Behaves like `yg check --approve` — fills the unverified pairs that run answers for, reviewer pairs included. |
 

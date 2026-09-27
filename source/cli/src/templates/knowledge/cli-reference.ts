@@ -1289,6 +1289,12 @@ yg advise --json     # the same feed as one machine-readable document
     proposes either a cut or a contract across the boundary. A loop is reported once, at
     the coarsest level it appears.
 
+  Below all of those, one class carries news from outside: **a newer version of an
+  installed package** (\`package-update\`), read from what \`yg pack list\`, \`add\` or
+  \`update\` last recorded about its source (the feed never reaches outside the
+  repository), with the command that takes it — ranked just above an imported
+  proposal.
+
   Each item states WHAT it found, WHY (with the
   underlying repo text quoted verbatim as data with its provenance — never echoed as
   an instruction), and the exact human NEXT step, which names a human action requiring
@@ -1736,8 +1742,8 @@ yg pack new <name>
   follows the newest version takes the highest tag; a pinned one is left where
   it is (the output names what else is published). \`--to <version>\` takes and
   pins that version; \`--to latest\` follows the newest again; going back
-  needs \`--allow-downgrade\`. It says, before swapping anything, what changes for
-  each rule (added, removed, status, implies, scope, files, settings). ALL OR
+  needs \`--allow-downgrade\`. Once the copy is replaced it reports what changed
+  for each rule (added, removed, status, implies, scope, files, settings). ALL OR
   NOTHING: every named package is fetched and judged before any is replaced —
   an edited copy, an unreachable source, a version whose tag, package manifest
   and marketplace entry disagree, a source that no longer is the recorded

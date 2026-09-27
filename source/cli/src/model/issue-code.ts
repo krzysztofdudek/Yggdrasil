@@ -113,7 +113,7 @@ export type CheckCode =
   | 'aspect-implies-not-array'
   | 'aspect-implies-invalid'
   | 'implies-status-inherit-invalid'
-  | 'aspect-reviewer-missing'
+  | 'aspect-rule-source-missing'
   | 'aspect-reviewer-not-mapping'
   | 'aspect-reviewer-type-missing'
   | 'aspect-reviewer-type-invalid'
@@ -303,7 +303,9 @@ export type MarketplaceCode =
   | 'package-config-unused'
   | 'package-config-dynamic'
   | 'package-reviewer-tier'
-  | 'package-drills-unrecognized';
+  | 'package-drills-unrecognized'
+  | 'marketplace-manifest-key-unknown'
+  | 'package-manifest-key-unknown';
 
 /** Every registered code. */
 export type IssueCode = CheckCode | CommandErrorCode | SuppressionCode | MarketplaceCode;

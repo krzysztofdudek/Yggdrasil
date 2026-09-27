@@ -29,6 +29,7 @@ import {
   differingFiles,
   failWith,
   installedRuleDirs,
+  maskMessageCredentials,
   ownerRepoOf,
   projectRootOf,
   readLock,
@@ -372,7 +373,7 @@ async function planUpdate(
   if (kind === 'git' && opts.reinstall !== true) {
     const published = await session.versionsOf(resolved.location, pkgName);
     if (published !== null && !published.some((v) => validSemver(v) !== null)) {
-      const message = unpublishedMessage(pkgName, entry, resolved.location);
+      const message = maskMessageCredentials(unpublishedMessage(pkgName, entry, resolved.location));
       if (!run.sweep) failWith(message);
       return { name: pkgName, entry, action: 'skip', notes: [], skip: message };
     }
@@ -390,7 +391,7 @@ async function planUpdate(
   assertVersionsAgree(fetched, marketEntry, manifest);
 
   const newHashes = await hashPackageTree(packageRootAbs, entry.package);
-  if (!newHashes.ok) failWith(newHashes.messageData);
+  if (!newHashes.ok) failWith(newHashes.messageData, newHashes.code);
 
   if (opts.reinstall === true) {
     const accept = opts.acceptRepublished === true;
@@ -455,6 +456,15 @@ async function planUpdate(
     target === installed && (kind === 'git' || differingFiles(entry.files, newHashes.value).length === 0);
   if (sameVersion) {
     if (entry.commit !== undefined && fetched.commit !== undefined && entry.commit !== fetched.commit) {
+      if (opts.to !== undefined) {
+        // Asked by name, as the re-used-number case below is: recording the pin
+        // would claim the version the tag names today, which is not the copy here.
+        failWith({
+          what: `'${pkgName}' was not moved: ${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}.`,
+          why: `--to ${opts.to} names the version already installed, and the publisher has moved its tag since. Recording a pin there would claim a copy this repository does not hold. Nothing was changed.`,
+          next: `Run yg pack verify ${pkgName} to see what moved. To take what the tag names now, keeping your adaptations: yg pack update ${pkgName} --reinstall --accept-republished.`,
+        });
+      }
       return {
         name: pkgName,
         entry,
@@ -525,6 +535,20 @@ async function planUpdate(
   }
 
   if (validSemver(installed) !== null && semverLt(target, installed)) {
+    if (opts.to === REQUESTED_LATEST && requestedNow !== REQUESTED_LATEST) {
+      // `--to latest` records that the package follows the newest version, even
+      // when that version is older than the copy here and nothing is taken.
+      return {
+        name: pkgName,
+        entry,
+        action: 'record',
+        record: { ...entry, requested: REQUESTED_LATEST },
+        notes: [
+          `'${pkgName}' stays at ${installed} and now follows the newest published version; the newest its source publishes is ${target}, which is older, so nothing was copied. ` +
+            `To go back to it: yg pack update ${pkgName} --to ${target} --allow-downgrade`,
+        ],
+      };
+    }
     if (opts.to === undefined || opts.to === REQUESTED_LATEST) {
       return {
         name: pkgName,
@@ -646,7 +670,7 @@ async function describeUpdate(
   const added = manifest.aspects.filter((r) => !oldRules.includes(r));
   if (added.length > 0) lines.push(`  new rules: ${added.join(', ')}`);
   if (removed.length > 0) {
-    lines.push(paint.yellow(`  rules no longer shipped, removed with their adaptations: ${removed.join(', ')}`));
+    lines.push(paint.yellow(`  rules no longer shipped, removed with their adaptations and histories (${ADAPT_LOG_FILENAME}): ${removed.join(', ')}`));
   }
 
   const oldManifestResult = await parsePackageManifest(path.join(oldRootAbs, PACKAGE_FILENAME));
@@ -681,7 +705,7 @@ async function describeUpdate(
     for (const key of Object.keys(oldKeys).filter((k) => !(k in newKeys)).sort()) {
       lines.push(
         mine.has(key)
-          ? paint.yellow(`  ${rule}: setting ${key} is gone, and your ${ADAPT_FILENAME} still sets it — the graph refuses to load until you remove it there`)
+          ? paint.yellow(`  ${rule}: setting ${key} is gone, and your ${ADAPT_FILENAME} still sets it — the rule will not load, and yg check blocks, until you remove it there`)
           : `  ${rule}: setting ${key} is gone`,
       );
     }

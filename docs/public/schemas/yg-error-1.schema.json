@@ -94,8 +94,6 @@
         "aspect-review-by-malformed-outside",
         "aspect-review-overdue",
         "aspect-review-overdue-outside",
-        "aspect-reviewer-missing",
-        "aspect-reviewer-missing-outside",
         "aspect-reviewer-not-mapping",
         "aspect-reviewer-not-mapping-outside",
         "aspect-reviewer-tier-invalid",
@@ -106,6 +104,8 @@
         "aspect-reviewer-type-missing-outside",
         "aspect-reviewer-unknown-key",
         "aspect-reviewer-unknown-key-outside",
+        "aspect-rule-source-missing",
+        "aspect-rule-source-missing-outside",
         "aspect-scope-invalid",
         "aspect-scope-invalid-outside",
         "aspect-scope-on-aggregate",
@@ -269,6 +269,7 @@
         "marketplace-entry-missing",
         "marketplace-entry-version-invalid",
         "marketplace-manifest-invalid",
+        "marketplace-manifest-key-unknown",
         "marketplace-manifest-missing",
         "marketplace-packages-invalid",
         "marketplace-schema-missing",
@@ -317,6 +318,7 @@
         "package-install-failed",
         "package-manifest-invalid",
         "package-manifest-invalid-outside",
+        "package-manifest-key-unknown",
         "package-manifest-missing",
         "package-name-invalid",
         "package-name-invalid-outside",
@@ -422,6 +424,13 @@
         "yaml-invalid",
         "yaml-invalid-outside"
       ]
+    },
+    "aliases": {
+      "description": "The names `code` was reported under before it was renamed, oldest first; absent for a code never renamed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "what": {
       "type": "string"

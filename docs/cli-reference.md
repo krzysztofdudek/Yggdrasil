@@ -1319,7 +1319,7 @@ The first line counts both sections. Each attention item is one indented line; e
 
 The nomination classes, highest priority first. The first seven rest on the graph as it stands;
 the next five are read from local history and carry an honesty label while the evidence is thin;
-the last two are whole-codebase observations:
+the next two are whole-codebase observations, and the last is news from outside the repository:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
 2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
@@ -1335,6 +1335,7 @@ the last two are whole-codebase observations:
 12. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
 13. **A look-alike group** — see below.
 14. **An architecture cut** — see below.
+15. **A newer version of an installed package** (`package-update`) — read from what `yg pack list`, `add` or `update` last recorded about its source (the feed itself never reaches outside the repository), with the command that takes it. Ranked below every class the graph derives for itself, just above an [imported proposal](#yg-advise-import).
 
 The lowest-priority suggestions include two whole-codebase observations: a **look-alike
 group** — a tight group of near-identical files with no rule of their own, offered with a
@@ -2057,12 +2058,7 @@ alongside a stronger one for hard aspects), running `yg init --provider …`
 discards it. Edit `yg-config.yaml`'s `reviewer.tiers` by hand instead when you
 want to keep more than one tier.
 
-Configuring a reviewer at all — by flag or through the interactive menu —
-also round-trips `yg-config.yaml` through a YAML parse and re-serialize, which
-**drops every comment in the file**, including the explanatory ones a fresh
-`yg init` scaffolds around `coverage`, `type_level` and `rules_artifacts`. The
-three `--no-*` rules-artifact flags do not: they edit the YAML document in
-place. Review the diff after configuring a reviewer.
+Configuring a reviewer — by flag or through the interactive menu — edits `yg-config.yaml` in place: the `reviewer:` section is replaced, a CLI provider also gets a `parallel: 4` key when the file has none, and everything else, comments included, stays as it was. `yg-secrets.yaml` is different: when init writes or removes a key there, the file is re-serialized and loses its comments.
 :::
 
 **Choosing which rules files to carry:**
@@ -2114,7 +2110,7 @@ reviewer will send it. A missing key is non-fatal and can be set later before
 `yg check --approve`. For a CLI provider, init checks that the CLI
 runs on this machine (the same check the interactive menu makes) and prints a
 warning naming the cause when it does not; the configuration is still written
-and the exit code is 0. No network call is made. An existing `yg-config.yaml`
+and the exit code is 0. For `codex` and `gemini-cli` it also asks the CLI for one probe verdict through the exact command a review uses — one tiny prompt, sent to the model on your plan; no other provider is called. An existing `yg-config.yaml`
 keeps its comments and formatting: only the `reviewer:` section is written.
 
 `yg init` also maintains the repository-root `.gitattributes` lines Yggdrasil manages: `/.yggdrasil/yg-lock.*.json linguist-generated=true` (the committed lock files collapse in review diffs); `merge=union` for the committed registers `/.yggdrasil/advise-decisions.jsonl` and `/.yggdrasil/advise-imported.jsonl` and for the shared reviewer-event record `/.yggdrasil/yg-events.llm*.jsonl` (which is also `linguist-generated`), so a merge keeps every branch's lines; and `/.yggdrasil/**/log.md text eol=lf`, which keeps every log in LF on every checkout (Git for Windows converts to CRLF by default): the append-only hash normalises line endings, but `yg log merge-resolve` compares the working-tree log byte for byte with git's copies of both sides, and a checkout that differs from what was baselined and appended breaks that comparison. It adds the gitignored script-rule cache
@@ -2265,8 +2261,8 @@ yg pack new <name>
 - `update` — replaces the copy with another published version and carries your
   adaptations across byte for byte. A pinned package stays where it is;
   `--to <version>` takes and pins a version, `--to latest` follows the newest
-  again, and going back needs `--allow-downgrade`. Says what changes for each
-  rule before swapping anything. All or nothing: refuses, naming the reason and
+  again, and going back needs `--allow-downgrade`. Reports, once the copy is
+  replaced, what changed for each rule. All or nothing: refuses, naming the reason and
   changing nothing, on an edited copy, an unreachable source, versions that
   disagree, a source that is no longer the recorded publisher, or a dropped rule
   the graph still names. With no name, a package whose source publishes no
@@ -2428,7 +2424,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-implies-not-array` | error | implies: is not a list. | Write implies: as a list of rule ids (or { id, when, status_inherit } entries). |
 | `aspect-implies-invalid` | error | An implies: entry is neither a rule id nor an { id, when?, status_inherit? } mapping. | Fix the entry; yg schemas read aspect gives the shape. |
 | `implies-status-inherit-invalid` | error | An implies entry's status_inherit: is not `strictest` or `own-default`. | Set status_inherit: to strictest or own-default. |
-| `aspect-reviewer-missing` | error · stops `--approve` | A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing. | Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle. |
+| `aspect-rule-source-missing` (formerly `aspect-reviewer-missing`) | error · stops `--approve` | A rule has no rule source (content.md or check.mjs) and implies nothing, so there is nothing to infer its kind from and it would do nothing. | Add content.md (a reviewer rule) or check.mjs (a script rule), or declare implies: to make it a bundle. |
 | `aspect-reviewer-not-mapping` | error · stops `--approve` | reviewer: is present but not a mapping. | Write reviewer: as a mapping with type: and optionally tier:, or remove it (the kind is inferred from the rule source). |
 | `aspect-reviewer-type-missing` | error · stops `--approve` | reviewer: is a mapping without type:. | Add type: llm, deterministic or aggregate, or remove reviewer: to have the kind inferred. |
 | `aspect-reviewer-type-invalid` | error · stops `--approve` | reviewer.type is not llm, deterministic or aggregate. | Set reviewer.type to llm, deterministic or aggregate. |
@@ -2629,12 +2625,12 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-manifest-missing` | error | A package directory has no yg-package.yaml. | Point the pack command at a directory that holds yg-package.yaml. |
 | `package-symlink-refused` | error | A package carries a symbolic link; installing refuses it, and yg marketplace check reports it, because a copied link resolves against the consumer's file system. | As the package author, replace the link with the file itself. |
 | `package-binary-file-refused` | error | A package carries a binary file; installing refuses it, and yg marketplace check reports it — a rule is text a reviewer and a consumer can read. | As the package author, remove the binary file from the package. |
-| `packages-lock-invalid` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML or its packages: is not a mapping. | Restore yg-packages.yaml from version control. |
+| `packages-lock-invalid` | error | .yggdrasil/yg-packages.yaml, the record of installed packages, is not valid YAML, or it, a record in it or a record's files: is not a mapping. yg check reports every packages-lock-* problem as package-file-modified. | Restore yg-packages.yaml from version control. |
 | `packages-lock-schema-unknown` | error | yg-packages.yaml declares a schema this build does not know. | Upgrade the CLI, or restore the file from version control. |
 | `packages-lock-package-invalid` | error | A record in yg-packages.yaml names an install directory that is not &lt;owner&gt;/&lt;repo&gt;/&lt;package&gt;. | Restore yg-packages.yaml from version control. |
-| `packages-lock-entry-invalid` | error | A record in yg-packages.yaml is not a mapping, or holds a field value of the wrong form. | Restore yg-packages.yaml from version control, or re-run yg pack add for the package. |
-| `packages-lock-entry-incomplete` | error | A record in yg-packages.yaml lacks a field every install writes. | Re-run yg pack add for the package. |
-| `packages-lock-hash-invalid` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest, or a files: that is not a mapping. | Re-run yg pack add for the package. |
+| `packages-lock-entry-invalid` | error | A record in yg-packages.yaml holds a field value of the wrong form. | Restore yg-packages.yaml from version control. |
+| `packages-lock-entry-incomplete` | error | A record in yg-packages.yaml lacks a field every install writes. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
+| `packages-lock-hash-invalid` | error | A record in yg-packages.yaml holds a file hash that is not a sha256 digest. | Restore yg-packages.yaml from version control (yg pack add refuses while the record does not parse). |
 | `packages-lock-path-escape` | error | A record in yg-packages.yaml names a file outside the package's install directory. | Restore yg-packages.yaml from version control. |
 
 ### Suppression markers (`yg suppressions`) {#codes-suppressions}
@@ -2676,5 +2672,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-config-dynamic` | warning | A published rule reaches its settings through a name not written out in the source, so the check cannot tell which it reads. | Read each setting by a literal name. |
 | `package-reviewer-tier` | warning | A published rule asks for a reviewer tier by name, which a consumer's configuration may not have. | Remove reviewer.tier and let the consumer pick through an adaptation. |
 | `package-drills-unrecognized` | warning | A drills/ directory of a published rule is named neither violates-… nor satisfies-…, so no drill runs it. | Rename it with the violates- or satisfies- prefix. |
+| `marketplace-manifest-key-unknown` | warning | yg-marketplace.yaml carries a key yg-marketplace/1 does not declare. A reader ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read marketplace lists the keys), or remove the key. |
+| `package-manifest-key-unknown` | warning | A yg-package.yaml carries a key yg-package/1 does not declare. A consumer's install ignores such a key (a later release may add fields within /1), so whatever it was meant to set is in effect nowhere. | Fix the spelling (yg schemas read package lists the keys), or remove the key. |
 
 <!-- issue-codes:end -->
