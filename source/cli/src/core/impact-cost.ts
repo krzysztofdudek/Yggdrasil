@@ -343,7 +343,6 @@ export function flowImpactOf(graph: Graph, flow: Graph['flows'][number]): FlowIm
     indirectPaths,
     chains,
     flowAspects: flow.aspects ?? [],
-    declaredParticipants: flow.nodes.filter((n) => graph.nodes.has(n)).length,
   };
 }
 

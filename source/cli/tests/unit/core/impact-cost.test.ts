@@ -160,7 +160,6 @@ describe('flowImpactOf', () => {
       { path: 'app/c', declared: true },
       { path: 'app/c/d', declared: false },
     ]);
-    expect(impact.declaredParticipants).toBe(1);
     expect(impact.flowAspects).toEqual(['flow-rule']);
   });
 });

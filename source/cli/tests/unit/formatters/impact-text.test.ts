@@ -67,14 +67,14 @@ describe('renderAspectImpact', () => {
 
 describe('renderFlowImpact', () => {
   const flow = (over: Partial<FlowImpact> = {}): FlowImpact => ({
-    flowName: 'F', participants: [{ path: 'a', declared: true }, { path: 'a/b', declared: false }], indirectPaths: [], chains: [], flowAspects: ['r'], declaredParticipants: 1, ...over,
+    flowName: 'F', participants: [{ path: 'a', declared: true }, { path: 'a/b', declared: false }], indirectPaths: [], chains: [], flowAspects: ['r'], ...over,
   });
   it('lists declared participants and descendants, and the flow rules', () => {
     const out = renderFlowImpact(flow({ chains: ['a → c'] }));
     expect(out).toContain('  a\n  a/b (descendant)\n');
     expect(out).toContain('Flow aspects: r');
     expect(out).toContain('Blast radius: 2 nodes');
-    expect(out).toContain('All 1 participant would become unverified');
+    expect(out).toContain('All 2 participants would become unverified');
     expect(out).toContain('Indirectly affected (structural dependents):\n  a → c\n');
   });
   it('says (none) for an empty flow and warns on a high blast radius', () => {

@@ -94,7 +94,7 @@ export function renderAspectImpact(impact: AspectImpact): string {
 
 /** The whole answer to `yg impact --flow`. */
 export function renderFlowImpact(impact: FlowImpact): string {
-  const { flowName, participants, chains, flowAspects, declaredParticipants } = impact;
+  const { flowName, participants, chains, flowAspects } = impact;
   let out = '';
   out += `Impact of changes in flow ${flowName}:\n\n`;
   out += 'Participants:\n';
@@ -110,7 +110,7 @@ export function renderFlowImpact(impact: FlowImpact): string {
   out += `\nFlow aspects: ${flowAspects.length > 0 ? flowAspects.join(', ') : '(none)'}\n`;
   const total = participants.length + impact.indirectPaths.length;
   out += `\nBlast radius: ${count(total, 'node')}\n`;
-  out += `  All ${declaredParticipants} ${plural(declaredParticipants, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`;
+  out += `  All ${participants.length} ${plural(participants.length, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`;
   if (total >= 10) {
     out += `  High blast radius — review flow compliance in participants before modifying.\n`;
   }

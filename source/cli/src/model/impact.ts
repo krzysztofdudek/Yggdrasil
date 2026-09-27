@@ -117,8 +117,6 @@ export interface FlowImpact {
   indirectPaths: string[];
   chains: string[];
   flowAspects: string[];
-  /** How many of the flow's declared participants exist in the graph. */
-  declaredParticipants: number;
 }
 
 /** A file a type covers, and where it is covered from. */

@@ -318,4 +318,21 @@ describe.skipIf(!distExists)('CLI E2E — channel 5: flow aspects reach particip
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  // --- 6. yg impact counts a descendant of a participant as in the flow ---
+
+  it('6: yg impact names the flow a descendant is in, and counts it among the participants', () => {
+    const dir = descendantFixture('impact');
+    try {
+      const node = run(['impact', '--node', 'services/orders/order-repo'], dir);
+      expect(node.status, node.all).toBe(0);
+      expect(/^Flows: (.*)$/m.exec(node.stdout)?.[1]).toBe('OrderProcessing');
+      const flow = run(['impact', '--flow', 'order-processing'], dir);
+      expect(flow.status, flow.all).toBe(0);
+      const listed = /^Participants:\n((?: {2}\S.*\n)+)/m.exec(flow.stdout)?.[1].trimEnd().split('\n') ?? [];
+      expect(listed.map((l) => l.trim().split(' ')[0])).toContain('services/orders/order-repo');
+      expect(Number(/^ {2}All (\d+) participants? /m.exec(flow.stdout)?.[1])).toBe(listed.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
