@@ -20,8 +20,9 @@
 //                  fields and a text view without the headings
 //   5. no hash   → the entries the context reads change no pair hash: a
 //                  recorded project stays verified after type and node entries
-//   6. broken    → a node log left with conflict markers is not given; the
-//                  document says what is wrong and names merge-resolve
+//   6. broken    → a node log or a type log left with conflict markers is
+//                  not given; the document says what is wrong and names
+//                  merge-resolve for that log
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -207,15 +208,24 @@ describe.skipIf(!distExists)('CLI E2E — yg context carries the type decisions 
     }
   });
 
-  it('6: a node log left with conflict markers is not given, and the document names the step that repairs it', () => {
+  it('6: a node or type log left with conflict markers is not given, and the document names the step that repairs it', () => {
     const dir = project('broken');
     try {
       addOk(dir, ['--node', 'services/orders', '--reason', 'An order is immutable once paid.']);
-      const log = path.join(dir, '.yggdrasil', 'model', 'services', 'orders', 'log.md');
-      writeFileSync(log, `${readFileSync(log, 'utf-8')}<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n`, 'utf-8');
+      addOk(dir, ['--type', 'service', '--reason', 'Every service owns its own table.']);
+      const markers = '<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n';
+      for (const rel of [['model', 'services', 'orders', 'log.md'], ['types', 'service', 'log.md']]) {
+        const log = path.join(dir, '.yggdrasil', ...rel);
+        writeFileSync(log, `${readFileSync(log, 'utf-8')}${markers}`, 'utf-8');
+      }
       const doc = contextJson(dir, ['--node', 'services/orders']);
       expect(doc.nodeLog?.entries).toEqual([]);
       expect(doc.nodeLog?.unreadable?.next).toBe('yg log merge-resolve --node services/orders');
+      expect(doc.typeDecisions?.[0].type).toBe('service');
+      expect(doc.typeDecisions?.[0].entries).toEqual([]);
+      expect(doc.typeDecisions?.[0].unreadable?.next).toBe('yg log merge-resolve --type service');
+      const text = yg(dir, ['context', '--node', 'services/orders']).stdout;
+      expect(text).not.toContain('theirs');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

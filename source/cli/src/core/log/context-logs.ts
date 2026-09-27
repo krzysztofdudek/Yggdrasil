@@ -56,7 +56,7 @@ export async function collectContextLogs(
         typeId: d.typeId,
         logPath: typeLogRelPath(d.typeId),
         entries: d.entries.map(toContextEntry),
-        ...(d.unreadable !== undefined && { unreadable: brokenLog(d.unreadable, typeLogRelPath(d.typeId)) }),
+        ...(d.unreadable !== undefined && { unreadable: d.unreadable }),
       }));
   if (node === undefined) return { typeDecisions };
   const trimmed = graph.architecture.node_types[node.meta.type]?.log_required === true;
