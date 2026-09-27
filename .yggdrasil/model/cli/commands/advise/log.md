@@ -96,3 +96,9 @@ dismiss and defer now accept the retired id of a renamed nomination class and re
 The machine document names, on an item whose class was renamed, the ids it was known by before. A tool that keyed its records by the old id — a ledger of decisions, an audit trail — would otherwise read the renamed item as a new one.
 ## [2026-09-27T03:28:22.224Z]
 A command error's code is a contract — yg-error/1 consumers and sibling tools branch on it (a node that does not exist is read as absent by its code, a misused flag as a stale CLI) — while the wording is free to change. The output layer used to guess the code from the message wording with regular expressions when a command did not name one, so rewording a message could silently change its code, and a runner error whose text happened to say 'is required' read as a misused flag. Every refusal now names its code explicitly, as the refusal was classified before, and a bare what/why/next without a code no longer typechecks.
+## [2026-09-27T10:07:26.658Z]
+The package-update signal now says whether the record follows the newest version, so the nomination can name the command that takes the newest one without pinning a package that was following.
+## [2026-09-27T10:31:34.429Z]
+Whether a package follows the newest version is now asked of the package-record parser, which already owns the meaning of requested, instead of re-deriving it here from the model constant.
+## [2026-09-27T11:08:42.422Z]
+The boundary join and the suppression-marker classification are read from the engine instead of from the portal's internals, so the attention feed no longer depends on the portal.

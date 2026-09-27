@@ -364,19 +364,31 @@ describe('reading an installed copy back', () => {
     expect(await listAllPackageFiles(scratch('proj'))).toEqual([]);
   });
 
-  it('lists every file under the packages area, sorted, skipping dot-entries and links', async () => {
+  // A dot-named file among the copies is a file no package installed (an install
+  // never copies one) and can be code a rule imports; only the install's own
+  // staging directories directly under packages/, and .DS_Store, are left out.
+  it('lists every file under the packages area, sorted — dot-named files inside a package included; the install\'s staging, .DS_Store and links not', async () => {
     const root = scratch('proj');
     const packages = path.join(root, '.yggdrasil', 'aspects', 'packages');
     write(packages, 'zeta/law/p/r/yg-aspect.yaml', 'x\n');
     write(packages, 'acme/law/demo/r/yg-aspect.yaml', 'x\n');
     write(packages, 'acme/law/demo/r/.hidden', 'x\n');
+    write(packages, 'acme/law/demo/r/.DS_Store', 'x\n');
     write(packages, '.staging-demo-00/r/yg-aspect.yaml', 'x\n');
+    write(packages, '.replaced-demo-01/r/yg-aspect.yaml', 'x\n');
+    write(packages, '.lib/helper.mjs', 'x\n');
+    write(packages, '.DS_Store/inside.mjs', 'x\n');
     if (POSIX) symlinkSync(path.join(packages, 'acme'), path.join(packages, 'acme', 'law', 'demo', 'loop'));
+    // Only a FILE named .DS_Store and the install's own .staging-/.replaced-
+    // directories are left out; any other dot-named entry at the top counts.
     expect(await listAllPackageFiles(root)).toEqual([
+      'packages/.DS_Store/inside.mjs',
+      'packages/.lib/helper.mjs',
+      'packages/acme/law/demo/r/.hidden',
       'packages/acme/law/demo/r/yg-aspect.yaml',
       'packages/zeta/law/p/r/yg-aspect.yaml',
     ]);
-    expect(await listInstalledFiles(root, 'acme/law/demo')).toEqual(['packages/acme/law/demo/r/yg-aspect.yaml']);
+    expect(await listInstalledFiles(root, 'acme/law/demo')).toEqual(['packages/acme/law/demo/r/.hidden', 'packages/acme/law/demo/r/yg-aspect.yaml']);
   });
 
   it('hashes a file addressed relative to aspects/, and reads a missing one as null', async () => {

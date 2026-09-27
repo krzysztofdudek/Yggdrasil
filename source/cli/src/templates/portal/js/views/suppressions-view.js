@@ -27,7 +27,7 @@
 
   // Risk → precedence rank, sorted first-to-last: wildcard > typo > inert > errs-under >
   // unbounded — the SAME order the backend's own resolver picks a risk in when a marker could
-  // read more than one way (source/cli/src/portal/api/suppress-adapt.ts, `resolveRisk`). Plain
+  // read more than one way (source/cli/src/core/suppressions/markers.ts, `resolveRisk`). Plain
   // integers, explicit and readable — never a fractional rank shoehorned between two others.
   var RISK_RANK = { wildcard: 0, typo: 1, inert: 2, 'errs-under': 3, unbounded: 4 };
   var RISK_LABEL = {

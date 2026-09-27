@@ -101,19 +101,33 @@ export function packagesLockPath(projectRoot: string): string {
 }
 
 /**
- * True for a directory entry the package machinery ignores everywhere: the walk
- * that decides what to copy, the walk that decides what the lock records, and the
- * walk the file-modified rail uses to spot an unknown file. One predicate, so the
- * three can never disagree about whether a file belongs to a package — a
- * disagreement would either copy something the rail then rejects, or leave a file
- * the rail never looks at.
- *
- * Dot-prefixed entries are out because the aspect scanner skips them too (a
- * `.git` inside a copied tree is the obvious case), and `drills` stays IN: a
- * rule's regression cases are part of the rule.
+ * True for a directory entry a package SOURCE is read without: the walk that
+ * decides what an install copies and what the lock records. Dot-prefixed
+ * entries are out (a `.git` or `.github` in the publisher's tree is the obvious
+ * case), and `drills` stays IN: a rule's regression cases are part of the rule.
  */
 export function isIgnoredPackageEntry(name: string): boolean {
   return name.startsWith('.');
+}
+
+/**
+ * True for an entry the walk over the INSTALLED copies (the file-modified rail,
+ * `yg pack list` and `yg pack verify`) leaves out: a file named `.DS_Store`,
+ * the Finder metadata macOS drops into any directory it shows, which holds no
+ * code; and, directly under `packages/` only, the install's own staging and
+ * set-aside directories (`.staging-*`, `.replaced-*`), which exist only while
+ * an install runs or after one was cut short. Nothing else is left out — any
+ * other dot-named entry directly under `packages/` counts like one deeper down.
+ *
+ * Every other dot-named file among the copies counts as one no package put
+ * there. An install never copies a dot-named entry (see isIgnoredPackageEntry),
+ * so the rail looks at strictly more than an install writes and can never
+ * reject a file an install put in place — while a dot-named module beside a
+ * copied rule is code the rule can import, exactly like any other file.
+ */
+function isIgnoredInstalledEntry(entry: { name: string; isFile(): boolean }, atPackagesTop: boolean): boolean {
+  if (entry.name === '.DS_Store' && entry.isFile()) return true;
+  return atPackagesTop && !entry.isFile() && (entry.name.startsWith('.staging-') || entry.name.startsWith('.replaced-'));
 }
 
 export type StoreResult<T> =
@@ -726,7 +740,7 @@ export async function writePackagesLock(projectRoot: string, lock: PackagesLock)
  * packages at all must read as "nothing there" without the caller first having to
  * ask whether the directory exists.
  */
-async function listFilesUnder(absRoot: string, relRoot: string): Promise<string[]> {
+async function listFilesUnder(absRoot: string, relRoot: string, packagesTop = false): Promise<string[]> {
   const out: string[] = [];
 
   async function walk(dirAbs: string, relPrefix: string): Promise<void> {
@@ -737,7 +751,7 @@ async function listFilesUnder(absRoot: string, relRoot: string): Promise<string[
       return;
     }
     for (const entry of entries) {
-      if (isIgnoredPackageEntry(entry.name)) continue;
+      if (isIgnoredInstalledEntry(entry, packagesTop && relPrefix === relRoot)) continue;
       const abs = path.join(dirAbs, entry.name);
       const rel = `${relPrefix}/${entry.name}`;
       if (entry.isDirectory()) {
@@ -767,7 +781,7 @@ export async function listInstalledFiles(projectRoot: string, installId: string)
  * beside someone else's is how a rule nobody chose would look like one they did.
  */
 export async function listAllPackageFiles(projectRoot: string): Promise<string[]> {
-  return listFilesUnder(path.join(aspectsRoot(projectRoot), PACKAGES_DIR), PACKAGES_DIR);
+  return listFilesUnder(path.join(aspectsRoot(projectRoot), PACKAGES_DIR), PACKAGES_DIR, true);
 }
 
 /** sha256 (line endings normalized) of one file addressed relative to `.yggdrasil/aspects/`. */

@@ -32,6 +32,8 @@ import {
   readReviewerTarget,
   type ReviewerChoice,
   settleStoredKey,
+  endpointIsLocal,
+  localEndpointNotice,
   storedKeyNotice,
 } from './init-reviewer-setup.js';
 import {
@@ -284,8 +286,8 @@ async function freshInit(
 
   p.outro(paint.green(
     reviewerConfig
-      ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`
-      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`,
+      ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${GET_STARTED}`
+      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${GET_STARTED}\n${ADD_REVIEWER_LATER}`,
   ));
 }
 
@@ -296,15 +298,20 @@ async function freshInit(
  */
 async function writeReviewerWithKey(yggRoot: string, choice: ReviewerChoice): Promise<void> {
   const prev = await readReviewerTarget(yggRoot);
-  await writeReviewerConfig(yggRoot, choice);
+  // A first-party endpoint a key may reach only locally goes to yg-secrets.yaml
+  // alone (settleStoredKey writes it). An openai-compatible tier keeps its
+  // endpoint in the committed file too — it cannot run without one — and
+  // settleStoredKey also names it locally, so the typed key may go there.
+  const localOnly = choice.provider !== 'openai-compatible' && endpointIsLocal(choice.provider, choice.endpoint, choice.apiKey !== undefined);
+  await writeReviewerConfig(yggRoot, localOnly ? { provider: choice.provider, model: choice.model } : choice);
   const outcome = await settleStoredKey(yggRoot, prev, {
     provider: choice.provider,
     endpoint: choice.endpoint,
     apiKey: choice.apiKey,
     keyAnswered: choice.keyAnswered === true,
   });
-  const notice = storedKeyNotice(outcome, prev, undefined);
-  if (notice) p.log.info(buildIssueMessage(notice));
+  const notice = storedKeyNotice(outcome, prev, undefined, await readReviewerTarget(yggRoot));
+  if (notice) (outcome === 'withheld' ? p.log.warning : p.log.info)(buildIssueMessage(notice));
 }
 
 // ---------------------------------------------------------------------------
@@ -351,11 +358,15 @@ async function persistReviewerConfig(
   // Read where the tier sent its key BEFORE rewriting it: a key stored for the
   // previous reviewer must not follow the tier to a new one.
   const prev = await readReviewerTarget(yggRoot);
-  await writeReviewerConfig(yggRoot, { provider, model, endpoint });
+  // An endpoint a key may reach only as a local choice goes to yg-secrets.yaml
+  // (settleStoredKey writes it there); the committed file gets the rest.
+  const local = endpointIsLocal(provider, endpoint, false);
+  await writeReviewerConfig(yggRoot, { provider, model, ...(local ? {} : { endpoint }) });
+  if (local && endpoint !== undefined) writeOut(paint.yellow(`${buildIssueMessage(localEndpointNotice(provider, endpoint))}\n`));
   // The environment's key is never written: the reviewer reads the variable
   // itself at run time. Only a stale stored key is settled here.
   const outcome = await settleStoredKey(yggRoot, prev, { provider, endpoint, keyAnswered: keyEnvVar !== undefined });
-  const notice = storedKeyNotice(outcome, prev, keyEnvVar);
+  const notice = storedKeyNotice(outcome, prev, keyEnvVar, await readReviewerTarget(yggRoot));
   if (notice) writeOut(paint.yellow(`${buildIssueMessage(notice)}\n`));
   // The environment-only warning is true only when no stored key will be sent.
   if (outcome !== 'kept' && resolved.keyWarning) {
@@ -408,7 +419,7 @@ export async function freshInitNonInteractive(
     `Yggdrasil initialized (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n` +
     `${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     'All changes are plain files — review them with git diff before committing.\n' +
-    'Run yg check to get started.\n',
+    `${GET_STARTED}\n`,
   ));
 }
 
@@ -422,9 +433,13 @@ export async function freshInitNonInteractive(
  * flag, and the no-terminal bootstrap) so the same choice never reads as a
  * working setup on one path and a degraded one on another.
  */
-const KEYLESS_WORKING_NOW =
-  '  Working now, free: script rules, dependency control, yg check in CI.\n' +
-  '  Add a reviewer for reviewer rules any time: yg init --provider <name> [--model <m>].';
+const KEYLESS_WORKING_NOW = '  Working now, free: script rules, dependency control, yg check in CI.';
+
+/** The step every fresh init ends on, as the output grammar's `next:` line. */
+const GET_STARTED = next('yg check  (get started)');
+
+/** The later step a keyless init names: adding a reviewer, as a `then:` line. */
+const ADD_REVIEWER_LATER = thenStep('yg init --provider <name> [--model <m>]  (add a reviewer for reviewer rules, any time)');
 
 /**
  * Keyless non-interactive bootstrap: scaffold + universal agent rules,
@@ -447,7 +462,7 @@ export async function freshInitKeyless(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
     `  ${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     '  All changes are plain files — review them with git diff before committing.\n' +
-    '  Run yg check to get started.\n',
+    `${GET_STARTED}\n${ADD_REVIEWER_LATER}\n`,
   ));
 }
 

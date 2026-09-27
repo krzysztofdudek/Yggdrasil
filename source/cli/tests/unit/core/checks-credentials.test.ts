@@ -92,4 +92,18 @@ describe('checkReviewerCredentials', () => {
     expect(await issuesFor(project(tier('        endpoint: https://api.anthropic.com/v1/\n')))).toEqual([]);
     expect(await issuesFor(project(tier(''), 'reviewer:\n  tiers:\n    standard:\n      config:\n        endpoint: http://127.0.0.1:9911\n'))).toEqual([]);
   });
+
+  it('a key stored in the local overlay does not exempt a committed endpoint: that key is withheld from it too', async () => {
+    const root = project(tier('        endpoint: https://proxy.example.test/v1\n'), 'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: sk-local\n');
+    const issues = await issuesFor(root);
+    expect(issues.map((i) => [i.severity, i.code])).toEqual([['warning', 'reviewer-endpoint-committed']]);
+    expect(JSON.stringify(issues)).not.toContain('sk-local');
+  });
+
+  it('a stored key and an openai-compatible endpoint named only in the committed file are warned about', async () => {
+    const compat = `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: openai-compatible\n      consensus: 1\n      config:\n        model: m\n        endpoint: https://gw.example.test/v1\n`;
+    const issues = await issuesFor(project(compat, 'reviewer:\n  tiers:\n    standard:\n      config:\n        api_key: sk-stored\n'));
+    expect(issues.map((i) => [i.severity, i.code])).toEqual([['warning', 'reviewer-endpoint-committed']]);
+    expect(JSON.stringify(issues)).not.toContain('sk-stored');
+  });
 });

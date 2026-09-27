@@ -5,7 +5,7 @@ import type { PackagesLock } from '../../model/packages.js';
 import type { IssueMessage, IssueStep, ValidationIssue } from '../../model/validation.js';
 import { ADAPT_FILENAME, CONSUMER_FILENAMES, PACKAGES_LOCK_FILENAME } from '../../model/packages.js';
 import { parsePackagesLock } from '../../io/package-manifest-parser.js';
-import { hashAspectsRelativeFile, listAllPackageFiles, packagesLockPath } from '../../io/package-store.js';
+import { hashAspectsRelativeFile, installDirRelative, listAllPackageFiles, packagesLockPath } from '../../io/package-store.js';
 import { issueMsg } from './shared.js';
 
 /**
@@ -40,25 +40,48 @@ export interface PackageDrift {
   modified: string[];
   /** Recorded files that are no longer there. */
   missing: string[];
+  /**
+   * Files inside this package's own directory that it never installed — a
+   * dot-named module included. Also listed in {@link PackagesDrift.unknown}.
+   */
+  unknown: string[];
 }
 
 export interface PackagesDrift {
   /** Per installed package name. Every package in the lock has an entry, even a clean one. */
   byPackage: Map<string, PackageDrift>;
-  /** Files under the packages area that no installed package recorded. */
+  /** Every file under the packages area that no installed package recorded. */
   unknown: string[];
+  /**
+   * The part of {@link unknown} outside every installed package's directory
+   * (`packages/acme/law/ghost/x.mjs` with no package `acme/law/ghost`): files no
+   * package can be asked about, so a per-package view never shows them.
+   */
+  unowned: string[];
 }
 
-/** True when nothing about an installed package's copy has moved. */
+/**
+ * True when nothing about an installed package's copy has moved: no recorded
+ * file edited or gone, and nothing added among its files. The same three things
+ * the rail below refuses, so `yg pack list` and `yg pack verify` can never vouch
+ * for a copy `yg check` blocks.
+ */
 export function isCopyIntact(drift: PackageDrift | undefined): boolean {
-  return drift === undefined || (drift.modified.length === 0 && drift.missing.length === 0);
+  return drift === undefined || (drift.modified.length === 0 && drift.missing.length === 0 && drift.unknown.length === 0);
+}
+
+/**
+ * A path relative to `.yggdrasil/aspects/` in its one stored form: forward
+ * slashes, no trailing slash. A record or a directory walk on Windows can carry
+ * backslashes, so nothing is compared, stored or printed before this.
+ */
+function toPosixAspectsPath(aspectsRelPath: string): string {
+  return aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 /** Repository-relative POSIX path of a file addressed relative to `.yggdrasil/aspects/`. */
 export function repoRelativePackagePath(aspectsRelPath: string): string {
-  // Normalized here, not assumed: the path is printed and handed over as a step,
-  // and a record or a directory walk on Windows can carry backslashes.
-  return `.yggdrasil/aspects/${aspectsRelPath.replace(/\\/g, '/').replace(/\/+$/, '')}`;
+  return `.yggdrasil/aspects/${toPosixAspectsPath(aspectsRelPath)}`;
 }
 
 /**
@@ -74,14 +97,16 @@ export async function collectPackagesDrift(
 ): Promise<PackagesDrift> {
   const expected = new Map<string, { hash: string; packageName: string }>();
   const byPackage = new Map<string, PackageDrift>();
+  const dirs: Array<{ prefix: string; packageName: string }> = [];
   for (const [packageName, entry] of Object.entries(lock.packages)) {
-    byPackage.set(packageName, { modified: [], missing: [] });
-    for (const [filePath, hash] of Object.entries(entry.files)) {
-      expected.set(filePath, { hash, packageName });
+    byPackage.set(packageName, { modified: [], missing: [], unknown: [] });
+    dirs.push({ prefix: `${installDirRelative(entry.package)}/`, packageName });
+    for (const [recordedPath, hash] of Object.entries(entry.files)) {
+      expected.set(toPosixAspectsPath(recordedPath), { hash, packageName });
     }
   }
 
-  const actual = await listAllPackageFiles(projectRoot);
+  const actual = (await listAllPackageFiles(projectRoot)).map(toPosixAspectsPath);
   const actualSet = new Set(actual);
   const unknown: string[] = [];
 
@@ -93,6 +118,8 @@ export async function collectPackagesDrift(
     const record = expected.get(filePath);
     if (record === undefined) {
       unknown.push(filePath);
+      const owner = dirs.find((d) => filePath.startsWith(d.prefix));
+      if (owner !== undefined) byPackage.get(owner.packageName)?.unknown.push(filePath);
       continue;
     }
     const current = await hashAspectsRelativeFile(projectRoot, filePath);
@@ -103,7 +130,8 @@ export async function collectPackagesDrift(
     if (!actualSet.has(filePath)) byPackage.get(record.packageName)?.missing.push(filePath);
   }
 
-  return { byPackage, unknown };
+  const owned = new Set([...byPackage.values()].flatMap((d) => d.unknown));
+  return { byPackage, unknown, unowned: unknown.filter((f) => !owned.has(f)) };
 }
 
 function issue(messageData: IssueMessage): ValidationIssue {

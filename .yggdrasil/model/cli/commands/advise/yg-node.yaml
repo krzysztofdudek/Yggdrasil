@@ -50,8 +50,6 @@ relations:
     type: calls
   - target: cli/io/parsers/aspect
     type: calls
-  - target: cli/portal/engine-api
-    type: calls
   - target: cli/core/suppressions
     type: calls
   - target: cli/formatters

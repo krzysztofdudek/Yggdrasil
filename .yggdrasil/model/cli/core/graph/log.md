@@ -159,3 +159,5 @@ Type-only imports now count as dependencies between components, the same as valu
 Holds the one answer to which components an unmapped file most likely belongs to — those mapping other files in its directory — shared by the context and owner commands so they never disagree.
 ## [2026-09-27T00:47:29.074Z]
 Why a pair is invalidated, and a unit whose cost could not be worked out, moved to the model layer and are re-exported here. The formatter that words an impact report glosses every reason and lists every unresolved unit, and a formatter may use plain data types but never the engine.
+## [2026-09-27T11:08:47.436Z]
+The live dependency boundary (the relation pass joined with the architecture matrix) moved here from the portal so yg advise, yg structure and the portal facade read one engine implementation, and no command depends on portal internals for it.

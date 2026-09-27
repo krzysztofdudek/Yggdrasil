@@ -338,3 +338,7 @@ The reader of a script refusal's violation list moved from the check document bu
 The honesty checks a node log gets — conflict markers, the append-only baseline, a parseable format — now also run on every node type decision log, with the log file as the finding identity since there is no node to key on. A type log whose type the architecture no longer defines is reported as a warning rather than an error: nothing about the code is wrong, and whether its decisions move to the type that replaced it is the author call.
 ## [2026-09-27T09:37:47.792Z]
 The warning for a rule status changed by hand now names the command that records it as the log command with --aspect, since the separate rule history command was removed.
+## [2026-09-27T11:00:03.857Z]
+yg-check/1 said only in the words of next whether an undeclared dependency could be declared at all, and Horde parsed that sentence. Each relation-undeclared-dependency edge now carries allowedRelations, the relation types the architecture allows to sanction that import (empty: none), added to the document without changing any existing field.
+## [2026-09-27T16:03:22.656Z]
+The branch caught up with the release line: the issue-code registry now carries both the reviewer-endpoint and package-copy fixes made here and the type decision logs and yg log --aspect, which replaced yg aspects log, brought in with log --type. The status-change warning keeps the note that a fresh checkout never reports it, and its fix names yg log add --aspect, the command that exists after the merge.

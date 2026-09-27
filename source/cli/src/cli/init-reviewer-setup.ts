@@ -5,6 +5,7 @@ import { Document, parse as yamlParse, parseDocument, stringify as yamlStringify
 import { fetchAnthropicModels, fetchOpenAIModels, fetchGoogleModels, fetchOllamaModels } from '../llm/model-fetcher.js';
 import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
+import { withheldCommittedEndpoint } from '../utils/known-providers.js';
 import type { CodedIssueMessage, IssueMessage } from '../model/validation.js';
 import { debugWrite } from '../utils/debug-log.js';
 
@@ -470,6 +471,58 @@ async function writeSecretsFile(
 // ---------------------------------------------------------------------------
 
 /**
+ * Whether init writes the tier's endpoint to yg-secrets.yaml rather than the
+ * committed yg-config.yaml: an endpoint a key reaches only as a local choice
+ * (see withheldCommittedEndpoint). A first-party provider at an endpoint other
+ * than its own, and an openai-compatible server a typed key is stored for:
+ * written only to the committed file, either would receive no key.
+ */
+export function endpointIsLocal(provider: ReviewerProvider, endpoint: string | undefined, apiKeyTyped: boolean): boolean {
+  if (endpoint === undefined) return false;
+  return withheldCommittedEndpoint({ provider, endpoint, endpointSource: 'committed', ...(apiKeyTyped ? { api_key: 'typed' } : {}) }) !== undefined;
+}
+
+/**
+ * Set (or, with undefined, delete) the bootstrap tier's `config.endpoint` in
+ * yg-secrets.yaml. Only that key is touched; containers left empty are pruned
+ * and a file left with nothing in it is removed.
+ */
+async function setOverlayEndpoint(yggRoot: string, endpoint: string | undefined): Promise<void> {
+  const secretsPath = path.join(yggRoot, 'yg-secrets.yaml');
+  const raw = await readSecretsRaw(secretsPath);
+  if (endpoint !== undefined) {
+    const reviewer = (isPlainRecord(raw.reviewer) ? raw.reviewer : (raw.reviewer = {})) as Record<string, unknown>;
+    const tiers = (isPlainRecord(reviewer.tiers) ? reviewer.tiers : (reviewer.tiers = {})) as Record<string, unknown>;
+    const tier = (isPlainRecord(tiers[BOOTSTRAP_TIER_NAME]) ? tiers[BOOTSTRAP_TIER_NAME] : (tiers[BOOTSTRAP_TIER_NAME] = {})) as Record<string, unknown>;
+    const config = (isPlainRecord(tier.config) ? tier.config : (tier.config = {})) as Record<string, unknown>;
+    config.endpoint = endpoint;
+    await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
+    return;
+  }
+  const tier = tierOf(raw);
+  const config = isPlainRecord(tier?.config) ? tier.config : undefined;
+  if (config === undefined || !Object.hasOwn(config, 'endpoint')) return;
+  delete config.endpoint;
+  await writePruned(secretsPath, raw);
+}
+
+/** Drop the bootstrap tier's containers left empty, then write the file — or remove it when nothing is left. */
+async function writePruned(secretsPath: string, raw: Record<string, unknown>): Promise<void> {
+  const reviewer = raw.reviewer as Record<string, unknown>;
+  const tiers = reviewer.tiers as Record<string, unknown>;
+  const tier = tiers[BOOTSTRAP_TIER_NAME] as Record<string, unknown>;
+  if (isPlainRecord(tier.config) && Object.keys(tier.config).length === 0) delete tier.config;
+  if (Object.keys(tier).length === 0) delete tiers[BOOTSTRAP_TIER_NAME];
+  if (Object.keys(tiers).length === 0) delete reviewer.tiers;
+  if (Object.keys(reviewer).length === 0) delete raw.reviewer;
+  if (Object.keys(raw).length === 0) {
+    await unlink(secretsPath);
+  } else {
+    await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
+  }
+}
+
+/**
  * Where the bootstrap tier sends its requests: the provider and the endpoint,
  * with yg-secrets.yaml's overrides applied over yg-config.yaml exactly as the
  * config parser merges them. `undefined` when no such tier is configured.
@@ -549,7 +602,29 @@ export async function settleStoredKey(
   prev: ReviewerTarget | undefined,
   choice: { provider: ReviewerProvider; endpoint?: string; apiKey?: string; keyAnswered: boolean },
 ): Promise<StoredKeyOutcome> {
-  const next = await targetAfterWrite(yggRoot, { provider: choice.provider, ...(choice.endpoint ? { endpoint: choice.endpoint } : {}) });
+  const chosen: ReviewerTarget = { provider: choice.provider, ...(choice.endpoint ? { endpoint: choice.endpoint } : {}) };
+  // The endpoint the key may go to only as a local choice is written locally.
+  // An overlay endpoint that pointed the previous reviewer somewhere is removed
+  // when the reviewer changes, or it would keep sending the new one there —
+  // unless the overlay also pins the provider: then the whole override is the
+  // developer's own, and init leaves it (and says where the key would go).
+  if (endpointIsLocal(choice.provider, choice.endpoint, choice.apiKey !== undefined)) {
+    await setOverlayEndpoint(yggRoot, choice.endpoint);
+  } else if (prev?.endpoint !== undefined && !sameTarget(prev, chosen)) {
+    const overlayTier = tierOf(await readSecretsRaw(path.join(yggRoot, 'yg-secrets.yaml')));
+    const overlayConfig = isPlainRecord(overlayTier?.config) ? overlayTier.config : undefined;
+    if (stringField(overlayTier, 'provider') === undefined && stringField(overlayConfig, 'endpoint') === prev.endpoint) await setOverlayEndpoint(yggRoot, undefined);
+  }
+  const next = await targetAfterWrite(yggRoot, chosen);
+  // A key typed for the reviewer just chosen is stored only where it would go
+  // to that reviewer. When yg-secrets.yaml overrides the tier's provider or
+  // endpoint, the stored key would travel to the override instead — somewhere
+  // the person never typed it for — so it is not written, and any key already
+  // there is removed with it (it would outrank the answer just given).
+  if (choice.apiKey && !sameTarget(chosen, next)) {
+    await reconcileSecretsKey(yggRoot, { keepStored: false });
+    return 'withheld';
+  }
   const keepStored = !choice.keyAnswered && sameTarget(prev, next);
   return reconcileSecretsKey(yggRoot, { apiKey: choice.apiKey, keepStored });
 }
@@ -563,7 +638,16 @@ export function storedKeyNotice(
   outcome: StoredKeyOutcome,
   prev: ReviewerTarget | undefined,
   keyEnvVar: string | undefined,
+  after?: ReviewerTarget,
 ): IssueMessage | undefined {
+  const where = (t: ReviewerTarget | undefined) => (t ? `${t.provider}${t.endpoint ? ` at ${t.endpoint}` : ''}` : 'another reviewer');
+  if (outcome === 'withheld') {
+    return {
+      what: `Did not store the API key you typed: .yggdrasil/yg-secrets.yaml overrides this tier, so the reviewer calls ${where(after)} and the key would go there.`,
+      why: 'yg-secrets.yaml is merged over yg-config.yaml, so its provider or endpoint for the tier wins over what init just wrote, and a key stored for the tier is sent to that target.',
+      next: 'If the override is stale, delete the provider and config.endpoint overrides of this tier from .yggdrasil/yg-secrets.yaml and run yg init again; if it is what you want, add config.api_key for that reviewer there yourself.',
+    };
+  }
   if (outcome === 'removed') {
     const was = prev ? ` (stored while the tier used ${prev.provider}${prev.endpoint ? ` at ${prev.endpoint}` : ''})` : '';
     return {
@@ -576,6 +660,13 @@ export function storedKeyNotice(
         : 'If the new reviewer needs a key, export its environment variable or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml.',
     };
   }
+  if (outcome === 'kept' && after !== undefined && !needsApiKey(after.provider as ReviewerProvider)) {
+    return {
+      what: `Left the api_key .yggdrasil/yg-secrets.yaml holds for this tier in place; ${after.provider} sends no API key, so it is not used.`,
+      why: 'The tier still names the same provider and endpoint the key was stored under, and this reviewer authenticates on its own (a signed-in CLI, or a local server).',
+      next: 'Nothing to do. Delete config.api_key from this tier in .yggdrasil/yg-secrets.yaml if you do not need it; init removes it anyway if the tier later points at another provider or endpoint.',
+    };
+  }
   if (outcome === 'kept') {
     return {
       what: 'Kept the api_key .yggdrasil/yg-secrets.yaml already holds for this tier; the reviewer will send it.',
@@ -584,6 +675,15 @@ export function storedKeyNotice(
     };
   }
   return undefined;
+}
+
+/** What init says when it wrote the tier's endpoint to yg-secrets.yaml instead of the committed file. */
+export function localEndpointNotice(provider: ReviewerProvider, endpoint: string): IssueMessage {
+  return {
+    what: `Wrote config.endpoint (${endpoint}) for this tier to .yggdrasil/yg-secrets.yaml, not to the committed yg-config.yaml.`,
+    why: `An API key goes to an endpoint like this one only when the endpoint is a local choice; named only in the committed file, it would receive no ${provider} key on this machine or any other.`,
+    next: 'Each machine that should use this endpoint — CI included — names it for the tier in its own .yggdrasil/yg-secrets.yaml.',
+  };
 }
 
 /** What reconcileSecretsKey did to the bootstrap tier's stored key. */
@@ -595,7 +695,9 @@ export type StoredKeyOutcome =
   /** The stored key was deleted: it was given for another reviewer, or it would outrank the one chosen now. */
   | 'removed'
   /** No key is stored and none was typed. */
-  | 'none';
+  | 'none'
+  /** A typed key was not written: yg-secrets.yaml sends the tier elsewhere (any stored key was removed too). */
+  | 'withheld';
 
 /**
  * Bring `reviewer.tiers.<bootstrap>.config.api_key` in yg-secrets.yaml in line
@@ -627,19 +729,7 @@ async function reconcileSecretsKey(
   if (opts.keepStored) return 'kept';
 
   delete config.api_key;
-  // Prune the containers the key alone was holding up, innermost first.
-  const reviewer = raw.reviewer as Record<string, unknown>;
-  const tiers = reviewer.tiers as Record<string, unknown>;
-  if (Object.keys(config).length === 0) delete (tier as Record<string, unknown>).config;
-  if (Object.keys(tier as Record<string, unknown>).length === 0) delete tiers[BOOTSTRAP_TIER_NAME];
-  if (Object.keys(tiers).length === 0) delete reviewer.tiers;
-  if (Object.keys(reviewer).length === 0) delete raw.reviewer;
-
-  if (Object.keys(raw).length === 0) {
-    await unlink(secretsPath);
-  } else {
-    await writeFile(secretsPath, yamlStringify(raw), { encoding: 'utf-8', mode: 0o600 });
-  }
+  await writePruned(secretsPath, raw);
   return 'removed';
 }
 

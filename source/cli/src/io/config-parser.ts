@@ -1,3 +1,4 @@
+import { isTrackedByGit } from '../utils/git.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml, parseDocument, isScalar } from 'yaml';
@@ -457,6 +458,7 @@ async function parseConfigInner(
       // reviewer: is a mapping — let parseReviewer validate the tiers structure
       // and emit specific errors (config-tiers-missing, config-tiers-empty, etc.)
       reviewer = parseReviewer(raw.reviewer as Record<string, unknown>, filename);
+      markEndpointSources(reviewer, overlay, overlay !== undefined && secretsFileTracked(filePath));
     } else {
       throw new ConfigParseError({
         what: `${filename} has unrecognized reviewer: shape`,
@@ -707,26 +709,59 @@ function refuseSchemaProblems(raw: Record<string, unknown>, filename: string): v
   }, 'config-invalid');
 }
 
+/** Whether the yg-secrets.yaml beside `configPath` is tracked by git (false outside a repository). */
+function secretsFileTracked(configPath: string): boolean {
+  const yggRoot = path.dirname(configPath);
+  const repoRoot = path.dirname(yggRoot);
+  return isTrackedByGit(repoRoot, path.relative(repoRoot, path.join(yggRoot, 'yg-secrets.yaml')));
+}
+
 /**
- * The api_key and endpoint facts of the committed reviewer block, taken
+ * Record, on each tier that has an endpoint, which file set it. The overlay
+ * sets it when its own copy of the tier names `config.endpoint`; the value
+ * does not matter — naming the committed URL there is exactly how a developer
+ * says "send my key to this endpoint" (see LlmConfig.endpointSource).
+ */
+function markEndpointSources(reviewer: ReviewerConfig, overlay: Record<string, unknown> | undefined, overlayTracked: boolean): void {
+  const overlayTiers = (overlay?.reviewer as { tiers?: unknown } | undefined)?.tiers;
+  for (const [name, tier] of Object.entries(reviewer.tiers)) {
+    // A tracked overlay is shared like the committed file: nothing in it is
+    // this developer's choice, so it can neither accept an endpoint nor hold a
+    // key that may be sent (see LlmConfig.secretsTracked).
+    if (overlayTracked) tier.secretsTracked = true;
+    if (tier.endpoint === undefined) continue;
+    if (overlayTracked) {
+      tier.endpointSource = 'committed';
+      continue;
+    }
+    const overlayTier = overlayTiers && typeof overlayTiers === 'object' && !Array.isArray(overlayTiers)
+      ? (overlayTiers as Record<string, unknown>)[name]
+      : undefined;
+    const overlayConfig = (overlayTier as { config?: unknown } | null | undefined)?.config;
+    const local = overlayConfig !== null && typeof overlayConfig === 'object' && !Array.isArray(overlayConfig)
+      && typeof (overlayConfig as Record<string, unknown>).endpoint === 'string';
+    tier.endpointSource = local ? 'local' : 'committed';
+  }
+}
+
+/**
+ * The tiers whose committed reviewer block carries a `config.api_key`, taken
  * leniently: the tier parser above has already refused a malformed block, so
- * anything that is not a string is simply not reported here. Undefined when the
- * committed file names neither.
+ * anything that is not a mapping is simply not reported here. Undefined when
+ * the committed file names none.
  */
 function readCommittedReviewer(rawReviewer: unknown): YggConfig['committedReviewer'] {
   const tiers = (rawReviewer as { tiers?: unknown } | undefined)?.tiers;
   if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) return undefined;
   const apiKeyTiers: string[] = [];
-  const endpoints: Record<string, string> = {};
   for (const [name, tier] of Object.entries(tiers as Record<string, unknown>)) {
     const cfg = (tier as { config?: unknown } | null)?.config;
     if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
     const c = cfg as Record<string, unknown>;
     if (c.api_key !== undefined && c.api_key !== null && c.api_key !== '') apiKeyTiers.push(name);
-    if (typeof c.endpoint === 'string' && c.endpoint.trim() !== '') endpoints[name] = c.endpoint.trim();
   }
-  if (apiKeyTiers.length === 0 && Object.keys(endpoints).length === 0) return undefined;
-  return { apiKeyTiers: apiKeyTiers.sort(), endpoints };
+  if (apiKeyTiers.length === 0) return undefined;
+  return { apiKeyTiers: apiKeyTiers.sort() };
 }
 
 /**

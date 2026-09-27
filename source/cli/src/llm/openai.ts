@@ -1,6 +1,6 @@
 import type { LlmProvider, AspectResponse } from './types.js';
 import type { LlmConfig } from '../model/graph.js';
-import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, missingKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
+import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, unavailableKeyReason, keyBlockReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
 import { parseAspectResponse } from './cli-base.js';
 import { registerProvider } from './provider.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -12,6 +12,7 @@ export class OpenAIProvider implements LlmProvider {
   private apiKey: string;
   private timeout: number;
   private providerName: string;
+  private config: LlmConfig;
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'https://api.openai.com/v1';
@@ -20,6 +21,7 @@ export class OpenAIProvider implements LlmProvider {
     this.apiKey = resolveApiKey(config) ?? '';
     this.timeout = config.timeout ?? DEFAULT_API_TIMEOUT_MS;
     this.providerName = config.provider;
+    this.config = config;
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
@@ -65,10 +67,13 @@ export class OpenAIProvider implements LlmProvider {
 
   // The hosted OpenAI API needs a key; an OpenAI-compatible server may need none
   // (a local vLLM, LM Studio or llama.cpp), so its key is optional and a server
-  // that does want one answers 401, which the reason then names.
-  async isAvailable(): Promise<boolean> { return this.providerName === 'openai-compatible' || !!this.apiKey; }
+  // that does want one answers 401, which the reason then names. It is not
+  // available when a key it holds may not go to its endpoint (keyBlockReason).
+  async isAvailable(): Promise<boolean> {
+    return this.providerName === 'openai-compatible' ? keyBlockReason(this.config) === undefined : !!this.apiKey;
+  }
 
-  async unavailableReason(): Promise<string> { return missingKeyReason(this.providerName); }
+  async unavailableReason(): Promise<string> { return unavailableKeyReason(this.config); }
 }
 
 registerProvider('openai', (c) => new OpenAIProvider(c));

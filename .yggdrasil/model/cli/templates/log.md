@@ -244,5 +244,9 @@ The agent manual and the CLI reference knowledge teach the rule history as yg lo
 The lock knowledge and the agent manual describe the committed type baselines file, why it is separate, and that an unknown top-level key in a committed lock file is now ignored rather than lock-invalid.
 ## [2026-09-27T10:33:01.223Z]
 The agent manual and the knowledge describe the guard on a type decision (the listing, --supersedes or --adds, the refusal code), the conflict merge-resolve reports when both sides superseded the same entry, and merge-resolve --type in the merge recipe with its own baseline file.
+## [2026-09-27T10:51:30.217Z]
+Prime, the shared knowledge sentence and the aspect schema said a module imported from outside the rule directory is not folded into the rule hash; the hash now follows any import inside the repository, so the text says that and keeps only the outside-the-repository exclusion.
 ## [2026-09-27T14:06:25.220Z]
 The branch that gives node types a decision log and folds the rule history into yg log is brought up to date with the release line, which meanwhile taught the manual and the knowledge that only a structural relation sanctions an import, that parents: govern the top level with root as the reserved entry, and that a scope.files filter applies to mapped graph files. Both sides edited the same agent-facing texts; the merged texts keep every statement from both, since none of the two changes contradicts the other.
+## [2026-09-27T16:03:23.562Z]
+The branch caught up with the release line: the generated issue-code table and the agent knowledge now hold the codes and wording of both sides, this branch's endpoint, package and relation fixes alongside the type decision logs and yg log --aspect brought in with log --type, regenerated from the merged registry rather than stitched by hand.

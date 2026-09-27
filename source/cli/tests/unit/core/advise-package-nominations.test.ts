@@ -26,6 +26,7 @@ const SIGNAL: PackageUpdateSignal = {
   installedVersion: '1.0.0',
   newerVersions: ['1.1.0', '2.0.0'],
   source: 'https://example.test/acme/law.git',
+  follows: false,
 };
 
 /** A graph with nothing in it — the nomination sources are what is under test. */
@@ -62,6 +63,20 @@ describe('an installed package with a newer version', () => {
     expect(item.why).toContain('Nothing is wrong with the version you have');
     expect(item.next).toContain('yg pack update house-style');
     expect(item.next).toContain('ask the user to approve it first.');
+  });
+
+  // The command must take the newest version without changing whether the
+  // package follows or is pinned. Before: it always said `--to <version>`,
+  // which pins a package that was following the newest.
+  it('for a package that follows the newest version, names a plain update — --to would pin it', () => {
+    const [item] = packageUpdateNominations([{ ...SIGNAL, follows: true }], TODAY);
+    expect(item.next).toContain('yg pack update house-style (');
+    expect(item.next).not.toContain('--to');
+  });
+
+  it('for a pinned package, names --to the newest version, which moves the pin', () => {
+    const [item] = packageUpdateNominations([SIGNAL], TODAY);
+    expect(item.next).toContain('yg pack update house-style --to 2.0.0');
   });
 
   it("attributes the version numbers to the source rather than to this graph", () => {

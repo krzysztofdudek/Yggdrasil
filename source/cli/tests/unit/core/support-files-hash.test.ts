@@ -19,7 +19,7 @@
 // =============================================================================
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseAspect } from '../../../src/io/aspect-parser.js';
@@ -157,5 +157,65 @@ describe('the rule hash and the files beside the rule', () => {
     expect(unignored.supportFiles?.map(([p]) => p)).toEqual(['.cache/tool.mjs', '.lib/helper.mjs']);
     const ignored = await load(rule({ ...files, '.gitignore': '.cache/\n' }));
     expect(ignored.supportFiles?.map(([p]) => p)).toEqual(['.lib/helper.mjs']);
+  });
+});
+
+// A helper shared by several rules usually sits beside them, not inside one:
+// `.yggdrasil/aspects/_shared/x.mjs`, imported as `../_shared/x.mjs`. It runs
+// exactly like a helper beside `check.mjs`. Before: the walk stopped at the rule
+// directory, so an edit to the shared helper changed what every importing rule
+// decided while their verdicts stayed on record.
+describe('a helper the rule imports from elsewhere in the repository', () => {
+  /** A repository with rule `a` importing `spec`, and `files` written relative to the repository root. */
+  function repo(spec: string, files: Record<string, string>): { root: string; dir: string } {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-support-shared-'));
+    dirs.push(root);
+    const dir = path.join(root, '.yggdrasil', 'aspects', 'a');
+    for (const [rel, body] of Object.entries({
+      '.yggdrasil/aspects/a/yg-aspect.yaml': 'name: A\nreviewer:\n  type: deterministic\n',
+      '.yggdrasil/aspects/a/check.mjs': `import { h } from '${spec}';\nexport function check() { return h ? [] : []; }\n`,
+      ...files,
+    })) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), body, 'utf-8');
+    }
+    return { root, dir };
+  }
+
+  async function loadIn(r: { root: string; dir: string }): Promise<AspectDef> {
+    const parsed = await parseAspect(r.dir, path.join(r.dir, 'yg-aspect.yaml'), 'a', { projectRoot: r.root });
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.errors));
+    return parsed.aspect;
+  }
+
+  it('folds it in under the path that leads to it, followed module to module, so an edit to it changes the hash', async () => {
+    const shared = (v: number) => ({
+      '.yggdrasil/aspects/_shared/x.mjs': "export { h } from './deeper/y.mjs';\n",
+      '.yggdrasil/aspects/_shared/deeper/y.mjs': `export const h = ${v};\n`,
+    });
+    const before = await loadIn(repo('../_shared/x.mjs', shared(1)));
+    const after = await loadIn(repo('../_shared/x.mjs', shared(0)));
+    expect(before.supportFiles?.map(([p]) => p)).toEqual(['../_shared/deeper/y.mjs', '../_shared/x.mjs']);
+    expect(ruleHashFor(before, 'check.mjs')).not.toBe(ruleHashFor(after, 'check.mjs'));
+  });
+
+  it('reaches anywhere in the repository, and nowhere outside it', async () => {
+    const inRepo = await loadIn(repo('../../../tools/rule-lib.mjs', { 'tools/rule-lib.mjs': 'export const h = 1;\n' }));
+    expect(inRepo.supportFiles?.map(([p]) => p)).toEqual(['../../../tools/rule-lib.mjs']);
+    const r = repo('../../../../outside.mjs', {});
+    writeFileSync(path.join(r.root, '..', 'outside.mjs'), 'export const h = 1;\n', 'utf-8');
+    try {
+      expect((await loadIn(r)).supportFiles).toBeUndefined();
+    } finally {
+      rmSync(path.join(r.root, '..', 'outside.mjs'), { force: true });
+    }
+  });
+
+  it('refuses a shared helper reached through a symbolic link, as it refuses one beside the rule', async () => {
+    const r = repo('../_linked/x.mjs', { 'elsewhere/x.mjs': 'export const h = 1;\n' });
+    symlinkSync(path.join(r.root, 'elsewhere'), path.join(r.root, '.yggdrasil', 'aspects', '_linked'), 'dir');
+    const parsed = await parseAspect(r.dir, path.join(r.dir, 'yg-aspect.yaml'), 'a', { projectRoot: r.root });
+    expect(parsed.ok).toBe(false);
+    expect(JSON.stringify(parsed)).toContain('aspect-source-symlink');
   });
 });

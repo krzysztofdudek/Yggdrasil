@@ -33,7 +33,7 @@ import type { LockVerification } from './verify-lock.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { FileFacts, RelationPassResult } from '../relations/pass.js';
 import type { VerifiedPair } from './verify-lock.js';
-import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
+import { importRelationsAllowed, relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
 import { buildTypeVisibility, toAppliedPairs, toRuntimeVisibilityRows, type TypeVisibilityReport } from './type-visibility.js';
@@ -173,6 +173,9 @@ export async function runLockPhase(args: {
         rule: 'relation-undeclared-dependency',
         nodePath: nodeId,
         messageData: relationRefusedMessage(graph, nodeId, nv.violations),
+        importRelationsAllowed: Object.fromEntries(
+          [...new Set(nv.violations.map((v) => v.ownerNode))].map((target) => [target, importRelationsAllowed(graph, nodeId, target)]),
+        ),
       });
     }
 

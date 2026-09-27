@@ -18,6 +18,10 @@
 //    3. edit a copied file          → blocked, naming the file and the adaptation
 //    4. delete a copied file        → blocked, a different message
 //    5. add your own file beside it → blocked
+//   5b. the same, dot-named too     → list, verify and check agree; a reinstall
+//                                     names each file it deletes
+//   5c. .DS_Store                   → not a file among the copies
+//   5d. a file outside every install → list names it, verify fails, as check does
 //   Settings
 //    6. change one the rule READS   → back to unverified, and the answer changes
 //    7. change one it ignores       → nothing re-opens
@@ -34,6 +38,7 @@
 //   Listing and removing
 //   14. list                        → names, versions, whether each copy is untouched
 //   15. remove while attached       → refused, listing what still names it
+//  15c. remove with a stray file    → names the file it deletes
 //   Refusals at the boundary
 //   16. installing twice            → refused, pointing at update
 //   17. a package needing a newer Yggdrasil → refused, naming both versions
@@ -75,6 +80,7 @@ import { tmpdir, platform } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import { parseJson, findIssues, expectNoIssue, type OutputDoc } from '../support/assert-output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -337,6 +343,95 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.status).toBe(1);
       expect(checked.all).toContain('no installed package put it there');
       expect(checked.all).toContain('mine.mjs');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('5b: a file the package never installed — dot-named or not — makes list, verify and check agree, and a reinstall names what it deletes', () => {
+    const dir = consumer('smuggle-agree');
+    try {
+      run(['pack', 'add', `${MARKET_V1}#demo`, '--as', 'acme/law'], dir);
+      const ruleDir = path.join('.yggdrasil', 'aspects', ...RULE_A.split('/'));
+      write(dir, path.join(ruleDir, 'mine.mjs'), 'export const x = 1;\n');
+      write(dir, path.join(ruleDir, '.hidden.mjs'), 'export const y = 2;\n');
+
+      const checked = run(['check', '--json'], dir);
+      expect(checked.status).toBe(1);
+      const flagged = findIssues(parseJson<OutputDoc>(checked.stdout), { code: 'package-file-modified' }).map((i) => i.what ?? '');
+      expect(flagged.some((w) => w.includes(`${RULE_A}/mine.mjs`)), flagged.join('\n')).toBe(true);
+      expect(flagged.some((w) => w.includes(`${RULE_A}/.hidden.mjs`)), flagged.join('\n')).toBe(true);
+
+      const listed = run(['pack', 'list'], dir);
+      expect(listed.stdout).toContain('copy changed');
+      expect(listed.stdout).not.toContain('copy untouched');
+
+      const verified = run(['pack', 'verify', 'demo'], dir);
+      expect(verified.status, verified.all).toBe(1);
+      expect(verified.stdout).toContain(`${RULE_A}/mine.mjs`);
+      expect(verified.stdout).toContain(`${RULE_A}/.hidden.mjs`);
+
+      const reinstalled = run(['pack', 'update', 'demo', '--reinstall'], dir);
+      expect(reinstalled.status, reinstalled.all).toBe(0);
+      expect(reinstalled.stdout).toContain(`deleted .yggdrasil/aspects/${RULE_A}/mine.mjs`);
+      expect(reinstalled.stdout).toContain(`deleted .yggdrasil/aspects/${RULE_A}/.hidden.mjs`);
+      expect(existsSync(path.join(dir, ruleDir, 'mine.mjs'))).toBe(false);
+      expect(existsSync(path.join(dir, ruleDir, '.hidden.mjs'))).toBe(false);
+      expectNoIssue(parseJson<OutputDoc>(run(['check', '--json'], dir).stdout), { code: 'package-file-modified' });
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('5c: the Finder metadata macOS drops into a directory (.DS_Store) is not a file among the copies', () => {
+    const dir = consumer('ds-store');
+    try {
+      run(['pack', 'add', `${MARKET_V1}#demo`, '--as', 'acme/law'], dir);
+      write(dir, path.join('.yggdrasil', 'aspects', ...RULE_A.split('/'), '.DS_Store'), 'finder\n');
+      expectNoIssue(parseJson<OutputDoc>(run(['check', '--json'], dir).stdout), { code: 'package-file-modified' });
+      expect(run(['pack', 'list'], dir).stdout).toContain('copy untouched');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  // A file outside every installed package's directory belongs to no package,
+  // so a per-package view never saw it. Before: yg check blocked it while
+  // pack list stayed silent and pack verify exited 0.
+  it('5d: a file outside every installation is named by list and fails verify, as check blocks it', () => {
+    const dir = consumer('ghost');
+    try {
+      run(['pack', 'add', `${MARKET_V1}#demo`, '--as', 'acme/law'], dir);
+      write(dir, path.join('.yggdrasil', 'aspects', 'packages', 'acme', 'law', 'ghost', 'x.mjs'), 'export const x = 1;\n');
+      write(dir, path.join('.yggdrasil', 'aspects', 'packages', '.sneaky', 'y.mjs'), 'export const y = 1;\n');
+
+      const checked = run(['check', '--json'], dir);
+      const flagged = findIssues(parseJson<OutputDoc>(checked.stdout), { code: 'package-file-modified' }).map((i) => i.what ?? '');
+      expect(flagged.some((w) => w.includes('packages/acme/law/ghost/x.mjs')), flagged.join('\n')).toBe(true);
+      expect(flagged.some((w) => w.includes('packages/.sneaky/y.mjs')), flagged.join('\n')).toBe(true);
+
+      const listed = run(['pack', 'list'], dir);
+      expect(listed.stdout).toContain('.yggdrasil/aspects/packages/acme/law/ghost/x.mjs');
+      expect(listed.stdout).toContain('.yggdrasil/aspects/packages/.sneaky/y.mjs');
+
+      const verified = run(['pack', 'verify'], dir);
+      expect(verified.status, verified.all).toBe(1);
+      expect(verified.stdout).toContain('.yggdrasil/aspects/packages/acme/law/ghost/x.mjs');
+      // Asked about one package only, verify answers for that package.
+      expect(run(['pack', 'verify', 'demo'], dir).status).toBe(0);
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('15c: remove names every file it deletes that the package never installed', () => {
+    const dir = consumer('remove-strays');
+    try {
+      run(['pack', 'add', `${MARKET_V1}#demo`, '--as', 'acme/law'], dir);
+      write(dir, path.join('.yggdrasil', 'aspects', ...RULE_A.split('/'), 'notes.md'), 'mine\n');
+      const removed = run(['pack', 'remove', 'demo'], dir);
+      expect(removed.status, removed.all).toBe(0);
+      expect(removed.stdout).toContain(`.yggdrasil/aspects/${RULE_A}/notes.md`);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

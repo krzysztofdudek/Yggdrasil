@@ -42,3 +42,9 @@ The pack help and the post-install notice said an installed package runs its aut
 The pack command takes the local-directory probe from the package store, where it moved as the file-system read it is, instead of from command-layer support. Nothing the command does or prints changed.
 ## [2026-09-27T03:28:28.389Z]
 A command error's code is a contract — yg-error/1 consumers and sibling tools branch on it (a node that does not exist is read as absent by its code, a misused flag as a stale CLI) — while the wording is free to change. The output layer used to guess the code from the message wording with regular expressions when a command did not name one, so rewording a message could silently change its code, and a runner error whose text happened to say 'is required' read as a misused flag. Every refusal now names its code explicitly, as the refusal was classified before, and a bare what/why/next without a code no longer typechecks.
+## [2026-09-27T09:53:51.006Z]
+pack list, pack verify and pack update now judge a copy by the same three facts the file-modified rail blocks on, a file the package never installed included, so no pack command vouches for a copy yg check refuses. A reinstall and a remove name every file they delete that the package never installed, and a reinstall every edit it overwrites, because either can be work somebody wants back.
+## [2026-09-27T10:07:30.481Z]
+pack list named --to <version> for every newer version, and running it pinned a package that followed the newest. It now names a plain update for a follower and --to only for a pinned package, from the same helper the attention feed uses.
+## [2026-09-27T15:39:59.226Z]
+A file under the packages area outside every installed package belongs to no package, so the per-package views never showed it while yg check blocked it. pack list now names such files, and pack verify with no package named reports them and exits 1.

@@ -22,7 +22,7 @@ import { extractPortalData } from '../../src/portal/extract.js';
 import { deriveStructure, REACH_CAPTION_MIN_NODES, type StructureTypeWidening } from '../../src/portal/derive-metrics.js';
 import { renderStructure, cyclePhrase } from '../../src/cli/structure.js';
 import { loadGraph } from '../../src/core/graph-loader.js';
-import { computeDetectedEdges, computeTypedEdges } from '../../src/portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../../src/core/dependency-boundary.js';
 import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { scanUncoveredFiles } from '../../src/core/check.js';
 import { computeTypeCoverage } from '../../src/core/type-coverage.js';

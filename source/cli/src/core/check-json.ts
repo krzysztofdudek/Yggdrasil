@@ -113,9 +113,13 @@ function edgesOf(issue: CheckIssue): CheckJsonEdge[] | undefined {
   }
   if (issue.code !== 'relation-undeclared-dependency') return undefined;
   const out: CheckJsonEdge[] = [];
+  const allowed = issue.importRelationsAllowed;
   for (const line of issue.messageData.what.split('\n').slice(1)) {
     const m = /^\s*(.+?):(\d+)\s+→\s+(\S+)/.exec(line);
-    if (m !== null) out.push({ file: toPosixPath(m[1]), line: Number(m[2]), target: toPosixPath(m[3]) });
+    if (m === null) continue;
+    const edge: CheckJsonEdge = { file: toPosixPath(m[1]), line: Number(m[2]), target: toPosixPath(m[3]) };
+    if (allowed !== undefined && Object.hasOwn(allowed, m[3])) edge.allowedRelations = [...allowed[m[3]]];
+    out.push(edge);
   }
   return out.length > 0 ? out : undefined;
 }

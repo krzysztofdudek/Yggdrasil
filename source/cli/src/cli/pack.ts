@@ -31,7 +31,7 @@ import {
   writePackagesLock,
 } from '../io/package-store.js';
 import { collectPackagesDrift, isCopyIntact, repoRelativePackagePath } from '../core/checks/packages.js';
-import { newerThanInstalled } from '../core/advise-package-nominations.js';
+import { newerThanInstalled, takeNewestCommand } from '../core/advise-package-nominations.js';
 import {
   FetchSession,
   PackRefusal,
@@ -529,12 +529,13 @@ async function runList(): Promise<number> {
 
   const lock = await readLock(projectRoot);
   const names = Object.keys(lock.packages).sort((a, b) => (a < b ? -1 : 1));
+  const drift = await collectPackagesDrift(projectRoot, lock);
   if (names.length === 0) {
     writeOut(`No packages installed.\n\nInstall one with: yg pack add <url-or-path>#<package>\n`);
+    writeUnowned(drift.unowned);
     return 0;
   }
 
-  const drift = await collectPackagesDrift(projectRoot, lock);
   writeOut(`${names.length} installed:\n\n`);
   for (const name of names) {
     const entry = lock.packages[name];
@@ -552,6 +553,7 @@ async function runList(): Promise<number> {
     );
   }
 
+  writeUnowned(drift.unowned);
   const stale = names.filter((n) => !isCopyIntact(drift.byPackage.get(n)));
   if (stale.length > 0) {
     writeOut(
@@ -582,8 +584,10 @@ async function runList(): Promise<number> {
     observed[name] = tags;
     const newer = newerThanInstalled(tags, entry.version);
     if (newer.length > 0) {
+      const follows = (entry.requested ?? REQUESTED_LATEST) === REQUESTED_LATEST;
       writeOut(
-        `\n'${name}' also publishes: ${newer.join(', ')}  — take one with: yg pack update ${name} --to ${newer[newer.length - 1]}\n`,
+        `\n'${name}' also publishes: ${newer.join(', ')}  — take the newest with: ${takeNewestCommand({ name, newerVersions: newer, follows })}` +
+          `${follows ? '' : ' (it stays pinned, at that version)'}\n`,
       );
     }
   }
@@ -614,12 +618,18 @@ async function runVerify(name: string | undefined): Promise<number> {
       });
     }
     const names = name === undefined ? Object.keys(lock.packages).sort() : [name];
+    const drift = await collectPackagesDrift(projectRoot, lock);
+    // Files outside every installed package belong to none of them, so only
+    // the run over all packages can answer for them — and it fails over them,
+    // exactly as yg check does.
+    const unowned = name === undefined ? drift.unowned : [];
     if (names.length === 0) {
       writeOut('No packages are installed.\n');
-      return 0;
+      if (unowned.length === 0) return 0;
+      writeUnowned(unowned);
+      return 1;
     }
 
-    const drift = await collectPackagesDrift(projectRoot, lock);
     const session = new FetchSession(projectRoot);
     let failed = 0;
     try {
@@ -629,9 +639,10 @@ async function runVerify(name: string | undefined): Promise<number> {
         const packageDrift = drift.byPackage.get(pkgName);
         for (const f of packageDrift?.modified ?? []) problems.push(`${repoRelativePackagePath(f)} has been edited in this repository`);
         for (const f of packageDrift?.missing ?? []) problems.push(`${repoRelativePackagePath(f)} is missing in this repository`);
+        for (const f of packageDrift?.unknown ?? []) problems.push(`${repoRelativePackagePath(f)} sits among the copied files, but the package did not install it`);
 
         const next: string[] = [];
-        if ((packageDrift?.modified.length ?? 0) + (packageDrift?.missing.length ?? 0) > 0) {
+        if (!isCopyIntact(packageDrift)) {
           next.push(`to put the copy back as it was installed, keeping your adaptations: yg pack update ${pkgName} --reinstall`);
         }
 
@@ -719,14 +730,32 @@ async function runVerify(name: string | undefined): Promise<number> {
       await session.cleanup();
     }
 
+    writeUnowned(unowned);
     if (failed > 0) {
       writeOut(
         `\n${count(failed, 'copy', 'copies')} could not be shown to be what the publisher released; each says above what to do next.\n`,
       );
       return 1;
     }
-    return 0;
+    return unowned.length > 0 ? 1 : 0;
   });
+}
+
+/**
+ * Name the files under the packages area that no installed package accounts
+ * for — outside every install's directory — with what to do about them. yg
+ * check blocks on each; a listing that left them out would vouch for a
+ * packages area check refuses.
+ */
+function writeUnowned(unowned: string[]): void {
+  if (unowned.length === 0) return;
+  writeOut(
+    paint.red(
+      `\n${count(unowned.length, 'file', 'files')} under .yggdrasil/aspects/packages/ no installed package accounts for:\n` +
+        unowned.map((f) => `  ${repoRelativePackagePath(f)}\n`).join('') +
+        'yg check refuses them. The directory is reserved for installed packages: delete them, or install the package they belong to.\n',
+    ),
+  );
 }
 
 // ============================================================
@@ -761,12 +790,22 @@ async function runRemove(name: string): Promise<number> {
     }
 
     const adapted = (await readInstalledAdapts(projectRoot, entry.package, [...own].map((id) => id.slice(idPrefix.length + 1)))).size;
+    const strays = (await collectPackagesDrift(projectRoot, lock)).byPackage.get(name)?.unknown ?? [];
     await removePackageFiles(projectRoot, entry.package);
     const rest = { ...lock.packages };
     delete rest[name];
     await writePackagesLock(projectRoot, { schema: 'yg-packages/1', packages: rest });
 
     writeOut(paint.green(`Removed '${name}' — its rules and its record are gone.\n`));
+    if (strays.length > 0) {
+      writeOut(
+        paint.yellow(
+          `Also deleted, from its directory, ${count(strays.length, 'file', 'files')} the package never installed:\n` +
+            strays.map((f) => `  ${repoRelativePackagePath(f)}\n`).join('') +
+            'Version control still has what was committed of them.\n',
+        ),
+      );
+    }
     if (adapted > 0) {
       writeOut(
         `Its ${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME}) went with it; version control still has ${adapted === 1 ? 'it' : 'them'}.\n`,

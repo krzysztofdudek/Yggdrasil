@@ -23,6 +23,28 @@ function typeOf(graph: Graph, nodeId: string): string | undefined {
 }
 
 /**
+ * The relation types `nodeId` may declare to `target` that sanction an import:
+ * the structural ones (uses, calls, extends, implements) the architecture's
+ * allow-list permits between their node types. Empty when the architecture
+ * forbids every such relation — nothing can be declared, and the dependency
+ * has to go or the architecture has to change. An architecture with no node
+ * types yet constrains nothing (the relation-target-forbidden validator skips
+ * it entirely), so every structural type is allowed there.
+ */
+export function importRelationsAllowed(graph: Graph, nodeId: string, target: string): string[] {
+  const fromType = typeOf(graph, nodeId);
+  const toType = typeOf(graph, target);
+  const noTypesYet = Object.keys(graph.architecture?.node_types ?? {}).length === 0;
+  return (
+    noTypesYet
+      ? [...RELATION_TYPES]
+      : fromType !== undefined && toType !== undefined
+        ? allowedRelationTypes(graph.architecture, fromType, toType)
+        : []
+  ).filter((t) => STRUCTURAL_RELATION_TYPES.has(t));
+}
+
+/**
  * Refused: the node has undeclared dependencies on other nodes. Builds a
  * fully-actionable message: the exact file to edit, and per distinct target the
  * allowed relation types + the `relations:` stanza to add (or a dead-end note
@@ -51,19 +73,10 @@ export function relationRefusedMessage(
   const deadEnds: string[] = [];
   for (const target of targets) {
     const toType = typeOf(graph, target);
-    // An architecture with no node types constrains no relation (the
-    // relation-target-forbidden validator skips it entirely), so every relation
-    // type is sanctioned — claiming a dead-end there would send the reader to
-    // an architecture edit that declaring the relation makes unnecessary.
-    const noTypesYet = Object.keys(graph.architecture?.node_types ?? {}).length === 0;
-    // Only a structural type sanctions a code dependency, so only those are offered.
-    const allowed = (
-      noTypesYet
-        ? [...RELATION_TYPES]
-        : fromType !== undefined && toType !== undefined
-          ? allowedRelationTypes(graph.architecture, fromType, toType)
-          : []
-    ).filter((t) => STRUCTURAL_RELATION_TYPES.has(t));
+    // Only a structural type sanctions a code dependency, so only those are
+    // offered; with no node types yet every one is (claiming a dead-end there
+    // would send the reader to an architecture edit nothing needs).
+    const allowed = importRelationsAllowed(graph, nodeId, target);
     // An event relation already declared to the target reads as if it covered
     // the import; say that it does not.
     const eventOnly = (graph.nodes.get(nodeId)?.meta.relations ?? [])

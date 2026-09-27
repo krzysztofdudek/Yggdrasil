@@ -9,4 +9,5 @@ aspects:
   - output-through-layer
   - no-raw-process-exit
   - function-length
+  - check-result-single-writer
 relations: []

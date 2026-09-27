@@ -647,3 +647,12 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
 
   return { ok: true, value: { schema: 'yg-packages/1', packages } };
 }
+
+/**
+ * Whether a recorded package follows the newest published version (installed
+ * without a version, or moved with `--to latest`) rather than being pinned. A
+ * record from before `requested` existed follows.
+ */
+export function followsNewest(entry: Pick<PackagesLockEntry, 'requested'>): boolean {
+  return (entry.requested ?? REQUESTED_LATEST) === REQUESTED_LATEST;
+}

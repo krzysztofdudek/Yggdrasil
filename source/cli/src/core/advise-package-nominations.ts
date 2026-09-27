@@ -38,6 +38,13 @@ export interface PackageUpdateSignal {
   newerVersions: string[];
   /** Where it was installed from, as recorded. UNTRUSTED text. */
   source: string;
+  /**
+   * True when the record says the package follows the newest version (installed
+   * without one, or moved with `--to latest`); false when it is pinned. It picks
+   * the command that takes the newest version without changing which of the two
+   * it is: a plain `yg pack update` for a follower, `--to` for a pinned one.
+   */
+  follows: boolean;
 }
 
 /**
@@ -55,6 +62,17 @@ export function newerThanInstalled(published: readonly string[], installed: stri
   return published
     .filter((v) => validSemver(v) !== null && semverGt(v, installed))
     .sort((a, b) => (semverGt(a, b) ? 1 : semverGt(b, a) ? -1 : 0));
+}
+
+/**
+ * The command that takes the newest published version and leaves the package
+ * following or pinned as it was: `--to <version>` would pin a package that
+ * follows the newest, so a follower gets a plain update.
+ */
+export function takeNewestCommand(update: Pick<PackageUpdateSignal, 'name' | 'newerVersions' | 'follows'>): string {
+  return update.follows
+    ? `yg pack update ${update.name}`
+    : `yg pack update ${update.name} --to ${update.newerVersions[update.newerVersions.length - 1]}`;
 }
 
 /**
@@ -90,7 +108,7 @@ export function packageUpdateNominations(
         `Nothing is wrong with the version you have — it is a choice you have not made yet.`,
       next: asApprovalNext(
         `Read what changed in the newer version at its source, then take it with ` +
-          `yg pack update ${update.name} --to ${update.newerVersions[update.newerVersions.length - 1]} ` +
+          `${takeNewestCommand(update)} ` +
           `(your adaptations survive; the copied rule files are replaced).`,
       ),
       evidenceHash: hashEvidence({

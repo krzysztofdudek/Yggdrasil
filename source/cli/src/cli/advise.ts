@@ -18,7 +18,7 @@ import {
   type PackageUpdateSignal,
 } from '../core/advise-nominations.js';
 import { newerThanInstalled } from '../core/advise-package-nominations.js';
-import { parsePackagesLock } from '../io/package-manifest-parser.js';
+import { followsNewest, parsePackagesLock } from '../io/package-manifest-parser.js';
 import { packagesLockPath } from '../io/package-store.js';
 import { readPackageVersionsCache } from '../io/package-versions-cache.js';
 import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
@@ -42,9 +42,9 @@ import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
 import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../core/suppressions/scan.js';
-import { scanPortalSuppressions } from '../portal/api/suppress-adapt.js';
+import { classifySuppressionMarkers } from '../core/suppressions/markers.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from '../core/suppressions/eligibility.js';
-import { computePortalBoundary } from '../portal/api/boundary.js';
+import { computeDependencyBoundary } from '../core/dependency-boundary.js';
 import {
   edgeUniverse,
   tunnelSpans,
@@ -153,11 +153,18 @@ function candidatesSkipReason(raw: unknown): string {
   return 'it has no usable timestamp (ts)';
 }
 
-/** The Attention line for the candidates files this run could not use (empty when none). */
+/**
+ * The Attention entry for each candidates file this run could not use (empty
+ * when none), as a block of the output grammar — `note[candidates-skipped]`
+ * naming the file, then `why:` and `fix:` — joined into one entry, so the JSON
+ * document keeps it together.
+ */
 function skippedCandidatesAttention(skipped: SkippedCandidatesFile[]): string[] {
-  return skipped.map(
-    (s) => `Candidate families in .yggdrasil/${s.file} were not read — ${s.why}. Upgrade yg if the producer that wrote it is newer, or re-run that producer (or delete the file).`,
-  );
+  return skipped.map((s) => [
+    heading('note', 'candidates-skipped', `candidate families in .yggdrasil/${s.file} were not read`, { colour: false }),
+    ...field('why', `${s.why}.`, false),
+    ...field('fix', 'Upgrade yg if the producer that wrote it is newer, or re-run that producer (or delete the file).', false),
+  ].join('\n'));
 }
 
 function readFamilyCandidatesSource(graph: Graph, skipped: SkippedCandidatesFile[] = []): FamilyCandidatesData[] | undefined {
@@ -300,7 +307,7 @@ async function gatherSuppressData(
       graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
     );
     const anomalies: SuppressAnomaly[] = [];
-    for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {
+    for (const m of classifySuppressionMarkers(report, knownAspectIds, draftAspectIds)) {
       if (!m.risk) continue; // only the risky markers become nominations
       anomalies.push({
         file: m.file,
@@ -536,7 +543,7 @@ interface RelationBoundaryResult {
 
 /**
  * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
- * from ONE shared relation pass — `computePortalBoundary` already exists to
+ * from ONE shared relation pass — `computeDependencyBoundary` already exists to
  * fold the live type-relation gate's edge translation into the SAME pass a
  * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
  * invariant intact even when the type-level tier is on"). Before this, `yg
@@ -544,10 +551,10 @@ interface RelationBoundaryResult {
  * least one file: one unseeded (for the tunnel count, via the since-removed
  * `computeDetectedEdges`) and one seeded with `typeCoverage.covered` (for the
  * cluster edges, via the since-removed `computeTypedEdges`) — duplicating the
- * parse + resolve work `computePortalBoundary` already does once. Seeding
+ * parse + resolve work `computeDependencyBoundary` already does once. Seeding
  * costs nothing when `typeCoverage` is undefined or empty: `typedEdges` comes
  * back `[]`, byte-identical to a caller that never asked for the widening
- * (`computePortalBoundary`'s own contract) — so this is a strict consolidation,
+ * (`computeDependencyBoundary`'s own contract) — so this is a strict consolidation,
  * not a new cost paid when the tier is off.
  *
  * `typeCoveredEdges` mirrors the former `gatherTypeCoveredEdges` contract
@@ -559,7 +566,7 @@ interface RelationBoundaryResult {
  * correctly excludes every node-to-node or mixed edge). The tunnel count
  * degrades to 0 on its own failure (mirroring the former `computeTunnelCount`
  * exactly); the whole boundary degrades to "pass failed" only when the
- * relation parse itself throws, in which case `computePortalBoundary` returns
+ * relation parse itself throws, in which case `computeDependencyBoundary` returns
  * `null` rather than throwing, and both halves degrade together. Never
  * throws: this is `yg advise`'s own read-only, never-gating contract (G4).
  */
@@ -569,9 +576,9 @@ async function gatherRelationBoundary(
   typeCoverage: TypeCoverageInput | undefined,
 ): Promise<RelationBoundaryResult> {
   const wantsTypedEdges = typeCoverage !== undefined && typeCoverage.covered.size > 0;
-  let boundary: Awaited<ReturnType<typeof computePortalBoundary>>;
+  let boundary: Awaited<ReturnType<typeof computeDependencyBoundary>>;
   try {
-    boundary = await computePortalBoundary(graph, projectRoot, typeCoverage?.covered);
+    boundary = await computeDependencyBoundary(graph, projectRoot, typeCoverage?.covered);
   } catch (error) {
     debugWrite(`[advise] relation boundary degraded (pass threw): ${(error as Error).message}`);
     boundary = null;
@@ -783,7 +790,13 @@ async function gatherPackageUpdates(graph: Graph, projectRoot: string): Promise<
     if (seen === undefined) continue;
     const newer = newerThanInstalled(seen.published, entry.version);
     if (newer.length > 0) {
-      signals.push({ name, installedVersion: entry.version, newerVersions: newer, source: entry.source });
+      signals.push({
+        name,
+        installedVersion: entry.version,
+        newerVersions: newer,
+        source: entry.source,
+        follows: followsNewest(entry),
+      });
     }
   }
   return signals;
@@ -800,7 +813,7 @@ function renderAdviseVerdict(attention: string[], visible: VisibleNomination[]):
 
 /** The attention section: one aggregate line per class, no ranking. */
 function renderAttention(lines: string[]): string {
-  const body = lines.length === 0 ? ['  none right now'] : lines.map((l) => `  ${l}`);
+  const body = lines.length === 0 ? ['  none right now'] : lines.flatMap((l) => l.split('\n').map((part) => `  ${part}`));
   return [decorated ? paint.bold('attention') : 'attention', ...body].join('\n');
 }
 

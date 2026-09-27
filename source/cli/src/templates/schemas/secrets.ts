@@ -10,7 +10,8 @@ export const content = `# yg-secrets.yaml — Schema for the local configuration
 # invalidates recorded verdicts. Three settings are read from the committed file
 # only, and this file cannot change them: coverage.type_level, progressive and
 # rules_artifacts. A key yg-config.yaml does not accept is refused here too,
-# named against this file — and only on this machine, since CI never reads it.
+# named against this file — and only where this file exists (this machine, or
+# a CI job that writes one).
 
 reviewer:
   tiers:
@@ -18,4 +19,8 @@ reviewer:
       config:
         api_key: "sk-..."       # outranks the provider's environment variable
         model: "claude-sonnet-4-5"
+        # endpoint: "https://gateway.example.com/v1"
+        #   An anthropic/openai/google key goes to an endpoint other than the
+        #   provider's own only when the endpoint is named here; one named only
+        #   in yg-config.yaml gets no key.
 `;
