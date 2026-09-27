@@ -234,7 +234,7 @@ Not called: drill into (for yg check --aspect). More: [CLI Reference](/cli-refer
 
 ### covered {#covered}
 
-The graph accounts for the file: it is node-owned, type-covered or excluded. Covered says nothing about whether a rule checks it.
+A node or a type answers for the file: it is node-owned or type-covered. `yg check` counts covered files out of the files not excluded, and names the excluded ones beside them (`3/5 files covered · 4 excluded`); the JSON field `coverage.covered` keeps an older, wider count that adds the excluded files. Covered says nothing about whether a rule checks it.
 
 More: [Configuration](/configuration#coverage-config).
 

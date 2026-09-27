@@ -237,13 +237,18 @@ export interface CheckJsonDocument {
   exit: { code: 0 | 1; status: 'pass' | 'fail' | 'aborted' | 'preview'; reason: string };
   coverage: {
     files: number;
+    /**
+     * Files the graph accounts for: node-owned, type-covered or excluded — the
+     * older, wider count. The text report's `N/M files covered` is
+     * `nodeOwned + typeCovered` out of `files - excluded`.
+     */
     covered: number;
-    /** Owned by a component's mapping. Null when the type-level tier is off. */
-    nodeOwned: number | null;
-    /** Satisfied by an architecture type alone. Null when the type-level tier is off. */
-    typeCovered: number | null;
-    /** Excluded from coverage by design. Null when the type-level tier is off. */
-    excluded: number | null;
+    /** Owned by a component's mapping. A number since 6.1.0; null before it when the type-level tier was off. */
+    nodeOwned: number;
+    /** Satisfied by an architecture type alone; 0 when the type-level tier is off. A number since 6.1.0; null before it when the tier was off. */
+    typeCovered: number;
+    /** Under a `coverage.excluded` root, which Yggdrasil ignores everywhere. A number since 6.1.0; null before it when the type-level tier was off. */
+    excluded: number;
     /** True when nothing is required to be covered, so an uncovered file can never fail. */
     requiresNothing: boolean;
   };

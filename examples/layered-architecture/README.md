@@ -38,13 +38,13 @@ deterministic.
 
 ```bash
 cd examples/layered-architecture
-yg check          # PASS — 3 nodes · 8/8 files covered
+yg check          # PASS — 3 nodes · 3/3 files covered · 5 excluded
 ```
 
 Expected output:
 
 ```
-yg check: PASS  3 nodes · 8/8 files covered
+yg check: PASS  3 nodes · 3/3 files covered · 5 excluded
 ```
 
 ## The one edit that BREAKS it
@@ -69,7 +69,7 @@ export function getRide(req: HttpRequest): HttpResponse {
 Run `yg check` again and it refuses — live, with no key and no lock:
 
 ```
-yg check: FAIL  1 error   3 nodes · 8/8 files covered
+yg check: FAIL  1 error   3 nodes · 3/3 files covered · 5 excluded
 
 error[relation-undeclared-dependency] Node 'web' has undeclared dependencies on other nodes
   at:   web

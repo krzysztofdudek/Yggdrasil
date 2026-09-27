@@ -87,7 +87,7 @@ $ yg check --approve
 fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
 fill  done in 6s — 0 passed · 1 refused · 0 failed · 1 reviewer call
 
-yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
+yg check: FAIL  1 error   1 node · 1/1 file covered · 4 excluded
 
 error[refused] requires-audit — refused on payments
   at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.

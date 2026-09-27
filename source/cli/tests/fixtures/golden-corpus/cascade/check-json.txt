@@ -17,9 +17,9 @@ exit: 1
   "coverage": {
     "files": 7,
     "covered": 2,
-    "nodeOwned": null,
-    "typeCovered": null,
-    "excluded": null,
+    "nodeOwned": 2,
+    "typeCovered": 0,
+    "excluded": 0,
     "requiresNothing": false
   },
   "totals": {

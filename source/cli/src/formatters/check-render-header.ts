@@ -189,23 +189,29 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 
   const metrics: string[] = [count(result.nodeCount, 'node')];
   if (result.totalFiles > 0) {
-    if (result.typeLevel) {
-      // Three honest terms, not a flat percentage: files a node maps, files
-      // their architecture type covers, files the graph excludes. A term that
-      // is zero is left out.
-      const nodeOwned = result.nodeOwnedFiles ?? 0;
-      const typeCovered = result.typeCoveredCount ?? 0;
-      const excluded = result.excludedFiles ?? 0;
-      const split = [
-        nodeOwned > 0 ? `${nodeOwned} node-owned` : '',
-        typeCovered > 0 ? `${typeCovered} type-covered` : '',
-        excluded > 0 ? `${excluded} excluded` : '',
-      ].filter((p) => p !== '');
-      // The split is said whenever the files are not all node-owned.
-      const saySplit = split.length > 1 || (split.length === 1 && nodeOwned === 0);
-      metrics.push(`${nodeOwned + typeCovered + excluded}/${count(result.totalFiles, 'file')} covered${saySplit ? ` (${split.join(' · ')})` : ''}`);
+    // Covered is what a node or a type answers for, out of the files the graph
+    // does not exclude: an excluded file is ignored everywhere, so it is neither
+    // covered nor left to cover, and is said beside the ratio instead of inside
+    // it. Counting it as covered made a fresh repository with no node at all
+    // read `4/7 files covered` on its own plumbing.
+    const nodeOwned = result.nodeOwnedFiles ?? 0;
+    const typeCovered = result.typeLevel ? (result.typeCoveredCount ?? 0) : 0;
+    const excluded = result.excludedFiles ?? 0;
+    // With type-level coverage on, the two covered terms are said whenever the
+    // covered files are not all node-owned. A term that is zero is left out.
+    const split = [
+      nodeOwned > 0 ? `${nodeOwned} node-owned` : '',
+      typeCovered > 0 ? `${typeCovered} type-covered` : '',
+    ].filter((p) => p !== '');
+    const saySplit = typeCovered > 0;
+    // Every file excluded leaves nothing to cover: a `0/0` ratio says nothing,
+    // so only the excluded files are named, with their noun.
+    const toCover = result.totalFiles - excluded;
+    if (toCover > 0) {
+      metrics.push(`${nodeOwned + typeCovered}/${count(toCover, 'file')} covered${saySplit ? ` (${split.join(' · ')})` : ''}`);
+      if (excluded > 0) metrics.push(`${excluded} excluded`);
     } else {
-      metrics.push(`${result.coveredFiles}/${count(result.totalFiles, 'file')} covered`);
+      metrics.push(`${count(excluded, 'file')} excluded`);
     }
   }
   const verifiedTotal = result.verifiedDet + result.verifiedLlm;

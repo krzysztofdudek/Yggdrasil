@@ -44,7 +44,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  4 nodes · 9/9 files covered · 3 pairs verified (script)
+yg check: PASS  4 nodes · 4/4 files covered · 5 excluded · 3 pairs verified (script)
 ```
 
 > On a fresh clone, step 1 is required: the script verdict lives in the
@@ -74,7 +74,7 @@ node ../../source/cli/dist/bin.js check
 proving the flow-level rule reaches every participant independently:
 
 ```
-yg check: FAIL  1 error   4 nodes · 9/9 files covered · 2 pairs verified (script)
+yg check: FAIL  1 error   4 nodes · 4/4 files covered · 5 excluded · 2 pairs verified (script)
 
 error[refused] emits-telemetry — 1 violation in payment
   at:   payment  src/payment.ts:1  Checkout step does not emit a telemetry event: add a track(...) call (e.g. track('cart.viewed', { ... })) so this step appears in the funnel.

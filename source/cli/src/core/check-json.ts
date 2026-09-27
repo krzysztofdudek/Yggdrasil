@@ -222,9 +222,11 @@ export function buildCheckJson(result: CheckResult): CheckJsonDocument {
     coverage: {
       files: result.totalFiles,
       covered: result.coveredFiles,
-      nodeOwned: result.typeLevel ? (result.nodeOwnedFiles ?? 0) : null,
-      typeCovered: result.typeLevel ? (result.typeCoveredCount ?? 0) : null,
-      excluded: result.typeLevel ? (result.excludedFiles ?? 0) : null,
+      // Always numbers: excluded and node-owned are facts of the config and the
+      // mapping, not of the type-level tier, and nothing is type-covered with it off.
+      nodeOwned: result.nodeOwnedFiles ?? 0,
+      typeCovered: result.typeLevel ? (result.typeCoveredCount ?? 0) : 0,
+      excluded: result.excludedFiles ?? 0,
       requiresNothing: result.coverageRequiresNothing === true,
     },
     totals: {

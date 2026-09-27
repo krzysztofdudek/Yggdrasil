@@ -425,7 +425,8 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       expect(check.stdout).toContain('PASS');
       // The files init itself wrote are excluded plumbing, never uncovered to-dos:
       // they count as covered, and the JSON report names them as excluded.
-      expect(check.stdout).toContain('4/4 files covered');
+      // Every file is Yggdrasil's own excluded plumbing: nothing is left to cover.
+      expect(check.stdout).toContain('0 nodes · 4 files excluded');
       expect(JSON.parse(run(['check', '--json'], dir).stdout).coverage.excluded).toBe(4);
       expect(check.stdout).not.toContain('uncovered');
     } finally {

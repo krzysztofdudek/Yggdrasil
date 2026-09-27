@@ -49,6 +49,7 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       flowCount: 1,
       coveredFiles: 5,
       totalFiles: 5,
+      nodeOwnedFiles: 5,
       issues: [],
       advisoryWarnings: 0,
       draftSkipped: 0,
@@ -154,7 +155,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
   // Same coveredFiles/totalFiles either way (1/5) — only `typeLevel` differs —
   // so these two tests isolate the flag as the sole cause of the format change.
   it('flag OFF: the plain ratio, no split', () => {
-    const result: CheckResult = { ...baseResult([]), coveredFiles: 1, totalFiles: 5 };
+    const result: CheckResult = { ...baseResult([]), coveredFiles: 1, totalFiles: 5, nodeOwnedFiles: 1 };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
     expect(out).toContain('1/5 files covered');
     expect(out).not.toContain('1/5 files covered (');
@@ -179,12 +180,13 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       excludedFiles: 1,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    // The numerator counts every satisfied file (0 node-owned + 1
-    // type-covered + 1 excluded = 2/5) — but "node-owned" itself names only
-    // the truly node-mapped files: zero here, so the term is not printed at
-    // all (a zero segment never is), and the conflated coveredFiles (1) never
-    // surfaces as "1 node-owned".
-    expect(out).toContain('2/5 files covered (1 type-covered · 1 excluded)');
+    // The ratio counts what a node or a type answers for (0 node-owned + 1
+    // type-covered) out of the files not excluded (5 − 1), and says the
+    // excluded one beside it — "node-owned" names only the truly node-mapped
+    // files: zero here, so the term is not printed at all (a zero segment
+    // never is), and the conflated coveredFiles (1) never surfaces as
+    // "1 node-owned".
+    expect(out).toContain('1/4 files covered (1 type-covered) · 1 excluded');
     expect(out).not.toContain('node-owned');
   });
 
@@ -200,7 +202,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       excludedFiles: 1,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    expect(out).toContain('2/2 files covered (1 type-covered · 1 excluded)');
+    expect(out).toContain('1/1 file covered (1 type-covered) · 1 excluded');
   });
 
   it('flag ON, a real node mapping owns a file: "node-owned" names it, distinct from type-covered and excluded', () => {
@@ -215,8 +217,8 @@ describe('check render — header type-covered split (coverage.type_level)', () 
       excludedFiles: 1,
     };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    // Numerator: 3 node-owned + 1 type-covered + 1 excluded = 5/6.
-    expect(out).toContain('5/6 files covered (3 node-owned · 1 type-covered · 1 excluded)');
+    // 3 node-owned + 1 type-covered out of 6 − 1 excluded = 4/5.
+    expect(out).toContain('4/5 files covered (3 node-owned · 1 type-covered) · 1 excluded');
   });
 
   it('flag ON, zero excluded AND zero type-covered files: a lone term needs no split, and zero terms never print', () => {
@@ -237,7 +239,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     expect(out).not.toContain('0 excluded');
   });
 
-  it('sum invariant: node-owned + type-covered + excluded === coveredFiles (the pre-existing conflated total)', () => {
+  it('sum invariant: node-owned + excluded === coveredFiles (the pre-existing conflated total), which the ratio no longer prints', () => {
     // nodeOwnedFiles + excludedFiles must reconstitute coveredFiles exactly —
     // this is the algebraic identity the split is built on (core/check.ts).
     const result: CheckResult = {
@@ -252,7 +254,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     };
     expect((result.nodeOwnedFiles ?? 0) + (result.excludedFiles ?? 0)).toBe(result.coveredFiles);
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
-    expect(out).toContain('6/7 files covered (1 node-owned · 2 type-covered · 3 excluded)');
+    expect(out).toContain('3/4 files covered (1 node-owned · 2 type-covered) · 3 excluded');
   });
 
   // The existing cases above never combine typeLevel: true with errors.length
@@ -280,7 +282,7 @@ describe('check render — header type-covered split (coverage.type_level)', () 
     const out = stripAnsi(formatOutput(result, { kind: 'full' }, /* autoFilled */ true));
     expect(out).toContain('yg check: FAIL');
     expect(out).not.toContain('auto-filled');
-    expect(out).toContain('2/5 files covered (1 type-covered · 1 excluded)');
+    expect(out).toContain('1/4 files covered (1 type-covered) · 1 excluded');
   });
 
   it('flag ON + autoFilled=true, no errors: PASS  auto-filled coexists with the split', () => {
@@ -313,12 +315,48 @@ describe('check render — header type-covered split (coverage.type_level)', () 
   // string level anywhere in the suite; this composition is unchanged by
   // whatever split the file went through.
   it('flag OFF, fully covered (coveredFiles === totalFiles): plain "N/N files covered", no split', () => {
-    const result: CheckResult = { ...baseResult([]), coveredFiles: 5, totalFiles: 5 };
+    const result: CheckResult = { ...baseResult([]), coveredFiles: 5, totalFiles: 5, nodeOwnedFiles: 5 };
     const out = stripAnsi(formatOutput(result, { kind: 'full' }));
     expect(out).toContain('5/5 files covered');
     expect(out).not.toContain('5/5 files covered (');   // no trailing parenthetical
     expect(out).not.toContain('node-owned');
     expect(out).not.toContain('type-covered');
+  });
+});
+
+// ── Header: excluded files are neither covered nor left to cover ─────────────
+
+describe('check render — header ratio leaves excluded files out (issue 238)', () => {
+  // A fresh `yg init` with no node: its own plumbing (AGENTS.md, CLAUDE.md, …)
+  // is excluded, and the three source files belong to nothing. Counting the
+  // excluded files as covered made this read `4/7 files covered`.
+  it('a repository with no node reads 0 covered, with the excluded files beside the ratio — flag on and off alike', () => {
+    for (const typeLevel of [true, false]) {
+      const result: CheckResult = {
+        ...baseResult([]),
+        nodeCount: 0,
+        coveredFiles: 4,
+        totalFiles: 7,
+        nodeOwnedFiles: 0,
+        excludedFiles: 4,
+        ...(typeLevel ? { typeLevel: true, typeCoveredCount: 0, classifyingTypeCount: 0 } : {}),
+      };
+      const out = stripAnsi(formatOutput(result, { kind: 'full' })).split('\n')[0];
+      expect(out, `typeLevel ${typeLevel}`).toContain('0 nodes · 0/3 files covered · 4 excluded');
+    }
+  });
+
+  it('flag OFF: the ratio is node-owned out of the files not excluded, and the excluded count is said', () => {
+    const result: CheckResult = { ...baseResult([]), coveredFiles: 9, totalFiles: 9, nodeOwnedFiles: 4, excludedFiles: 5 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' }));
+    expect(out).toContain('4/4 files covered · 5 excluded');
+    expect(out).not.toContain('9/9');
+  });
+
+  it('every file excluded: no 0/0 ratio, only the excluded files, with their noun', () => {
+    const result: CheckResult = { ...baseResult([]), nodeCount: 0, coveredFiles: 4, totalFiles: 4, nodeOwnedFiles: 0, excludedFiles: 4 };
+    const out = stripAnsi(formatOutput(result, { kind: 'full' })).split('\n')[0];
+    expect(out).toBe('yg check: PASS  0 nodes · 4 files excluded');
   });
 });
 

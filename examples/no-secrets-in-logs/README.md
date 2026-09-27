@@ -33,7 +33,7 @@ node ../../source/cli/dist/bin.js check
 Expected final output:
 
 ```
-yg check: PASS  2 nodes · 8/8 files covered · 2 pairs verified (script)
+yg check: PASS  2 nodes · 3/3 files covered · 5 excluded · 2 pairs verified (script)
 ```
 
 ## The ONE edit that BREAKS the rule
@@ -59,7 +59,7 @@ The fill records the refusal and its report refuses the node, exit 1 (the line n
 ```
 fill  1 pair · 1 script (free) · 0 reviewer calls
 fill  done in 0s — 0 passed · 1 refused · 0 failed · 0 reviewer calls
-yg check: FAIL  1 error   2 nodes · 8/8 files covered · 1 pair verified (script)
+yg check: FAIL  1 error   2 nodes · 3/3 files covered · 5 excluded · 1 pair verified (script)
 
 error[refused] no-secret-in-logs — 1 violation in payments
   at:   payments  src/charge.ts:53  Logging call references forbidden secret/PII field "pan". Log a redacted value (e.g. a masked PAN or an id) instead — raw cardholder data and credentials must never be written to logs (PCI-DSS).

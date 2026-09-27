@@ -40,7 +40,7 @@ yg check
 That first check is green, and honest about why. (The report speaks the graph's words: in the graph a rule is an *aspect* and a component is a *node*. See the [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary).)
 
 ```text
-yg check: PASS  1 warning   0 nodes · 4/54 files covered (4 excluded)
+yg check: PASS  1 warning   0 nodes · 0/50 files covered · 4 excluded
 
 warning[uncovered] 50 files belong to no node — not under coverage.required, so they never block
   at:   package.json

@@ -419,14 +419,16 @@ describe('the check document — the project and its coverage', () => {
     expect(doc.suggestedNext).toBeNull();
   });
 
-  it('leaves the type-level split null when the tier is off, so a zero never claims a measurement', () => {
-    const doc = buildCheckJson(emptyResult());
+  it('reports the split as numbers when the tier is off too: node-owned and excluded are facts of the mapping and the config, and nothing is type-covered', () => {
+    // Null here made a consumer fall back to `covered`, which counts the
+    // excluded files as covered (a fresh repository with no node read 4/7).
+    const doc = buildCheckJson(emptyResult({ nodeOwnedFiles: 6, excludedFiles: 2 }));
     expect(doc.coverage).toEqual({
       files: 10,
       covered: 8,
-      nodeOwned: null,
-      typeCovered: null,
-      excluded: null,
+      nodeOwned: 6,
+      typeCovered: 0,
+      excluded: 2,
       requiresNothing: false,
     });
   });

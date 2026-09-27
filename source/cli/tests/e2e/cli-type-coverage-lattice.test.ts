@@ -76,7 +76,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // here through the real CLI process): 0 node-owned + 1 type-covered
       // (handler.ts) + 1 excluded (vendor/tool.ts) + 1 ambiguous (overlap.ts)
       // + 1 strict-orphan (special.ts) + 1 unmapped (plain.ts) = 5 files.
-      expect(out).toContain('0 nodes · 2/5 files covered (1 type-covered · 1 excluded)');
+      expect(out).toContain('0 nodes · 1/4 files covered (1 type-covered) · 1 excluded');
       expect(out).not.toContain('node-owned');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -96,7 +96,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // This fixture also has ZERO nodes: vendor/tool.ts (excluded root) is
       // its own "excluded" term, not "node-owned" — src/svc/handler.ts is
       // the one type-covered file. 0 + 1 + 1 = 2/2.
-      expect(out).toContain('0 nodes · 2/2 files covered (1 type-covered · 1 excluded)');
+      expect(out).toContain('0 nodes · 1/1 file covered (1 type-covered) · 1 excluded');
       expect(out).not.toContain('node-owned');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -139,7 +139,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // svcnode/kept.ts (the one genuinely node-owned file), and the two
       // svcnode/vendor/*.ts files — mapped by svcnode's directory entry, but
       // excluded, so they must land in "excluded", not "node-owned".
-      expect(out).toContain('5/5 files covered (1 node-owned · 1 type-covered · 3 excluded)');
+      expect(out).toContain('2/2 files covered (1 node-owned · 1 type-covered) · 3 excluded');
       // Agreement across surfaces, on the SAME run: yg context --node names
       // only the one real subject file this node actually enforces.
       const context = run(['context', '--node', 'svcnode'], dir);

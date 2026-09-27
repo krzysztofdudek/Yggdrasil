@@ -58,7 +58,7 @@ interface CheckDoc {
   schema: string;
   project: { name: string; nodes: number; aspects: number; flows: number };
   exit: { code: number; status: string; reason: string };
-  coverage: { files: number; covered: number; nodeOwned: number | null; typeCovered: number | null; excluded: number | null; requiresNothing: boolean };
+  coverage: { files: number; covered: number; nodeOwned: number; typeCovered: number; excluded: number; requiresNothing: boolean };
   totals: {
     errors: number;
     warnings: number;
