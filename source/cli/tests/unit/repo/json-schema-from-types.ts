@@ -11,11 +11,22 @@
 //    file-format schema object (utils/file-formats*.ts), the one its parser
 //    enforces.
 //
-// The validator for them is json-schema-validate.ts.
+// The validator for them is json-schema-validate.ts. deriveDocumentSchemas
+// produces the whole published set, for the guard that compares it with
+// docs/public/schemas/ (json-contract-schemas.test.ts) and the command that
+// rewrites that directory (generated-files.update.ts, run by
+// `npm run json-schemas:update`).
 // =============================================================================
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { fileFormat } from '../../../src/utils/file-formats.js';
 import type { FieldType, FileFormatSchema } from '../../../src/utils/file-schema.js';
+
+const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+/** Where the schemas are published with the docs (served at /schemas/<id>.schema.json). */
+export const PUBLISHED_SCHEMAS_DIR = path.join(CLI_ROOT, '..', '..', 'docs', 'public', 'schemas');
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -241,3 +252,17 @@ export const YAML_DOCUMENTS: ReadonlyArray<{ id: string; title: string; format: 
   { id: 'yg-marketplace/1', title: 'Marketplace manifest (yg-marketplace.yaml)', format: 'marketplace' },
   { id: 'yg-packages/1', title: 'Package record (.yggdrasil/yg-packages.yaml)', format: 'packages' },
 ];
+
+/** Every published schema by document id: each JSON document's from its type, each YAML document's from its file format. */
+export function deriveDocumentSchemas(): Map<string, JsonSchema> {
+  const env = documentProgram(JSON_DOCUMENTS.map((d) => path.join(CLI_ROOT, d.file)));
+  const derived = new Map<string, JsonSchema>();
+  for (const d of JSON_DOCUMENTS) derived.set(d.id, schemaFromType(env, path.join(CLI_ROOT, d.file), d.type, d));
+  for (const d of YAML_DOCUMENTS) derived.set(d.id, schemaFromFileFormat(fileFormat(d.format)!, d));
+  return derived;
+}
+
+/** A published schema file's text. */
+export function schemaFileText(schema: JsonSchema): string {
+  return `${JSON.stringify(schema, null, 2)}\n`;
+}

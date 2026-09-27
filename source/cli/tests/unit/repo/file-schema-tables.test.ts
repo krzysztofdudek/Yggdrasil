@@ -7,37 +7,19 @@
 // holds the two together), and `yg schemas read <name>` prints its field table.
 // The docs pages carry the same table between `file-schema:<name>` markers —
 // generated, so a page can neither list a key the parser refuses nor miss one it
-// reads. This test renders each table and fails on any difference; with
-// YG_SCHEMAS_UPDATE=1 (npm run schemas:update) it rewrites them instead.
+// reads. This test renders each table and fails on any difference;
+// `npm run schemas:update` (generated-files.update.ts) rewrites them. This test
+// only reads.
 //
 // Hermetic & fast: reads files and imports the schemas; spawns nothing.
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { FILE_FORMATS } from '../../../src/utils/file-formats.js';
 import { renderFieldTable } from '../../../src/utils/file-schema.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..');
-const DOCS_DIR = path.join(REPO_ROOT, 'docs');
-const UPDATE = process.env.YG_SCHEMAS_UPDATE === '1';
-
-const startMarker = (name: string): string =>
-  `<!-- file-schema:${name}:start — generated from the ${name} schema in source/cli/src/utils/file-formats*.ts; edit the schema, then run npm run schemas:update in source/cli -->`;
-const endMarker = (name: string): string => `<!-- file-schema:${name}:end -->`;
-const blockPattern = (name: string): RegExp => new RegExp(`<!-- file-schema:${name}:start[^>]*-->[\\s\\S]*?<!-- file-schema:${name}:end -->`);
-
-function renderBlock(name: string): string {
-  const format = FILE_FORMATS.find((f) => f.name === name)!;
-  return `${startMarker(name)}\n\n${renderFieldTable(format, { html: true })}\n\n${endMarker(name)}`;
-}
-
-function docsPages(): string[] {
-  return readdirSync(DOCS_DIR).filter((f) => f.endsWith('.md')).map((f) => path.join(DOCS_DIR, f));
-}
+import { blockPattern, docsPages, renderBlock } from './file-schema-blocks.js';
 
 describe('the docs field tables are rendered from the file-format schemas', () => {
   for (const format of FILE_FORMATS) {
@@ -47,8 +29,7 @@ describe('the docs field tables are rendered from the file-format schemas', () =
       const page = pages[0];
       const text = readFileSync(page, 'utf-8');
       const rendered = renderBlock(format.name);
-      if (UPDATE) writeFileSync(page, text.replace(blockPattern(format.name), () => rendered));
-      const current = readFileSync(page, 'utf-8').match(blockPattern(format.name))![0];
+      const current = text.match(blockPattern(format.name))![0];
       expect(current, `the ${format.name} field table in docs/${path.basename(page)} differs from the schema — run npm run schemas:update in source/cli`).toBe(rendered);
     });
   }

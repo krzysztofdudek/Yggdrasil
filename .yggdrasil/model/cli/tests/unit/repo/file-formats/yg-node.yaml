@@ -22,6 +22,7 @@ relations:
 mapping:
   - source/cli/tests/unit/repo/file-format-conformance.test.ts
   - source/cli/tests/unit/repo/file-schema-tables.test.ts
+  - source/cli/tests/unit/repo/file-schema-blocks.ts
   - source/cli/tests/unit/repo/yaml-examples-parse.test.ts
   - source/cli/tests/unit/repo/json-contract-schemas.test.ts
   - source/cli/tests/unit/repo/json-schema-from-types.ts

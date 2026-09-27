@@ -32,11 +32,11 @@
     "typecheck": "tsc -p tsconfig.check.json",
     "typecheck:e2e": "tsc -p tests/portal-e2e/tsconfig.json",
     "golden:update": "YG_GOLDEN_UPDATE=1 vitest run tests/e2e/cli-golden-corpus.test.ts",
-    "glossary:update": "YG_GLOSSARY_UPDATE=1 vitest run tests/unit/repo/glossary-sync.test.ts",
-    "prose:baseline": "YG_PROSE_BASELINE_UPDATE=1 vitest run tests/unit/repo/e2e-prose-ratchet.test.ts",
-    "codes:update": "YG_CODES_UPDATE=1 vitest run tests/unit/repo/issue-code-tables.test.ts",
-    "schemas:update": "YG_SCHEMAS_UPDATE=1 vitest run tests/unit/repo/file-schema-tables.test.ts",
-    "json-schemas:update": "YG_JSON_SCHEMAS_UPDATE=1 vitest run tests/unit/repo/json-contract-schemas.test.ts"
+    "glossary:update": "vitest run --config vitest.update.config.ts -t '^glossary:update$' && vitest run tests/unit/repo/glossary-sync.test.ts",
+    "prose:baseline": "vitest run --config vitest.update.config.ts -t '^prose:baseline$' && vitest run tests/unit/repo/e2e-prose-ratchet.test.ts",
+    "codes:update": "vitest run --config vitest.update.config.ts -t '^codes:update$' && vitest run tests/unit/repo/issue-code-tables.test.ts",
+    "schemas:update": "vitest run --config vitest.update.config.ts -t '^schemas:update$' && vitest run tests/unit/repo/file-schema-tables.test.ts",
+    "json-schemas:update": "vitest run --config vitest.update.config.ts -t '^json-schemas:update$' && vitest run tests/unit/repo/json-contract-schemas.test.ts"
   },
   "keywords": [
     "yggdrasil",

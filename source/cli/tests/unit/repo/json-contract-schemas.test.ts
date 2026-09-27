@@ -10,8 +10,8 @@
 // YAML package documents from the file-format schemas their parsers enforce.
 // The schemas are published with the docs (docs/public/schemas/, served at
 // /schemas/<id>.schema.json); this test fails when a committed schema differs
-// from what the types say, and with YG_JSON_SCHEMAS_UPDATE=1 (npm run
-// json-schemas:update) rewrites them.
+// from what the types say; `npm run json-schemas:update`
+// (generated-files.update.ts) rewrites them. This test only reads.
 //
 // It also requires every property name any schema declares to be named, in
 // backticks, on docs/family-contracts.md or docs/cli-reference.md — a field a
@@ -22,26 +22,19 @@
 // =============================================================================
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLOSED_SCHEMA_COMMENT, JSON_DOCUMENTS, YAML_DOCUMENTS, documentProgram, propertyNames, schemaFromFileFormat, schemaFromType, type JsonSchema } from './json-schema-from-types.js';
+import { CLOSED_SCHEMA_COMMENT, JSON_DOCUMENTS, PUBLISHED_SCHEMAS_DIR as OUT_DIR, deriveDocumentSchemas, propertyNames, schemaFileText, type JsonSchema } from './json-schema-from-types.js';
 import { schemaFileName, validate } from '../../support/json-schema-validate.js';
-import { fileFormat } from '../../../src/utils/file-formats.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CLI_ROOT = path.resolve(__dirname, '..', '..', '..');
-const REPO_ROOT = path.resolve(CLI_ROOT, '..', '..');
-const OUT_DIR = path.join(REPO_ROOT, 'docs', 'public', 'schemas');
-const UPDATE = process.env.YG_JSON_SCHEMAS_UPDATE === '1';
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..');
 
 let derived: Map<string, JsonSchema>;
 
 beforeAll(() => {
-  const env = documentProgram(JSON_DOCUMENTS.map((d) => path.join(CLI_ROOT, d.file)));
-  derived = new Map();
-  for (const d of JSON_DOCUMENTS) derived.set(d.id, schemaFromType(env, path.join(CLI_ROOT, d.file), d.type, d));
-  for (const d of YAML_DOCUMENTS) derived.set(d.id, schemaFromFileFormat(fileFormat(d.format)!, d));
+  derived = deriveDocumentSchemas();
 }, 120000);
 
 describe('the yg-*/1 JSON Schemas are derived from the document types', () => {
@@ -64,12 +57,10 @@ describe('the yg-*/1 JSON Schemas are derived from the document types', () => {
   });
 
   it('the published schemas are the derived ones', () => {
-    if (UPDATE) mkdirSync(OUT_DIR, { recursive: true });
     const stale: string[] = [];
     for (const [id, schema] of derived) {
       const file = path.join(OUT_DIR, schemaFileName(id));
-      const text = `${JSON.stringify(schema, null, 2)}\n`;
-      if (UPDATE) writeFileSync(file, text);
+      const text = schemaFileText(schema);
       let current: string;
       try {
         current = readFileSync(file, 'utf-8');

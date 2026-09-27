@@ -1,11 +1,12 @@
 name: Linter Config
 type: ci-config
-description: "Static analysis and test runner configuration: ESLint, Vitest, the tsup build bundler, and the Playwright (Chromium) portal-e2e runner settings"
+description: "Static analysis and test runner configuration: ESLint, Vitest (the test run, the external-service run, and the run of the generated-file update steps), the tsup build bundler, and the Playwright (Chromium) portal-e2e runner settings"
 aspects: []
 relations: []
 mapping:
   - source/cli/eslint.config.js
   - source/cli/vitest.config.ts
   - source/cli/vitest.external.config.ts
+  - source/cli/vitest.update.config.ts
   - source/cli/tsup.config.ts
   - source/cli/playwright.config.ts
