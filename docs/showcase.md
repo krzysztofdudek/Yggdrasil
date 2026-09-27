@@ -64,7 +64,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 **Earn-rate: medium.** Prevents structural nonsense (a `command` node nested inside a `types` node) without requiring complex validation.
 
-**Recommendation:** Declare `parents:` on every type from day one. It takes ten seconds and prevents hierarchy mistakes that are annoying to untangle later.
+**Recommendation:** Declare `parents:` on every type from day one. It takes ten seconds and prevents hierarchy mistakes that are annoying to untangle later. A type meant to sit at the top of the model lists `root` among its parents (or declares no `parents:` at all, which allows anywhere).
 
 ---
 

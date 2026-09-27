@@ -369,6 +369,8 @@
         "suppress-marker-missing-reason-outside",
         "tracked-file-gitignored",
         "tracked-file-gitignored-outside",
+        "type-name-reserved",
+        "type-name-reserved-outside",
         "type-relation-forbidden",
         "type-relation-forbidden-outside",
         "type-strict-misplaced",

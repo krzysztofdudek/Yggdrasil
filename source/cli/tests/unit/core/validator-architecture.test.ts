@@ -157,8 +157,8 @@ describe('checkArchitectureParentCycles', () => {
     const graph = createGraph({
       architecture: {
         node_types: {
-          module: { description: 'Mod', parents: ['module', 'root'] },
-          root: { description: 'Root' },
+          module: { description: 'Mod', parents: ['module', 'top'] },
+          top: { description: 'Top' },
         },
       },
     });
@@ -237,6 +237,24 @@ describe('parents: the top level (root)', () => {
     const codes = (await validate(graph)).issues.map((i) => i.code);
     expect(codes).not.toContain('parent-type-forbidden');
     expect(codes).not.toContain('type-unknown-parent');
+  });
+
+  it('an empty parents: list places a node anywhere, the top level included, like no list', async () => {
+    const codes = (await validate(topLevel([]))).issues.map((i) => i.code);
+    expect(codes).not.toContain('parent-type-forbidden');
+  });
+
+  it('refuses a node type named root, the reserved top-level entry', async () => {
+    const graph = createGraph({
+      architecture: {
+        node_types: {
+          root: { description: 'Root' },
+          child: { description: 'Child', parents: ['root'] },
+        },
+      },
+    });
+    const issue = (await validate(graph)).issues.find((i) => i.code === 'type-name-reserved');
+    expect(issue?.severity).toBe('error');
   });
 
   it('a self-loop with root among its parents is placeable: no architecture-cycle, and root is no unknown parent', async () => {

@@ -132,3 +132,5 @@ The effective-nowhere linter now runs before the orphan check so its findings ca
 A configuration, architecture, component or rule file that does not parse now hands the report the file to correct as data, with the parser's own instruction as the words for the configuration, instead of leaving the report to find the file in the sentence.
 ## [2026-09-27T04:43:53.166Z]
 Each flow the loader could not load is reported as a blocking yaml-invalid finding naming its yg-flow.yaml, the same code a yg-node.yaml that fails is reported under, so the problem that used to stop every command is now a finding in the report that points at the file to fix while the rest of the graph is still checked.
+## [2026-09-27T08:36:56.976Z]
+A node type named root is an architecture-level fatal error like an unknown parent: the parents hierarchy cannot be read while root means both a type and the top level.

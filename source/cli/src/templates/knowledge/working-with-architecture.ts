@@ -31,14 +31,14 @@ Two kinds of types coexist:
 
 \`parents:\` defines where a node of the type may sit in the model tree:
 
-- **No \`parents:\`** — anywhere, the top level of \`model/\` included. There
+- **No \`parents:\`** (or \`parents: []\`) — anywhere, the top level of \`model/\` included. There
   may be many top-level nodes.
 - **\`parents: [module]\`** — only directly under a node of type \`module\`. A
   top-level node of this type is refused (\`parent-type-forbidden\`), exactly
   like one under a node of any other type.
 - **\`parents: [root, module]\`** — at the top level as well as under a
   \`module\`. \`root\` is the reserved entry for the top of the model: it names
-  no node type (never define a type called \`root\`), and it is not a step in
+  no node type (a type named \`root\` is refused: \`type-name-reserved\`), and it is not a step in
   the type's inherited chain — \`[root, module]\` inherits from \`module\` as
   \`[module]\` does.
 

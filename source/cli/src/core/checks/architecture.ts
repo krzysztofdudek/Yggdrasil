@@ -13,6 +13,28 @@ import { isGlobPattern, mappingEntryMatchesFile } from '../../utils/mapping-path
 import { toPosixPath } from '../../utils/posix.js';
 import { getChildMappingExclusions } from '../pairs.js';
 
+/**
+ * A node type may not be named ROOT_PARENT: in a `parents:` list that name
+ * stands for the top of the model, so a type called `root` would be both a
+ * parent type and the top level at once — a child listing it would sit at the
+ * top and silently stop inheriting that type's rules.
+ */
+export function checkTypeNameReserved(graph: Graph): ValidationIssue[] {
+  if (!Object.hasOwn(graph.architecture.node_types, ROOT_PARENT)) return [];
+  const msgData: IssueMessage = {
+    what: `Architecture type '${ROOT_PARENT}' uses a reserved name.`,
+    why: `In a parents: list '${ROOT_PARENT}' stands for the top level of the model, never for a type — a child listing it would not inherit this type's rules.`,
+    next: `Rename the type '${ROOT_PARENT}' in yg-architecture.yaml, and the type: of every node that declares it — an architecture change, so ask the user to approve it first.`,
+  };
+  return [{
+    severity: 'error',
+    code: 'type-name-reserved',
+    rule: 'type-name-reserved',
+    ...issueMsg(msgData),
+    messageData: msgData,
+  }];
+}
+
 export function checkTypeUnknownParent(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const knownTypes = new Set(Object.keys(graph.architecture.node_types));
@@ -502,7 +524,9 @@ export function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 
   for (const [nodePath, node] of graph.nodes) {
     const typeConfig = graph.architecture.node_types[node.meta.type];
-    if (!typeConfig?.parents) continue;
+    // An empty parents: list means what no list means — anywhere — as the
+    // parser and the cycle check read it.
+    if (!typeConfig?.parents || typeConfig.parents.length === 0) continue;
 
     // A top-level node: its type must name the top level among its parents.
     if (!node.parent) {
@@ -510,7 +534,7 @@ export function checkArchitectureParents(graph: Graph): ValidationIssue[] {
       const msgData: IssueMessage = {
         what: `Node '${node.path}' (type '${node.meta.type}') sits at the top level of the model, but its type may sit only under [${typeConfig.parents.join(', ')}].`,
         why: `A type's parents: list every place a node of that type may sit; the top level is one of them only when the list names '${ROOT_PARENT}'.`,
-        next: `Either move this node under a node of an allowed parent type, change this node's type, or add '${ROOT_PARENT}' to '${node.meta.type}.parents' in yg-architecture.yaml (the user's decision).`,
+        next: `Either move this node under a node of an allowed parent type, change this node's type, or add '${ROOT_PARENT}' to '${node.meta.type}.parents' in yg-architecture.yaml — an architecture change, so ask the user to approve it first.`,
       };
       issues.push({
         severity: 'error',
