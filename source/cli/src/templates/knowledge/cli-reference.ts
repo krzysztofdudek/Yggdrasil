@@ -511,8 +511,10 @@ refused by name, so a confusion between \`--file\` and \`--files\` is never sile
   one non-strict architecture type. Graph-ATTACHED, to the file's type.
 - \`--files <paths...>\` — an ad-hoc list with NO graph attachment at all
   (script rules only): no node mapping, no architecture
-  classification, no \`ctx.node\` / \`ctx.graph\`. For testing before the aspect
-  is wired into the graph.
+  classification, no \`ctx.node\` / \`ctx.graph\`. The check gets the same
+  \`ctx\` as a drill (\`ctx.files\`, \`ctx.subject\`, \`ctx.config\`); one that
+  reads graph context is reported as needing \`--node\`, not as a bug. For
+  testing before the aspect is wired into the graph.
 
 \`\`\`bash
 # Script rule: run check.mjs against a node or ad-hoc files

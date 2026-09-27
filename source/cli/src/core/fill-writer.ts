@@ -39,6 +39,7 @@ import { count } from '../utils/count.js';
 // orchestrator hands a writer to can name it without depending on the orchestrator's
 // modules; re-exported for this module's callers.
 import type { VerdictWriter, VerdictEventExtra } from './fill-shared.js';
+import { DEFAULT_RETRY } from './fill-shared.js';
 export type { VerdictWriter, VerdictEventExtra };
 
 /**
@@ -84,8 +85,11 @@ export function createVerdictWriter(params: {
    * the run can say "K of N saved" before the signal takes the process down.
    */
   onInterrupted?: (saved: number, flushed: boolean) => void;
+  /** The command the run was invoked as, for the "then re-run" line of a failed write. */
+  retry?: string;
 }): VerdictWriter {
   const { graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha, exclusion, onInterrupted } = params;
+  const retry = params.retry ?? DEFAULT_RETRY;
 
   // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
   // reads it back). One line per (aspect, unit) disposition — a real verdict
@@ -213,7 +217,7 @@ export function createVerdictWriter(params: {
     return new LockEnvironmentError('lock-write-failed', {
       what: `The verdict lock could not be written: ${detail}${unsaved > 0 ? ` — ${count(unsaved, 'verdict')} from this run ${unsaved === 1 ? 'was' : 'were'} not saved.` : ''}`,
       why: 'The file system refused the write even after retrying — a permission on .yggdrasil/, a full disk, or a lock file held open by another program. This is a problem in the environment, not in the code or the lock\'s content; every verdict written before the failure is kept.',
-      next: 'Fix the cause above (check write permission on .yggdrasil/ and free disk space), then re-run: yg check --approve — the verdicts that were not saved are filled again.',
+      next: `Fix the cause above (check write permission on .yggdrasil/ and free disk space), then re-run: ${retry} — the verdicts that were not saved are filled again.`,
     });
   };
 
@@ -355,8 +359,8 @@ export interface FillExclusion {
  * a final best-effort flush on every exit path, including an error — and only
  * then lets the lock go.
  */
-export function acquireFillExclusion(yggRootPath: string, nowMs: number): FillExclusion {
-  const releaseLock = acquireApproveLock(yggRootPath, nowMs);
+export function acquireFillExclusion(yggRootPath: string, nowMs: number, retry: string = DEFAULT_RETRY): FillExclusion {
+  const releaseLock = acquireApproveLock(yggRootPath, nowMs, retry);
   let writer: VerdictWriter | undefined;
   return {
     bind: (w) => { writer = w; },

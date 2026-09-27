@@ -24,10 +24,13 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
   type-covered file (\`coverage.type_level\`, no node of its own) gets
   everything except \`graph\`/\`node\` — see "Rules on a type-covered file" below.
 - The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
-  check only \`ctx.files\`. A check that reads any graph-context accessor —
-  \`ctx.node\`, \`ctx.subject\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`, \`ctx.parseYaml\`,
-  \`ctx.parseJson\`, or \`ctx.parseToml\` — cannot run there; \`yg drill\` reports that as an
-  unsupported-capability gap (exit 0), not a check failure.
+  check one and the same \`ctx\` in both: \`ctx.files\` and \`ctx.subject\` (the given
+  files) and \`ctx.config\` (the rule's settings). A check that reads any other
+  graph-context accessor — \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`,
+  \`ctx.parseYaml\`, \`ctx.parseJson\`, or \`ctx.parseToml\` — cannot run there, and is
+  reported as needing a graph-attached run, never as a bug in the check: \`yg drill\`
+  records the case as an unsupported-capability gap (exit 0), and
+  \`yg aspect-test --files\` names \`yg aspect-test --node\` instead.
 
 **Plain \`yg check\` never executes a script rule** — it validates the entry
 by hashing, exactly like a reviewer entry; its cost is hashing only. It executes no

@@ -94,7 +94,7 @@ describe('suppress: non-AST languages (raw-line text scan)', () => {
 
   it('a marker with no reason in a non-AST file still throws', () => {
     const code = `-- yg-suppress(no-select-star)\nSELECT * FROM t;`;
-    expect(() => collectSuppressions(undefined, 'q.sql', 2, code)).toThrow(SuppressMarkerError);
+    expect(() => isLineSuppressed(collectSuppressions(undefined, 'q.sql', 2, code), 'no-select-star', 2)).toThrow(SuppressMarkerError);
   });
 });
 
@@ -109,7 +109,7 @@ describe('suppress: single-line form', () => {
   it('rejects empty reason', async () => {
     const code = `// yg-suppress(async-fs)\nfs.readFileSync('a');`;
     await withParsedFile('x.ts', code, (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'async-fs', 2)).toThrow(SuppressMarkerError);
     });
   });
 
@@ -162,7 +162,7 @@ describe('suppress: bracket form', () => {
   it('empty reason on disable rejected', async () => {
     const code = `// yg-suppress-disable(async-fs)\nfs.readFileSync('a');`;
     await withParsedFile('x.ts', code, (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'async-fs', 2)).toThrow(SuppressMarkerError);
     });
   });
 
@@ -346,13 +346,13 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
     // carrying NO justification passed the non-empty-reason gate. Markdown has no
     // grammar, so this is the raw-scan honoring path (tree undefined + content).
     const content = '<!-- yg-suppress(my-aspect) --!>\nline\n';
-    expect(() => collectSuppressions(undefined, 'x.md', 3, content)).toThrow(SuppressMarkerError);
+    expect(() => isLineSuppressed(collectSuppressions(undefined, 'x.md', 3, content), 'my-aspect', 2)).toThrow(SuppressMarkerError);
   });
 
   it("'/* yg-suppress(my-aspect) */' → reason is EMPTY after closer-stripping → SuppressMarkerError", async () => {
     const code = `/* yg-suppress(my-aspect) */\nconst x = 1;`;
     await withParsedFile('x.ts', code, (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'my-aspect', 2)).toThrow(SuppressMarkerError);
     });
   });
 
@@ -369,7 +369,7 @@ describe('suppress: trailing block-comment closers are comment syntax, not reaso
   it("disable form: '/* yg-suppress-disable(my-aspect) */' → reason empty after closer-stripping → SuppressMarkerError", async () => {
     const code = `/* yg-suppress-disable(my-aspect) */\nconst x = 1;`;
     await withParsedFile('x.ts', code, (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'my-aspect', 2)).toThrow(SuppressMarkerError);
     });
   });
 });
@@ -943,5 +943,29 @@ describe('suppress: a marker trailing code waives its OWN line', () => {
     const markers = await withParsedFile('a.ts', code, (tree) => scanSuppressionMarkersInComments(tree, 'a.ts', code));
     expect(markers).toHaveLength(1);
     expect(markers[0]).toMatchObject({ line: 2, kind: 'single', trailing: true });
+  });
+});
+
+describe('suppress: a reasonless marker fails only what it would have waived', () => {
+  it('throws only for a violation of an aspect it names, on a line in its range', async () => {
+    const code = `fs.readFileSync('a');\n// yg-suppress(async-fs)\nfs.readFileSync('b');\nfs.readFileSync('c');`;
+    const ranges = await collectFromSource('x.ts', code, 4);
+    expect(() => isLineSuppressed(ranges, 'async-fs', 3)).toThrow(SuppressMarkerError);
+    expect(isLineSuppressed(ranges, 'async-fs', 1)).toBe(false);
+    expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(false);
+    expect(isLineSuppressed(ranges, 'other-rule', 3)).toBe(false);
+  });
+
+  it('keeps a reasoned marker working beside it', async () => {
+    const code = `// yg-suppress(zzz)\nx();\n// yg-suppress(async-fs) refactor planned\nfs.readFileSync('a');`;
+    const ranges = await collectFromSource('x.ts', code, 4);
+    expect(isLineSuppressed(ranges, 'async-fs', 4)).toBe(true);
+  });
+
+  it('fails a reviewer prompt only for an aspect it names', async () => {
+    const code = `// yg-suppress-disable(zzz)\nx();`;
+    const ranges = await collectFromSource('x.ts', code, 2);
+    expect(formatSuppressedRangesForAspect(ranges, 'async-fs')).toEqual([]);
+    expect(() => formatSuppressedRangesForAspect(ranges, 'zzz')).toThrow(SuppressMarkerError);
   });
 });

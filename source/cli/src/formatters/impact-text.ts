@@ -94,7 +94,7 @@ export function renderAspectImpact(impact: AspectImpact): string {
 
 /** The whole answer to `yg impact --flow`. */
 export function renderFlowImpact(impact: FlowImpact): string {
-  const { flowName, participants, chains, flowAspects, declaredParticipants } = impact;
+  const { flowName, participants, chains, flowAspects } = impact;
   let out = '';
   out += `Impact of changes in flow ${flowName}:\n\n`;
   out += 'Participants:\n';
@@ -110,7 +110,7 @@ export function renderFlowImpact(impact: FlowImpact): string {
   out += `\nFlow aspects: ${flowAspects.length > 0 ? flowAspects.join(', ') : '(none)'}\n`;
   const total = participants.length + impact.indirectPaths.length;
   out += `\nBlast radius: ${count(total, 'node')}\n`;
-  out += `  All ${declaredParticipants} ${plural(declaredParticipants, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`;
+  out += `  All ${participants.length} ${plural(participants.length, 'participant')} would become unverified if this flow's aspect or participant set changes — re-verified by yg check --approve.\n`;
   if (total >= 10) {
     out += `  High blast radius — review flow compliance in participants before modifying.\n`;
   }
@@ -155,19 +155,25 @@ export function renderTypeVerdictImpact(impact: TypeVerdictImpact): string {
   return out;
 }
 
-/** The files a strict type's `when` matches outside a node of that type. */
+/** The files a type's `when` matches outside a node of that type, as `enforce: strict` sees them. */
 export function renderStrictCoverageGap(typeId: string, gap: StrictCoverageGap): string {
-  const { orphans, misplaced } = gap;
-  if (orphans.length === 0 && misplaced.length === 0) {
-    return `\nStrict coverage gap (0 files): None — all files satisfying when are in ${typeId}-type nodes.\n`;
+  const { orphans, misplaced, conflicts } = gap;
+  const heading = gap.preview ? 'Strict coverage gap — preview, if enforce: strict were set' : 'Strict coverage gap';
+  if (orphans.length === 0 && misplaced.length === 0 && conflicts.length === 0) {
+    return `\n${heading} (0 files): None — all files satisfying when are in ${typeId}-type nodes.\n`;
   }
-  let out = `\nStrict coverage gap:\n`;
+  let out = `\n${heading}:\n`;
   out += `  Orphans (matching files not in any mapping): ${orphans.length}\n`;
   for (const p of orphans.slice(0, 10)) out += `    ${toPosixPath(p)}\n`;
   if (orphans.length > 10) out += `    ... (${orphans.length - 10} more)\n`;
   out += `  Misplaced (in wrong-type node mapping): ${misplaced.length}\n`;
   for (const m of misplaced.slice(0, 10)) out += `    ${toPosixPath(m.file)} → ${toPosixPath(m.owner)} (type: ${m.ownerType})\n`;
   if (misplaced.length > 10) out += `    ... (${misplaced.length - 10} more)\n`;
+  if (conflicts.length > 0) {
+    out += `  Conflicting (also matched by another strict type): ${conflicts.length}\n`;
+    for (const c of conflicts.slice(0, 10)) out += `    ${toPosixPath(c.file)} (also: ${c.types.join(', ')})\n`;
+    if (conflicts.length > 10) out += `    ... (${conflicts.length - 10} more)\n`;
+  }
   return out;
 }
 

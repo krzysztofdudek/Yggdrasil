@@ -579,6 +579,9 @@ async function runAdHocFiles(
       aspectId: aspect.id,
       files: filePaths.map((f) => ({ path: f })),
       projectRoot,
+      // The rule's settings, as a drill hands them: a rule parameterized
+      // through ctx.config runs here as it does in the gate.
+      ...(aspect.config !== undefined && { config: aspect.config }),
     });
   const result = await runOnce();
   if (checkDeterminism) {

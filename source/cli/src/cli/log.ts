@@ -306,10 +306,21 @@ export function registerLogCommand(program: Command): void {
               : `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
           ),
         );
+        // A merge that brought the other side's code into the component owes
+        // an entry of its own, and only whoever merged knows why: the entry
+        // comes first, so the merge (or the commit after it) carries it.
+        const owed = result.entryOwed === true
+          ? `yg log add --node ${result.nodePath} --reason '<why these changes were merged — ask the user>'`
+          : undefined;
         if (result.wroteUnion === true) {
           const op = result.inProgress ?? 'merge';
-          writeOut(`${next(`git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json`)}\n`);
-          writeOut(`${thenStep(`${OPERATION_COMMANDS[op].finish}, then yg check`)}\n`);
+          const stage = `git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json`;
+          const finish = `${OPERATION_COMMANDS[op].finish}, then yg check${owed !== undefined ? ' --approve' : ''}`;
+          writeOut(`${next(owed ?? stage)}\n`);
+          writeOut(`${thenStep(owed !== undefined ? `${stage}, ${finish}` : finish)}\n`);
+        } else if (owed !== undefined) {
+          writeOut(`${next(owed)}\n`);
+          writeOut(`${thenStep('yg check --approve')}\n`);
         }
       } catch (error) {
         handleError(error);

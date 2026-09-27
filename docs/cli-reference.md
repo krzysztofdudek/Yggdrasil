@@ -200,8 +200,13 @@ yg impact --type <id>
 - `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects script-rule checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. A companion-backed pair with no lock entry yet is likewise marked as one that *may* observe the file — its `companion.mjs` is not run, since `yg impact` executes no repository code. The three ownerless outcomes above — the `.yggdrasil/` graph-file redirect, the excluded-by-design report, and the graduation preview for a type-covered file — all exit 0; only a file with no coverage at all (not mapped, not referenced, not observed) is an error.
 - `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations. On a type-covered project, the cost line also counts type-covered files (no owning node) — named separately, since "Directly affected" itself only lists components.
 - `--flow` — All participants and their descendants, plus structural dependents of participants
-- `--type <id>` — All nodes of that architecture type and their source files. Useful
-  before adding a default aspect to a type — see how many nodes would be affected.
+- `--type <id>` — All nodes of that architecture type and their mapping entries, the
+  files the type enforces with no owning node, and — for a type with `when` — its strict
+  coverage gap: the files `enforce: strict` reports as orphans (in no mapping),
+  misplaced (in another type's node) or conflicting (matched by another strict type too),
+  computed by the same scan `yg check` runs. Before the flag is set the gap is labelled
+  a preview of what setting it would report. Useful before adding a default aspect to a
+  type (see how many nodes would be affected) and before setting `enforce: strict`.
 
 Exactly one of `--node`, `--file`, `--aspect`, `--flow`, or `--type` is required.
 
@@ -909,6 +914,12 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     `git merge-file --union` and `merge=union` join the sides without sorting, so put
     interleaved entries in date order first.
 
+  When the merge brought the other side's code into a `log_required` component, the
+  merged source is a change no entry has commented on, so the merge owes one entry of
+  its own — the reason for the merge, which only whoever merged knows. merge-resolve
+  then prints `next: yg log add --node <path> …` and `then:` staging, finishing the
+  operation and `yg check --approve`. A merge that changed only the log owes nothing.
+
   Never hand-stitch conflict markers out of a log — let merge-resolve write the union.
 
 ---
@@ -1457,8 +1468,11 @@ yg suppressions
 It emits non-blocking warnings so accumulated waivers stay auditable:
 
 - **No reason** — the marker carries no reason after its closing parenthesis. It
-  waives nothing: the first time the check flags a line in its range, the fill
-  rejects the marker and leaves the pair unverified. `yg check` raises the same
+  waives nothing, and fails only what it would have waived: the first time a
+  script rule it names flags a line in its range, the fill rejects the marker
+  and leaves that pair unverified, and a reviewer pair of a rule it names cannot
+  be reviewed (its range is undefined) and stays unverified. Every other rule of
+  the file is judged as if the marker were not there. `yg check` raises the same
   warning (`suppress-marker-missing-reason`) for a marker in a mapped source, so
   it surfaces when it is written rather than when it first matters.
 
@@ -1752,7 +1766,10 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   (the refusal names which). Mutually exclusive with `--node` and `--files`.
 - `--files <paths...>` — Run against an explicit file list with **no graph attachment at all**
   (script rules only) — no node mapping, no architecture classification, no `ctx.node` /
-  `ctx.graph`. Useful for ad-hoc testing before wiring the aspect into the graph. Do not confuse with
+  `ctx.graph`. The check gets the same `ctx` as a drill: `ctx.files` and `ctx.subject` (the
+  given files) and `ctx.config` (the rule's settings); a check that reads graph context is
+  reported as needing `--node`, not as a bug in the check. Useful for ad-hoc testing before
+  wiring the aspect into the graph. Do not confuse with
   `--file` (singular): that one *is* graph-attached, to a file's architecture type.
 - `--check-determinism` — (script rules) Runs the check twice and exits 1 if the violation
   sets differ (lexically sorted), catching side effects and machine-dependence in `check.mjs`.
@@ -2413,7 +2430,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-violation-enforced` (heads as `refused`) | error · a warning outside your change | A valid refused verdict on an enforced pair — cached and final for unchanged inputs. | Fix the code, sharpen the rule (re-verifies every node using it), or a yg-suppress with the user's approval. |
 | `aspect-violation-advisory` (heads as `refused`) | warning | A valid refused verdict on an advisory pair — reported, never blocks. | Fix the code, or sharpen the rule. |
 | `prompt-too-large` | error · a warning outside your change | The assembled reviewer prompt exceeds the resolved tier's max_prompt_chars — an error at any status. Takes precedence over unverified; --approve skips the pair. | Split the node or the rule, narrow the rule's scope, or raise max_prompt_chars for the tier. |
-| `suppress-marker-missing-reason` | warning | A yg-suppress marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. | Add the reason (the user approves it), or remove the marker. |
+| `suppress-marker-missing-reason` | warning | A yg-suppress marker in a mapped source has no reason. It waives nothing, and fails only what it would have waived: the first violation of a rule it names in its range makes the fill reject it and leave that pair unverified, and a reviewer pair of a rule it names stays unverified. Other rules are unaffected. | Add the reason (the user approves it), or remove the marker. |
 
 ### Relation conformance {#codes-relations}
 

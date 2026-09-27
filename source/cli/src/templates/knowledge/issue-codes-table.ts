@@ -164,7 +164,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`aspect-violation-enforced\` (heads as \`refused\`) | error · a warning outside your change | A valid refused verdict on an enforced pair — cached and final for unchanged inputs. | Fix the code, sharpen the rule (re-verifies every node using it), or a yg-suppress with the user's approval. |
 | \`aspect-violation-advisory\` (heads as \`refused\`) | warning | A valid refused verdict on an advisory pair — reported, never blocks. | Fix the code, or sharpen the rule. |
 | \`prompt-too-large\` | error · a warning outside your change | The assembled reviewer prompt exceeds the resolved tier's max_prompt_chars — an error at any status. Takes precedence over unverified; --approve skips the pair. | Split the node or the rule, narrow the rule's scope, or raise max_prompt_chars for the tier. |
-| \`suppress-marker-missing-reason\` | warning | A yg-suppress marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. | Add the reason (the user approves it), or remove the marker. |
+| \`suppress-marker-missing-reason\` | warning | A yg-suppress marker in a mapped source has no reason. It waives nothing, and fails only what it would have waived: the first violation of a rule it names in its range makes the fill reject it and leave that pair unverified, and a reviewer pair of a rule it names stays unverified. Other rules are unaffected. | Add the reason (the user approves it), or remove the marker. |
 
 ### Relation conformance
 

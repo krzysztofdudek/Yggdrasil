@@ -161,7 +161,7 @@ function drillBudgetLine(
 // in the CLI's one grammar — never a finished sentence of the engine's own.
 function drillUnsupportedGraphCtxLine(aspectId: string): IssueMessage {
   return {
-    what: `unsupported: check '${aspectId}' reads graph context (node/subject/graph/fs/parseAst/parseYaml/parseJson/parseToml).`,
+    what: `unsupported: check '${aspectId}' reads graph context (node/graph/fs/parseAst/parseYaml/parseJson/parseToml).`,
     why: 'yg drill runs check.mjs over case files only, so a check that reads the graph cannot be exercised here; the case is recorded, not scored.',
     next: `yg aspect-test --aspect ${aspectId} --node <a node it applies to>`,
   };

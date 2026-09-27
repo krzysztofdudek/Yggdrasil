@@ -17,7 +17,7 @@ import { readTextFile, writeTextFile, statKind } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
-import { computeLogBaselineFromContent } from './log-gate.js';
+import { computeLogBaselineFromContent, computeLogGateState, logGateStateBlocks } from './log-gate.js';
 import { validateAppendOnly } from '../log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from '../log-format.js';
 
@@ -45,7 +45,12 @@ export type LogMergeResolveResult =
    *  (to be staged and carried on with the rest of that operation).
    *  `inProgress`: which operation that was, so the caller can name the command
    *  that finishes it. */
-  | { ok: true; nodePath: string; wroteUnion?: boolean; inProgress?: InProgressOperation }
+  /** `entryOwed`: the merge left the component's own source as no recorded
+   *  closure saw it (it combined the two sides' changes), so the merged code
+   *  owes a log entry of its own — the reason for the merge — before
+   *  `yg check` is green. Absent when the merge changed only the log, or the
+   *  component's type does not opt into the log requirement. */
+  | { ok: true; nodePath: string; wroteUnion?: boolean; inProgress?: InProgressOperation; entryOwed?: boolean }
   | { ok: false; error: CodedIssueMessage };
 
 /** How each in-progress operation is finished and abandoned — for messages. */
@@ -364,16 +369,17 @@ function verifyReplayResolution(
  * Read-modify-write through the lock store: only the `log` field of this node
  * is touched; every other verdict and node fact survives untouched.
  */
-async function recordBaseline(yggRoot: string, nodePath: string, currentLog: string): Promise<IssueMessage | null> {
+async function recordBaseline(graph: Graph, nodePath: string, currentLog: string): Promise<{ error: IssueMessage | null; entryOwed: boolean }> {
+  const yggRoot = graph.rootPath;
   const baseline = computeLogBaselineFromContent(currentLog);
-  if (!baseline) return null;
+  if (!baseline) return { error: null, entryOwed: false };
   let lock;
   try {
     lock = readLock(yggRoot);
   } catch (err) {
     if (err instanceof LockInvalidError) {
       debugWrite(`[log-merge-resolve] readLock returned an invalid lock for node ${nodePath}: ${err.message}`);
-      return err.messageData;
+      return { error: err.messageData, entryOwed: false };
     }
     throw err;
   }
@@ -383,7 +389,17 @@ async function recordBaseline(yggRoot: string, nodePath: string, currentLog: str
   // Only the `nodes` section changed — write just the logs file (no verdict
   // partition, so no deterministicAspectIds needed).
   await writeLock(yggRoot, lock, { scope: 'logs' });
-  return null;
+  // The baseline now covers every entry of the union, so an entry is owed
+  // exactly when the component's own source differs from the one its recorded
+  // closure saw: a merge that brought the other side's code in changed it, and
+  // that change has no entry of its own yet. A merge that changed only the log
+  // leaves the source as the closure saw it and owes nothing. Asked of the one
+  // rule `yg check` applies, so what this reports is what the check will say.
+  // An unreadable mapped file is its own blocking error, fixed by reading the
+  // file, not by writing an entry.
+  const node = graph.nodes.get(nodePath);
+  const state = node === undefined ? undefined : await computeLogGateState(graph, path.dirname(yggRoot), node, lock);
+  return { error: null, entryOwed: state !== undefined && state.unreadable === undefined && logGateStateBlocks(state) };
 }
 
 export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogMergeResolveResult> {
@@ -493,7 +509,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  if (replay !== null) return resolveReplay({ yggRoot, repoRoot, nodePath, logPath, gitLogPath, currentLog, conflicted, replay });
+  if (replay !== null) return resolveReplay({ graph, repoRoot, nodePath, logPath, gitLogPath, currentLog, conflicted, replay });
 
   let baseLog: string | null;
   let parent1Log: string;
@@ -573,10 +589,10 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   const bad = verifyUnion(currentLog, shared);
   if (bad !== null) return { ok: false, error: bad };
 
-  const lockError = await recordBaseline(yggRoot, nodePath, currentLog);
-  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'lock-invalid' } };
+  const recorded = await recordBaseline(graph, nodePath, currentLog);
+  if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
 
-  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}) };
+  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
 
 /**
@@ -585,7 +601,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
  * log is conflicted, verified either way, and recorded as the baseline.
  */
 async function resolveReplay(args: {
-  yggRoot: string;
+  graph: Graph;
   repoRoot: string;
   nodePath: string;
   logPath: string;
@@ -594,7 +610,7 @@ async function resolveReplay(args: {
   conflicted: boolean;
   replay: { kind: 'rebase' | 'cherry-pick'; commit: string };
 }): Promise<LogMergeResolveResult> {
-  const { yggRoot, repoRoot, nodePath, logPath, gitLogPath, conflicted, replay } = args;
+  const { graph, repoRoot, nodePath, logPath, gitLogPath, conflicted, replay } = args;
   let currentLog = args.currentLog;
   const { abort } = OPERATION_COMMANDS[replay.kind];
   let oursLog: string;
@@ -642,9 +658,9 @@ async function resolveReplay(args: {
   const bad = verifyReplayResolution(currentLog, oursLog, added, replay);
   if (bad !== null) return { ok: false, error: bad };
 
-  const lockError = await recordBaseline(yggRoot, nodePath, currentLog);
-  if (lockError !== null) return { ok: false, error: { ...lockError, code: 'lock-invalid' } };
-  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind };
+  const recorded = await recordBaseline(graph, nodePath, currentLog);
+  if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
 
 /**

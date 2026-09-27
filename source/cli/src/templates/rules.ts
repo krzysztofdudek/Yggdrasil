@@ -340,7 +340,10 @@ stopped on the conflict (it writes the union) or from the merge commit. The
 tool keeps the entries both sides start with byte-exact and the union of
 every entry after them — it cannot silently drop or fabricate entries. Do NOT manually concatenate the two
 log histories — integrity hashes will break and \`yg check\` will fail. Until the
-log is reconciled, \`yg check --approve\` refuses to run (\`log-conflict\`).
+log is reconciled, \`yg check --approve\` refuses to run (\`log-conflict\`). A merge
+that combined both sides' code in a component changed its source, so that
+component owes an entry for the merge (merge-resolve's \`next:\` says so) — ask
+the user why they merged; a merge that changed only the log owes nothing.
 
 Deep dive (full format constraints, Supersedes convention, typo recovery,
 the revert recipe, merge-resolve mechanics, large-log delegation):

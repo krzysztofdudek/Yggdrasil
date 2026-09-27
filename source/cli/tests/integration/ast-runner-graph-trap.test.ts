@@ -1,14 +1,12 @@
-// The graph-access sentinel trap on runAstAspect (yg drill's deterministic path).
+// The graph-access sentinel trap on runAstAspect — the one ctx every graphless
+// run hands a check (yg drill over its case files, yg aspect-test --files over
+// the given files).
 //
-// Real temp fixtures, no mocking. A check.mjs that reads ctx.node behaves
-// differently under the trap:
-//   - graphAccessTrap: true  → AST_GRAPH_CTX_UNSUPPORTED (a capability gap → drill
-//     records the case as `unsupported`, not scored).
-//   - graphAccessTrap: false / unset → AST_CHECK_THROWN (today's behavior — the
-//     REGRESSION PIN: production paths never set the flag, so ctx stays { files }
-//     and dereferencing the absent ctx.node throws a TypeError that wraps as
-//     AST_CHECK_THROWN, exactly as before the flag existed).
-// A files-only check is unaffected either way.
+// Real temp fixtures, no mocking. A check.mjs that reads ctx.node gets
+// AST_GRAPH_CTX_UNSUPPORTED (a capability gap: a drill records the case as
+// `unsupported`, not scored; aspect-test --files names the graph-aware run),
+// never AST_CHECK_THROWN, which would blame a correct check. A files-only check
+// is unaffected, and ctx.subject / ctx.config are always supplied.
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
@@ -38,37 +36,19 @@ describe('ast runner — graph-access sentinel trap', () => {
   // not throw under no-trap since undefined is a legal value).
   const GRAPH_CHECK = `export function check(ctx) { return [{ file: ctx.node.type, line: 1, column: 0, message: 'x' }]; }`;
 
-  it('graphAccessTrap: true → AST_GRAPH_CTX_UNSUPPORTED when the check reads ctx.node', async () => {
+  it('AST_GRAPH_CTX_UNSUPPORTED when the check reads ctx.node — never AST_CHECK_THROWN', async () => {
     const { projectRoot, aspectDir, file } = stage(GRAPH_CHECK);
     await expect(
-      runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot, graphAccessTrap: true }),
+      runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot }),
     ).rejects.toMatchObject({ code: 'AST_GRAPH_CTX_UNSUPPORTED' });
   });
 
-  it('REGRESSION PIN: the SAME check with graphAccessTrap unset throws AST_CHECK_THROWN (today\'s behavior)', async () => {
-    const { projectRoot, aspectDir, file } = stage(GRAPH_CHECK);
-    // No graphAccessTrap → ctx is exactly { files }; ctx.node is undefined and
-    // `.type` throws a TypeError that wraps as AST_CHECK_THROWN.
-    await expect(
-      runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot }),
-    ).rejects.toMatchObject({ code: 'AST_CHECK_THROWN' });
-  });
-
-  it('REGRESSION PIN: graphAccessTrap: false is identical to unset (AST_CHECK_THROWN)', async () => {
-    const { projectRoot, aspectDir, file } = stage(GRAPH_CHECK);
-    await expect(
-      runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot, graphAccessTrap: false }),
-    ).rejects.toMatchObject({ code: 'AST_CHECK_THROWN' });
-  });
-
-  it('a files-only check is unaffected by the trap — returns its violations under either regime', async () => {
+  it('a files-only check is unaffected by the trap — returns its violations', async () => {
     const filesOnly = `export function check(ctx) { return ctx.files.map((f) => ({ file: f.path, line: 1, column: 0, message: 'seen' })); }`;
-    for (const graphAccessTrap of [true, false, undefined]) {
-      const { projectRoot, aspectDir, file } = stage(filesOnly);
-      const result = await runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot, graphAccessTrap });
-      expect(result.violations).toHaveLength(1);
-      expect(result.violations[0].message).toBe('seen');
-    }
+    const { projectRoot, aspectDir, file } = stage(filesOnly);
+    const result = await runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot });
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].message).toBe('seen');
   });
 
   it('the trap fires on every graph-context accessor a drill cannot supply, each naming its accessor', async () => {
@@ -82,12 +62,12 @@ describe('ast runner — graph-access sentinel trap', () => {
       const src = `export function check(ctx) { const _ = ctx.${accessor}; return []; }`;
       const { projectRoot, aspectDir, file } = stage(src);
       await expect(
-        runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot, graphAccessTrap: true }),
+        runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot }),
       ).rejects.toMatchObject({ code: 'AST_GRAPH_CTX_UNSUPPORTED' });
     }
   });
 
-  it('under a drill, ctx.subject is the case files and ctx.config the settings handed in', async () => {
+  it('in a graphless run, ctx.subject is the given files and ctx.config the settings handed in', async () => {
     // A rule parameterized through ctx.config — the only way a package rule is —
     // used to throw here on `ctx.config.limit` and be reported as a check bug.
     const src = `export function check(ctx) {
@@ -96,9 +76,9 @@ describe('ast runner — graph-access sentinel trap', () => {
         .map((f) => ({ file: f.path, line: 1, column: 0, message: 'over ' + ctx.config.limit }));
     }`;
     const { projectRoot, aspectDir, file } = stage(src, 'export const long = 1;\n');
-    const tight = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, graphAccessTrap: true, config: { limit: 5 } });
+    const tight = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, config: { limit: 5 } });
     expect(tight.violations.map((v) => v.message)).toEqual(['over 5']);
-    const loose = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, graphAccessTrap: true, config: { limit: 500 } });
+    const loose = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, config: { limit: 500 } });
     expect(loose.violations).toEqual([]);
   });
 

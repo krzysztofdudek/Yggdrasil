@@ -110,6 +110,7 @@ import { classifyFillPairs } from './fill-classify.js';
 import type { FillPairSets } from './fill-classify.js';
 import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
 import { acquireFillExclusion, createVerdictWriter, type FillExclusion } from './fill-writer.js';
+import { DEFAULT_RETRY, retargetRetry } from './fill-shared.js';
 import { runDryRunPreview } from './fill-dry-run.js';
 import { emitDetGateSkips, emitDispatchHeader, emitGroupedDiagnostics, interruptedEvent } from './fill-report.js';
 import { runDeterministicPhase } from './fill-det-phase.js';
@@ -133,16 +134,27 @@ export { FillGatingError, detGateKey } from './fill-contract.js';
 // ============================================================
 
 export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFillResult> {
+  const retry = opts.retryCommand ?? DEFAULT_RETRY;
   // A cost preview writes nothing, so it takes no lock and never waits on one.
-  if (opts.dryRun === true) return runFillHoldingLock(graph, opts);
+  if (opts.dryRun === true) return retargetReport(await runFillHoldingLock(graph, opts), retry);
   // One approval per repository at a time, from its lock read to its last
   // write — a second one fails fast instead of overwriting this one's verdicts.
-  const exclusion = acquireFillExclusion(graph.rootPath, opts.now());
+  const exclusion = acquireFillExclusion(graph.rootPath, opts.now(), retry);
   try {
-    return await runFillHoldingLock(graph, opts, exclusion);
+    return retargetReport(await runFillHoldingLock(graph, opts, exclusion), retry);
   } finally {
     await exclusion.release();
   }
+}
+
+/** The report a fill prints, every finding's "re-run" line naming the invoked command. */
+function retargetReport(result: RunFillResult, retry: string): RunFillResult {
+  if (retry === DEFAULT_RETRY) return result;
+  const issues = result.checkResult.issues.map((issue) => {
+    const messageData = retargetRetry(issue.messageData, retry);
+    return messageData === issue.messageData ? issue : { ...issue, messageData };
+  });
+  return { ...result, checkResult: { ...result.checkResult, issues } };
 }
 
 /** The per-run settings every step reads, resolved once from the options. */
@@ -159,21 +171,23 @@ interface FillRun {
 }
 
 function resolveFillRun(graph: Graph, opts: RunFillOptions): FillRun {
+  // The command every "then re-run" line names — the one the user actually ran,
+  // so a retry never silently drops --only-deterministic or --dry-run and turns
+  // a free run into a paid one (or into one that aborts).
+  const retry = opts.retryCommand ?? DEFAULT_RETRY;
   return {
     // Everything this run says goes out as FillEvent data. A caller that supplies
     // no event sink gets the events worded by the fill-text formatter into its
     // plain-text `write` sink — the engine itself never composes one of those
     // sentences, and writes to no stream of its own.
     emit: opts.onEvent ?? textFillSink(opts.write ?? ((): void => {})),
-    emitIssue: opts.emitIssue ?? ((): void => {}),
+    // Every message the run emits names the command it was invoked as.
+    emitIssue: (msg) => (opts.emitIssue ?? ((): void => {}))(retargetRetry(msg, retry)),
     startedAt: opts.now(),
     projectRoot: path.dirname(graph.rootPath),
     onlyDeterministic: opts.onlyDeterministic ?? false,
     dryRun: opts.dryRun ?? false,
-    // The command every "then re-run" line names — the one the user actually ran,
-    // so a retry never silently drops --only-deterministic or --dry-run and turns
-    // a free run into a paid one (or into one that aborts).
-    retry: opts.retryCommand ?? 'yg check --approve',
+    retry,
     reviewerConfigured: graph.config.reviewer !== undefined,
   };
 }
@@ -223,7 +237,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     // to the writer: when ON, LLM verification-fill events graduate to the committed
     // shared stream; every other event stays in the local sidecar.
     committedLlm: graph.config.events?.committed_llm === true,
-    deterministicAspectIds: classification.deterministicAspectIds, sha: opts.sha, exclusion,
+    deterministicAspectIds: classification.deterministicAspectIds, sha: opts.sha, exclusion, retry,
     onInterrupted: (saved, flushed) => {
       if (interruptTotal === 0) return;
       emit(interruptedEvent(saved, interruptTotal, flushed, retry));

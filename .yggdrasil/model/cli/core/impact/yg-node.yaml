@@ -1,6 +1,6 @@
 name: Impact Cost
 type: engine
-description: "What yg impact answers, computed as data: which pairs an edit to a file invalidates (a cold companion pair counted as a potential invalidation, since answering never runs repository code), what re-verifying a component, a single file under it, a type-covered file given a component of its own, a rule or a type costs (pairs split into reviewer and script, reviewer calls from each rule's resolved tier consensus, currently-green verdicts re-rolled), and the blast radius of a change to a rule (every component it reaches and through which channel, their structural dependents, the flows that propagate it, what implies it and what it implies), a flow (its participants and their dependents) and a type (its components, the files it covers alone or through them, and for a strict type the matching files outside a component of that type). One enumeration of the expected pairs per question, reused wherever the same invocation needs it again. It refuses nothing and words nothing: the command decides what to refuse and the formatter words the answer."
+description: "What yg impact answers, computed as data: which pairs an edit to a file invalidates (a cold companion pair counted as a potential invalidation, since answering never runs repository code), what re-verifying a component, a single file under it, a type-covered file given a component of its own, a rule or a type costs (pairs split into reviewer and script, reviewer calls from each rule's resolved tier consensus, currently-green verdicts re-rolled), and the blast radius of a change to a rule (every component it reaches and through which channel, their structural dependents, the flows that propagate it, what implies it and what it implies), a flow (its participants and their dependents) and a type (its components, the files it covers alone or through them, and for a type that classifies files the strict coverage gap — the matching files outside a component of that type, from the same scan the check runs, as a preview while the type is not strict yet). One enumeration of the expected pairs per question, reused wherever the same invocation needs it again. It refuses nothing and words nothing: the command decides what to refuse and the formatter words the answer."
 relations:
   - target: cli/core/context
     type: calls
@@ -10,7 +10,7 @@ relations:
     type: calls
   - target: cli/io/stores
     type: calls
-  - target: cli/core/file-when-evaluator
+  - target: cli/core/checks/mapping
     type: calls
   - target: cli/core/pairs
     type: calls

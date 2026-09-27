@@ -30,3 +30,5 @@ A drill case that could not run now names its next step on a labelled next: line
 A drill case that could not be scored now carries a structured what, why and next, which the drill command renders in the one output grammar and puts in its JSON document, instead of the engine handing it a finished sentence.
 ## [2026-09-26T02:52:35.813Z]
 The corpus walk skips markdown files and files named yg-aspect.yaml, so a case filed under either name was reported as measured while nothing ever ran it. Which file names can be cases is now one exported predicate, so the command that adds a case can refuse such a file before writing anything instead of disagreeing with the runner about it.
+## [2026-09-27T06:36:29.874Z]
+The unsupported-graph-context line no longer lists the subject among what a drill cannot supply: a drill hands the case files as the subject, so a check reading it runs, and the line named a limit that does not exist.

@@ -102,14 +102,36 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
   return issues;
 }
 export function checkFileDuplicateMapping(_graph: Graph): ValidationIssue[] { return []; }
-export async function checkStrictBackwardCoverage(
+/** What the strict backward scan found for one file. */
+export type StrictBackwardFinding =
+  | { kind: 'unreadable'; file: string; typeId: string; reason: string }
+  /** Two or more strict types' `when` match the file (sorted type ids). */
+  | { kind: 'overlap'; file: string; typeIds: string[] }
+  /** The file matches `typeId` and no node maps it. */
+  | { kind: 'orphan'; file: string; typeId: string; trace: string }
+  /** The file matches `typeId` and a node of another type owns it. */
+  | { kind: 'misplaced'; file: string; typeId: string; trace: string; owner: string; ownerType: string };
+
+/**
+ * The strict backward scan: every file some type in `strictTypeIds` classifies
+ * (its `when` matches) that is not owned by a node of that type. Ownership is
+ * resolved exactly as the rest of the engine resolves it — a mapping entry of
+ * any form (file, directory, glob), the most specific owner winning — and an
+ * excluded file (a nested project's own boundary, or a coverage.excluded root)
+ * is never a candidate. `yg check` runs it over the types that declare
+ * `enforce: strict`; `yg impact --type` runs it with the type it previews
+ * added, so a preview and the check it previews cannot disagree.
+ */
+export async function scanStrictBackward(
   graph: Graph,
   cache: FileContentCache,
-): Promise<{ issues: ValidationIssue[]; unreadable: ValidationIssue[] }> {
-  const strictTypes = Object.entries(graph.architecture.node_types).filter(
-    ([, def]) => def.enforce === 'strict' && def.when !== undefined,
-  );
-  if (strictTypes.length === 0) return { issues: [], unreadable: [] };
+  strictTypeIds: readonly string[],
+): Promise<StrictBackwardFinding[]> {
+  const strictTypes = strictTypeIds.flatMap((typeId) => {
+    const when = graph.architecture.node_types[typeId]?.when;
+    return when === undefined ? [] : [[typeId, when] as const];
+  });
+  if (strictTypes.length === 0) return [];
 
   const projectRoot = path.dirname(graph.rootPath);
 
@@ -121,17 +143,7 @@ export async function checkStrictBackwardCoverage(
   // because it was never a candidate this graph considers in the first place.
   const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
   const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), exclusion);
-  const issues: ValidationIssue[] = [];
-  const unreadable: ValidationIssue[] = [];
-  // Keyed by sorted type-pair, holding the ISSUE OBJECT already pushed into
-  // `issues` for that pair (not just a seen-flag): a later file matching the
-  // same pair must not push a second issue (dedup, unchanged), but its file
-  // must still be recorded on the first issue's `relationEdges` — the
-  // structured field has to carry every matching file, not only the one the
-  // message samples. Mutating the already-pushed object in place (rather than
-  // deferring the push) keeps `issues`' push order/count/timing byte-identical
-  // to before this field existed.
-  const overlapIssueByPair = new Map<string, ValidationIssue>();
+  const findings: StrictBackwardFinding[] = [];
 
   // File→owner resolution must agree with the runtime child-precedence rule
   // (getChildMappingExclusions and the live relation-conformance owner index):
@@ -154,8 +166,8 @@ export async function checkStrictBackwardCoverage(
     const matchingTypes: Array<{ typeId: string; trace: string }> = [];
     let fileSkipped = false;
 
-    for (const [typeId, def] of strictTypes) {
-      const result = await evaluateFileWhen(def.when!, {
+    for (const [typeId, when] of strictTypes) {
+      const result = await evaluateFileWhen(when, {
         absPath,
         repoRelPath: relPath,
         projectRoot,
@@ -163,16 +175,7 @@ export async function checkStrictBackwardCoverage(
       });
 
       if (result.unreadable) {
-        unreadable.push({
-          severity: 'error',
-          code: 'file-unreadable',
-          rule: 'file-unreadable',
-          ...issueMsg({
-            what: `Validator could not read '${relPath}' during strict backward scan.\nOS error: ${result.unreadableReason ?? 'unknown'}`,
-            why: `Strict enforcement of type '${typeId}' requires reading file content. Files that cannot be opened cannot be classified.`,
-            next: `Fix file permissions, or add to .gitignore if it's a generated artifact.`,
-          }),
-        });
+        findings.push({ kind: 'unreadable', file: relPath, typeId, reason: result.unreadableReason ?? 'unknown' });
         fileSkipped = true;
         break;
       }
@@ -180,11 +183,69 @@ export async function checkStrictBackwardCoverage(
       if (result.result) matchingTypes.push({ typeId, trace: renderTraceInline(result.trace) });
     }
 
-    if (fileSkipped) continue;
+    if (fileSkipped || matchingTypes.length === 0) continue;
 
     if (matchingTypes.length > 1) {
+      // Conflict supersedes orphan/misplaced for this file.
+      findings.push({ kind: 'overlap', file: relPath, typeIds: matchingTypes.map((m) => m.typeId).sort() });
+      continue;
+    }
+
+    const { typeId, trace } = matchingTypes[0];
+    // Glob-aware owner resolution via the canonical child-precedence resolver, so
+    // a descendant node that claims this file inside a parent's glob is picked as
+    // the owner (matching the runtime subject-set), not the ancestor.
+    const ownerPath = ownerIndex.ownerOf(relPath);
+    if (ownerPath === undefined) {
+      findings.push({ kind: 'orphan', file: relPath, typeId, trace });
+      continue;
+    }
+    const ownerType = graph.nodes.get(ownerPath)!.meta.type;
+    if (ownerType !== typeId) findings.push({ kind: 'misplaced', file: relPath, typeId, trace, owner: ownerPath, ownerType });
+  }
+  return findings;
+}
+
+export async function checkStrictBackwardCoverage(
+  graph: Graph,
+  cache: FileContentCache,
+): Promise<{ issues: ValidationIssue[]; unreadable: ValidationIssue[] }> {
+  const strictTypeIds = Object.entries(graph.architecture.node_types)
+    .filter(([, def]) => def.enforce === 'strict' && def.when !== undefined)
+    .map(([typeId]) => typeId);
+  const findings = await scanStrictBackward(graph, cache, strictTypeIds);
+  const projectRoot = path.dirname(graph.rootPath);
+  const issues: ValidationIssue[] = [];
+  const unreadable: ValidationIssue[] = [];
+  // Keyed by sorted type-pair, holding the ISSUE OBJECT already pushed into
+  // `issues` for that pair (not just a seen-flag): a later file matching the
+  // same pair must not push a second issue (dedup, unchanged), but its file
+  // must still be recorded on the first issue's `relationEdges` — the
+  // structured field has to carry every matching file, not only the one the
+  // message samples. Mutating the already-pushed object in place (rather than
+  // deferring the push) keeps `issues`' push order/count/timing byte-identical
+  // to before this field existed.
+  const overlapIssueByPair = new Map<string, ValidationIssue>();
+
+  for (const finding of findings) {
+    const relPath = finding.file;
+    if (finding.kind === 'unreadable') {
+      unreadable.push({
+        severity: 'error',
+        code: 'file-unreadable',
+        rule: 'file-unreadable',
+        ...issueMsg({
+          what: `Validator could not read '${relPath}' during strict backward scan.\nOS error: ${finding.reason}`,
+          why: `Strict enforcement of type '${finding.typeId}' requires reading file content. Files that cannot be opened cannot be classified.`,
+          next: `Fix file permissions, or add to .gitignore if it's a generated artifact.`,
+        }),
+      });
+      continue;
+    }
+
+    if (finding.kind === 'overlap') {
       // Two or more strict types claim this file — conflicting architecture.
-      const sorted = matchingTypes.map((m) => m.typeId).sort();
+      const sorted = finding.typeIds;
       for (let i = 0; i < sorted.length; i++) {
         for (let j = i + 1; j < sorted.length; j++) {
           const key = `${sorted[i]}|${sorted[j]}`;
@@ -214,28 +275,18 @@ export async function checkStrictBackwardCoverage(
           issues.push(issue);
         }
       }
-      continue; // Conflict supersedes orphan/misplaced for this file.
+      continue;
     }
 
-    if (matchingTypes.length === 0) continue;
-
-    const { typeId, trace } = matchingTypes[0];
-    // Glob-aware owner resolution via the canonical child-precedence resolver, so
-    // a descendant node that claims this file inside a parent's glob is picked as
-    // the owner (matching the runtime subject-set), not the ancestor.
-    const ownerPath = ownerIndex.ownerOf(relPath);
-    const owner: { nodePath: string; nodeType: string } | undefined =
-      ownerPath !== undefined
-        ? { nodePath: ownerPath, nodeType: graph.nodes.get(ownerPath)!.meta.type }
-        : undefined;
-    if (owner === undefined) {
+    const { typeId, trace } = finding;
+    if (finding.kind === 'orphan') {
       // Type-level coverage enrichment (flag-gated): the strict scan already
       // owns this file (no ambiguous-node-type is ever raised for it — see
       // core/type-coverage.ts), but naming any OTHER type it also matches is
       // exactly the extra fact an agent needs when deciding which type this
       // file should actually become. classifyFile is re-run for this one file
-      // only (matchingTypes already proves no other STRICT type matches, or
-      // this file would have hit the overlap-conflict branch above instead).
+      // only (the scan already proved no other STRICT type matches, or this
+      // file would have been an overlap instead).
       // Deliberately NOT given a TypeClassCache: this only fires per
       // type-strict-orphan file (an unresolved-architecture-error state, not
       // the steady-state path every run pays), and the classification it
@@ -245,7 +296,7 @@ export async function checkStrictBackwardCoverage(
       // wires by default.
       let what = `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut file is not in any node's mapping.`;
       if (graph.config.coverage?.typeLevel) {
-        const classification = await classifyFile(absPath, relPath, graph, cache);
+        const classification = await classifyFile(path.join(projectRoot, relPath), relPath, graph, cache);
         const alsoMatches = classification.matches
           .filter((m) => graph.architecture.node_types[m.typeId]?.enforce !== 'strict')
           .map((m) => m.typeId);
@@ -264,19 +315,19 @@ export async function checkStrictBackwardCoverage(
         }),
         unitKey: fileUnit(relPath),
       });
-    } else if (owner.nodeType !== typeId) {
-      issues.push({
-        severity: 'error',
-        code: 'type-strict-misplaced',
-        rule: 'type-strict-misplaced',
-        nodePath: owner.nodePath,
-        ...issueMsg({
-          what: `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut is in mapping of node '${owner.nodePath}' (type: ${owner.nodeType}).`,
-          why: `Type '${typeId}' has enforce: strict — every file satisfying its when must be owned by a node of type '${typeId}'. Current owner has wrong type.`,
-          next: `Options:\n1. Move the mapping entry to a ${typeId}-type node.\n2. Refactor the file so it no longer matches ${typeId}.when.\n3. Change '${owner.nodePath}' type to '${typeId}' if conceptually correct.`,
-        }),
-      });
+      continue;
     }
+    issues.push({
+      severity: 'error',
+      code: 'type-strict-misplaced',
+      rule: 'type-strict-misplaced',
+      nodePath: finding.owner,
+      ...issueMsg({
+        what: `File '${relPath}' satisfies when of type '${typeId}' (enforce: strict):\n${trace}\nBut is in mapping of node '${finding.owner}' (type: ${finding.ownerType}).`,
+        why: `Type '${typeId}' has enforce: strict — every file satisfying its when must be owned by a node of type '${typeId}'. Current owner has wrong type.`,
+        next: `Options:\n1. Move the mapping entry to a ${typeId}-type node.\n2. Refactor the file so it no longer matches ${typeId}.when.\n3. Change '${finding.owner}' type to '${typeId}' if conceptually correct.`,
+      }),
+    });
   }
   return { issues, unreadable };
 }

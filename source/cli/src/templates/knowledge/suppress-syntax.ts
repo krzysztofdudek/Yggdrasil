@@ -241,8 +241,12 @@ it, and it blocks here the moment a change reaches it.) Resolve a relation
 refusal by declaring the relation in the node's \`yg-node.yaml\` or removing the
 dependency — never by trying to suppress it.
 
-A suppress marker (single or disable form) must carry a reason — an empty
-reason is rejected with a clear error. Beyond that, the honoring path matches
+A suppress marker (single or disable form) must carry a reason. An empty reason
+waives nothing, and fails only what the marker would have waived: a violation of
+a script rule it names on a line in its range leaves that pair unverified with a
+clear error, and a reviewer pair of a rule it names is not reviewed and stays
+unverified. Rules it does not name, and lines outside its range, are judged as if
+the marker were not there. Beyond that, the honoring path matches
 the token as a plain string against the aspect id being checked: nothing there
 validates that the id names an existing aspect, so at check time a typo simply
 suppresses nothing (the marker is inert, and no error says so). The read-only

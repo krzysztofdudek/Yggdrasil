@@ -150,7 +150,7 @@ describe('spec: a missing reason is rejected with a clear error (single + disabl
   it('single-line with NO reason throws SuppressMarkerError (code SUPPRESS_MARKER_MISSING_REASON)', async () => {
     await withParsedFile('x.ts', '// yg-suppress(some-aspect)\ncode();', (tree) => {
       let thrown: unknown;
-      try { collectSuppressions(tree, 'x.ts', 2); } catch (e) { thrown = e; }
+      try { isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'some-aspect', 2); } catch (e) { thrown = e; }
       expect(thrown).toBeInstanceOf(SuppressMarkerError);
       expect((thrown as SuppressMarkerError).code).toBe('SUPPRESS_MARKER_MISSING_REASON');
       expect((thrown as SuppressMarkerError).line).toBe(1);
@@ -159,13 +159,13 @@ describe('spec: a missing reason is rejected with a clear error (single + disabl
 
   it('disable with NO reason throws SuppressMarkerError', async () => {
     await withParsedFile('x.ts', '// yg-suppress-disable(some-aspect)\ncode();', (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'some-aspect', 2)).toThrow(SuppressMarkerError);
     });
   });
 
   it('a whitespace-only reason is treated as empty and rejected', async () => {
     await withParsedFile('x.ts', '// yg-suppress(some-aspect)    \ncode();', (tree) => {
-      expect(() => collectSuppressions(tree, 'x.ts', 2)).toThrow(SuppressMarkerError);
+      expect(() => isLineSuppressed(collectSuppressions(tree, 'x.ts', 2), 'some-aspect', 2)).toThrow(SuppressMarkerError);
     });
   });
 

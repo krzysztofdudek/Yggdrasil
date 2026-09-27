@@ -5,6 +5,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses } from '../core/graph/aspects.js';
+import { collectParticipatingFlows } from '../core/graph/flows.js';
 import {
   collectReverseDependents,
   buildTransitiveChains,
@@ -392,12 +393,11 @@ async function renderNodeImpact(graph: Graph, nodePath: string, lock: LockFile, 
   const chains = buildTransitiveChains(nodePath, direct, allDependents, reverse);
   const eventDependents = collectEventDependents(graph, nodePath);
 
-  const flows: string[] = [];
-  for (const flow of graph.flows) {
-    if (flow.nodes.includes(nodePath)) {
-      flows.push(flow.name);
-    }
-  }
+  // A flow covers its declared participants and every descendant of one, so
+  // a node is in a flow its ancestor was declared in — the same resolution
+  // `yg context` and the flow channel of aspect propagation use.
+  const node = graph.nodes.get(nodePath);
+  const flows = node === undefined ? [] : collectParticipatingFlows(graph, node).map((flow) => flow.name);
 
   const targetNodeForAspects = graph.nodes.get(nodePath)!;
   const targetEffective = computeEffectiveAspects(targetNodeForAspects, graph);

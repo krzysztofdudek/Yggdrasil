@@ -10,6 +10,15 @@ export interface SuppressedRange {
   startLine: number;   // 1-based, inclusive
   endLine: number;     // 1-based, inclusive
   isWildcard: boolean;
+  /**
+   * Set when the marker that opened this range carries no reason. Such a range
+   * waives nothing: it fails only what it would have waived — a violation of an
+   * aspect it names, on a line inside it ({@link isLineSuppressed}), or a
+   * reviewer pair of an aspect it names ({@link formatSuppressedRangesForAspect})
+   * — by throwing this error there. Any other aspect, and any line outside it,
+   * is untouched by it.
+   */
+  invalid?: SuppressMarkerError;
 }
 
 export class SuppressMarkerError extends Error {
@@ -41,6 +50,8 @@ interface ParsedMarker {
   line: number; // 1-based
   /** The marker's comment follows code on the same line (see isTrailingComment). */
   trailing: boolean;
+  /** The marker carries no reason (an enable never needs one). */
+  invalid?: SuppressMarkerError;
 }
 
 /**
@@ -183,14 +194,16 @@ function matchMarkerLine(line: string, requireDelimiter: boolean): MarkerLineMat
 function parseMarker(lineText: string, line: number, file: string, requireDelimiter: boolean, trailing = false): ParsedMarker | null {
   const m = matchMarkerLine(lineText, requireDelimiter);
   if (m === null) return null;
-  if (m.kind !== 'enable' && m.reason === '') {
-    throw new SuppressMarkerError(
+  // A reasonless marker is kept, with its fault: it still spans the lines it
+  // would waive, so the failure lands only where it would have waived.
+  const invalid = m.kind !== 'enable' && m.reason === ''
+    ? new SuppressMarkerError(
       `yg-suppress${m.kind === 'disable' ? '-disable' : ''}(${m.aspectIds.join(', ')}) missing reason at ${file}:${line}`,
       file,
       line,
-    );
-  }
-  return { kind: m.kind, aspectIds: m.aspectIds, reason: m.reason, line, trailing };
+    )
+    : undefined;
+  return { kind: m.kind, aspectIds: m.aspectIds, reason: m.reason, line, trailing, ...(invalid ? { invalid } : {}) };
 }
 
 // ── Markdown fenced-code mask (shared by BOTH raw-scan paths) ────────────────
@@ -368,8 +381,11 @@ export function collectSuppressions(
   markers.sort((a, b) => a.line - b.line);
 
   const ranges: SuppressedRange[] = [];
-  const openSpecific = new Map<string, number>();
-  let openWildcard: number | null = null;
+  // An open disable: the first line it waives, and its fault when it has no reason.
+  type Open = { start: number; invalid?: SuppressMarkerError };
+  const openSpecific = new Map<string, Open>();
+  let openWildcard: Open | null = null;
+  const fault = (invalid: SuppressMarkerError | undefined): { invalid?: SuppressMarkerError } => (invalid ? { invalid } : {});
 
   for (const m of markers) {
     // First waived line after an opening marker, last waived line before a
@@ -378,11 +394,11 @@ export function collectSuppressions(
     const before = m.trailing ? m.line : m.line - 1;
     if (m.kind === 'single') {
       const isWildcard = m.aspectIds.includes('*');
-      ranges.push({ aspectIds: new Set(m.aspectIds), startLine: after, endLine: after, isWildcard });
+      ranges.push({ aspectIds: new Set(m.aspectIds), startLine: after, endLine: after, isWildcard, ...fault(m.invalid) });
     } else if (m.kind === 'disable') {
       for (const id of m.aspectIds) {
-        if (id === '*') { if (openWildcard === null) openWildcard = after; }
-        else { if (!openSpecific.has(id)) openSpecific.set(id, after); }
+        if (id === '*') { if (openWildcard === null) openWildcard = { start: after, ...fault(m.invalid) }; }
+        else { if (!openSpecific.has(id)) openSpecific.set(id, { start: after, ...fault(m.invalid) }); }
       }
     } else { // enable
       for (const id of m.aspectIds) {
@@ -391,16 +407,16 @@ export function collectSuppressions(
             // Guard the degenerate span an enable directly after its disable
             // produces (start = disableLine+1, end = enableLine-1, so end < start):
             // an inverted range is nonsense in the LLM prompt and empty everywhere.
-            if (before >= openWildcard) {
-              ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard, endLine: before, isWildcard: true });
+            if (before >= openWildcard.start) {
+              ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard.start, endLine: before, isWildcard: true, ...fault(openWildcard.invalid) });
             }
             openWildcard = null;
           }
         } else {
-          const start = openSpecific.get(id);
-          if (start !== undefined) {
-            if (before >= start) {
-              ranges.push({ aspectIds: new Set([id]), startLine: start, endLine: before, isWildcard: false });
+          const open = openSpecific.get(id);
+          if (open !== undefined) {
+            if (before >= open.start) {
+              ranges.push({ aspectIds: new Set([id]), startLine: open.start, endLine: before, isWildcard: false, ...fault(open.invalid) });
             }
             openSpecific.delete(id);
           }
@@ -412,19 +428,31 @@ export function collectSuppressions(
   // Unterminated opens run to EOF. Guard the degenerate case where the disable
   // sits ON the last line (start = totalLines+1 > totalLines) so no inverted span
   // is emitted.
-  if (openWildcard !== null && openWildcard <= totalLines) ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard, endLine: totalLines, isWildcard: true });
-  for (const [id, start] of openSpecific) {
-    if (start <= totalLines) ranges.push({ aspectIds: new Set([id]), startLine: start, endLine: totalLines, isWildcard: false });
+  if (openWildcard !== null && openWildcard.start <= totalLines) {
+    ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard.start, endLine: totalLines, isWildcard: true, ...fault(openWildcard.invalid) });
+  }
+  for (const [id, open] of openSpecific) {
+    if (open.start <= totalLines) ranges.push({ aspectIds: new Set([id]), startLine: open.start, endLine: totalLines, isWildcard: false, ...fault(open.invalid) });
   }
 
   return ranges;
 }
 
+/**
+ * Whether `line` is waived for `aspectId`. A reasonless marker waives nothing:
+ * when its range names the aspect and covers the line, its SuppressMarkerError
+ * is thrown, so the one pair it would have waived fails closed — and nothing
+ * else does.
+ */
 export function isLineSuppressed(ranges: SuppressedRange[], aspectId: string, line: number): boolean {
-  return ranges.some(r => {
-    if (line < r.startLine || line > r.endLine) return false;
-    return r.isWildcard || r.aspectIds.has(aspectId);
-  });
+  let suppressed = false;
+  for (const r of ranges) {
+    if (line < r.startLine || line > r.endLine) continue;
+    if (!(r.isWildcard || r.aspectIds.has(aspectId))) continue;
+    if (r.invalid) throw r.invalid;
+    suppressed = true;
+  }
+  return suppressed;
 }
 
 /**
@@ -443,8 +471,14 @@ export function formatSuppressedRangesForAspect(
   ranges: SuppressedRange[],
   aspectId: string,
 ): Array<{ startLine: number; endLine: number }> {
-  return ranges
-    .filter(r => r.isWildcard || r.aspectIds.has(aspectId))
+  const applicable = ranges.filter(r => r.isWildcard || r.aspectIds.has(aspectId));
+  // A reviewer honors the ranges it is told about and flags nothing inside them,
+  // so which lines a reasonless marker would reach is exactly what the prompt
+  // cannot say: a reviewer pair of an aspect such a marker names fails closed.
+  // A marker naming only other aspects leaves this pair's prompt untouched.
+  const invalid = applicable.find(r => r.invalid !== undefined)?.invalid;
+  if (invalid) throw invalid;
+  return applicable
     // Never inject a degenerate (inverted) span into the reviewer prompt — the
     // construction guards above already prevent them, this is defense in depth.
     .filter(r => r.startLine <= r.endLine)
