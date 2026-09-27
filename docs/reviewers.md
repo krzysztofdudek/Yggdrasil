@@ -676,6 +676,7 @@ A team can opt into a **committed, shared** record of LLM verification-fill even
 
 - **Reviewer fills only.** Script checks, drill runs, and diagnostic runs always stay in the local sidecar, so the free, keyless CI gate (`yg check --approve --only-deterministic`) never touches the committed file — running it adds nothing and produces zero churn.
 - **Union-merged.** `yg init` marks the file `merge=union` in `.gitattributes`, so events appended on different branches combine on merge instead of conflicting.
+- **Sealed by month.** The first event of a new month moves the file to `yg-events.llm.<YYYY-MM>.jsonl` (the month its first line was written in) and starts a new one, so the file each fill appends to stays about a month long. The sealed months stay committed and are read with it, so the whole history remains; `yg init` marks them `linguist-generated` so a review diff collapses them.
 - **Rationale-stripped.** The reviewer's reason — of a refusal or a pass — is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.

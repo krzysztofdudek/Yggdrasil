@@ -630,6 +630,13 @@ a single home per event, so nothing is double-counted. The committed file is:
   adds nothing to it — zero churn.
 - **Union-merged.** `yg init` marks it `merge=union` in `.gitattributes`, so
   events appended on different branches combine on merge instead of conflicting.
+- **Sealed by month.** When the first event of a new month is appended, the file
+  is renamed to `.yggdrasil/yg-events.llm.<YYYY-MM>.jsonl`, named for the month
+  its first line was written in, and a new `yg-events.llm.jsonl` begins. The file
+  every fill appends to therefore holds about one month; the sealed months stay
+  committed, and every reader reads them, oldest first, so no history is lost.
+  `yg init` marks all of these files `linguist-generated`, so a review diff
+  collapses them the way it does the lock.
 - **Rationale-stripped.** The refusal reason is omitted from the shared copy
   (it can carry code fragments); the local copy keeps it.
 

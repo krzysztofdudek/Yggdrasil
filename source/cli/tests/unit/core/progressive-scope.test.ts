@@ -1191,6 +1191,15 @@ describe('computeBurnSet — verdict-event outputs', () => {
     expect(result.changedInputCount).toBe(0);
     expect(result.pairKeys).toEqual(new Set());
   });
+
+  it('ignores a sealed month of the committed stream, and only that exact shape', () => {
+    const result = burn(['.yggdrasil/yg-events.llm.2026-09.jsonl']);
+    expect(result.files).toEqual(new Set());
+    expect(result.changedInputCount).toBe(0);
+    // A file that merely starts like one is not an engine output: it fails closed and is counted.
+    const other = burn(['.yggdrasil/yg-events.llm.notes.jsonl']);
+    expect(other.files).toEqual(new Set(['.yggdrasil/yg-events.llm.notes.jsonl']));
+  });
 });
 
 // --- Config vocabulary: the two ingredients a tier-name set cannot see ---

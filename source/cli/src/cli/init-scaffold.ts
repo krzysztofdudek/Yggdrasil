@@ -32,12 +32,15 @@ import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js
  *      many branches for the same reason and needing the same union merge. (The
  *      file only exists once something has been imported; the attribute is
  *      harmless when it is absent.)
- *    - the committed LLM-fill events stream's merge=union line — that stream is a
- *      COMMITTED, opt-in shared record of LLM verification-fill events appended on
- *      many branches, so a union merge keeps every branch's events instead of
- *      forcing a conflict on the append-only file. (The file itself only exists
- *      once a repo opts in via `events: { committed_llm: true }`; the attribute is
- *      harmless when the file is absent.)
+ *    - the committed LLM-fill events stream's line — that stream is a COMMITTED,
+ *      opt-in shared record of LLM verification-fill events appended on many
+ *      branches, so merge=union keeps every branch's events instead of forcing a
+ *      conflict on the append-only file. The pattern covers the current file and
+ *      the month files it is sealed into (two branches can each seal the same
+ *      month). linguist-generated collapses it in review diffs, as for the lock:
+ *      one line per reviewer verdict is a record, not a change to read. (The files
+ *      only exist once a repo opts in via `events: { committed_llm: true }`; the
+ *      attribute is harmless when they are absent.)
  *    - every node's and aspect's log.md pinned to LF — the log's append-only
  *      baseline is a prefix hash; the hash normalises line endings, and pinning
  *      the committed text to LF also keeps checkouts (Git for Windows defaults to
@@ -48,7 +51,7 @@ const GITATTRIBUTES_LINES = [
   '/.yggdrasil/yg-lock.*.json linguist-generated=true',
   '/.yggdrasil/advise-decisions.jsonl merge=union',
   '/.yggdrasil/advise-imported.jsonl merge=union',
-  '/.yggdrasil/yg-events.llm.jsonl merge=union',
+  '/.yggdrasil/yg-events.llm*.jsonl merge=union linguist-generated=true',
   '/.yggdrasil/**/log.md text eol=lf',
 ] as const;
 
