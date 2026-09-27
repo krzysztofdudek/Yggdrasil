@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { runMergeDriver } from '../../../src/cli/merge-driver.js';
 import { ensureMergeDrivers, mergeDriverCommand, postMergeHook } from '../../../src/cli/init-scaffold.js';
@@ -94,6 +95,34 @@ describe('the merge driver configuration yg init writes', () => {
     expect(cmd).toContain('node "/opt/yg/dist/bin.js" merge-driver log %O %A %B %P');
     expect(cmd).toContain('else git merge-file -L ours -L base -L theirs %A %O %B; fi');
     expect(postMergeHook('/opt/yg/dist/bin.js')).toContain('node "/opt/yg/dist/bin.js" log merge-resolve');
+  });
+
+  it('gives git\'s text merge with markers when the CLI is there but fails without writing, and keeps a refusal\'s own markers', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-merge-command-'));
+    const run = (script: string): { status: number; ours: string } => {
+      const cli = path.join(dir, 'a dir with spaces', `cli-${Math.random().toString(36).slice(2)}.mjs`);
+      mkdirSync(path.dirname(cli), { recursive: true });
+      writeFileSync(cli, script, 'utf-8');
+      const [b, o, t] = ['b', 'o', 't'].map((n) => path.join(dir, n));
+      writeFileSync(b, 'line\n', 'utf-8');
+      writeFileSync(o, 'ours\n', 'utf-8');
+      writeFileSync(t, 'theirs\n', 'utf-8');
+      const sq = (p: string): string => `'${p.replace(/'/g, `'\\''`)}'`;
+      // What git does with the configured command: %O %A %B shell-quoted, run by sh.
+      const cmd = mergeDriverCommand(cli.replace(/\\/g, '/'), 'log').replace(/%O/g, sq(b)).replace(/%A/g, sq(o)).replace(/%B/g, sq(t)).replace(/%P/g, sq('x/log.md'));
+      const r = spawnSync('sh', ['-c', cmd], { encoding: 'utf-8' });
+      return { status: r.status ?? -1, ours: readFileSync(o, 'utf-8') };
+    };
+    const crashed = run('process.exit(1);\n');
+    expect(crashed.status).toBe(1);
+    expect(crashed.ours).toMatch(/^<<<<<<< ours$/m);
+    expect(crashed.ours).toContain('theirs');
+    const refused = run(`import { writeFileSync } from 'node:fs';\nwriteFileSync(process.argv[5], '<<<<<<< ours\\nA\\n=======\\nB\\n>>>>>>> theirs\\n');\nprocess.exit(1);\n`);
+    expect(refused.status).toBe(1);
+    expect(refused.ours).toBe('<<<<<<< ours\nA\n=======\nB\n>>>>>>> theirs\n');
+    const clean = run(`import { writeFileSync } from 'node:fs';\nwriteFileSync(process.argv[5], 'merged\\n');\n`);
+    expect(clean).toEqual({ status: 0, ours: 'merged\n' });
+    rmSync(dir, FIXTURE_RM_OPTIONS);
   });
 
   it('configures both drivers and the hook, is idempotent, and leaves a foreign hook alone', async () => {

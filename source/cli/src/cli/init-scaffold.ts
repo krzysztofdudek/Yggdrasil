@@ -134,12 +134,17 @@ function runningCliPath(given?: string): string | null {
  * conflict markers whenever that CLI or node is gone (an npx cache cleared, a
  * global install removed): a driver git is told to run but cannot start leaves
  * the file conflicted with ours' side only and no markers, so staging it would
- * lose theirs without a word. Git runs driver commands through its own POSIX
- * shell on every platform (Git for Windows ships one), so `if … fi` is
- * portable; nothing in it is bash.
+ * lose theirs without a word. The same holds for a CLI that is there but does
+ * not start — a node too old for it, a half-finished upgrade, an older CLI with
+ * no `merge-driver` command: it exits non-zero without writing, so a non-zero
+ * exit that left no conflict markers in <ours> gets git's text merge too. (The
+ * driver's own refusal always writes markers before exiting 1.) Git runs
+ * driver commands through its own POSIX shell on every platform (Git for
+ * Windows ships one, with grep), so `if … fi` is portable; nothing in it is bash.
  */
 export function mergeDriverCommand(cli: string, kind: 'log' | 'lock'): string {
-  return `if [ -f "${cli}" ] && command -v node >/dev/null 2>&1; then node "${cli}" merge-driver ${kind} %O %A %B %P; else git merge-file -L ours -L base -L theirs %A %O %B; fi`;
+  const textMerge = 'git merge-file -L ours -L base -L theirs %A %O %B';
+  return `if [ -f "${cli}" ] && command -v node >/dev/null 2>&1; then node "${cli}" merge-driver ${kind} %O %A %B %P; s=$?; if [ $s -ne 0 ] && ! grep -q '^<<<<<<< ' %A; then ${textMerge}; exit 1; fi; exit $s; else ${textMerge}; fi`;
 }
 
 /** The post-merge hook `yg init` writes when the repository has none. */

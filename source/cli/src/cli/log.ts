@@ -476,7 +476,8 @@ async function mergeResolveAction(opts: MergeResolveOpts): Promise<void> {
     : undefined;
   if (result.wroteUnion === true) {
     const op = result.inProgress ?? 'merge';
-    const stage = `git add ${result.logPath} .yggdrasil/yg-lock.logs.json`;
+    // A type's baseline lives in its own lock file; a node's in the logs file.
+    const stage = `git add ${result.logPath} .yggdrasil/${target.kind === 'type' ? 'yg-lock.types.json' : 'yg-lock.logs.json'}`;
     const finish = `${OPERATION_COMMANDS[op].finish}, then yg check${owed !== undefined ? ' --approve' : ''}`;
     writeOut(`${next(owed ?? stage)}\n`);
     writeOut(`${thenStep(owed !== undefined ? `${stage}, ${finish}` : finish)}\n`);
