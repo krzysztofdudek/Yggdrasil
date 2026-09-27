@@ -613,3 +613,49 @@ describe('owner --files (batch form, 447)', () => {
     });
   });
 });
+
+describe('owner --files agrees with owner --file, file by file (447 review)', () => {
+  const PORTAL_TYPE_COVERAGE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-type-coverage');
+
+  it('every batch entry carries the same facts as the single-file yg-owner/1 answer, and a unit derived from them; a path --file refuses is an invalid entry', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-parity-'));
+    await copyFixtureTreeAsync(PORTAL_TYPE_COVERAGE_FIXTURE, root);
+    try {
+      // An unmapped file next to a node-owned one, so the candidates list is non-empty.
+      await writeFile(path.join(root, 'src', 'gateway', 'extra.ts'), 'export const extra = 1;\n');
+      const inputs = [
+        'src/gateway/gateway.ts', 'src/gateway/extra.ts', 'src/lib/util.ts', 'src/svc/handler.ts', 'vendor/tool.ts',
+        '.yggdrasil/yg-config.yaml', 'src/nope/missing.ts', './src/svc/handler.ts', ' src/lib/util.ts ', 'src', '../outside.ts',
+      ];
+      // CRLF line ends, as a Windows pipe delivers them.
+      const batch = spawnSync('node', [BIN_PATH, 'owner', '--files', '-', '--json'], { cwd: root, encoding: 'utf-8', input: `${inputs.join('\r\n')}\r\n` });
+      expect(batch.status).toBe(0);
+      const doc = JSON.parse(batch.stdout);
+      expect(doc.files).toHaveLength(inputs.length);
+
+      const kinds = new Set<string>();
+      inputs.forEach((input, i) => {
+        const entry = doc.files[i];
+        kinds.add(entry.kind);
+        const single = spawnSync('node', [BIN_PATH, 'owner', '--file', input, '--json'], { cwd: root, encoding: 'utf-8' });
+        if (single.status !== 0) {
+          expect(entry.kind, input).toBe('invalid');
+          expect(entry.error, input).toEqual(expect.any(String));
+          return;
+        }
+        const one = JSON.parse(single.stdout);
+        for (const key of ['file', 'kind', 'node', 'type', 'direct', 'mappingPath', 'excludedBecause', 'candidates']) {
+          expect(entry[key], `${input}: ${key}`).toEqual(one[key]);
+        }
+        const top = one.file.includes('/') ? one.file.slice(0, one.file.indexOf('/')) : '.';
+        const unit = one.kind === 'node' ? one.node : one.kind === 'type' ? `type:${one.type}@${top}` : null;
+        expect(entry.unit, input).toBe(unit);
+        expect(entry.error, input).toBeNull();
+      });
+      // The fixture exercises every kind, so the parity above is not vacuous.
+      expect([...kinds].sort()).toEqual(['excluded', 'invalid', 'missing', 'node', 'type', 'unmapped']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 120_000);
+});

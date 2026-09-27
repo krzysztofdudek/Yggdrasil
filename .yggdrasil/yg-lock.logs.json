@@ -382,7 +382,7 @@
     "cli/tests/unit/cli/adopt": {"source":"e08179f59e92ae08c79a95ccaf49576f4405a0bf05cc2f4fcbb126686b507825"},
     "cli/tests/unit/cli/advise": {"log":{"last_entry_datetime":"2026-09-25T21:14:17.589Z","prefix_hash":"868b3fb25f478a89eec57484561962b49a74641fae0232f43b74b77dc3737c0b"},"source":"ecaa2651b40f5b871f8f6c10d6306a674cb679659f8c64d82646f64d0f9eb8a2"},
     "cli/tests/unit/cli/general": {"log":{"last_entry_datetime":"2026-05-31T06:24:49.143Z","prefix_hash":"91996a06aca0711ba49fd5cb1b73e71a0755f5f0f4136c3a36afbf45e763847a"},"source":"47d8f4c2bfb9c34a427253e1a4848c78634127dde0ad609dda548d29ae19d538"},
-    "cli/tests/unit/cli/graph": {"log":{"last_entry_datetime":"2026-09-25T21:14:18.483Z","prefix_hash":"00d3e18c6bfa7cca424273f3d5ac84879a0477127b77a6fd13e99a069081dffb"},"source":"3769d1f843a483efa69d90c47a73d6da451fab801a3275753592b41c94408421"},
+    "cli/tests/unit/cli/graph": {"log":{"last_entry_datetime":"2026-09-25T21:14:18.483Z","prefix_hash":"00d3e18c6bfa7cca424273f3d5ac84879a0477127b77a6fd13e99a069081dffb"},"source":"ce90cc9509c23b469eb85f250d1105e132e200f86927b3c21b168118882cf02b"},
     "cli/tests/unit/cli/incident": {"source":"a719afb7c5736130909c54570d8f4d610ec2fffba337c0a55723506666f62d9e"},
     "cli/tests/unit/cli/init-stored-key": {"source":"f9b2e802b704c0642d2852bc0335433e5141f1702ad0937079eeb912b30cafbb"},
     "cli/tests/unit/cli/inspect": {"log":{"last_entry_datetime":"2026-05-30T22:31:37.101Z","prefix_hash":"f83717ca5672c705800d8c5a5baa85b9d124fe0d5ee201a361b2ff4fdaad5e8d"},"source":"f2c710a697640480ca15c42d29c7378ce0ac2f9cc1a92857793849c426660ee6"},
