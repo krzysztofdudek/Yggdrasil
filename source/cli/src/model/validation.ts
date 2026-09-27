@@ -88,6 +88,14 @@ export interface ValidationIssue {
    */
   relationEdges?: Array<{ fromFile: string; toFile: string }>;
   /**
+   * On `relation-undeclared-dependency`: for each node the component depends on
+   * without a declared relation, the relation types it may declare to sanction
+   * that import — empty when the architecture allows none. `yg check --json`
+   * carries it per edge (`allowedRelations`) so a consumer never has to read
+   * the verdict out of the `next` prose.
+   */
+  importRelationsAllowed?: Record<string, string[]>;
+  /**
    * The members of the strongly connected component a `structural-cycle`
    * issue reports. The issue stays repo-level (no `nodePath`, so every scoped
    * check still sees it), and a consumer that must decide which nodes a cycle

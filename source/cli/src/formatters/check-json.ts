@@ -115,6 +115,15 @@ export interface CheckJsonEdge {
   file: string;
   line: number | null;
   target: string;
+  /**
+   * On a `relation-undeclared-dependency` edge: the relation types the importing
+   * component may declare to `target` to sanction the import (`uses`, `calls`,
+   * `extends`, `implements` — only those the architecture allows between the two
+   * node types). Empty: the architecture forbids every such relation, so none
+   * can be declared — the dependency has to be removed, or the architecture
+   * changed with the user's approval. Absent on every other finding's edges.
+   */
+  allowedRelations?: string[];
 }
 
 /**

@@ -351,7 +351,7 @@ parse out of it (every field additive, present only where it applies):
   see [Reading the report](#reading-the-report));
 - `unitRef: { kind, path }` — its subject in the same shape as a pair's `unit`;
 - `violations: [{ file, line, message }]` — a script refusal's locations, never cut;
-- `edges: [{ file, line, target }]` — the dependency edges a relation finding is about;
+- `edges: [{ file, line, target }]` — the dependency edges a relation finding is about; on `relation-undeclared-dependency` each edge also carries `allowedRelations` — the relation types that could be declared to `target` to sanction the import, empty when the architecture allows none (then the dependency has to be removed, or the architecture changed with the user's approval);
 - `files` — every file a coverage finding names, never cut (its `what` may list fewer).
 
 The document also carries the report's standing `notes` (the text's `note:` lines, in order; `[]` when there are none), and its `groups` — one per text block, in report order (`code`, `label`, `aspect`, `severity`, `subject` (the block heading), `cause` (on an unverified block), the shared `why` and `next` — `null` where members differ — and `members` as indexes into `issues`), so a consumer can read each rationale once — and `banner`: the `partial:` line when a configuration, architecture, component or lock file did not load as written (every other number then describes a fallback), else `null`.

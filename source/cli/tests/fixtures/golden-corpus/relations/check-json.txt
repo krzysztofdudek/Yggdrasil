@@ -95,12 +95,24 @@ exit: 1
         {
           "file": "src/svc-01/index.ts",
           "line": 2,
-          "target": "app/svc-02"
+          "target": "app/svc-02",
+          "allowedRelations": [
+            "uses",
+            "calls",
+            "extends",
+            "implements"
+          ]
         },
         {
           "file": "src/svc-01/index.ts",
           "line": 3,
-          "target": "app/svc-03"
+          "target": "app/svc-03",
+          "allowedRelations": [
+            "uses",
+            "calls",
+            "extends",
+            "implements"
+          ]
         }
       ],
       "label": "relation-undeclared-dependency"

@@ -265,4 +265,31 @@ describe.skipIf(!distExists)('CLI E2E — architecture relation default policy',
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // yg-check/1 says structurally whether a dependency can be declared at all,
+  // so a consumer (Horde) never reads it out of the `next` sentence.
+  it('C13c: --json names, per edge, the relations that could be declared — none on a dead end, the allowed ones otherwise', () => {
+    const edgesOf = (dir: string) => {
+      const doc = parseJson(run(['check', '--json'], dir).stdout);
+      return expectIssue(doc, { code: 'relation-undeclared-dependency', node: 'services/orders' }).edges as Array<{ target: string; allowedRelations?: string[] }>;
+    };
+    const dead = copyFixture('c13c-dead');
+    const open = copyFixture('c13c-open');
+    try {
+      writeFileSync(archPath(dead), archWith(rel('default: deny')), 'utf-8');
+      writeOrdersNoRel(dead);
+      addPaymentsImport(dead);
+      const deadEdges = edgesOf(dead);
+      expect(deadEdges.length).toBeGreaterThan(0);
+      for (const e of deadEdges) expect(e.allowedRelations, JSON.stringify(e)).toEqual([]);
+
+      writeFileSync(archPath(open), archWith(rel('default: deny', "calls: ['*']")), 'utf-8');
+      writeOrdersNoRel(open);
+      addPaymentsImport(open);
+      for (const e of edgesOf(open)) expect(e.allowedRelations, JSON.stringify(e)).toEqual(['calls']);
+    } finally {
+      rmSync(dead, { recursive: true, force: true });
+      rmSync(open, { recursive: true, force: true });
+    }
+  });
 });
