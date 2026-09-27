@@ -443,6 +443,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
     }
   });
 
+  // Claim (docs/the-lock.md): "Until the log is reconciled, `yg check --approve` refuses to run (`log-conflict`)"
   it('2h: --approve over a conflicted log.md stops before any fill and records nothing (exit 1)', () => {
     const dir = deterministicFixture('conflict-approve');
     try {

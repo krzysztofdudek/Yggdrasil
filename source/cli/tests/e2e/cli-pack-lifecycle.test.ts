@@ -348,6 +348,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
     }
   });
 
+  // Claim (docs/packages.md): ""copy changed" for exactly what `yg check` blocks — an edited or missing file, or a file the package never installed."
   it('5b: a file the package never installed — dot-named or not — makes list, verify and check agree, and a reinstall names what it deletes', () => {
     const dir = consumer('smuggle-agree');
     try {
@@ -398,6 +399,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
   // A file outside every installed package's directory belongs to no package,
   // so a per-package view never saw it. Before: yg check blocked it while
   // pack list stayed silent and pack verify exited 0.
+  // Claim (docs/packages.md): ""copy changed" for exactly what `yg check` blocks — an edited or missing file, or a file the package never installed."
   it('5d: a file outside every installation is named by list and fails verify, as check blocks it', () => {
     const dir = consumer('ghost');
     try {

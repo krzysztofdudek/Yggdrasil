@@ -380,6 +380,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  // Claim (docs/cli-reference.md): "running it rematerializes the cache for free and clears them, without a key and without touching a committed file."
   it('9: the free CI step and a bare check leave every committed file as it was, even over a standing changed by hand', () => {
     const dir = project('ci-clean');
     try {

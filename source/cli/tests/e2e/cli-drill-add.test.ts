@@ -96,6 +96,7 @@ const ESCAPED = 'export function charge(): number {\n  // TODO: refunds are not 
 const CLEAN = 'export function refundClean(): number {\n  // handled, and no marker left behind\n  return 2;\n}\n';
 
 describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
+  // Claim (docs/cli-reference.md): "Nothing is written when the file is one the drill never runs as a case"
   it('1: a rule that catches the escape reports it, names the case for its origin, and logs it', () => {
     const dir = repoWithHistory('caught');
     try {
@@ -292,6 +293,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
     }
   });
 
+  // Claim (docs/cli-reference.md): "Nothing is written when the file is one the drill never runs as a case"
   it('9: a file the drill never runs as a case is refused up front, and nothing is written', () => {
     const dir = repoWithHistory('never-a-case');
     try {

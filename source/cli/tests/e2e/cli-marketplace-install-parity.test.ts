@@ -150,6 +150,7 @@ function build(variant: Variant): { cleanup: string; market: string } {
   return { cleanup, market: dir };
 }
 
+// Claim (docs/packages.md): "so a package the check passes is one that installs."
 describe.skipIf(!distExists)('CLI E2E — marketplace check passes ⇒ pack add installs', () => {
   for (const variant of VARIANTS) {
     it(`${variant.sound ? 'installs' : 'refused by both'}: ${variant.name}`, () => {
