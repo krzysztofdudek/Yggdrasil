@@ -9,6 +9,7 @@ import {
   ancestorAtDepth,
   widenedTunnelMetrics,
   rankTunnels,
+  isSiblingEdge,
   type StructEdge,
 } from '../../../src/core/graph-metrics.js';
 
@@ -302,5 +303,23 @@ describe('changeReach', () => {
     const single = changeReach([], ['solo']);
     expect(single.mean).toBe(0);
     expect(single.perNode.get('solo')).toBe(0);
+  });
+});
+
+describe('isSiblingEdge / rankTunnels — an edge between siblings is no tunnel (issue 242)', () => {
+  const edge = (from: string, to: string): StructEdge => ({ from, to, origin: 'declared', viaContract: false });
+
+  it('top-level and nested siblings are siblings; an edge across the tree or into a file elsewhere is not', () => {
+    expect(isSiblingEdge({ from: 'cart', to: 'telemetry', span: 2 })).toBe(true);
+    expect(isSiblingEdge({ from: 'a/x', to: 'a/y', span: 2 })).toBe(true);
+    expect(isSiblingEdge({ from: 'a/x', to: 'b', span: 3 })).toBe(false);
+    // A type-covered file is pinned at depth 1, so its span to a top-level node is 2 —
+    // but its path puts it elsewhere in the tree.
+    expect(isSiblingEdge({ from: 'src/svc/handler.ts', to: 'owner', span: 2 })).toBe(false);
+  });
+
+  it('rankTunnels leaves sibling edges out and keeps the rest ranked', () => {
+    const ranked = rankTunnels([edge('cart', 'telemetry'), edge('a/x', 'b/y'), edge('a/x', 'a/y')], depthOfPath, lcaDepthOfPaths);
+    expect(ranked.map((e) => `${e.from}->${e.to} (${e.span})`)).toEqual(['a/x->b/y (4)']);
   });
 });

@@ -36,6 +36,12 @@ A business process that spans several nodes — “place an order”. A rule att
 
 More: [Relations, Flows & Ports](/relations-flows-ports).
 
+### port (graph element) {#named-port}
+
+A named entry to a node, declared under `ports:` with the rules it carries; a relation that names it in `portNames:` enters through it and takes those rules on. Every node also has the implicit `default` port. `yg structure` says a dependency goes through a named port when a relation between the two names one other than `default`.
+
+More: [Relations, Flows & Ports](/relations-flows-ports#ports).
+
 ## Rules
 
 ### aspect (rule) {#aspect}

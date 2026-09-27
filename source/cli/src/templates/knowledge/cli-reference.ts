@@ -863,8 +863,10 @@ Read-only structural dashboard over the graph. It reports the shape of your
 dependencies in three sections:
 
 - **Tunnels** — the dependencies that reach farthest across the hierarchy, each
-  named with how many levels of the tree it jumps and whether it crosses through
-  a declared contract.
+  named with how many levels of the tree it jumps and whether a relation between
+  the two names a port (\`through a named port\` / \`no named port\`). A dependency
+  between siblings — components under one parent, top-level ones included —
+  crosses one boundary and is not a tunnel; \`yg advise\` counts the same tunnels.
 - **Modules** — at each level of the tree, how the component groups depend on one
   another: how many groups, how many dependencies between them, and whether those
   dependencies all flow one way or some form a cycle.
