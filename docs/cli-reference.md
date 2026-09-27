@@ -21,7 +21,7 @@ Every command here reads the graph of the directory it runs in, never a commit n
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)). `--json` for the machine-readable form |
 | `yg check --approve` | Fill every unverified pair the run answers for and record the verdicts in the lock (a [fill](/glossary#fill), not a human approval) |
 | `yg check --approve --only-deterministic` | Fill only the script pairs, free and keyless; writes the gitignored cache |
-| `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
+| `yg log add` / `read` / `merge-resolve` | Append-only logs: a node's business log (`--node`) and a node type's decision log (`--type`) |
 
 ### `yg context`
 
@@ -294,7 +294,7 @@ argument vector — the form `yg-check/1`'s `next.command` takes — set only wh
 the step is one command a reader can run as given (no `<placeholder>`, no
 optional `[part]`), else `null`. Every command that takes a node answers a node
 it does not know with this same `node-not-found` error and `yg find "<path>"` as
-its step. Every command that takes a rule id — `yg check --aspect`, `yg impact --aspect`, `yg aspect-test --aspect`, `yg simulate <id>`, `yg aspects log add|read --aspect`, `yg drill --aspect`, `yg drill add --aspect`, `yg incident add --aspect` — answers a rule it does not know the same way: `aspect-not-found`, `rule '<id>' is not in the graph`, and `yg aspects` (the list of every rule id) as its step; only the `why:` differs, saying what that command needed the rule for. The exit code is unchanged (1). A command whose own JSON document
+its step. Every command that takes a rule id — `yg check --aspect`, `yg impact --aspect`, `yg aspect-test --aspect`, `yg simulate <id>`, `yg log add|read --aspect`, `yg drill --aspect`, `yg drill add --aspect`, `yg incident add --aspect` — answers a rule it does not know the same way: `aspect-not-found`, `rule '<id>' is not in the graph`, and `yg aspects` (the list of every rule id) as its step; only the `why:` differs, saying what that command needed the rule for. The exit code is unchanged (1). A command whose own JSON document
 answers the failure — `yg context --json` on a file no component owns — writes
 that document instead, never both.
 
@@ -836,29 +836,69 @@ listed under [Issue codes](#issue-codes) at the end of this page.
 
 ### `yg log`
 
-Per-node append-only log of business decisions, constraints, and reasoning. Agents write
-to this log before a fill records verdicts for changed code, so that future agents have context about why code
-is written the way it is.
+Append-only logs. Every command names exactly one of them (`usage` otherwise):
+
+- `--node <path>` — a node's log: business decisions, constraints and reasoning — WHY
+  that component is written the way it is. Agents write to it before a fill records
+  verdicts for changed code, so that future agents have that context. A node type can
+  require an entry for every source change (`log_required`).
+- `--type <type>` — a node type's decision log: explicit decisions about the whole
+  area the type stands for — what an agent touching *any* node of the type must know.
+  It lives in `.yggdrasil/types/<type>/log.md`, one directory per type beside `model/`
+  and `aspects/`, and is never required: no type can demand an entry. A type the
+  architecture does not define is `type-not-found`.
 
 ```bash
 yg log add --node <path> --reason "<text>"
 yg log add --node <path> --reason-file <file>
+yg log add --node <path> --reason "<text>" --supersedes <datetime>
+yg log add --type <type> --reason "<the decision>" [--supersedes <datetime> | --adds]
 yg log read --node <path> [--top N]
 yg log read --node <path> --all
 yg log read --node <path> --with-verdicts
+yg log read --type <type> [--all] [--top N] [--json]
 yg log merge-resolve --node <path>
+yg log merge-resolve --type <type>
 yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 ```
+
+Neither log is a verdict input: adding an entry to either re-opens no pair.
+
+**A type decision never lands blind.** `yg log add --type` first lists the decisions in force for the type and every type above it (nearest first, each with the datetime `--supersedes` takes). When any exists, the new entry must say what it does to them: `--supersedes <datetime>` for the one it replaces, or `--adds` when it replaces none. With neither, the add is refused (`type-log-choice-missing`) and nothing is written. `--adds` and `--supersedes` together are `usage`, as is `--adds` on any other log.
+
+A type's log is held to what a node's is: the same entry rules, the same append-only
+baseline — in a committed file of its own, `yg-lock.types.json`, written only once a
+type has a baseline and never by a fill, which a release before 6.1.0 never opens — the same `log-integrity`, `log-format` and `log-conflict`
+findings in `yg check` — reported with the log file as their `unit`, since there is no
+node — and the same `yg log merge-resolve`. Its baseline moves when an entry is added:
+a type has no verdicts, so there is no closure to record it at. An add therefore
+refuses a log whose recorded history was rewritten (`log-integrity`) or still carries
+conflict markers (`log-conflict`), rather than record it as the new truth. A type log
+left behind by a type `yg-architecture.yaml` no longer defines is the
+`type-log-orphaned` warning: move the decisions that still hold to the type that
+replaced it, then delete its directory. A full `yg check --approve` drops the baseline
+of a type that no longer exists.
 
 - `add` — Append an entry. `--reason "<text>"` for inline text; `--reason-file <path>` for
   multi-line content from a file. The entry gets a timestamp header automatically.
   Requires `--node`. When a node's type opts in with `log_required: true`, `yg check
   --approve` requires a fresh log entry before it records a verdict for a source change
   on that node.
+  - `--supersedes <datetime>` — the new entry replaces an earlier entry of the same log
+    (repeatable, one per replaced entry). A log is append-only, so nothing is edited
+    or removed: the new entry opens with a `### Supersedes: <datetime>` line per
+    replaced entry, both stay in the file, and a reader of what is in force skips the
+    replaced one. The datetime must be an entry of that log (`log-supersedes-unknown`
+    otherwise) that no later entry has replaced yet (`log-supersedes-superseded`
+    otherwise — supersede the entry that replaced it). An entry written by hand in
+    the same `### Supersedes:` shape reads the same way, when the entry it names exists.
 - `read` — Print entries newest-first. Default: top 10. `--top N` shows N entries.
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
-  before editing a node to understand past decisions. `--json` prints the `yg-log/1`
-  document instead: `node` and `entries` (each `datetime` and `body`); with
+  before editing a node to understand past decisions. An entry a later one replaced is
+  marked `— superseded by <datetime>` after its header. `--json` prints the `yg-log/1`
+  document instead: `node` and `entries` (each `datetime` and `body`, plus
+  `supersedes` — the datetimes it replaces — and `supersededBy` — the entry that
+  replaced it — where they apply); with
   `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`, each
   event the verification-event line the fill wrote (`aspectId`, `unitKey`,
   `kind`, `disposition` — what the fill did with the pair — and, where they
@@ -878,7 +918,13 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.
-- `merge-resolve` — Reconcile `log.md` after a git merge, rebase or cherry-pick. Two modes:
+- `read --type <type>` — a type's decisions in force, newest first: every entry no later
+  entry replaced, all of them by default. `--all` adds the replaced ones, marked;
+  `--top N` keeps the newest N of whichever set was asked for. `--with-verdicts` is a
+  node's alone (`usage`). `--json` prints the `yg-type-log/1` document: `type`,
+  `inForceOnly` (`false` with `--all`) and `entries`, each as in `yg-log/1`.
+- `merge-resolve` — Reconcile `log.md` after a git merge, rebase or cherry-pick — a
+  node's (`--node`) or a type's (`--type`; it never owes an entry for merged code). Two modes:
   - **During a merge stopped on a conflicted `log.md`** (the usual case: `git merge`
     left conflict markers in it), run it right there. It reads the two sides from
     `HEAD` and `MERGE_HEAD`, **writes the union** — the shared history byte-for-byte,
@@ -922,6 +968,12 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 
   Never hand-stitch conflict markers out of a log — let merge-resolve write the union.
 
+  When both sides superseded the same entry, each with a decision of its own, the union
+  holds two successors that would both read as in force. merge-resolve keeps every entry
+  and records the baseline, but exits with `log-merge-supersedes-conflict` naming the
+  entry and both successors: finish the merge, then add one entry that supersedes both
+  and says which decision holds (`yg log add … --supersedes <a> --supersedes <b>`).
+
 ---
 
 ## Navigation (11)
@@ -931,7 +983,7 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
-| `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row; `--json --reach` names every unit each rule judges); `log` is a rule's own history |
+| `yg aspects` [`--health`] | List aspects (`--health` adds the per-rule health row; `--json --reach` names every unit each rule judges); a rule's own history is `yg log --aspect <id>` |
 | `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form). Never reaches outside the repository — a newer package version is reported from what `yg pack list` last recorded |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
@@ -1190,29 +1242,30 @@ the document is unchanged and costs what it always did. `--reach` without
 `--json` is refused — the enumeration is machine input, and the plain listing
 already answers the same question at a reader's resolution.
 
-#### `yg aspects log` — a rule's own history {#yg-aspects-log}
+#### A rule's own history — `yg log --aspect` {#yg-log-aspect}
 
 A component has always had a log beside it saying why it is the way it is. A rule
-has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands.
-They follow the same entry rules as [`yg log add` / `yg log read`](#yg-log), but
-their flags differ:
+has one too, in `.yggdrasil/aspects/<id>/log.md`, written and read by
+[`yg log add` / `yg log read`](#yg-log) with `--aspect <id>` (this replaced
+`yg aspects log`). The same entry rules and `--supersedes` apply; the flags that
+differ:
 
-| | `yg log` (a node) | `yg aspects log` (a rule) |
+| | `yg log --node` (a node) | `yg log --aspect` (a rule) |
 |---|---|---|
-| Which log | `--node <path>` | `--aspect <id>` |
 | Entry text | `--reason` / `--reason-file` | `--reason` / `--reason-file` |
-| Status change | — | `--status`, with `--evidence` and `--by` |
-| How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` (alias `--limit <n>`) or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
-| Machine output | — | `--json` (one `yg-aspect-log/1` document) |
+| Status change | — | `--status`, with `--evidence` and `--by` (`usage` on any other log) |
+| How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
+| Machine output | `--json` (`yg-log/1`) | `--json` (one `yg-aspect-log/1` document; entries carry `supersedes` / `supersededBy` where they apply) |
 | Verification events | `--with-verdicts` | — |
+| After a merge | `yg log merge-resolve --node` | — (a rule's log keeps no baseline; `merge-resolve --aspect` is `usage`) |
 
 ```bash
-yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a hand-built query shipped and nothing refused it."
-yg aspects log add --aspect no-raw-sql --status enforced \
+yg log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a hand-built query shipped and nothing refused it."
+yg log add --aspect no-raw-sql --status enforced \
   --evidence "a month advisory, no false alarms" --by "the architect" \
   --reason "Promoted once it had run clean long enough to trust."
-yg aspects log read --aspect no-raw-sql --top 5
-yg aspects log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
+yg log read --aspect no-raw-sql --top 5
+yg log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
 ```
 
 `--status` **records** a change of status; it does not make one. The rule's own
@@ -2275,7 +2328,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `yaml-invalid` | error | A graph file (yg-node.yaml, yg-aspect.yaml, a flow's yg-flow.yaml) does not parse, is not a YAML mapping or breaks its schema — or a directory under flows/ has no yg-flow.yaml — so what it declares is not loaded; the rest of the graph is. | Fix the file the finding names (yg schemas read gives each file's keys); the rest of the report may be a symptom of it. |
 | `config-invalid` | error | yg-config.yaml (or yg-secrets.yaml) does not parse or holds a value of the wrong shape; every setting falls back to its default until it does. | Correct what the finding quotes in .yggdrasil/yg-config.yaml; findings computed on the defaults clear with it. |
 | `architecture-invalid` | error | yg-architecture.yaml does not parse, so no architecture rule (types, parents, allowed relations) is checked. | Fix the YAML in .yggdrasil/yg-architecture.yaml. |
-| `lock-invalid` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
+| `lock-invalid` | error | A committed lock file (yg-lock.nondeterministic.json, yg-lock.logs.json, yg-lock.types.json, or a legacy yg-lock.json) is unparseable, garbled, conflict-markered or of an unknown version — fail closed. The gitignored .yg-lock.deterministic.json is exempt: a fault there is discarded and the cache rebuilt. | Restore the lock from version control (on a merge conflict take one side whole), then run yg check --approve; never hand-edit it. |
 | `when-predicate-invalid` | error | A `when:` predicate in yg-architecture.yaml does not parse, so the architecture is not loaded. | Fix the predicate; yg schemas read architecture gives the grammar. |
 | `config-unknown-key` | error | A top-level key yg-config.yaml or yg-secrets.yaml does not know — whatever it was meant to set is not set. The rest of the configuration is in effect. | Rename the key to the one it is a typo of (the finding names it) or remove it. |
 | `config-reviewer-unknown-key` | error · stops `--approve` | reviewer: holds a key other than `default` and `tiers`. | Move provider settings into a tier's config: section, or remove the key. |
@@ -2411,7 +2464,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `implied-aspect-missing` | error | A rule implies a rule id that does not exist. | Create the implied rule, or remove it from implies:. |
 | `aspect-implies-cycle` | error · stops `--approve` | The implies: edges form a cycle, so effective rules cannot be resolved. | Remove one implies edge of the cycle. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade yields (raising is allowed, lowering is not). | Remove the lower status:, or lower the rule's own status (the user's decision). |
-| `aspect-status-changed-outside-cli` | warning | A rule's status changed and its own log records no reason; a full fill writes the bare fact into that log if nobody does. | yg aspects log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
+| `aspect-status-changed-outside-cli` | warning | A rule's status changed and its own log records no reason; a full fill writes the bare fact into that log if nobody does. | yg log add --aspect &lt;rule&gt; --status &lt;status&gt; --evidence '&lt;what justified it&gt;' --reason '&lt;why&gt;'. |
 | `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero nodes after the full cascade and every when: — it looks enforced and verifies nothing. | Fix the attach sites or when:, or set status: draft until what it targets exists; for a per: node rule whose type has only type-covered files, give a file a node or make the rule per: file. |
 | `orphaned-aspect` | warning | A bundle, a draft rule, or a rule in a graph with no code yet is attached nowhere. | Attach it to a node, type or flow, or remove it. |
 | `aspect-review-overdue` | warning | A rule's review_by: date has passed — it is running unreviewed. Never blocks and never writes a verdict. | Ask the user to renew or retire the rule; never change the date yourself. |
@@ -2460,9 +2513,10 @@ severity says so — see [Aspect Status](/aspect-status).
 |------|----------|---------|-----|
 | `log-entry-missing` | error · a warning outside your change | A log_required node changed its own source without a fresh log entry (a rule, relation, lock or verdict change never owes one). Blocking on plain yg check; stops --approve only when the run would fill a pair of that node. | yg log add --node &lt;node&gt; --reason "&lt;why the change was made&gt;" |
 | `log-cycle-open` | warning | A log_required node's source moved past its recorded baseline and its newest entry keeps satisfying the requirement, because no full yg check --approve has recorded a new baseline (--only-deterministic never does). | A full yg check --approve. |
-| `log-integrity` | error · stops `--approve` · a warning outside your change | A node's recorded log history was rewritten, or entries were inserted before its last recorded one (the shape a merge leaves). | yg log merge-resolve --node &lt;node&gt; after a merge; otherwise restore log.md from version control. |
-| `log-format` | error · stops `--approve` · a warning outside your change | A node's log.md does not parse as log entries. | Fix the lines the finding names, or restore the file from version control. |
-| `log-conflict` | error · stops `--approve` · a warning outside your change | A node's log.md still carries git conflict markers. | yg log merge-resolve --node &lt;node&gt; |
+| `log-integrity` | error · stops `--approve` · a warning outside your change | A node's (or a node type's) recorded log history was rewritten, or entries were inserted before its last recorded one (the shape a merge leaves). | yg log merge-resolve --node &lt;node&gt; (or --type &lt;type&gt;) after a merge; otherwise restore log.md from version control. |
+| `log-format` | error · stops `--approve` · a warning outside your change | A node's (or a node type's) log.md does not parse as log entries. | Fix the lines the finding names, or restore the file from version control. |
+| `log-conflict` | error · stops `--approve` · a warning outside your change | A node's (or a node type's) log.md still carries git conflict markers. | yg log merge-resolve --node &lt;node&gt; (or --type &lt;type&gt;) |
+| `type-log-orphaned` | warning | A type log under .yggdrasil/types/ belongs to a node type yg-architecture.yaml no longer defines, so no context carries its decisions. | Move the decisions that still hold to the type that replaced it (yg log add --type), then delete the directory — or restore the type. |
 
 ### Reported by a fill only {#codes-fill}
 
@@ -2479,6 +2533,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `command-error` | error | A command refused for a reason no more specific code names; what, why and next say which. | Follow the error's own next: line. |
 | `internal` | error | An error the CLI does not classify — a bug. | File an issue with the command and its full output. |
 | `node-not-found` | error | The command names a node the graph does not hold. Every command that takes a node answers with it. | yg find "&lt;node&gt;" |
+| `type-not-found` | error | The command names a node type yg-architecture.yaml does not define. | Use a type the architecture defines (read .yggdrasil/yg-architecture.yaml). |
 | `aspect-not-found` | error | The command names a rule the graph does not hold. Every command that takes a rule id answers with it. | yg aspects lists every rule id. |
 | `graph-missing` | error | There is no .yggdrasil/ graph in this directory or above it. | yg init to create one, or run from the repository that has it. |
 | `graph-load-failed` | error | The graph could not be loaded at all (an unsupported or malformed schema version, an unreadable graph directory). | Follow the error's next: line — usually yg init --upgrade, or upgrading the CLI. |
@@ -2494,10 +2549,14 @@ severity says so — see [Aspect Status](/aspect-status).
 | `log-merge-entries-lost` | error | The merged log.md drops or alters entries one of the sides added. | Restore the entries the error lists, byte for byte. |
 | `log-merge-entries-unknown` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
 | `log-merge-out-of-order` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
-| `aspect-status-value-invalid` | error | yg aspects log add --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
-| `aspect-status-not-standing` | error | yg aspects log add --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
-| `aspect-status-evidence-missing` | error | yg aspects log add --status was given no --evidence for the change. | Re-run with --evidence "&lt;what justified it&gt;". |
-| `aspect-status-unchanged` | error | yg aspects log add --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
+| `log-merge-supersedes-conflict` | error | yg log merge-resolve found that both sides of the merge superseded the same entry, so two successors would both be in force; the union was written and its baseline recorded. | Finish the merge, then add one entry that supersedes both successors and says which decision holds (yg log add ... --supersedes &lt;a&gt; --supersedes &lt;b&gt;). |
+| `log-supersedes-unknown` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
+| `type-log-choice-missing` | error | yg log add --type was given neither --supersedes nor --adds while decisions are in force for the type or a type above it (the command lists them). | Re-run with --supersedes &lt;datetime&gt; naming the entry the decision replaces, or --adds when it replaces none. |
+| `log-supersedes-superseded` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |
+| `aspect-status-value-invalid` | error | yg log add --aspect --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
+| `aspect-status-not-standing` | error | yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
+| `aspect-status-evidence-missing` | error | yg log add --aspect --status was given no --evidence for the change. | Re-run with --evidence "&lt;what justified it&gt;". |
+| `aspect-status-unchanged` | error | yg log add --aspect --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
 
 ### Packages (`yg pack`) {#codes-package}
 

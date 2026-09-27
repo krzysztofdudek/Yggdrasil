@@ -6,6 +6,7 @@ import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat } from '../log-format.js';
 import { readLogSafe } from '../../io/log-store.js';
 import { toPosixPath } from '../../utils/posix.js';
+import { withStanding, type EntryStanding } from './log-supersedes.js';
 
 export interface LogReadInput {
   graph: Graph;
@@ -14,10 +15,8 @@ export interface LogReadInput {
   all?: boolean;
 }
 
-export interface LogEntry {
-  datetime: string;
-  body: string;
-}
+/** One entry, with what it replaces and what replaced it (see log-supersedes.ts). */
+export type LogEntry = EntryStanding;
 
 export type LogReadResult =
   | { ok: true; entries: LogEntry[] }
@@ -97,7 +96,9 @@ export async function logRead(input: LogReadInput): Promise<LogReadResult> {
     };
   }
 
-  const entries = parseLog(content);
+  // Standing is read off the WHOLE log before any limit is applied, so a limit
+  // never changes what an entry reads as.
+  const entries = withStanding(parseLog(content));
   const limit = input.all ? entries.length : (input.top ?? DEFAULT_TOP);
   const selected = entries.slice(-limit).reverse();
 

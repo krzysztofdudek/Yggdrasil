@@ -278,7 +278,7 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
     }
   }, 90_000);
 
-  it('the command tree has one three-word group, the one next: keeps whole (THREE_WORD_GROUPS in check-render-views.ts)', () => {
+  it('the command tree has no three-word group, as THREE_WORD_GROUPS in check-render-views.ts says', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-next-tree-'));
     try {
       const help = (args: string[]): string => run(dir, [...args, '--help']).stdout;
@@ -297,7 +297,7 @@ describe.skipIf(!distExists)('CLI E2E — the Next contract and the diagnostics 
       for (const t of top) {
         for (const sub of subcommands(help([t]))) if (subcommands(help([t, sub])).length > 0) groups.push(`${t} ${sub}`);
       }
-      expect(groups).toEqual(['aspects log']);
+      expect(groups).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -905,7 +905,7 @@ yg aspects --health
 
 \`yg aspects\` is also the step every command that takes a rule id points at when
 the id is not in the graph: \`yg check --aspect\`, \`yg impact --aspect\`,
-\`yg aspect-test --aspect\`, \`yg simulate <id>\`, \`yg aspects log add|read --aspect\`,
+\`yg aspect-test --aspect\`, \`yg simulate <id>\`, \`yg log add|read --aspect\`,
 \`yg drill --aspect\`, \`yg drill add --aspect\` and \`yg incident add --aspect\` all
 refuse an unknown id with the same \`error[aspect-not-found]: rule '<id>' is not in
 the graph\` and \`next: yg aspects\`, exit 1 — only the \`why:\` differs, saying what
@@ -1018,21 +1018,23 @@ window the counts come from, or \`null\`). A rule never judged has \`catch\`,
 yg aspects --health --json
 \`\`\`
 
-### \`yg aspects log\` — a rule's OWN history
+### \`yg log --aspect\` — a rule's OWN history
 
 A component has always had a log beside it. So does a rule, in
-\`.yggdrasil/aspects/<id>/log.md\`, and these are its two commands — on the SAME entry composer and the same guards
-as \`yg log add\` / \`yg log read\` (an empty reason refused, a body carrying its
-own \`## \` header or an unclosed fence refused, timestamps that only move
-forward). The READ flags differ: a rule log takes \`--limit <n>\` (default: whole
-history) and \`--json\`; a node log takes \`--top <n>\` (default 10), \`--all\` and
-\`--with-verdicts\`, and has no \`--json\`.
+\`.yggdrasil/aspects/<id>/log.md\`, written and read by \`yg log add\` /
+\`yg log read\` with \`--aspect <id>\` (this replaced \`yg aspects log\`) — the
+SAME entry composer and guards (an empty reason refused, a body carrying its own
+\`## \` header or an unclosed fence refused, timestamps that only move forward,
+\`--supersedes\`). What differs: a rule read shows the WHOLE history by default
+(\`--top <n>\` or \`--all\`), \`--json\` prints \`yg-aspect-log/1\`, and only a
+rule's log takes \`--status\` / \`--evidence\` / \`--by\` (\`usage\` elsewhere). A
+rule's log has no merge baseline and no \`--with-verdicts\`.
 
 \`\`\`bash
-yg aspects log add --aspect <id> --reason "<why the rule exists / what changed>"
-yg aspects log add --aspect <id> --status <draft|advisory|enforced> \\
+yg log add --aspect <id> --reason "<why the rule exists / what changed>"
+yg log add --aspect <id> --status <draft|advisory|enforced> \\
   --evidence "<what justified it>" --by "<who decided>" --reason "<why>"
-yg aspects log read --aspect <id> [--top <n> | --all] [--json]   # --limit <n> is an alias of --top
+yg log read --aspect <id> [--top <n> | --all] [--json]
 \`\`\`
 
 \`--status\` RECORDS a status change; it does NOT make one. The rule's file
@@ -1098,21 +1100,55 @@ higher-ranked entry instead.
 
 ## yg log
 
-Append and read per-node business-context log entries.
+Append, read and reconcile the append-only logs. Every command names exactly one:
+\`--node <path>\` (a component's log: WHY it is the way it is; a type may require
+an entry per source change with \`log_required\`) or \`--type <type>\` (a node
+type's decision log: explicit decisions about the whole area the type stands
+for, what an agent touching ANY node of the type must know; never required).
+Neither is a verdict input — an entry re-opens no pair.
 
 \`\`\`bash
 yg log add --node orders/handler --reason "Added cancellation at billing cycle end"
 yg log add --node orders/handler --reason-file entry.md   # multi-line reason from a file
+yg log add --node orders/handler --reason "<new decision>" --supersedes <datetime of the entry it replaces>
 yg log read --node orders/handler              # top 10 entries, newest first
 yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
 yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
+yg log add --type handler --reason "Handlers validate input at the boundary, never in the service." --adds
+yg log read --type handler                     # the decisions in force, newest first
+yg log read --type handler --all               # replaced decisions too, marked
+yg log merge-resolve --type handler
 \`\`\`
+
+\`yg log add --type\` first LISTS the decisions in force for the type and every
+type above it. When any exists, the new entry must say what it does to them:
+\`--supersedes <datetime>\` (it replaces that one) or \`--adds\` (it replaces
+none). With neither it is REFUSED (\`type-log-choice-missing\`) and nothing is
+written — read the list, then choose.
+
+A type's log lives in \`.yggdrasil/types/<type>/log.md\`. It gets the same
+integrity, format and conflict checks as a node's (findings carry the log file
+as \`unit\`), with its baseline in the committed \`yg-lock.types.json\`
+(a file of its own, never written by a fill), recorded by each add — so an add refuses a rewritten
+history (\`log-integrity\`) or conflict markers (\`log-conflict\`). An unknown
+type is \`type-not-found\`. A type log whose type is gone from
+\`yg-architecture.yaml\` is the \`type-log-orphaned\` warning. \`--json\` on a
+type read prints \`yg-type-log/1\` (\`type\`, \`inForceOnly\`, \`entries\`).
 
 Use \`--reason-file <path>\` instead of \`--reason\` to supply multi-line entry
 content from a file. On \`yg log read\`, \`--top\` and \`--all\` are mutually
 exclusive — you cannot combine them.
+
+\`--supersedes <datetime>\` (repeatable) makes the new entry replace an earlier
+entry of the SAME log. Nothing is edited or removed: the new entry opens with a
+\`### Supersedes: <datetime>\` line per replaced entry, both stay in the file, and
+\`yg log read\` marks the replaced one \`— superseded by <datetime>\` (in
+\`--json\`: \`supersedes\` on the new entry, \`supersededBy\` on the old). The
+datetime must name an entry of that log (\`log-supersedes-unknown\`) that no later
+entry has replaced yet (\`log-supersedes-superseded\` — supersede its successor
+instead).
 
 \`--with-verdicts\` interleaves the node's recent verification outcomes with its
 log entries into one newest-first timeline. The outcomes come from the local,

@@ -14,7 +14,7 @@ description: >-
   node-churn instrument (core/node-churn); pulling ranking, telemetry, or churn
   into the gate would let an instrument influence whether the build passes.
   (b) The presentation commands — cli/structure.ts, cli/aspects.ts,
-  cli/aspects-log.ts, cli/log.ts — must NOT import or re-export a YAML
+  cli/log.ts, cli/log-aspect.ts — must NOT import or re-export a YAML
   serializer (stringify / stringifyDocument / Document, or a namespace/default
   import of `yaml`); the codebase has no dedicated YAML-writer io helper, so that
   is the only YAML-write capability. structure and aspects only report on the

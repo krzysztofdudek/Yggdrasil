@@ -41,9 +41,9 @@ describe('lock-store — v1 native, v2 read leniently (relation_verdicts dropped
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it('still rejects an unknown top-level key (strict-by-design holds)', () => {
+  it('drops an unknown top-level key — a section a later release added — and reads the rest', () => {
     const dir = ygRoot(JSON.stringify({ version: 1, verdicts: {}, nodes: {}, bogus: 1 }));
-    try { expect(() => readLock(dir)).toThrow(/unexpected top-level key/); }
+    try { expect(readLock(dir)).not.toHaveProperty('bogus'); }
     finally { rmSync(dir, { recursive: true, force: true }); }
   });
 

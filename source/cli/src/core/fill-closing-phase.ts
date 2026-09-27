@@ -68,7 +68,7 @@ export async function runClosingPhase(params: ClosingPhaseParams): Promise<Prune
   // --only-deterministic, which writes no committed file, the log line is not
   // written and the memory of that rule is not advanced: the warning keeps
   // standing until a full `--approve` writes the line or somebody records the
-  // change with `yg aspects log add`.
+  // change with `yg log add --aspect`.
   const statuses = await recordAspectStatuses(graph, lock, now(), { writeLogs: !onlyDeterministic });
   if (statuses.changed) await writer.persistLock();
   for (const drift of statuses.recorded) {

@@ -1,11 +1,15 @@
 name: CLI Log Command Tests
 type: test-suite
-description: Unit tests for the log command family — log, log-add, log-read, and
-  log-merge-resolve
+description: >-
+  Unit tests for the log command family — log, log-add, log-read, and
+  log-merge-resolve — including that a rule's own history is one of the logs
+  the log command names, with its status flags, and that the rule list command
+  no longer registers a log subcommand of its own.
 aspects: []
 relations:
   [
     { target: cli/commands/log, type: uses },
+    { target: cli/commands/aspects, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/log, type: uses },
     { target: cli/core/parsing, type: uses }
@@ -14,3 +18,4 @@ mapping:
   - source/cli/tests/unit/cli/log.test.ts
   - source/cli/tests/unit/cli/log-add.test.ts
   - source/cli/tests/unit/cli/log-read.test.ts
+  - source/cli/tests/unit/cli/aspects-log.test.ts

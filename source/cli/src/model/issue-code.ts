@@ -202,6 +202,7 @@ export type CheckCode =
   | 'log-integrity'
   | 'log-format'
   | 'log-conflict'
+  | 'type-log-orphaned'
   // Committed artifacts outside the graph.
   | 'rules-digest-stale'
   | 'incident-ledger-out-of-order';
@@ -219,6 +220,7 @@ export type CommandErrorCode =
   | 'internal'
   | 'node-not-found'
   | 'aspect-not-found'
+  | 'type-not-found'
   | 'graph-missing'
   | 'graph-load-failed'
   | 'lock-environment'
@@ -234,7 +236,13 @@ export type CommandErrorCode =
   | 'log-merge-entries-lost'
   | 'log-merge-entries-unknown'
   | 'log-merge-out-of-order'
-  // yg aspects log add refusing a status record.
+  | 'log-merge-supersedes-conflict'
+  // yg log add --supersedes naming an entry it cannot replace.
+  | 'log-supersedes-unknown'
+  | 'log-supersedes-superseded'
+  // yg log add --type over decisions in force, with neither --supersedes nor --adds.
+  | 'type-log-choice-missing'
+  // yg log add --aspect refusing a status record.
   | 'aspect-status-value-invalid'
   | 'aspect-status-not-standing'
   | 'aspect-status-evidence-missing'

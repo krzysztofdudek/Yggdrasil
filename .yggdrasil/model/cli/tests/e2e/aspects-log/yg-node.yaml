@@ -1,7 +1,10 @@
 name: E2E Tests — A rule's own history
 type: test-suite
 description: >-
-  Subprocess E2E for the log a rule keeps beside its source: writing an entry,
+  Subprocess E2E for the log a rule keeps beside its source, written and read
+  with yg log --aspect now that the separate aspects log command is gone (and
+  proven gone), with the standing flags refused on any other log and
+  merge-resolve refused for a rule: writing an entry,
   reading it back as prose and as a document, and the standing of a rule being
   written down. What these pin is that a rule's history is complete and honest.
   A change of standing recorded through the CLI names what it moved from, what

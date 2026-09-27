@@ -25,11 +25,27 @@
 
 import { parseLog } from '../parsing/log-parser.js';
 import type { IssueMessage } from '../../model/validation.js';
+import type { IssueCode } from '../../model/issue-code.js';
+import { bodyWithSupersedes, supersedesRefusal, withStanding } from './log-supersedes.js';
 
-/** What composing an entry produced: the whole new file, or the reason it was refused. */
+/**
+ * What composing an entry produced: the whole new file, or the reason it was
+ * refused. A refusal that has a code of its own (a `--supersedes` naming no
+ * entry of the log) carries it; the rest are left to the caller to name.
+ */
 export type ComposeLogEntryResult =
   | { ok: true; content: string; datetime: string }
-  | { ok: false; error: IssueMessage };
+  | { ok: false; error: IssueMessage & { code?: IssueCode } };
+
+/** Optional parts of an entry beyond its text. */
+export interface ComposeLogEntryOptions {
+  /**
+   * Earlier entries of the same log this one replaces, by datetime. Each must
+   * be an entry already in the log and still in force; they stay in the file,
+   * and only a reader of what is in force skips them (see log-supersedes.ts).
+   */
+  supersedes?: readonly string[];
+}
 
 /**
  * Compose the new contents of a log file with one entry appended.
@@ -41,6 +57,7 @@ export function composeLogEntry(
   existing: string,
   reasonText: string,
   nowMs: number,
+  options: ComposeLogEntryOptions = {},
 ): ComposeLogEntryResult {
   const trimmed = reasonText.trim();
   if (trimmed === '') {
@@ -76,8 +93,32 @@ export function composeLogEntry(
     };
   }
 
+  const targets = [...new Set(options.supersedes ?? [])];
+  if (targets.length > 0) {
+    const refusal = supersedesRefusal(withStanding(parseLog(existing)), targets);
+    if (refusal !== null) {
+      return {
+        ok: false,
+        error: refusal.code === 'log-supersedes-unknown'
+          ? {
+              code: refusal.code,
+              what: `--supersedes names ${refusal.target}, which is not an entry of this log`,
+              why: 'An entry can only replace an earlier entry of the same log; a reference to one that is not there would leave nothing replaced and a reader unable to tell what was meant.',
+              next: 'Read the log to find the entry\'s exact datetime (yg log read ... --all), then pass it to --supersedes.',
+            }
+          : {
+              code: refusal.code,
+              what: `The entry ${refusal.target} was already replaced by ${refusal.by}`,
+              why: 'An entry is replaced once; the entry that replaced it is the one in force now, so a new decision replaces that one instead.',
+              next: `Re-run with --supersedes ${refusal.by}.`,
+            },
+      };
+    }
+  }
+
   const datetime = monotonicNow(lastEntryDatetime(existing), nowMs);
-  const body = reasonText.endsWith('\n') ? reasonText : reasonText + '\n';
+  const text = bodyWithSupersedes(targets, reasonText);
+  const body = text.endsWith('\n') ? text : text + '\n';
   const entry = `## [${datetime}]\n${body}`;
   const content =
     existing === ''

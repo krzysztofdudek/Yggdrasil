@@ -16,14 +16,24 @@ import { firstParentAncestors,
 import { readTextFile, writeTextFile, statKind } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
-import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
+import { readLock, writeLock, readTypeLock, writeTypeLock, LockInvalidError } from '../../io/lock-store.js';
+import { withLogWriteLock } from '../../io/log-store.js';
 import { computeLogBaselineFromContent, computeLogGateState, logGateStateBlocks } from './log-gate.js';
 import { validateAppendOnly } from '../log-integrity.js';
 import { logHasConflictMarkers, validateFormat } from '../log-format.js';
+import { typeLogRelPath, typeLogTargetRefusal } from './type-log.js';
+import { competingSuccessors, withStanding } from './log-supersedes.js';
 
+/**
+ * Which log is reconciled: a node's (`nodePath`) or a node type's decision log
+ * (`typeId`) — exactly one of them. Both are append-only logs with a committed
+ * baseline, merged by the same rules; they differ only in where the file and
+ * its baseline live, and in that only a node can owe an entry for merged code.
+ */
 export interface LogMergeResolveInput {
   graph: Graph;
-  nodePath: string;
+  nodePath?: string;
+  typeId?: string;
   repoRoot: string;
   /**
    * The two sides of a merge that left no merge commit behind — a script that
@@ -50,7 +60,9 @@ export type LogMergeResolveResult =
    *  owes a log entry of its own — the reason for the merge — before
    *  `yg check` is green. Absent when the merge changed only the log, or the
    *  component's type does not opt into the log requirement. */
-  | { ok: true; nodePath: string; wroteUnion?: boolean; inProgress?: InProgressOperation; entryOwed?: boolean }
+  /** `logPath`: the reconciled log, relative to the repository root (POSIX).
+   *  `target`: how the log was named on the command line (`--node x`, `--type t`). */
+  | { ok: true; nodePath?: string; typeId?: string; logPath: string; target: string; wroteUnion?: boolean; inProgress?: InProgressOperation; entryOwed?: boolean }
   | { ok: false; error: CodedIssueMessage };
 
 /** How each in-progress operation is finished and abandoned — for messages. */
@@ -369,20 +381,40 @@ function verifyReplayResolution(
  * Read-modify-write through the lock store: only the `log` field of this node
  * is touched; every other verdict and node fact survives untouched.
  */
-async function recordBaseline(graph: Graph, nodePath: string, currentLog: string): Promise<{ error: IssueMessage | null; entryOwed: boolean }> {
+async function recordBaseline(graph: Graph, target: LogTarget, currentLog: string): Promise<{ error: IssueMessage | null; entryOwed: boolean }> {
   const yggRoot = graph.rootPath;
   const baseline = computeLogBaselineFromContent(currentLog);
   if (!baseline) return { error: null, entryOwed: false };
+  if (target.typeId !== undefined) {
+    // A type's baseline sits in its own committed file, read and written under
+    // the log-write lock every type baseline writer takes; a type has no source
+    // of its own, so it never owes an entry for merged code.
+    const typeId = target.typeId;
+    const written = await withLogWriteLock(yggRoot, async (): Promise<IssueMessage | null> => {
+      try {
+        await writeTypeLock(yggRoot, { ...readTypeLock(yggRoot), [typeId]: { log: baseline } });
+        return null;
+      } catch (err) {
+        if (err instanceof LockInvalidError) {
+          debugWrite(`[log-merge-resolve] the type baseline file is invalid for ${target.flag}: ${err.message}`);
+          return err.messageData;
+        }
+        throw err;
+      }
+    });
+    return { error: written.ok ? written.value : written.error, entryOwed: false };
+  }
   let lock;
   try {
     lock = readLock(yggRoot);
   } catch (err) {
     if (err instanceof LockInvalidError) {
-      debugWrite(`[log-merge-resolve] readLock returned an invalid lock for node ${nodePath}: ${err.message}`);
+      debugWrite(`[log-merge-resolve] readLock returned an invalid lock for ${target.flag}: ${err.message}`);
       return { error: err.messageData, entryOwed: false };
     }
     throw err;
   }
+  const nodePath = target.nodePath as string;
   const entry = lock.nodes[nodePath] ?? {};
   entry.log = baseline;
   lock.nodes[nodePath] = entry;
@@ -402,35 +434,73 @@ async function recordBaseline(graph: Graph, nodePath: string, currentLog: string
   return { error: null, entryOwed: state !== undefined && state.unreadable === undefined && logGateStateBlocks(state) };
 }
 
-export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogMergeResolveResult> {
-  const { graph, repoRoot } = input;
-  const yggRoot = graph.rootPath;
+/**
+ * The log being reconciled, resolved once: where it is on disk and in git, how
+ * it is named in a message, and which baseline it owns.
+ */
+interface LogTarget {
+  nodePath?: string;
+  typeId?: string;
+  /** `--node <path>` or `--type <type>` — how every message names it. */
+  flag: string;
+  /** Absolute path of the log file. */
+  logPath: string;
+  /** The log's repository-relative POSIX path — the path git knows it by. */
+  gitLogPath: string;
+}
 
-  const nv = validateNodePath(toPosixPath(input.nodePath.trim()).replace(/\/+$/, ''));
+/** Resolve the input to the one log it names, or the refusal for a name that is not one. */
+function resolveTarget(input: LogMergeResolveInput): LogTarget | CodedIssueMessage {
+  const { graph } = input;
+  if (input.typeId !== undefined) {
+    const typeId = input.typeId.trim();
+    const refused = typeLogTargetRefusal(graph, typeId);
+    if (refused !== null) return refused;
+    const gitLogPath = typeLogRelPath(typeId);
+    return { typeId, flag: `--type ${typeId}`, gitLogPath, logPath: path.join(path.dirname(graph.rootPath), gitLogPath) };
+  }
+  const nv = validateNodePath(toPosixPath((input.nodePath ?? '').trim()).replace(/\/+$/, ''));
   if (!nv.ok) {
     return {
-      ok: false,
-      error: {
-        code: 'node-path-invalid',
-        what: `Invalid --node value: ${nv.reason}`,
-        why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
-        next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',
-      },
+      code: 'node-path-invalid',
+      what: `Invalid --node value: ${nv.reason}`,
+      why: 'Node path must be POSIX-relative to .yggdrasil/model/ without .. or absolute prefixes.',
+      next: 'Use a path like billing/cancel (no leading slash, no model/ prefix).',
     };
   }
   const nodePath = nv.normalized;
-
   if (!graph.nodes.has(nodePath)) {
     return {
-      ok: false,
-      error: {
-        code: 'node-not-found',
-        what: `node '${nodePath}' is not in the graph`,
-        why: 'A log belongs to a node, so the node must exist before its log can be merge-resolved.',
-        next: `yg find "${nodePath}"`,
-      },
+      code: 'node-not-found',
+      what: `node '${nodePath}' is not in the graph`,
+      why: 'A log belongs to a node, so the node must exist before its log can be merge-resolved.',
+      next: `yg find "${nodePath}"`,
     };
   }
+  return {
+    nodePath,
+    flag: `--node ${nodePath}`,
+    logPath: path.join(graph.rootPath, 'model', nodePath, 'log.md'),
+    gitLogPath: `.yggdrasil/model/${nodePath}/log.md`,
+  };
+}
+
+/** The success result's identity fields for a target. */
+function targetResult(target: LogTarget): { nodePath?: string; typeId?: string; logPath: string; target: string } {
+  return {
+    ...(target.nodePath !== undefined ? { nodePath: target.nodePath } : {}),
+    ...(target.typeId !== undefined ? { typeId: target.typeId } : {}),
+    logPath: target.gitLogPath,
+    target: target.flag,
+  };
+}
+
+export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogMergeResolveResult> {
+  const { graph, repoRoot } = input;
+
+  const resolved = resolveTarget(input);
+  if ('code' in resolved) return { ok: false, error: resolved };
+  const target = resolved;
 
   // A merge still in progress (stopped on a conflict, not yet committed) has
   // its two sides on record: HEAD and MERGE_HEAD. That is exactly when a
@@ -463,7 +533,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
             code: 'log-merge-not-in-progress',
             what: 'HEAD is not a merge commit, and no merge, rebase or cherry-pick is in progress',
             why: 'yg log merge-resolve reconciles a log against the two sides of a merge. It reads them from an operation stopped on a conflict (a merge: HEAD and MERGE_HEAD; a rebase: HEAD and REBASE_HEAD; a cherry-pick: HEAD and CHERRY_PICK_HEAD) or from the merge commit at HEAD; here there is none of them.',
-            next: `Run it while the merge, rebase or cherry-pick is stopped on the conflict, or on the merge commit — or, for a merge that left no merge commit, name the two sides: yg log merge-resolve --node ${nodePath} --ours <ref> --theirs <ref>.`,
+            next: `Run it while the merge, rebase or cherry-pick is stopped on the conflict, or on the merge commit — or, for a merge that left no merge commit, name the two sides: yg log merge-resolve ${target.flag} --ours <ref> --theirs <ref>.`,
           },
         };
       }
@@ -471,20 +541,19 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   }
   const midMerge = inProgress !== null;
 
-  const logPath = path.join(yggRoot, 'model', nodePath, 'log.md');
-  const gitLogPath = `.yggdrasil/model/${nodePath}/log.md`;
+  const { logPath, gitLogPath } = target;
   let currentLog: string;
   try {
     currentLog = await readTextFile(logPath);
   } catch (err) {
-    debugWrite(`[log-merge-resolve] log.md unreadable for node ${nodePath}: ${err instanceof Error ? err.message : String(err)}`);
+    debugWrite(`[log-merge-resolve] log.md unreadable for ${target.flag}: ${err instanceof Error ? err.message : String(err)}`);
     return {
       ok: false,
       error: {
         code: 'log-merge-log-missing',
-        what: `log.md not found for node ${nodePath}`,
-        why: 'merge-resolve reconciles an existing per-node log; this node has no log.md in the working tree.',
-        next: 'Confirm the --node path. If the node has no log yet, there is nothing to merge-resolve.',
+        what: `${gitLogPath} not found`,
+        why: `merge-resolve reconciles an existing log; ${target.flag} has no log.md in the working tree.`,
+        next: `Confirm ${target.flag}. If it has no log yet, there is nothing to merge-resolve.`,
       },
     };
   }
@@ -504,12 +573,12 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
         code: 'log-merge-conflict-markers',
         what: 'log.md still contains conflict markers',
         why: 'Conflict markers mean the merge of this log was never reconciled. merge-resolve writes the union itself only while the merge, rebase or cherry-pick is still stopped on the conflict; here none is, so it can only verify a log that is already whole.',
-        next: `Keep every entry from both sides, remove the markers, order the entries by datetime (oldest first), then run: yg log merge-resolve --node ${nodePath}${input.sides !== undefined ? ` --ours ${input.sides.ours} --theirs ${input.sides.theirs}` : ''}.`,
+        next: `Keep every entry from both sides, remove the markers, order the entries by datetime (oldest first), then run: yg log merge-resolve ${target.flag}${input.sides !== undefined ? ` --ours ${input.sides.ours} --theirs ${input.sides.theirs}` : ''}.`,
       },
     };
   }
 
-  if (replay !== null) return resolveReplay({ graph, repoRoot, nodePath, logPath, gitLogPath, currentLog, conflicted, replay });
+  if (replay !== null) return resolveReplay({ graph, repoRoot, target, currentLog, conflicted, replay });
 
   let baseLog: string | null;
   let parent1Log: string;
@@ -526,12 +595,12 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     const baseSha =
       sides?.base ??
       (await getMergeBase(repoRoot, parent1, parent2).catch((err: unknown) => {
-        debugWrite(`[log-merge-resolve] no merge base for ${nodePath}, skipping the lost-entry check: ${err instanceof Error ? err.message : String(err)}`);
+        debugWrite(`[log-merge-resolve] no merge base for ${target.flag}, skipping the lost-entry check: ${err instanceof Error ? err.message : String(err)}`);
         return null;
       }));
     baseLog = baseSha === null ? null : await getFileAtRef(repoRoot, baseSha, gitLogPath);
   } catch (err) {
-    debugWrite(`[log-merge-resolve] could not read the merge sides for ${nodePath}: ${err instanceof Error ? err.message : String(err)}`);
+    debugWrite(`[log-merge-resolve] could not read the merge sides for ${target.flag}: ${err instanceof Error ? err.message : String(err)}`);
     return {
       ok: false,
       error: {
@@ -589,10 +658,12 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   const bad = verifyUnion(currentLog, shared);
   if (bad !== null) return { ok: false, error: bad };
 
-  const recorded = await recordBaseline(graph, nodePath, currentLog);
+  const recorded = await recordBaseline(graph, target, currentLog);
   if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
+  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, inProgress);
+  if (competing !== null) return { ok: false, error: competing };
 
-  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+  return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
 }
 
 /**
@@ -603,14 +674,13 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
 async function resolveReplay(args: {
   graph: Graph;
   repoRoot: string;
-  nodePath: string;
-  logPath: string;
-  gitLogPath: string;
+  target: LogTarget;
   currentLog: string;
   conflicted: boolean;
   replay: { kind: 'rebase' | 'cherry-pick'; commit: string };
 }): Promise<LogMergeResolveResult> {
-  const { graph, repoRoot, nodePath, logPath, gitLogPath, conflicted, replay } = args;
+  const { graph, repoRoot, target, conflicted, replay } = args;
+  const { logPath, gitLogPath } = target;
   let currentLog = args.currentLog;
   const { abort } = OPERATION_COMMANDS[replay.kind];
   let oursLog: string;
@@ -622,7 +692,7 @@ async function resolveReplay(args: {
     const parent = await resolveCommit(repoRoot, `${replay.commit}^1`);
     parentLog = parent === null ? '' : await getFileAtRef(repoRoot, parent, gitLogPath);
   } catch (err) {
-    debugWrite(`[log-merge-resolve] could not read the ${replay.kind} sides for ${nodePath}: ${err instanceof Error ? err.message : String(err)}`);
+    debugWrite(`[log-merge-resolve] could not read the ${replay.kind} sides for ${target.flag}: ${err instanceof Error ? err.message : String(err)}`);
     return {
       ok: false,
       error: {
@@ -658,9 +728,39 @@ async function resolveReplay(args: {
   const bad = verifyReplayResolution(currentLog, oursLog, added, replay);
   if (bad !== null) return { ok: false, error: bad };
 
-  const recorded = await recordBaseline(graph, nodePath, currentLog);
+  const recorded = await recordBaseline(graph, target, currentLog);
   if (recorded.error !== null) return { ok: false, error: { ...recorded.error, code: 'lock-invalid' } };
-  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+  const competing = competingSuccessorsRefusal(currentLog, target, wroteUnion, replay.kind);
+  if (competing !== null) return { ok: false, error: competing };
+  return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), inProgress: replay.kind, ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+}
+
+/**
+ * The conflict a union of two logs can hide: each side replaced the same entry
+ * with a decision of its own, so the merged log holds two successors both in
+ * force. Every entry is kept and the baseline recorded — history is never
+ * dropped — but the command reports the conflict, because silently keeping
+ * both would leave two contradicting decisions in force. The fix is one entry
+ * that supersedes both successors and says which decision holds.
+ */
+function competingSuccessorsRefusal(
+  currentLog: string,
+  target: LogTarget,
+  wroteUnion: boolean,
+  inProgress: InProgressOperation | null,
+): CodedIssueMessage | null {
+  const clash = competingSuccessors(withStanding(parseLog(currentLog)))[0];
+  if (clash === undefined) return null;
+  const settle = `yg log add ${target.flag} --reason '<which decision holds, and why — ask the user>' ${clash.successors.map((s) => `--supersedes ${s}`).join(' ')}`;
+  // The settling entry comes AFTER the merge is finished: added now, it would be
+  // an entry neither side holds, and the merged log would no longer verify.
+  const finish = inProgress !== null ? `git add ${target.gitLogPath} and the lock files, ${OPERATION_COMMANDS[inProgress].finish}, then ` : '';
+  return {
+    code: 'log-merge-supersedes-conflict',
+    what: `${target.gitLogPath}: the entry ${clash.target} was replaced on both sides of the merge — by ${clash.successors.join(' and ')}`,
+    why: `Each side superseded the same entry with a decision of its own, so both successors would read as in force and contradict each other. ${wroteUnion ? 'The union of both sides was written and its baseline recorded; ' : 'Every entry is kept and the baseline recorded; '}which decision holds is not something a merge can decide.`,
+    next: `${finish}${settle}`,
+  };
 }
 
 /**

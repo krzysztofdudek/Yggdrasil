@@ -1,0 +1,24 @@
+name: E2E Tests — a node type's decision log
+type: test-suite
+description: >-
+  Subprocess E2E for yg log add, read and merge-resolve --type. A node type keeps
+  a log of its own for decisions about every node of the type, and these pin
+  that it is held to what a node's log is held to: the entry lands beside the
+  type and its baseline in the committed logs lock; a replaced decision leaves
+  the default read and shows, marked, when every entry is asked for; an unknown
+  type and a command naming no log or two are refused by code; a rewritten
+  history and an unparseable log are reported with the log file as the
+  finding's identity, and a further add over a rewritten history is refused; a
+  log whose type the architecture no longer defines is a warning; two branches'
+  decisions that conflict in git are reconciled into their union with a clean
+  check afterwards. And adding a type or a node log entry changes no pair hash:
+  a recorded project stays fully verified and a later recording run rewrites no
+  verdict.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-log-type.test.ts

@@ -2,13 +2,14 @@ import { readFileSync, unlinkSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type { IssueMessage } from '../model/validation.js';
-import type { LockAspectEntry, LockFile, VerdictEntry, LockNodeEntry } from '../model/lock.js';
+import type { LockAspectEntry, LockFile, VerdictEntry, LockNodeEntry, LockTypeEntry } from '../model/lock.js';
 import {
   LOCK_FORMAT_VERSION,
   LOCK_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
   LOCK_LOGS_FILE_NAME,
   LOCK_DET_FILE_NAME,
+  LOCK_TYPES_FILE_NAME,
 } from '../model/lock.js';
 import { atomicWriteFile, atomicWriteFileSync, onProcessInterrupt, tryAcquireExclusiveFile } from '../io/atomic-write.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -147,7 +148,7 @@ export function detLockPath(yggRoot: string): string {
  */
 export function committedLockContentHash(yggRoot: string): string {
   const parts: Buffer[] = [];
-  for (const file of [nondetLockPath(yggRoot), logsLockPath(yggRoot)]) {
+  for (const file of [nondetLockPath(yggRoot), logsLockPath(yggRoot), typesLockPath(yggRoot)]) {
     if (!existsSync(file)) continue;
     try {
       parts.push(readFileSync(file));
@@ -237,7 +238,110 @@ export function readLock(yggRoot: string): LockFile {
   // Absent, not empty, when nothing has been seen — "no memory yet" and "seen
   // and standing nowhere" are different facts, and only the first is true here.
   if (Object.keys(det.aspects).length > 0) merged.aspects = det.aspects;
+  // The type-log baselines live in a committed file of their own (see
+  // readTypeLock). Absent when none is recorded, for the same reason.
+  const types = readTypeLock(yggRoot);
+  if (Object.keys(types).length > 0) merged.types = types;
   return merged;
+}
+
+/** Absolute path to the committed type-log baseline file. */
+function typesLockPath(yggRoot: string): string {
+  return path.join(yggRoot, LOCK_TYPES_FILE_NAME);
+}
+
+/**
+ * The append-only baselines of the node types' decision logs, from their own
+ * committed file, `yg-lock.types.json`: `{ "version": 1, "types": { <type>: {
+ * "log": { last_entry_datetime, prefix_hash } } } }`.
+ *
+ * A file of its own rather than a section of `yg-lock.logs.json` for two
+ * reasons. A release before 6.1.0 reads the logs file with a reader that
+ * refuses any key it does not know, so a new section there would have made
+ * every older checkout and CI runner of the repository fail closed the moment
+ * one person recorded a type decision; an older release never opens this file.
+ * And nothing that records verdicts writes it: a type baseline moves when a
+ * type decision is added or a merge of one reconciled, never at a fill, so a
+ * full `--approve` running beside `yg log add --type` cannot write a stale copy
+ * of it back.
+ *
+ * Absent reads as no baselines. Committed, so a file that does not parse fails
+ * closed like the other committed lock files; a key it does not know, at the
+ * top or in an entry, is ignored, so a later extension reads here as absent
+ * rather than as corruption.
+ */
+export function readTypeLock(yggRoot: string): Record<string, LockTypeEntry> {
+  const ctx: ParseCtx = { fileName: LOCK_TYPES_FILE_NAME, committed: true };
+  let raw: string;
+  try {
+    raw = readFileSync(typesLockPath(yggRoot), 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
+    throw err;
+  }
+  if (/^(?:<<<<<<<|=======|>>>>>>>)/m.test(raw)) {
+    throw lockInvalid(ctx, 'take one side of', {
+      what: `${LOCK_TYPES_FILE_NAME} contains git conflict markers — the file was not resolved after a merge`,
+      why: 'a conflict-markered lock file cannot be parsed; a type log baseline read from it could report an honest log as rewritten or let a rewritten one pass',
+      next:
+        `take one side of it wholesale (git checkout --ours -- .yggdrasil/${LOCK_TYPES_FILE_NAME}), then run \`yg log merge-resolve --type <type>\` for each type log the same merge conflicted, which records its baseline again.`,
+    });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw lockInvalid(ctx, 'restore', { what: `${LOCK_TYPES_FILE_NAME} contains unparseable JSON`, why: 'a garbled lock file cannot be read; treating it as empty would stop checking the type logs it guards', next: recoveryNext(ctx) });
+  }
+  if (!isPlainObject(parsed) || typeof parsed.version !== 'number') {
+    throwMalformed('it must be a JSON object with a numeric version field', ctx);
+  }
+  if (parsed.version !== 1) {
+    throw lockInvalid(ctx, 'restore', {
+      what: `${LOCK_TYPES_FILE_NAME} has unsupported version ${String(parsed.version)} (this CLI reads version 1)`,
+      why: 'an unrecognized version means the file was written by a newer CLI; reading it would risk misinterpreting its structure',
+      next: recoveryNext(ctx),
+    });
+  }
+  const types = parsed.types ?? {};
+  if (!isPlainObject(types)) throwMalformed('"types" must be a JSON object (found ' + describe(types) + ')', ctx);
+  const out: Record<string, LockTypeEntry> = {};
+  for (const [typeId, entry] of Object.entries(types)) {
+    if (!isPlainObject(entry)) throwMalformed(`"types.${typeId}" must be a JSON object (found ${describe(entry)})`, ctx);
+    if (entry.log === undefined) {
+      out[typeId] = {};
+      continue;
+    }
+    const log = entry.log;
+    if (!isPlainObject(log) || typeof log.last_entry_datetime !== 'string' || typeof log.prefix_hash !== 'string') {
+      throwMalformed(`"types.${typeId}.log" must be { last_entry_datetime: string, prefix_hash: string }`, ctx);
+    }
+    out[typeId] = { log: { last_entry_datetime: log.last_entry_datetime, prefix_hash: log.prefix_hash } };
+  }
+  return out;
+}
+
+/**
+ * Write the type-log baselines to their own committed file, keys sorted and one
+ * entry per line so git merges them entry by entry; the file is removed when it
+ * would hold nothing. The caller owns the read-modify-write: it runs under the
+ * repository's log-write lock, the lock every log writer takes.
+ */
+export async function writeTypeLock(yggRoot: string, types: Record<string, LockTypeEntry>): Promise<void> {
+  const filePath = typesLockPath(yggRoot);
+  const ids = Object.keys(types).sort();
+  if (ids.length === 0) {
+    removeFileIfExists(filePath);
+    return;
+  }
+  const lines = ['{', `  "version": 1,`, '  "types": {'];
+  ids.forEach((id, i) => {
+    const log = types[id].log;
+    const entry = log === undefined ? '{}' : `{"log":{"last_entry_datetime":${JSON.stringify(log.last_entry_datetime)},"prefix_hash":${JSON.stringify(log.prefix_hash)}}}`;
+    lines.push(`    ${JSON.stringify(id)}: ${entry}${i === ids.length - 1 ? '' : ','}`);
+  });
+  lines.push('  }', '}', '');
+  await writeFileIfChanged(filePath, lines.join('\n'));
 }
 
 /**
@@ -408,10 +512,22 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
   // relation conformance is computed live now, so the section is moot.
   if ('relation_verdicts' in obj) delete obj.relation_verdicts;
 
+  // A top-level key this release does not know is a section a later release
+  // added, not corruption: it is dropped here and never written back. A strict
+  // top level made every earlier release fail closed over any file a later one
+  // extended — the committed files included, where there is no rebuilding past
+  // it — so one person on a newer CLI took down every older checkout and CI
+  // runner of the repository. Inside the known sections the shape stays strict.
+  for (const key of Object.keys(obj)) {
+    if (!KNOWN_TOP_KEYS.has(key)) {
+      debugWrite(`[lock-store] ${ctx.fileName}: ignoring top-level key "${key}" this release does not know`);
+      delete obj[key];
+    }
+  }
+
   // Validate the SHAPE. The lock is the only persisted verification state; a malformed
   // shape must fail CLOSED, never silently coerce to empty (which would be fail-open).
-  // Strict-by-design: the format is fully enumerated and version-gated; unknown keys are
-  // corruption, not forward-compatible extension.
+  // Every known section is fully enumerated; only an unknown TOP-LEVEL key is tolerated.
   validateLockShape(obj, ctx);
 
   // Shape is valid — the cast is sound because validateLockShape threw on anything else.
@@ -452,9 +568,9 @@ function throwMalformed(detail: string, ctx: ParseCtx): never {
 /**
  * Validate the SHAPE of a parsed lock object (version already checked by the caller).
  *
- * Throws LockInvalidError on any structural deviation. Strict-by-design: only the known keys are
- * accepted at every level; unknown keys are rejected (the format is version-gated, so unknown
- * keys mean corruption, not forward-compatible extension).
+ * Throws LockInvalidError on any structural deviation. Only the known keys are accepted inside
+ * every section; an unknown TOP-LEVEL key was already dropped by the caller as a section a later
+ * release added.
  *
  * Accepted shape:
  * - top level: exactly { version, verdicts, nodes } (version validated by caller). Each split
@@ -469,12 +585,10 @@ function throwMalformed(detail: string, ctx: ParseCtx): never {
  * - aspects (optional — absent in a lock written before rules had a remembered standing): plain
  *   object; every value is a plain object with an optional string `status`.
  */
+/** The top-level keys this release reads in a lock file; any other is dropped on read. */
+const KNOWN_TOP_KEYS: ReadonlySet<string> = new Set(['version', 'verdicts', 'nodes', 'aspects']);
+
 function validateLockShape(obj: Record<string, unknown>, ctx: ParseCtx): void {
-  // Top-level keys: only version / verdicts / nodes / aspects are allowed.
-  const TOP_KEYS = new Set(['version', 'verdicts', 'nodes', 'aspects']);
-  for (const key of Object.keys(obj)) {
-    if (!TOP_KEYS.has(key)) throwMalformed(`unexpected top-level key "${key}" (allowed: version, verdicts, nodes, aspects)`, ctx);
-  }
 
   // verdicts must be a plain object of aspectId → (unitKey → entry).
   if (!isPlainObject(obj.verdicts)) {
