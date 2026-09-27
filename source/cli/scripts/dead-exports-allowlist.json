@@ -49,7 +49,7 @@
         "src/cli/pack.ts#scaffoldCheckScript",
         "src/cli/pack.ts#scaffoldPackageManifest",
         "src/cli/pack.ts#withPackageEntry",
-        "src/cli/progressive-scope-resolve.ts#resolveSubmoduleGitlinkInDiff",
+        "src/core/progressive-scope-resolve.ts#resolveSubmoduleGitlinkInDiff",
         "src/cli/schemas.ts#listSchemas",
         "src/cli/schemas.ts#readSchema",
         "src/cli/simulate.ts#WALD_LABEL",

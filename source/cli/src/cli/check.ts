@@ -19,7 +19,7 @@ import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, formatOwed } from '../formatters/check-render-views.js';
 import { CHECK_JSON_SCHEMA, formatCheckJson, formatCompactCheckJson, type CheckJsonDocument } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
-import { resolveChangeScope } from './progressive-scope-resolve.js';
+import { resolveChangeScope } from '../core/progressive-scope-resolve.js';
 import { fail, notice, warn, writeErr, writeOut, aspectNotFound } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
 import { withRunScope } from '../io/run-scope-cache.js';

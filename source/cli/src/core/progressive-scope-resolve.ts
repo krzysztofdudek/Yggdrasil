@@ -1,5 +1,5 @@
 /**
- * source/cli/src/cli/progressive-scope-resolve.ts — resolve the CHANGE SCOPE a
+ * source/cli/src/core/progressive-scope-resolve.ts — resolve the CHANGE SCOPE a
  * `yg check` run gates against: which of this run's obligations the current
  * change is accountable for, measured against the reference branch the project
  * names in `yg-config.yaml`.
@@ -28,15 +28,13 @@
  */
 
 import path from 'node:path';
-import { realpathSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
 import { LOCK_NONDET_FILE_NAME } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
-import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
-import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { computeExpectedPairs, type TypeCoverageInput } from './pairs.js';
+import { scanUncoveredFiles } from './check-coverage-scan.js';
+import { computeTypeCoverageCached } from './type-coverage.js';
 import { ARCHITECTURE_FILE, CONFIG_FILE } from '../utils/graph-file-names.js';
 import {
   computeBurnSet,
@@ -44,9 +42,10 @@ import {
   progressivePairKey,
   type BurnSet,
   type GlobalCause,
-} from '../core/progressive-scope.js';
+} from './progressive-scope.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
+import { readTextFile, realPathSyncOrNull } from '../io/graph-fs.js';
 import {
   changedFilesAgainst,
   getFileAtRef,
@@ -297,7 +296,7 @@ async function didConfigVocabularyMove(projectRoot: string, mergeBase: string): 
   }
   let headText: string;
   try {
-    headText = await readFile(path.join(projectRoot, CONFIG_FILE), 'utf-8');
+    headText = await readTextFile(path.join(projectRoot, CONFIG_FILE));
   } catch {
     return true;
   }
@@ -364,11 +363,8 @@ export function resolveSubmoduleGitlinkInDiff(
  */
 function toplevelMatchesProjectRoot(toplevel: string, projectRoot: string): boolean {
   if (toplevel === toPosixPath(projectRoot)) return true;
-  try {
-    return toplevel === toPosixPath(realpathSync(projectRoot));
-  } catch {
-    return false;
-  }
+  const real = realPathSyncOrNull(projectRoot);
+  return real !== null && toplevel === toPosixPath(real);
 }
 
 /** Resolve every git fact the preflight table decides over. */

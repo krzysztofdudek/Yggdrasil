@@ -1,5 +1,5 @@
 /**
- * Tests for cli/progressive-preflight.ts — the pure state machine that turns
+ * Tests for core/progressive-preflight.ts — the pure state machine that turns
  * the progressive-mode probe results (`utils/git-introspect.ts`'s
  * `isAncestor`/`isShallowRepository`/`getToplevelAndPrefix`/
  * `treesIdentical`/`hasCleanWorktree`, plus `changedFilesAgainst`'s touched
@@ -18,7 +18,7 @@ import {
   resolveProgressiveState,
   type PreflightProbes,
   type ProgressiveState,
-} from '../../../src/cli/progressive-preflight.js';
+} from '../../../src/core/progressive-preflight.js';
 import type { ChangedFiles } from '../../../src/utils/git-introspect.js';
 
 /** An empty, but SUCCESSFULLY enumerated, touched set (Δ = ∅). */

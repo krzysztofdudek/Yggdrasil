@@ -48,7 +48,7 @@ relations:
     type: calls
   - target: cli/formatters
     type: calls
-  - target: cli/progressive-scope-resolve
+  - target: cli/core/progressive-scope-resolve
     type: calls
   - target: cli/core/suppressions
     type: calls

@@ -1,5 +1,5 @@
 /**
- * source/cli/src/cli/progressive-preflight.ts — turns the progressive-mode
+ * source/cli/src/core/progressive-preflight.ts — turns the progressive-mode
  * git probes (`utils/git-introspect.ts`) into exactly one verdict for
  * `yg check`: gate the whole graph, gate only the touched set, stay quiet,
  * or fall back to the whole graph because the state could not be trusted.

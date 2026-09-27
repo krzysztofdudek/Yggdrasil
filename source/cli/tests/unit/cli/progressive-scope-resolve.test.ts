@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSubmoduleGitlinkInDiff } from '../../../src/cli/progressive-scope-resolve.js';
+import { resolveSubmoduleGitlinkInDiff } from '../../../src/core/progressive-scope-resolve.js';
 import type { ChangedFiles } from '../../../src/utils/git-introspect.js';
 
 // ---------------------------------------------------------------------------
