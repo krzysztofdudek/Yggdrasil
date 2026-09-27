@@ -1,9 +1,9 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import type { CheckResult } from '../model/check-result.js';
 import type { TypeVisibilityReason, TypeVisibilityReport } from '../model/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination, describeCascadeCycle } from './type-visibility-text.js';
 import { verdict, decorated } from './output-grammar.js';
 import { count } from '../utils/count.js';
+import { toPosixPath } from '../utils/posix.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 
@@ -278,7 +278,7 @@ function renderReasonGroups(dropped: TypeVisibilityReport['byType'][number]['dro
  */
 function renderUncomputableGroups(groups: TypeVisibilityReport['uncomputable']['groups']): string[] {
   return groups.map((group) => {
-    const shown = group.files.slice(0, DROPPED_LIST_CAP);
+    const shown = group.files.slice(0, DROPPED_LIST_CAP).map(toPosixPath);
     const overflow = group.files.length > DROPPED_LIST_CAP ? ` ... and ${group.files.length - DROPPED_LIST_CAP} more` : '';
     return `${shown.join(', ')}${overflow} — ${describeCascadeCycle({ aspectId: group.aspectId })}`;
   });
@@ -452,7 +452,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       );
       continue;
     }
-    const shown = block.files.slice(0, FILE_LIST_CAP);
+    const shown = block.files.slice(0, FILE_LIST_CAP).map(toPosixPath);
     const overflow = block.files.length > FILE_LIST_CAP ? ` ... and ${block.files.length - FILE_LIST_CAP} more` : '';
     lines.push(`  '${block.typeId}' — ${count(block.files.length, 'file')} covered: ${shown.join(', ')}${overflow}`);
     if (block.uncomputable.length > 0) {
@@ -490,7 +490,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
     const suffix = countsOnly ? '.' : ':';
     lines.push(`${count(zc.count, 'file')} matched by a type ${g.has} no rules that apply to ${g.it} — ${g.subject} ${g.satisfy} coverage with no enforcement${suffix}`);
     if (!countsOnly) {
-      for (const f of zc.samples) lines.push(`  - ${f}`);
+      for (const f of zc.samples) lines.push(`  - ${toPosixPath(f)}`);
       if (zc.count > zc.samples.length) lines.push(`  ... and ${zc.count - zc.samples.length} more`);
     }
   }

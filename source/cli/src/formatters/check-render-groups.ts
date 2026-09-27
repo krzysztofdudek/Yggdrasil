@@ -1,4 +1,3 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (colour and glyphs); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 /**
  * The findings of a check run as blocks — one template for every finding:
  *
