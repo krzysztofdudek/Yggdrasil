@@ -879,7 +879,8 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     try {
       const { status, all } = run(['aspect-test', '--aspect', 'no-todo-comments', '--node', 'no/such/node'], dir);
       expect(status).toBe(1);
-      expect(all).toContain("Node 'no/such/node' not found.");
+      expect(all).toContain('error[node-not-found]');
+      expect(all).toContain("'no/such/node'");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

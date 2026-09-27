@@ -250,7 +250,10 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
       type: type as RelationType,
       portNames,
     };
-    if (typeof obj.event_name === 'string' && obj.event_name.trim()) {
+    // event_name labels an event channel; on a structural relation it means
+    // nothing, and the schema says it is ignored there — so it is not kept, and
+    // yg-node/1 never echoes it on one.
+    if ((type === 'emits' || type === 'listens') && typeof obj.event_name === 'string' && obj.event_name.trim()) {
       rel.event_name = obj.event_name.trim();
     }
 

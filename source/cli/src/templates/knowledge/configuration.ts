@@ -315,7 +315,7 @@ Controls which coverage-visible files must be mapped to a node.
 
 - \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default. A fresh \`yg init\` writes \`required: []\`, so a newly adopted repository starts requiring nothing and tightens coverage where it wants enforcement.
 - \`excluded\` — roots that are silently ignored. Default: \`[]\`; a fresh \`yg init\` writes the agent-rules files it installed plus \`.gitattributes\` here, since they are Yggdrasil's own plumbing rather than project source. This is a supreme, global filter, not just a coverage-level rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
-- Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking level to a pattern. \`/\` still means the whole repo.
+- Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across; a root is a glob only when it contains \`*\`, otherwise \`?\`, \`[ ]\` and \`{ }\` are literal) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking level to a pattern. \`/\` still means the whole repo.
 - Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning (the \`-advisory\` suffix only means non-blocking; it is unrelated to the rule status \`advisory\`).
 - \`type_level\` — boolean, default \`false\` (a fresh \`yg init\` writes \`true\`). When on, a file matched by exactly ONE classifying type's \`when\` counts as covered by that type, with no node of its own — a type-covered file. Only a \`scope: { per: file }\` rule can ever produce a verdict on such a file (a \`per: node\` rule has no node to run against there). Committed-config only: a \`yg-secrets.yaml\` overlay can never change this key, since it changes what counts as covered for everyone. Does nothing until some type declares \`when:\`. Applicability facts and volatility for type-covered files: \`yg knowledge read conditional-aspects\`.
 - The excluded set has a second source beyond the config list above: a subtree that is its own separate project — carrying its own nested \`.yggdrasil/\` graph, or its own \`.git\` (a checkout, submodule, or linked worktree) — is a DEFAULT member of the excluded set, whether or not any \`excluded\` line mentions it; membership is read off the real filesystem, not guessed from a directory name, so an ordinary dependency directory (e.g. \`node_modules\`) with no graph or git checkout of its own is never skipped by name alone — exclude it explicitly via \`excluded\` if desired.
@@ -375,12 +375,14 @@ available cores — no configuration, and it never affects verdicts, only speed.
 This is why the free, keyless \`yg check --approve --only-deterministic\` gate
 parallelizes with no \`parallel\` setting at all.
 
-Each script rule's check runs under a wall-clock budget (default 120 seconds;
+Each script rule's check in a fill (\`yg check --approve\`, \`yg adopt\`) runs
+under a wall-clock budget (default 120 seconds;
 set the \`YG_DET_TASK_TIMEOUT_MS\` environment variable, in milliseconds, to
 change it, or to \`0\` to switch it off). A check still running past it — an
 endless loop, runaway regex backtracking — is stopped and reported as
 \`unverified\` with cause \`check-failed-to-run\`, naming the rule and the unit; nothing is written
-for it and every other check still runs, so the gate never hangs.
+for it and every other check still runs, so the gate never hangs. The
+diagnostic runs (\`yg aspect-test\`, \`yg drill\`, \`yg simulate\`) have no budget.
 
 ## Debug logging
 
@@ -479,8 +481,8 @@ re-verified. \`deterministic\` is not held back — it is free, keyless, and the
 recommended CI cache rebuild, so it cannot make a stale change green.
 
 **When a fill is triggered by \`auto_approve\`:** a pre-run banner on stderr warns
-that reviewer calls will be made, and the PASS header shows \`(auto-filled)\` to
-distinguish it from a clean read-only pass. The \`parallel\` and \`reviewer\` tier
+that reviewer calls will be made, and the PASS verdict line says \`· auto-filled\`
+after the finding counts to distinguish it from a clean read-only pass. The \`parallel\` and \`reviewer\` tier
 settings from \`yg-config.yaml\` apply to the fill just as they would for an
 explicit \`--approve\`.
 

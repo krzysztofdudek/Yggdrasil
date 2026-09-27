@@ -109,7 +109,7 @@ const COMMANDS: Record<string, CommandHelp> = {
   simulate: {
     group: 'Rules',
     summary: 'Replay history against a rule change',
-    examples: [['yg simulate .yggdrasil/aspects/no-todo', 'what the rule would have caught']],
+    examples: [['yg simulate no-todo --node orders', 'what the rule would have caught on one node']],
   },
   suppressions: {
     group: 'Rules',
@@ -124,11 +124,11 @@ const COMMANDS: Record<string, CommandHelp> = {
   incident: {
     group: 'Rules',
     summary: 'Record a rule that missed, or blocked wrongly',
-    examples: [['yg incident list', 'the ledger']],
+    examples: [['yg incident read', 'the ledger']],
   },
   'type-suggest': {
     group: 'Rules',
-    summary: 'Design an architecture type for a file',
+    summary: 'Which architecture type a file fits',
     examples: [['yg type-suggest --file src/a.ts', 'which type it fits']],
   },
   init: {

@@ -26,6 +26,7 @@ import type {
   CheckJsonEdge,
 } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
+import { baseCodeOfOutsideTwin } from '../utils/check-codes.js';
 
 /** Every verdict word the document can carry, so the totals map is always complete. */
 const VERDICT_WORDS: CheckJsonVerdict[] = [
@@ -111,7 +112,8 @@ function edgesOf(issue: CheckIssue): CheckJsonEdge[] | undefined {
   if (issue.relationEdges !== undefined && issue.relationEdges.length > 0 && issue.code !== 'strict-overlap-conflict') {
     return issue.relationEdges.map((e) => ({ file: toPosixPath(e.fromFile), line: null, target: toPosixPath(e.toFile) }));
   }
-  if (issue.code !== 'relation-undeclared-dependency') return undefined;
+  // An outside twin (progressive mode) carries the same edges as the finding it mirrors.
+  if ((baseCodeOfOutsideTwin(issue.code) ?? issue.code) !== 'relation-undeclared-dependency') return undefined;
   const out: CheckJsonEdge[] = [];
   const allowed = issue.importRelationsAllowed;
   for (const line of issue.messageData.what.split('\n').slice(1)) {

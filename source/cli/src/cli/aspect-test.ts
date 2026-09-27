@@ -37,7 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { aspectNotFound, fail, field, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
+import { aspectNotFound, nodeNotFound, fail, field, paint, writeErr, writeOut, notice, failAndExit } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -238,7 +238,7 @@ export function registerAspectTestCommand(program: Command): void {
       'For reviewer rules, --dry-run prints the assembled prompts without making any reviewer call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
-    .requiredOption('--aspect <id>', 'aspect id to run')
+    .requiredOption('--aspect <id>', 'aspect id to run (required)')
     .option('--node <path>', 'graph node to check (uses the node mapping and graph-aware ctx)')
     .option('--file <path>', 'a type-covered source file, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
     .option('--files <paths...>', 'ad-hoc source files to check (script rules only; NO graph attachment — see --file for a graph-attached, type-covered file)')
@@ -407,11 +407,7 @@ function existingNodePath(graph: Graph, rawNode: string): string {
   const nodePath = rawNode.trim().replace(/\/$/, '');
   const node = graph.nodes.get(nodePath);
   if (!node) {
-    failAndExit({
-        what: `Node '${nodePath}' not found.`,
-        why: `--node requires an existing node path in the graph.`,
-        next: `Run 'yg tree' to list nodes.`,
-      }, 'node-not-found');
+    failAndExit(nodeNotFound(nodePath, 'The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.'), 'node-not-found');
   }
   return nodePath;
 }
@@ -425,6 +421,15 @@ async function runLlmPath(
   modes: AspectTestModes,
   repeatN: number,
 ): Promise<void> {
+  // --check-determinism is a script-rule flag. Ignoring it here would let the
+  // run go on to a live, billed reviewer call the user did not ask for.
+  if (opts.checkDeterminism === true) {
+    failAndExit({
+        what: `--check-determinism is not supported for reviewer rule '${opts.aspect}'.`,
+        why: `--check-determinism runs a script rule twice and compares the results; a reviewer rule is judged by a model, whose consistency --repeat measures.`,
+        next: `Use --repeat <n> with this reviewer rule to measure how consistently the reviewer judges it, or drop --check-determinism.`,
+      }, 'command-error');
+  }
   // --files is not supported for LLM aspects: they need graph context.
   if (modes.hasFiles) {
     failAndExit({

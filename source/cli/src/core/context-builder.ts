@@ -94,7 +94,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     id: normPath(f.path),
     name: f.name,
     description: f.description ?? '',
-    readPath: `flows/${normPath(f.path)}/yg-flow.yaml`,
+    readPath: `.yggdrasil/flows/${normPath(f.path)}/yg-flow.yaml`,
   }));
 
   const ancestorPaths = new Set(ancestors.map(a => a.path));
@@ -106,7 +106,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
         path: normPath(r.target),
         relation: r.type,
         description: target?.meta.description,
-        readPath: `model/${normPath(r.target)}/yg-node.yaml`,
+        readPath: `.yggdrasil/model/${normPath(r.target)}/yg-node.yaml`,
         consumes: r.portNames,
       };
     });
@@ -130,7 +130,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
     dependentPaths: dependentCount <= 5 ? dependentPaths?.map(p => normPath(p)) : undefined,
     parentPath: parent ? normPath(parent.path) : undefined,
     parentType: parent?.meta.type,
-    parentReadPath: parent ? `model/${normPath(parent.path)}/yg-node.yaml` : undefined,
+    parentReadPath: parent ? `.yggdrasil/model/${normPath(parent.path)}/yg-node.yaml` : undefined,
     ...(node.meta.maxDirectRelations && { maxDirectRelations: node.meta.maxDirectRelations }),
   };
 }

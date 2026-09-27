@@ -763,7 +763,7 @@ export function registerBuildCommand(program: Command): void {
     .description('Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .option('--json', `Machine-readable output: one ${CONTEXT_JSON_SCHEMA} document on stdout instead of the text package. Same facts, same exit codes.`)
+    .option('--json', `Machine-readable output: one ${CONTEXT_JSON_SCHEMA} document on stdout instead of the text package: the core facts (owner, chain, rules), narrower than the text view; same exit codes.`)
     // One run scope (io/run-scope-cache.ts): a directory is listed once per command.
     .action((options: { node?: string; file?: string; json?: boolean }) => withRunScope(() => contextAction(options)));
 

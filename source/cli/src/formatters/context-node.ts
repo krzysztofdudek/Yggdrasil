@@ -210,16 +210,16 @@ export function formatNodeContext(data: NodeContextData): string {
     lines.push(`Dependents (${data.dependentCount}):`);
     if (data.dependentCount >= 16) {
       lines.push(`  HIGH blast radius — changes cascade to ${count(data.dependentCount, 'node')}.`);
-      lines.push(`next: yg impact --node ${posixPath(data.path)}  (strongly recommended before editing)`);
+      lines.push(`  before editing: yg impact --node ${posixPath(data.path)}  (strongly recommended)`);
     } else if (data.dependentCount >= 6) {
       lines.push(`  Moderate blast radius — changes trigger cascade review on ${count(data.dependentCount, 'node')}.`);
-      lines.push(`next: yg impact --node ${posixPath(data.path)}`);
+      lines.push(`  before editing: yg impact --node ${posixPath(data.path)}`);
     } else {
       // 1-5: plain list of dependent node paths
       for (const dep of data.dependentPaths ?? []) {
         lines.push(`  ${posixPath(dep)}`);
       }
-      lines.push(`next: yg impact --node ${posixPath(data.path)}`);
+      lines.push(`  before editing: yg impact --node ${posixPath(data.path)}`);
     }
     lines.push('');
   }

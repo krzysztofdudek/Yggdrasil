@@ -46,7 +46,9 @@ auto_approve: false               # optional — controls the behavior of bare \
                                   #   and key-free regardless of this setting.
 
 coverage:                         # optional — scopes the unmapped-files gate. Absent = whole repo required (today's behavior).
-  required: ["/"]                 #   roots where an uncovered tracked file is an ERROR (blocks). "/" = whole repo.
+  required: ["/"]                 #   roots where an uncovered file is an ERROR (blocks). "/" = whole repo.
+                                  #   A file counts when the disk walk sees it: tracked or not,
+                                  #   anything .gitignore does not exclude.
   excluded: []                    #   roots removed from EVERY check, not only from coverage: an excluded
                                   #   file gets no coverage finding, no review pair, no type classification
                                   #   and no rule read — even when a node's mapping names it exactly.

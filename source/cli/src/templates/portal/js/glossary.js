@@ -49,7 +49,7 @@
       id: 'relation',
       term: 'relation',
       group: 'The graph',
-      def: "A declared dependency between two nodes (calls / uses / …). The code's real dependencies must match what's declared.",
+      def: "A declared dependency between two nodes (calls / uses / …). Every real code dependency must be declared; a declared relation needs no code behind it.",
       see: '/relations-flows-ports',
     },
     {
@@ -150,7 +150,7 @@
     { id: 'ancestor', term: 'ancestor', group: 'Rules', def: 'This rule is inherited from a parent component.' },
     { id: 'own-type', term: 'own type', group: 'Rules', def: 'This rule applies to every component of this type.' },
     { id: 'ancestor-type', term: 'ancestor type', group: 'Rules', def: "Inherited from a parent component's type." },
-    { id: 'port', term: 'port', group: 'Rules', def: 'This rule crosses in from a named contract this component consumes.' },
+    { id: 'port', term: 'port', group: 'Rules', def: 'This rule crosses in from a port this component enters through a relation — a named one, or the target’s implicit `default` port.' },
     { id: 'implied', term: 'implied', group: 'Rules', def: 'Pulled in by another rule that includes this one.' },
     // ── Judging ──────────────────────────────────────────────────────────────
     {
@@ -280,7 +280,7 @@
       id: 'type-covered',
       term: 'type-covered file',
       group: 'Coverage',
-      def: 'A file no node owns that exactly one classifying type claims. That type’s `per: file` rules enforce it.',
+      def: 'A file no node owns that exactly one non-strict classifying type claims, and no strict type does. That type’s `per: file` rules enforce it.',
       not: 'type-level lattice, type tier, component-free file',
       see: '/configuration#coverage-config',
     },
@@ -330,8 +330,7 @@
       id: 'waiver',
       term: 'line-scoped waiver',
       group: 'The lock and waivers',
-      def: 'A `yg-suppress` marker with a reason. It waives one rule on the lines it covers — a single line, a bracketed range or the whole file — and needs the user’s sign-off.',
-      not: 'file-level waiver',
+      def: 'A `yg-suppress` marker with a reason. It waives the rules it names — one, a comma-separated list, or every rule with `*` — on the lines it covers: a single line, a bracketed range, or the whole file (the kind `yg suppressions` lists as `file-level`). It needs the user’s sign-off.',
       see: '/reviewers',
     },
     {

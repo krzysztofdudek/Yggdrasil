@@ -1078,6 +1078,30 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
     }
   });
 
+  // D3: the relation findings come from the live relation pass alone, never from
+  //     the lock — so a lock that does not load withholds none of them. Before, the
+  //     relation pushes sat inside the lock's try-block and a garbled lock file hid
+  //     every undeclared dependency behind lock-invalid until the lock was repaired.
+  it('D3: a garbled lock does not hide an undeclared dependency', () => {
+    const dir = deterministicLifecycle('d3-garbled-lock');
+    try {
+      writeFileSync(ordersSrc(dir), ORDERS_WITH_PAYMENT_IMPORT, 'utf-8');
+      writeFileSync(
+        ordersNodeYaml(dir),
+        [...ORDERS_BASE, 'mapping:', '  - src/services/orders.ts', ''].join('\n'),
+        'utf-8',
+      );
+      writeFileSync(path.join(dir, '.yggdrasil', 'yg-lock.nondeterministic.json'), '{ garbled', 'utf-8');
+      const out = run(['check'], dir);
+      expect(out.status).toBe(1);
+      expect(out.all).toContain('lock-invalid');
+      expect(out.all).toContain('relation-undeclared-dependency');
+      expect(out.all).toContain('services/orders');
+    } finally {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
   // D2: symmetric to D1 from the other direction — start WITH the relation declared and
   //     green, then remove it and confirm a plain `yg check` catches the live undeclared
   //     dependency. The node's ASPECT verdicts are UNCHANGED (a relation is not an

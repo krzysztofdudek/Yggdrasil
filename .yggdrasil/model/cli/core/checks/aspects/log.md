@@ -104,3 +104,5 @@ The reviewer-credential findings are warnings only. The repository owner decided
 Messages for a rule whose files do not match its reviewer type said the rule has reviewer llm or deterministic, and told the user to change reviewer to a token. The config key is reviewer.type; the messages now name that key and say which rule kind each token means, as the Glossary maps them.
 ## [2026-09-27T20:36:58.434Z]
 A companion named by the companion: key of yg-aspect.yaml was accepted on a script rule, a bundle and a rule without content.md, where it never runs, while a sibling companion.mjs is refused there. The owner ruled that the key is refused in the same places, so the rule-source check now treats the key as a companion and its messages name the key.
+## [2026-09-27T22:19:10.362Z]
+The bundle-with-rule-source message is reachable only through an explicit reviewer.type aggregate, so it now says that instead of claiming no type was declared, and points at removing the declaration. The errs refusal on a reviewer rule or bundle offers the only fix there is, removing errs, instead of pointing at a README adopters do not have.

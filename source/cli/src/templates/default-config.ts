@@ -62,6 +62,11 @@ export const DEFAULT_ARCHITECTURE = `# Define your node types below. Each type m
 #   aspects: [<aspect-id>...]       — optional. Aspects applied to nodes of this type.
 #   enforce: strict                 — optional. Requires \`when\`. Bidirectional enforcement.
 #   parents: [<type-id>...]         — optional. Allowed parent types; 'root' allows the top level.
+#   relations: {<relation-type>: [<type-id>...]}
+#                                   — optional. Which types a node of this type may depend on.
+#   log_required: true              — optional. A code change on the node needs a log entry.
+#
+# yg schemas read architecture has every key and its full grammar.
 #
 # Example (commented out):
 #

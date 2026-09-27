@@ -414,8 +414,8 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       const flagOff = run(['tree', '--root', 'nosuch'], offDir);
       for (const result of [flagOn, flagOff]) {
         expect(result.status).toBe(1);
-        expect(result.out).toContain("error[node-not-found]: Node 'nosuch' not found.");
-        expect(result.out).toContain('next: yg tree');
+        expect(result.out).toContain('error[node-not-found]');
+        expect(result.out).toContain('next: yg find "nosuch"');
       }
       expect(flagOn.out).toBe(flagOff.out);
     } finally {

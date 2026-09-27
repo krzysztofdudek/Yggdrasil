@@ -9,9 +9,11 @@ This page is for inspecting or debugging your graph and enforcement state.
 
 Every command here reads the graph of the directory it runs in, never a commit named on the command line. To inspect a different commit, run the command from a [detached worktree](/concurrency#reading-the-graph-at-another-commit) checked out at that commit instead.
 
+The sections below group the commands by what you use them for when reading this page; `yg --help` groups the same commands by when an agent reaches for them (Daily, Explore, Rules, Setup), so a command can sit under a different heading there.
+
 ---
 
-## Core workflow (6)
+## Core workflow (5)
 
 | Command | Purpose |
 |---------|---------|
@@ -159,7 +161,7 @@ For `--node`, the output ends with a one-line cost summary that folds each revie
 pair's resolved-tier consensus into the reviewer-call count:
 
 ```text
-  Editing this node re-verifies: 3 reviewer pairs = 9 reviewer calls (consensus included); 2 deterministic = free; 4 currently-green verdicts re-rolled.
+  Editing this node re-verifies: 3 reviewer pairs = 9 reviewer calls (consensus included); 2 script = free; 4 currently-green verdicts re-rolled.
 ```
 
 For `--file`, it ends with a precise `Total to re-verify:` block — billed
@@ -271,7 +273,7 @@ error[usage]: unknown option '--message'
 next: yg check --help
 ```
 
-Every command's `--help` lists its flags, with examples; `yg --help` lists the commands. A notice a command prints before its result — something to know, not a failure — has the same shape headed `note:`, and a problem the command works around while it goes on is headed `warning:`; both are said while the command goes on, so their remedy is a `fix:` field — `next:` is only ever the last line of the output, and a run shows one. A parser's suggestion joins the sentence (`error[usage]: unknown option '--rason' — did you mean --reason?`), and `--json` on a command that has no JSON form says so rather than suggesting the nearest flag. `--color`, `--color=<auto|always|never>` and `--no-color` are accepted by every command.
+Every command's `--help` lists its flags, and a top-level command's also shows examples (a subcommand's, such as `yg log add --help`, lists its flags only); `yg --help` lists the commands. A notice a command prints before its result — something to know, not a failure — has the same shape headed `note:`, and a problem the command works around while it goes on is headed `warning:`; both are said while the command goes on, so their remedy is a `fix:` field — `next:` is only ever the last line of the output, and a run shows one. A parser's suggestion joins the sentence (`error[usage]: unknown option '--rason' — did you mean --reason?`), and `--json` on a command that has no JSON form says so rather than suggesting the nearest flag. `--color`, `--color=<auto|always|never>` and `--no-color` are accepted by every command.
 
 ### Errors under `--json` {#yg-error-json}
 
@@ -355,7 +357,7 @@ parse out of it (every field additive, present only where it applies):
   see [Reading the report](#reading-the-report));
 - `unitRef: { kind, path }` — its subject in the same shape as a pair's `unit`;
 - `violations: [{ file, line, message }]` — a script refusal's locations, never cut;
-- `edges: [{ file, line, target }]` — the dependency edges a relation finding is about;
+- `edges: [{ file, line, target }]` — the dependency edges a relation finding is about, in two shapes: on `relation-undeclared-dependency` (and its `-outside` twin) `target` is the node path the file depends on and `line` is the importing line, and each edge may carry `allowedRelations`; on `type-relation-forbidden` `target` is the repository file imported and `line` is always `null`;
 - `files` — every file a coverage finding names, never cut (its `what` may list fewer).
 
 The document also carries the report's standing `notes` (the text's `note:` lines, in order; `[]` when there are none), and its `groups` — one per text block, in report order (`code`, `label`, `aspect`, `severity`, `subject` (the block heading), `cause` (on an unverified block), the shared `why` and `next` — `null` where members differ — and `members` as indexes into `issues`), so a consumer can read each rationale once — and `banner`: the `partial:` line when a configuration, architecture, component or lock file did not load as written (every other number then describes a fallback), else `null`.
@@ -452,7 +454,8 @@ Both views carry the same facts, from the same document: the component's `path`,
 name, type and description; the files it owns (`mapping`); the components it
 declares a dependency on (`relations`, each with its `target`, its `type`, the
 ports it `consumes` and — on the event relation types — the `event_name` it
-names); the ports it publishes (`ports`, each with its `description` and the
+names; `consumes` is the field `yg-node.yaml` now spells `portNames`, and
+`yg-node/1` keeps the older name on purpose so the contract does not change); the ports it publishes (`ports`, each with its `description` and the
 `aspects` a consumer of that port must satisfy); and where it sits in the
 hierarchy (`children`, `parent`).
 
@@ -1001,7 +1004,7 @@ of a type that no longer exists.
 
 Prints all nodes as a flat list, one line per node: its full path, type, and
 description, each parent before its children. On a graph with no nodes yet it
-prints `(no nodes yet — …)` and points at the onboarding topic.
+prints `no nodes yet` and ends with `next: yg knowledge read onboarding`.
 
 ```bash
 yg tree [--root <path>] [--depth <n>] [--long] [--json]
@@ -1038,7 +1041,7 @@ one the lock has never recorded at all. Absent entirely when the flag is off.
 ```text
 $ yg tree
 ...
-6 files are covered by their architecture type alone, with no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
+6 type-covered files, with no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
 ```
 
 ### `yg structure`
@@ -1136,15 +1139,17 @@ yg aspects --health   # per-aspect health table
 Output: a custom human-readable line format (not YAML). Each aspect renders as a header line
 `<id> [<status>] — <description>` (the description falls back to the aspect name when no
 description is set — there is no separate `name` field), followed by a `Kind:` line (`reviewer rule`,
-`script rule` or `bundle`; a reviewer rule also shows its tier), a usage line `Used by: N nodes
-(architecture/direct/implied/flow)` — or `Used by: 0 nodes — orphaned` when nothing references
+`script rule` or `bundle`; a reviewer rule also shows its tier), a usage line `Used by: N nodes (direct: 2, flow: 1)` — the
+channels in the parenthesis are `architecture`, `direct`, `inherited`, `port`, `implied`, `flow`
+and `type-covered`, each as `name: count` and only when non-zero — or `Used by: 0 nodes — orphaned` when nothing references
 it — and an `Implies:` line when the aspect implies others. Under `coverage.type_level`, a rule
 reaching files only through an architecture type (no owning component) is never called orphaned:
 the line instead reads `Used by: 0 nodes, N type-covered files` (for example, `Used by: 0 nodes,
 3 type-covered files`), or names the type-covered count alongside the node count when both apply.
 
 `--health` switches to a per-aspect health table: one row per aspect showing its rule kind
-(`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),
+(`reviewer rule` / `script rule` / `bundle` in the table; `llm` / `deterministic` /
+`aggregate` in `--json`), status, review surface (`nodes` and `pairs`),
 `refused` (refusals whose recorded result still matches the current code — stale or
 never-checked units are excluded), `suppresses` (live `yg-suppress` markers targeting it;
 wildcard markers are summarized separately, not attributed per-aspect), `errs` (a
@@ -1154,7 +1159,7 @@ per rule — `catch` and `exposure` (how many times the rule has actually refuse
 how many times a reviewer genuinely exercised it, counted over distinct checks so a cached
 re-render never inflates them, and never pooled across reviewer rules and script rules), plus a
 plain-words read of how confident that ratio is (few observations reads as a wide uncertainty
-range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
+range, never a false-precise number), and a `signal` column — `active`, `quiet`, or `decorative?` (`signal` in `--json` too). A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
 several independent signals agree, never on the catch count alone. The `fp` column is the
@@ -1261,7 +1266,7 @@ differ:
 | Status change | — | `--status`, with `--evidence` and `--by` (`usage` on any other log) |
 | Type-law ratification | — | `--ratify`, with `--by` naming who admitted the rule (`usage` on any other log) |
 | How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
-| Machine output | `--json` (`yg-log/1`) | `--json` (one `yg-aspect-log/1` document; entries carry `supersedes` / `supersededBy` where they apply, `status` on a status entry and `ratified` — `types`, `version`, `by` — on a ratification) |
+| Machine output | `--json` (`yg-log/1`) | `--json` (one `yg-aspect-log/1` document: `schema`, `aspect`, `status` — where the rule stands now — and `entries`, newest first, each with `at` and `body`; entries carry `supersedes` / `supersededBy` where they apply, `status` — `{ from, to }` — on a status entry, and `ratified` — `types`, `version`, `by` — on a ratification. `from` is a status, or the phrase `an unrecorded status` when nothing knew where the rule stood before) |
 | Verification events | `--with-verdicts` | — |
 | After a merge | `yg log merge-resolve --node` | — (a rule's log keeps no baseline; `merge-resolve --aspect` is `usage`) |
 
@@ -1332,7 +1337,7 @@ The first line counts both sections. Each attention item is one indented line; e
 
 The nomination classes, highest priority first. The first seven rest on the graph as it stands;
 the next five are read from local history and carry an honesty label while the evidence is thin;
-the last two are whole-codebase observations:
+the two after them are whole-codebase observations, and the last two come from outside the graph:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
 2. **A risky waiver** — a wildcard or unbounded `yg-suppress`, or one aimed at a check that cannot false-positive.
@@ -1344,10 +1349,12 @@ the last two are whole-codebase observations:
 8. **Promote a clean-record advisory rule** — it has passing verdicts and no refusals while advisory.
 9. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
 10. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
-11. **An unguarded hot spot** (`unguarded-hot-spot`) — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
+11. **An unguarded hot spot** (`unguarded-hot-spot`) — a component whose files at least one of the last 200 commits touched (the commit that created them counts, so a brand-new component qualifies) yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection. The item names how many of those commits touched it, so the reader weighs how hot it really is.
 12. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
 13. **A look-alike group** — see below.
 14. **An architecture cut** — see below.
+15. **A newer version of an installed package** (`package-update`) — its source publishes a version beyond the one installed; the item names the version and the `yg pack update` command.
+16. **An imported proposal** — one another tool measured and `yg advise import` brought in (see below); always last, so nothing from outside pushes the graph's own findings down.
 
 The lowest-priority suggestions include two whole-codebase observations: a **look-alike
 group** — a tight group of near-identical files with no rule of their own, offered with a
@@ -1523,8 +1530,8 @@ step `yg check` names for an unmapped file.
 $ yg owner --file src/handlers/capturePayment.ts
 src/handlers/capturePayment.ts -> type:handler
   Enforced by its architecture type, not by a component (1 of 1 rule unverified — no valid verdict is currently on record for it).
-No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
-yg context --file src/handlers/capturePayment.ts
+  why:  No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
+next: yg context --file src/handlers/capturePayment.ts
 ```
 
 #### `yg owner --files` (batch)
@@ -1635,11 +1642,17 @@ whole-file form `file-level` — and whether it is a wildcard. `reason` is `null
 when the marker carries none, never an empty string. `range` is populated only
 on a `disable` (including one classified `file-level`): `{from, to}` for a
 closed `disable`/`enable` pair, `{from, to: null}` for one still open at the end
-of the file; `single` and `enable` always carry `range: null`.
+of the file; `single` and `enable` always carry `range: null`. The range names
+markers, not waived lines: `from` is the line of the `disable` marker and `to`
+the line of its `enable`, and the lines between them are the ones waived (plus
+a marker's own line when it trails code). The text listing prints the waived
+lines themselves (`waives lines 8-end of file`), and it is the only place a
+`single` marker's waived line appears: the line below it, or its own line when
+it trails code.
 
 Each entry in `warnings` mirrors one line of the prose warnings — same rendered
 `message` — plus a stable `code`: `unknown-aspect`, `wildcard`,
-`unbounded-range`, or `waives-under`. `aspect` names the aspect the warning is
+`unbounded-range`, `waives-under`, or `missing-reason`. `aspect` names the aspect the warning is
 about, except on `wildcard`: that warning is about the marker silencing every
 aspect, not any one of them, so its `aspect` is `null`.
 
@@ -1755,7 +1768,10 @@ yg schemas read node
 
 Replays one rule over its per-aspect case corpus — a `drills/` directory of
 example files whose `violates-*` / `satisfies-*` prefix encodes the expected
-verdict — and reports whether the rule still behaves. A regression fixture for
+verdict — and reports whether the rule still behaves. Each file is one case,
+labelled by its corpus-relative path with the extension stripped, which is what
+`--case` matches; Markdown files (documentation beside the cases) and files named
+`yg-aspect.yaml` are never cases, so a rule over Markdown cannot be drilled. A regression fixture for
 sharpening a rule, not a sensitivity measurement; the lock is never written.
 
 ```bash
@@ -1975,7 +1991,8 @@ Each commit resolves to one of three first-class outcomes — never a silent zer
 `ran-clean` (ran, found nothing), `violations (N)` (refused N files), or
 `non-comparable` (could not be honestly compared — the commit pre-dates
 initialization so it has no graph of its own, or its committed graph schema differs
-from the current one and would need a migration this replay never performs).
+from the current one and would need a migration this replay never performs, or
+the `--node` or `--file` it replays over does not exist at that commit).
 
 The isolation is the point: every checkout and the candidate overlay happen in the
 throwaway clone, and a clone-boundary guard refuses to let the graph resolver escape
@@ -1985,7 +2002,7 @@ it finds, never writes the lock, and never changes whether `yg check` passes. It
 prints a survivorship-bias caveat once under every report, because the old rule
 gate already refused code that never landed: a tightening replay is a **lower**
 bound on true catches, a loosening one an **upper** bound. Only a precondition failure on the real project
-(no graph, missing candidate, wrong candidate kind, or an inability to clone) exits
+(no graph, missing candidate, wrong candidate kind, a `--node` the current graph does not have, or an inability to clone) exits
 non-zero.
 
 ---
@@ -2508,7 +2525,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `invalid-scope` | error | A validation was asked for a node the graph does not contain. | yg find "&lt;node&gt;" to locate the node you meant. |
 | `description-missing` | error · a warning outside your change | A node, rule or flow has no description, which context output depends on. | Add a description: to its yaml. |
 | `overlapping-mapping` | error | Two nodes' mapping entries overlap, so a file would have two owners. | Keep one owner mapping and model the other concern with a relation. |
-| `file-duplicate-mapping` | error | One file appears in the mappings of more than one node. | Remove the file from all but the node that owns it. |
+| `file-duplicate-mapping` | error | The identical mapping entry (a file, directory or glob) appears on more than one node, a parent and its child included. | Remove the entry from all but the node that owns it. |
 | `file-mapping-gitignored` | error | A literal mapping entry names a gitignored file, which the disk walk never sees. | Un-ignore the file, or remove it from the mapping. |
 | `file-mapping-excluded` | error | A mapping entry names a file coverage.excluded cuts out, so it is never enforced however deliberately it is mapped. | Remove the file from the mapping, or narrow the exclusion. |
 | `mapping-escapes-repo` | error · stops `--approve` | A mapping entry is absolute or climbs above the repository root. | Make the entry repo-relative, with no .. above the root. |

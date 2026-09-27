@@ -21,7 +21,7 @@ description: "What this node does"  # required — shown in context output and h
 
 aspects:                      # optional — aspect identifiers applied directly to this node.
                               # Two forms per entry:
-  - simple-aspect             #   bare string — always effective once attached (channel 1)
+  - simple-aspect             #   bare string — no attach-site filter (the aspect's own when: still applies) (channel 1)
   - id: conditional-aspect    #   object form — attach with per-site applicability filter
     status: enforced          #   optional — explicit status override (channel 1).
                               #   Must satisfy bump rule (bump up OK, downgrade is validator error).
@@ -56,8 +56,8 @@ relations:                    # optional — outgoing dependencies to other node
                               # Naming none is fine — the relation normalizes to the implicit
                               # default port, which carries no requirement unless declared. Naming
                               # an empty list is refused as a BLOCKING yaml-invalid (the message
-                              # says port-names-empty, which is not a code of its own) — omit the
-                              # field instead. Naming a port the target does not publish — including when
+                              # says port-names-empty, which is not a code of its own), and the
+                              # node fails to load, so it leaves the graph — omit the field instead. Naming a port the target does not publish — including when
                               # the target publishes no ports at all — is a BLOCKING ERROR
                               # (port-undefined); \`default\` never triggers it, since it always exists.
                               # Neither error has a waiver; fix the port name, or add the port to
@@ -74,6 +74,8 @@ mapping:                      # optional — source files and directories owned 
   - src/modules/component.ts  # file — exact match
   - src/db/*Repository.cs     # glob — minimatch: * matches within one path segment,
   - src/**/*.ts               #        ** matches across segments (recursive)
+                              # an entry is a glob only when it contains *; without one,
+                              # ? [ ] { } are literal (app/[id]/page.tsx maps as written)
                               # paths are relative to repository root
                               # each source file mapped by some node must have exactly one owner
                               # node — except that a child node claiming a specific file inside a

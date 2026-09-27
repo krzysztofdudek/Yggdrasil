@@ -115,7 +115,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`invalid-scope\` | error | A validation was asked for a node the graph does not contain. | yg find "<node>" to locate the node you meant. |
 | \`description-missing\` | error · a warning outside your change | A node, rule or flow has no description, which context output depends on. | Add a description: to its yaml. |
 | \`overlapping-mapping\` | error | Two nodes' mapping entries overlap, so a file would have two owners. | Keep one owner mapping and model the other concern with a relation. |
-| \`file-duplicate-mapping\` | error | One file appears in the mappings of more than one node. | Remove the file from all but the node that owns it. |
+| \`file-duplicate-mapping\` | error | The identical mapping entry (a file, directory or glob) appears on more than one node, a parent and its child included. | Remove the entry from all but the node that owns it. |
 | \`file-mapping-gitignored\` | error | A literal mapping entry names a gitignored file, which the disk walk never sees. | Un-ignore the file, or remove it from the mapping. |
 | \`file-mapping-excluded\` | error | A mapping entry names a file coverage.excluded cuts out, so it is never enforced however deliberately it is mapped. | Remove the file from the mapping, or narrow the exclusion. |
 | \`mapping-escapes-repo\` | error · stops \`--approve\` | A mapping entry is absolute or climbs above the repository root. | Make the entry repo-relative, with no .. above the root. |

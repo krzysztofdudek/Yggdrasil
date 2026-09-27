@@ -109,7 +109,7 @@ export function registerCheckCommand(program: Command): void {
     .option('--approve', 'Fill every unverified pair (script rules first, then reviewer rules), then report')
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
     .option('--only-deterministic', 'Fill ONLY script-rule pairs (implies --approve; keyless, free — runs even with no reviewer configured); runs no companion.mjs and writes no committed file. For CI and pre-commit.')
-    .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
+    .option('--dry-run', 'With --approve: free cost preview — print the budget + one line per paid pair (free script pairs counted, not listed), then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
     .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count; --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
     .option('--details', 'Read-only: every block with every member listed — the default grouped view with nothing cut. Verdict counts and exit code stay true.')

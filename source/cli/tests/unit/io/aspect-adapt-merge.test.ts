@@ -281,6 +281,23 @@ describe('the settings an adaptation sets', () => {
     expect(result.errors[0].messageData.what).toContain('number');
   });
 
+  it("refuses a config key on the repository's own rule without calling it a package", async () => {
+    // A local rule declares no keys; the message used to name a package '(this repository)'.
+    const root = mkdtempSync(join(tmpdir(), 'yg-adapt-local-'));
+    tempDirs.push(root);
+    const aspectDir = join(root, '.yggdrasil', 'aspects', 'cfg-local');
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(join(aspectDir, 'yg-aspect.yaml'), 'name: Local\ndescription: d\nconfig:\n  limit: 3\n', 'utf-8');
+    writeFileSync(join(aspectDir, 'check.mjs'), 'export function check(ctx) { return []; }\n', 'utf-8');
+    const result = await parseAspect(aspectDir, join(aspectDir, 'yg-aspect.yaml'), 'cfg-local', { projectRoot: root });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('aspect-adapt-config-key-unknown');
+    expect(result.errors[0].messageData.what).toContain("rule 'cfg-local' is this repository's own");
+    expect(result.errors[0].messageData.what).not.toContain('(this repository)');
+    expect(result.errors[0].messageData.next).toContain('check.mjs');
+  });
+
   it('refuses a config block that is not a mapping', async () => {
     const { result } = await parse(BASE, 'config: 40\n');
     expect(result.ok).toBe(false);

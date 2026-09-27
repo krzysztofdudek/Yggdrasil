@@ -42,10 +42,16 @@ When a needed relation is not allowed by the architecture:
 
 Every \`yg check\` (plain or \`--approve\`) runs a built-in, deterministic check that
 holds the graph's relation edges to the code's actual dependencies. It parses
-every mapped source file (TypeScript/JS/TSX, Python, Go, Java, PHP, Kotlin, Rust,
-C, C++, C#, Ruby), finds each statically-resolvable dependency on ANOTHER node's
-code, and refuses a node that depends on a node it does not declare a relation to.
-The issue code is \`relation-undeclared-dependency\`.
+every mapped source file (TypeScript/JS/TSX, the \`<script>\` blocks of Vue and
+Svelte components, Python, Go, Java, PHP, Kotlin, Rust, C, C++, C#, Ruby), finds
+each statically-resolvable dependency on ANOTHER node's code, and refuses a node
+that depends on a node it does not declare a relation to. The issue code is
+\`relation-undeclared-dependency\`. A type-only reference (\`import type\`,
+\`export type … from\`, \`typeof import('./m')\`, a type argument) is a dependency
+exactly like a value import. Where an import lands depends on the language and
+the build layout (tsconfig \`paths\`, \`go.mod\`, \`pyproject.toml\`, Cargo path
+dependencies, \`.csproj\`, Composer autoload, \`compile_commands.json\`); the
+per-language rules are on the docs page Relations, flows, ports.
 
 This is a built-in check, NOT an aspect. It has no \`content.md\` or \`check.mjs\`,
 it is not attached through any of the seven aspect channels, and \`status:\`
@@ -59,11 +65,14 @@ The check itself is untouched by that — still not an aspect, still status-free
 still not waivable, and still blocking the moment a change reaches the code
 carrying it. It is also NOT
 \`yg-suppress\`-able (suppress waives aspects; this is not one). It is NOT stored in
-the lock: it is recomputed live on every \`yg check\` (parse, resolve, verify, from
-scratch), so it is never cached and never stale — a keyless \`yg check\` catches an
-undeclared dependency at zero LLM cost.
+the lock, and its verdict is never cached: resolve and verify run live on every
+\`yg check\`, so it is never stale — a keyless \`yg check\` catches an undeclared
+dependency at zero LLM cost. (Only the per-file parse facts are cached, in
+\`.yggdrasil/.ast-cache/\`, keyed by the file's bytes, the grammar and the
+extractor, so a file is re-parsed whenever any of those changes.) A lock file
+that does not load withholds none of its findings.
 
-Two design properties make it false-positive-free:
+Three design properties keep false positives out — it stays silent rather than guess:
 
 - **One-directional.** A detected code dependency MUST be declared as a relation.
   The reverse does NOT hold: a declared relation needs no static code backing.
@@ -76,8 +85,10 @@ Two design properties make it false-positive-free:
   relation error. And it resolves only edges it can pin to exactly one target node
   — anything dynamic, reflective, external, or not-uniquely-resolvable is silent.
   Intra-node dependencies and dependencies between a node and its own ancestor or
-  descendant are exempt (they are not cross-node edges). The result is zero false
-  positives by design — there is no waiver because none is needed.
+  descendant are exempt (they are not cross-node edges). There is no waiver: a
+  finding is fixed by declaring the relation or removing the dependency, and a
+  finding that names a dependency the code does not have is a resolver bug to
+  report, not something to suppress.
 
 Two ways to clear a refusal:
 
@@ -88,6 +99,16 @@ Two ways to clear a refusal:
    may target the depended-on node OR any of its ancestors — a relation to a
    parent node sanctions dependencies on the parent and all of its descendants.
 2. **Remove the dependency** if the code should not depend on the other node.
+
+Related codes, all blocking: \`relation-broken\` (a relation's target node does
+not exist), \`relation-target-forbidden\` (the architecture does not allow that
+relation type to that target's type), \`relation-target-type-unknown\` (a
+type's relation allow-list names a type that does not exist),
+\`type-relation-forbidden\` (the same allow-list applied to an import between
+two type-covered or classified files, under \`coverage.type_level\`),
+\`relation-parse-failed\` (a mapped file could not be parsed, so the check
+fails closed) and \`event-unpaired\`; \`high-fan-out\` is a warning. Their rows
+are in \`yg knowledge read cli-reference\`.
 
 If NO structural relation type is allowed between the two node types, that is a dead end you
 cannot resolve at the node level — it is an architecture decision. Either change a
@@ -185,7 +206,7 @@ Naming no port at all is not a gap — it is the normal path. \`portNames: []\`
 and the parser will not silently reinterpret that as "enter through
 \`default\`" — omit the field entirely for that, or name at least one real port.
 The refusal happens in the NODE PARSER, so it surfaces as
-\`code: yaml-invalid\` (rule \`invalid-node-yaml\`), not as a port-contract code;
+\`code: yaml-invalid\`, not as a port-contract code, and the node fails to load;
 the string \`port-names-empty\` appears only inside that error's message, and
 filtering or suppressing on it matches nothing.
 

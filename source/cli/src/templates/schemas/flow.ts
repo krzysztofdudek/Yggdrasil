@@ -20,7 +20,7 @@ name: EndToEndProcessName     # required — display name
 description: "What this business process does"  # required — shown in yg flows output and
                                                 # context packages. Validator emits description-missing if absent.
 
-nodes:                        # required, non-empty — participant nodes (alias: participants)
+nodes:                        # required, non-empty — participant nodes (alias: participants; declaring both is refused)
   - orders/order-service      # paths relative to model/
   - payments/payment-service  # each participant (and its descendants) must satisfy
   - inventory/inventory-service  # any flow-level aspects declared below

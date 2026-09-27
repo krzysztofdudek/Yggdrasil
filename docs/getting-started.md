@@ -312,8 +312,10 @@ make that harder:
   change a node's type or to widen the allowed relations in
   `yg-architecture.yaml`. That is an architecture change, which your agent must
   confirm with you first.
-- Declared relations must not form a cycle. Two directories that import each
-  other need a different split, not two relations.
+- Declared structural relations (`calls`, `uses`, `extends`, `implements`) must
+  not form a cycle. Two directories that import each other need a different
+  split, not two relations. (Event relations, `emits` and `listens`, go both
+  ways by design, but they never sanction an import.)
 
 So budget for declaring relations as part of mapping: the coarser your nodes,
 the fewer edges there are to declare. [Relations, flows & ports](/relations-flows-ports)

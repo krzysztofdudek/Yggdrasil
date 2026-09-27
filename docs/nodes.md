@@ -52,7 +52,7 @@ mapping:
   - src/orders.ts       # file — exact match
 ```
 
-Entries also accept minimatch glob patterns: `*` matches within a single path segment, `**` matches across segments. So you can own a slice of a directory without listing files one by one:
+Entries also accept glob patterns: `*` matches within a single path segment, `**` matches across segments. So you can own a slice of a directory without listing files one by one. An entry is a glob only when it contains a `*` — then full [minimatch](https://github.com/isaacs/minimatch) applies, braces and brackets included. Without a `*`, the characters `?`, `[ ]` and `{ }` are literal, so a route file such as `app/[id]/page.tsx` maps as the exact path it is. (A type's `when.path` is different: it is always full minimatch.)
 
 ```yaml
 mapping:
@@ -61,14 +61,14 @@ mapping:
 
 `src/db/*Repository.ts` matches `OrderRepository.ts` but not `Helper.ts` and not anything in a subdirectory. `src/**/*.ts` matches every `.ts` file anywhere under `src/`.
 
-Each source file has exactly one owner node, or none at all — a file no node maps can still be enforced automatically by matching exactly one classifying type (see [Coverage and minimal nodes](#coverage-and-minimal-nodes) below). Either way verification stays unambiguous — there is always at most one component and one set of rules responsible for any given file, never two disagreeing about it. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
+Each source file has exactly one owner node, or none at all — a file no node maps can still be enforced automatically by matching exactly one classifying type (see [Coverage and minimal nodes](#coverage-and-minimal-nodes) below). Either way verification stays unambiguous — there is always at most one component and one set of rules responsible for any given file, never two disagreeing about it. When a parent maps a directory and a child node maps a specific file (or a narrower directory or glob) inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Child precedence needs a narrower entry to carve out: two nodes — a parent and its child included — carrying the *identical* mapping entry is a `file-duplicate-mapping` error. Two unrelated nodes mapping the same file any other way is an `overlapping-mapping` error.
 
 ::: warning A file that is both tracked and gitignored is invisible everywhere, so it's flagged
 A directory or glob mapping entry expands over a plain directory walk that skips anything `.gitignore` excludes — it never consults git's index. So a file that is *both* tracked by git (for example force-added with `git add -f`) and matched by a `.gitignore` pattern is invisible to coverage and to mapping alike, no matter what directory or glob mapping it falls under: it ships in your repository, yet nothing that governs coverage or enforcement ever sees it. `yg check` catches this as `tracked-file-gitignored`, mirroring your coverage levels exactly: an error under a `coverage.required` root, a warning elsewhere, and no issue at all under a `coverage.excluded` root — the same exclusion authority the coverage scan itself honors, so an excluded area stays silent here too.
 
 One exemption on top of those coverage levels: a file named *directly* in a mapping entry (not swept in via a directory or glob) is hashed and reviewed no matter what `.gitignore` says, so it was never actually invisible — that's the mirror case below, and `tracked-file-gitignored` leaves it alone rather than raising a second error with a contradictory fix.
 
-The mirror case blocks too: a mapping entry that names a file directly which is *not* tracked at all is `file-mapping-gitignored` — either the file belongs in the repository, or it does not belong in the mapping. If the real reason the file never reaches this check as tracked-and-ordinary is that it is *excluded from the graph* — it sits inside a separate project's own boundary (a nested `.yggdrasil/` graph, or its own `.git` — a checkout, submodule, or worktree), or it matches a `coverage.excluded` root you configured — the error is `file-mapping-excluded` instead, naming that cause directly rather than blaming a `.gitignore` rule that may not even exist. Exclusion is absolute: it cuts that file even though the mapping names it directly, exactly like it cuts a directory or glob entry that only sweeps the file in.
+The mirror case blocks too: a mapping entry that names a gitignored file directly — tracked or not — is `file-mapping-gitignored`: either the file belongs in the repository, or it does not belong in the mapping. The check keys on `.gitignore`, not on git's index, so a file that is merely untracked (not yet committed, not ignored) is fine to map. If the real reason the file never reaches this check as tracked-and-ordinary is that it is *excluded from the graph* — it sits inside a separate project's own boundary (a nested `.yggdrasil/` graph, or its own `.git` — a checkout, submodule, or worktree), or it matches a `coverage.excluded` root you configured — the error is `file-mapping-excluded` instead, naming that cause directly rather than blaming a `.gitignore` rule that may not even exist. Exclusion is absolute: it cuts that file even though the mapping names it directly, exactly like it cuts a directory or glob entry that only sweeps the file in.
 :::
 
 ## Nesting and inheritance
@@ -89,7 +89,7 @@ mapping:
   - src/legacy/auth/
 ```
 
-A node with no aspects produces no rule verdicts and records nothing in the lock. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
+A node on which no rule is effective — none of its own, and none from its type, an ancestor, a flow or a port it enters — produces no rule verdicts. It satisfies the coverage requirement for free. (The lock still records its source fingerprint in `yg-lock.logs.json`, as it does for every node with mapped source, and a log baseline if it owns a `log.md`; see [The lock](/the-lock).) (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
 
 The node's type still has to be one that classifies files — a type with a `when` predicate. A purely organizational type (no `when`) cannot map files at all; `yg check` rejects a mapping on such a type.
 
@@ -137,7 +137,7 @@ node_types:
       path: "src/shared/**"
 ```
 
-A type with a `when` predicate classifies files. A type without `when` is organizational — usable as a parent in the hierarchy, but its nodes cannot map any files. The boolean combinators (`all_of` / `any_of` / `not`) are the same ones used for [conditional aspects](/conditional-aspects), but the atoms differ by site: a type's `when` classifies *files* and accepts only `path:` (a minimatch glob on the repo-relative path) and `content:` (a regular expression against the file's contents), whereas an aspect's `when` filters *nodes* and uses node atoms instead. Here, use `path` and `content`.
+A type with a `when` predicate classifies files. A type without `when` is organizational — usable as a parent in the hierarchy, but its nodes cannot map any files. The boolean combinators (`all_of` / `any_of` / `not`) are the same ones used for [conditional aspects](/conditional-aspects), but the atoms differ by site: a type's `when` classifies *files* and accepts only `path:` (a minimatch glob on the repo-relative path) and `content:` (a JavaScript regular expression tested against the first 256 KiB of the file; a binary file never matches, and a file over 5 MB cannot be read for it at all, so a mapped file that size under a type with a `content:` atom is a blocking `file-unreadable`), whereas an aspect's `when` filters *nodes* and uses node atoms instead. Here, use `path` and `content`.
 
 ### `enforce: strict` — both directions
 
@@ -175,6 +175,8 @@ They are reported alongside any `unmapped-files` coverage error, not folded into
 A file that matches an `enforce: strict` type is never also reported as ambiguous by `coverage.type_level` — the strict error above owns it, and (with `type_level` on) that error's message lists any other type the file also matches. `type_level`'s own ambiguity error, `ambiguous-node-type`, exists for the same shape of problem among ordinary (non-strict) types.
 
 The architecture file is the foundation of the graph, so changes to it ripple across every node of the affected type. Change it deliberately, and confirm the change before applying it.
+
+An error in the type system itself stops validation before any node is looked at. When the file fails to load (`architecture-invalid`), or it declares a parents cycle (`architecture-cycle`), a parent type that does not exist (`type-unknown-parent`), a reserved type name (`type-name-reserved`), a malformed `when` (`when-predicate-invalid`) or `enforce: strict` without a `when` (`enforce-strict-without-when`), `yg check` reports only those errors and the handful of checks that do not depend on the types: every per-node finding — mappings, relations, flows, ports, type-when mismatches, the strict scan — stays hidden until the type system is fixed. A clean run after the fix can therefore bring up errors the previous run never showed.
 
 ## A note on prompt size
 

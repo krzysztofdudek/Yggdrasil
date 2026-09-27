@@ -433,8 +433,11 @@ async function scanAspectsDirectory(
     // fixtures (synthetic sources run manually via `yg aspect-test`), NOT nested
     // aspects. Hard-skip it so a fixture that happens to contain a `yg-aspect.yaml`
     // — or any file the parser could mistake for one — can never register a
-    // phantom aspect. `drills` is a reserved directory name inside an aspect dir.
-    if (entry.name === 'drills') continue;
+    // phantom aspect. `drills` is a reserved directory name inside a rule
+    // directory only (one holding a yg-aspect.yaml), where yg drill reads its
+    // corpus; anywhere else it is an ordinary grouping directory, so a rule
+    // under aspects/drills/ loads instead of silently not existing.
+    if (hasAspectYaml && entry.name === 'drills') continue;
     await scanAspectsDirectory(path.join(dirPath, entry.name), aspectsRoot, aspects, parseErrors);
   }
 }

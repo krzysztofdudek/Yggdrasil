@@ -253,7 +253,7 @@ export function dryRunWithoutApproveRefusal(autoApprove: string | false | undefi
   const plainRead = autoApproveOn ? 'yg check --no-approve' : 'yg check';
   return {
     what: '--dry-run requires --approve.',
-    why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(autoApprove)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
+    why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and one line per paid pair) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(autoApprove)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
     next: `Run: yg check --approve --dry-run (cost preview), or ${plainRead} (plain read).`,
   };
 }

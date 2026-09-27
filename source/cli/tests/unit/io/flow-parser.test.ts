@@ -113,7 +113,7 @@ participants:
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('prefers nodes over participants when both present', async () => {
+  it('refuses a flow that declares both nodes and participants', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-flow-both');
     await mkdir(tmpDir, { recursive: true });
     const flowYaml = path.join(tmpDir, 'yg-flow.yaml');
@@ -129,9 +129,9 @@ participants:
       'utf-8',
     );
 
-    const flow = await parseFlow(tmpDir, flowYaml);
-
-    expect(flow.nodes).toEqual(['a/b']);
+    // Taking one list silently dropped the other: a ghost participant there
+    // escaped flow-node-broken and the flow's rules.
+    await expect(parseFlow(tmpDir, flowYaml)).rejects.toThrow("declares both 'nodes' and 'participants'");
 
     await rm(tmpDir, { recursive: true, force: true });
   });

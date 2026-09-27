@@ -26,10 +26,19 @@ import { tmpdir } from 'node:os';
 // "missing WASM" error. tree-sitter never throws on malformed source, so this stands
 // in for the real infrastructure fault the fix must catch. All other parser exports
 // (grammarWasmHash, getParser, withParsedFile) remain the real implementations.
+// getParser stands in for loading the grammar on its own, which is how the pass
+// tells a grammar that does not load from a parser that failed on one file:
+// by default it fails too (the grammar is missing); a test flips grammarLoads to
+// have it load while parseFile still fails.
+const state = vi.hoisted(() => ({ grammarLoads: false }));
 vi.mock('../../src/ast/parser.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/ast/parser.js')>();
   return {
     ...actual,
+    getParser: vi.fn(async (extension: string) => {
+      if (state.grammarLoads) return actual.getParser(extension);
+      throw new Error(`Could not find WASM grammar for ${extension}.`);
+    }),
     parseFile: vi.fn(async (filePath: string) => {
       throw new Error(
         `Could not find WASM grammar tree-sitter-typescript.wasm in dist/grammars/ ` +
@@ -79,6 +88,7 @@ describe('relation conformance — grammar-load infra failure fails closed (C-0)
   afterEach(() => {
     rmSync(root, { recursive: true, force: true });
     vi.restoreAllMocks();
+    state.grammarLoads = false;
   });
 
   it('surfaces a BLOCKING relation-parse-failed error instead of silently passing over the file', async () => {
@@ -126,5 +136,25 @@ describe('relation conformance — grammar-load infra failure fails closed (C-0)
     // Single-file scope: the message names the file directly (no "N files" phrasing).
     expect(parseFailed[0].messageData.what).toContain('src/solo/only.ts');
     expect(parseFailed[0].messageData.what).not.toContain('files, e.g.');
+    expect(parseFailed[0].messageData.next).toContain('Reinstall the CLI');
+  });
+
+  it('says the parser failed on the file, not that it could not load, when the grammar loads', async () => {
+    // A grammar that loads and a parser that still fails on one file (a scanner
+    // trap that survived the retry): reinstalling would not help, so the message
+    // must not send the user there.
+    state.grammarLoads = true;
+    writeNode(root, 'solo', 'name: Solo\ntype: service\nmapping:\n  - src/solo\n');
+    writeSrc(root, 'src/solo/only.ts', 'export const only = 1;\n');
+
+    const graph = await loadGraph(root);
+    const result = await runCheck(graph, null);
+
+    const parseFailed = result.issues.filter((i) => i.code === 'relation-parse-failed');
+    expect(parseFailed).toHaveLength(1);
+    expect(parseFailed[0].severity).toBe('error');
+    expect(parseFailed[0].messageData.what).toContain('The TypeScript parser failed on src/solo/only.ts');
+    expect(parseFailed[0].messageData.what).not.toContain('Could not load');
+    expect(parseFailed[0].messageData.next).not.toContain('Reinstall');
   });
 });

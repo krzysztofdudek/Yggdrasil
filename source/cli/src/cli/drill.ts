@@ -51,7 +51,7 @@ export function registerDrillCommand(program: Command): void {
     )
     .option('--aspect <id>', 'aspect id whose case corpus to drill')
     .option('--dir <path>', 'external holdout corpus directory (data only — case files, never imported)')
-    .option('--case <glob>', 'run only case labels matching this glob (repo-relative POSIX)')
+    .option('--case <glob>', 'run only cases whose label matches this glob (the corpus-relative POSIX path, extension stripped, e.g. violates-*/**)')
     .option('--corpus <label>', 'label recorded for this run (default: "dev", or the --dir basename)')
     .option(
       '--nodeless',

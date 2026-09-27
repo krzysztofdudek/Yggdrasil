@@ -32,9 +32,11 @@ describe('checkAspectErrsDirection', () => {
     // WHY explains errs is a deterministic-check concept and this aspect is LLM-reviewed.
     expect(issues[0].messageData!.why).toContain("errs declares a script rule's error direction");
     expect(issues[0].messageData!.why).toContain('a reviewer rule');
-    // NEXT points at the fix + the census reference (verbatim).
+    // NEXT is the only fix there is — the value is already valid, so offering
+    // to "set it to one of over|under|exact" fixed nothing, and the README it
+    // pointed at exists only in Yggdrasil's own repository.
     expect(issues[0].messageData!.next).toBe(
-      'Set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".',
+      'Remove errs from .yggdrasil/aspects/a/yg-aspect.yaml — it applies to script rules only (yg schemas read aspect describes it).',
     );
   });
 

@@ -507,7 +507,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check surfaces blocking validation 
       // heading, and the node the finding is reported on as its member.
       expect(all).toContain('file-duplicate-mapping');
       expect(all).toContain('Each source file must have exactly one owner node.');
-      expect(all).toContain("error[file-duplicate-mapping] File 'src/shared.ts' appears in the mappings of more than one node: alpha and beta");
+      expect(all).toContain("error[file-duplicate-mapping] Mapping entry 'src/shared.ts' appears in the mappings of more than one node: alpha and beta");
       expect(all).toMatch(/^ {2}at: +beta$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });

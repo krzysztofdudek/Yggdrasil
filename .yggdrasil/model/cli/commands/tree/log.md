@@ -48,3 +48,5 @@ Two release lines met here: one that routes every piece of CLI output through th
 The command layer had two ways of ending the process side by side: the shared helpers, and an inline pair that wrote the error and then called process.exit(1) directly, which is exactly what failAndExit already does. Every such pair in this command now goes through failAndExit, so there is one exit convention to read and the new no-raw-process-exit rule can refuse a bare process.exit in the command layer. The words, the error codes and the exit codes are unchanged.
 ## [2026-09-26T21:33:25.942Z]
 Exported values that no other file reads were found across the source, left over from refactors, and a new repository gate now refuses an export nothing else reads. This component's such names lose their export keyword and stay module-private; where a declaration was not read even inside its own file it is gone. Nothing it does changes: no caller existed to notice.
+## [2026-09-27T22:19:08.175Z]
+An unknown --root answers with the shared node-not-found error and yg find step, and on an empty graph the onboarding step is printed after the type-covered summary so it is the last line.

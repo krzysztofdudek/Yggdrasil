@@ -4,7 +4,6 @@
     {
       "reason": "Baseline of 2026-09-26, when the gate was added: unit tests that exercise these internals directly (parsers, renderers, provider helpers, cache and store internals). Rewriting each such test to go through the public surface is its own change; until then they stay exported for those tests, and the list may only shrink.",
       "exports": [
-        "src/ast/parser.ts#getParser",
         "src/ast/parser.ts#grammarWasmHash",
         "src/ast/runner.ts#GraphAccessTrap",
         "src/ast/suppress.ts#markdownFencedLines",

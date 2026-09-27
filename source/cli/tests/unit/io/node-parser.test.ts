@@ -1226,6 +1226,13 @@ ${portsBlock}
       expect(listens.relations![0].portNames).toEqual(['default']);
     });
 
+    it('event_name is kept on an event relation and dropped on a structural one, which the schema says ignores it', async () => {
+      const emits = await parseRelation(`target: a/b\n    type: emits\n    event_name: E`);
+      expect(emits.relations![0].event_name).toBe('E');
+      const uses = await parseRelation(`target: a/b\n    type: uses\n    event_name: ignored.here`);
+      expect(uses.relations![0].event_name).toBeUndefined();
+    });
+
     it('ports.default with no description parses fine — the implicit port needs none of its own', async () => {
       const meta = await parseRelation(
         `target: a/b\n    type: uses`,

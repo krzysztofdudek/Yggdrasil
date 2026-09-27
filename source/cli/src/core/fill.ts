@@ -294,7 +294,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────
   emitGroupedDiagnostics(det.runtimeItems, 'det', emitIssue);
-  // ── Emit grouped malformed-suppress-marker diagnostics — distinct from a check
+  // ── Emit grouped suppress-marker-invalid diagnostics — distinct from a check
   //    runtime error so a marker-parse fault is never blamed on check.mjs. ──────
   emitGroupedDiagnostics(det.malformedSuppressItems, 'malformed-suppress', emitIssue);
 

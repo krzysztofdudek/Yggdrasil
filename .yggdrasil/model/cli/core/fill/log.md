@@ -234,3 +234,5 @@ The prune of a type baseline whose type is gone now reads and rewrites the type 
 A script check that failed to run was reported with the token aspect-check-runtime-error, which looked like an issue code but matched no finding: the finding is unverified with cause check-failed-to-run. The notice now names that cause so a reader can match it to the JSON.
 ## [2026-09-27T20:22:24.256Z]
 The pooled script fill collected the runtime dispositions of component-free pairs in the order their worker tasks finished, so the same inputs could give the list in a different order from run to run. It is now sorted by file, rule and code once the pool is done, like the other diagnostics that already land in fixed slots.
+## [2026-09-27T22:19:12.430Z]
+The malformed yg-suppress marker is named suppress-marker-invalid in every message, the same name yg check --json uses, instead of a token that matched no code.

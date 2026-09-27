@@ -172,7 +172,7 @@ export async function companion(ctx) {
 - `ctx.subject` — the unit's subject file(s): per:file → single-element array; per:node → the node's full subject set (same reference as `ctx.files`).
 - `ctx.files` — all subject files for the unit (same as `ctx.subject` for per:node).
 - `ctx.node`, `ctx.graph`, `ctx.fs` — same as a script rule's check context; bounded by the node's allowed-reads.
-- `ctx.parseYaml(file)`, `ctx.parseJson(file)`, `ctx.parseToml(file)`, `ctx.parseAst(file, language)` — parse helpers; each accepts a `File` object or a **path string** (they treat the argument as a file path, not raw text). To parse raw frontmatter text extracted from a subject file, use a regex — not `ctx.parseYaml`.
+- `ctx.parseYaml(file)`, `ctx.parseJson(file)`, `ctx.parseToml(file)`, `ctx.parseAst(file, language)` — parse helpers; each accepts a `File` object or a **path string** (they treat the argument as a file path, not raw text). `parseAst` picks the grammar by the file's extension; its `language` argument is accepted and ignored. To parse raw frontmatter text extracted from a subject file, use a regex — not `ctx.parseYaml`.
 
 **What the hook returns:**
 
@@ -444,8 +444,8 @@ yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 
 ```text
 yg aspect-test: refused — 1 violation
-src/utils/config.ts
-  L12: fs.readFileSync is synchronous — use async equivalent
+  at:   src/utils/config.ts:12  fs.readFileSync is synchronous — use async equivalent
+diagnostic only — lock unchanged; yg check judges the lock against your files, not this run
 ```
 
 ### Graph-aware checks
@@ -596,7 +596,7 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 **Format:** `yg-suppress(<aspect-path>) <reason>`
 
 - `<aspect-path>` — full aspect path (e.g., `cqrs/single-responsibility`). Several ids may share one marker, comma-separated — `yg-suppress(a, b) <reason>` (likewise `yg-suppress-disable(a, b)` / `yg-suppress-enable(a, b)`). They share the same waived range. This is not the wildcard: it waives exactly the ids you name and nothing added later.
-- `<reason>` — required free-text explanation. A marker with an empty or whitespace-only reason waives nothing, and fails only what it would have waived: once a script rule it names flags a line in its range, the fill fails that pair with `SUPPRESS_MARKER_MISSING_REASON` and leaves it unverified; a reviewer pair of a rule it names is not sent to the reviewer and stays unverified. Rules it does not name, and lines outside its range, are judged as if it were not there. So that the defect shows up when the marker is written rather than when it first matters, `yg suppressions` and `yg check` both warn about a reason-less marker (`missing-reason` / `suppress-marker-missing-reason`).
+- `<reason>` — required free-text explanation. A marker with an empty or whitespace-only reason waives nothing, and fails only what it would have waived: once a script rule it names flags a line in its range, the fill fails that pair and leaves it unverified (cause `suppress-marker-invalid` in `yg check --json`, the same name the fill prints); a reviewer pair of a rule it names is not sent to the reviewer and stays unverified. Rules it does not name, and lines outside its range, are judged as if it were not there. So that the defect shows up when the marker is written rather than when it first matters, `yg suppressions` and `yg check` both warn about a reason-less marker (`missing-reason` / `suppress-marker-missing-reason`).
 - Markers must live inside **comment nodes** — string literals are not matched.
 - The marker must begin its comment line (after the comment delimiter). A mid-sentence mention of `yg-suppress(...)` in a comment is not a marker.
 - In a **Markdown** file, a marker inside a fenced code block (like the examples below) is documentation, not a live waiver — it is not honored and not listed by `yg suppressions`. To place a genuine waiver in Markdown, use an HTML comment **outside** any fence: `<!-- yg-suppress(<aspect-path>) <reason> -->`.

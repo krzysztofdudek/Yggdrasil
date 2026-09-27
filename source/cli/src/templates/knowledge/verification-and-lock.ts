@@ -346,16 +346,20 @@ The built-in relation-conformance check (\`yg knowledge read ports-and-relations
 is deterministic but NOT an aspect, and it is NOT stored in the lock at all. It is
 recomputed **live on every \`yg check\`**: the pass parses each mapped source file,
 resolves every statically-resolvable cross-node dependency, and verifies it
-against the node's declared relations — every run, from scratch. There is no
-cached relation verdict, no fingerprint, and nothing to migrate. The result is
-always the current truth.
+against the node's declared relations — every run. There is no cached relation
+verdict, no fingerprint, and nothing to migrate. (Parsing is the one step that
+can be skipped: a file's parse facts are served from \`.yggdrasil/.ast-cache/\`
+when its bytes, grammar and extractor are unchanged. The resolve and verify
+steps always run.) The result is always the current truth, and a lock file that
+does not load withholds none of its findings.
 
 This differs from aspect verdicts in two ways:
 
 - **No caching, no \`--approve\` gate.** Aspect pairs are filled by
   \`yg check --approve\` and cached; plain \`yg check\` re-validates them parse-free
-  by re-hashing. Relation conformance does the full parse + resolve + verify on
-  every \`yg check\` (plain or \`--approve\`) — it never reads or writes a lock entry,
+  by re-hashing. Relation conformance resolves and verifies on every \`yg check\`
+  (plain or \`--approve\`), from parse facts cached only by content — it never
+  reads or writes a lock entry,
   so it is never stale and never needs re-validation.
 - **No status, no waiver.** A relation refusal (\`relation-undeclared-dependency\`)
   is always an error, and with no reference branch named (the default) it blocks

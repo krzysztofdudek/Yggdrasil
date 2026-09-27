@@ -197,7 +197,8 @@ function matchesType(value: unknown, type: PackageConfigType): boolean {
 export function resolveAspectConfig(
   schema: Record<string, PackageConfigKeyDef>,
   adaptConfig: unknown,
-  context: { aspectId: string; packageName: string; adaptFilePath: string },
+  /** packageName undefined: the repository's own rule, which declares no configuration keys. */
+  context: { aspectId: string; packageName: string | undefined; adaptFilePath: string },
 ): AdaptResult<Record<string, string | number | boolean>> {
   const resolved: Record<string, string | number | boolean> = {};
   for (const [key, def] of Object.entries(schema)) resolved[key] = def.default;
@@ -225,7 +226,11 @@ export function resolveAspectConfig(
       return {
         ok: false,
         code: 'aspect-adapt-config-key-unknown',
-        messageData: {
+        messageData: context.packageName === undefined ? {
+          what: `${context.adaptFilePath} sets config key '${key}', but rule '${context.aspectId}' is this repository's own, and only a rule installed from a package has configuration keys.`,
+          why: "config: sets the keys a package declares for its rules; a repository's own rule declares none, so a key here would sit in the file looking like a setting that does nothing.",
+          next: `Remove the config: block from ${context.adaptFilePath}, and write the value into the rule's check.mjs itself.`,
+        } : {
           what: `${context.adaptFilePath} sets config key '${key}', which the package '${context.packageName}' does not declare for rule '${context.aspectId}'.`,
           why: 'The rule reads only the keys its package declares; a key it never reads would sit in your adaptation looking like a setting that does nothing.',
           next:
@@ -240,7 +245,7 @@ export function resolveAspectConfig(
         ok: false,
         code: 'aspect-adapt-config-type-mismatch',
         messageData: {
-          what: `${context.adaptFilePath} sets config key '${key}' to a ${typeOfConfigValue(value)}, but package '${context.packageName}' declares it as ${def.type}.`,
+          what: `${context.adaptFilePath} sets config key '${key}' to a ${typeOfConfigValue(value)}, but package '${context.packageName ?? 'this repository'}' declares it as ${def.type}.`,
           why: 'The rule reads the value as the type its package declared; a value of another type would reach it as something it was never written to handle.',
           next: `Give '${key}' a ${def.type} value in ${context.adaptFilePath}.`,
         },

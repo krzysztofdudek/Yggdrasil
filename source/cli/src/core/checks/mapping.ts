@@ -374,8 +374,8 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
           rule: 'file-duplicate-mapping',
           nodePath: candidate.nodePath,
           ...issueMsg({
-            what: `File '${current.mappingPath}' appears in the mappings of more than one node: ${current.nodePath} and ${candidate.nodePath}.`,
-            why: `Each source file must have exactly one owner node. Duplicate mappings lead to ambiguous classification and conflicting aspect attribution.`,
+            what: `Mapping entry '${current.mappingPath}' appears in the mappings of more than one node: ${current.nodePath} and ${candidate.nodePath}.`,
+            why: `Each source file must have exactly one owner node. An identical entry on two nodes has no deeper node to break the tie — child precedence does not apply, even between a parent and its child.`,
             next: `Remove the file from one of the mappings. Decide which node logically owns the file based on its primary role. The other node should reference it via relations if needed.`,
           }),
         });

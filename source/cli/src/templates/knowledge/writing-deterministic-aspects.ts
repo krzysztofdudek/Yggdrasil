@@ -87,6 +87,8 @@ export function check(ctx) {
 
 Rules:
 - Named export \`check\`, synchronous. No \`async\`, no \`Promise\`.
+- \`check\` declares exactly one parameter, \`ctx\`: \`check()\` and
+  \`check(...args)\` are refused, since the runner checks the declared arity.
 - Return an array of \`{ message, file?, line?, column?, kind? }\` objects (use
   \`report()\` for AST-derived positions).
 - Do not write files, make network calls, or call \`process.exit\`.
@@ -104,6 +106,21 @@ path uses the AST runner, whose codes are the \`AST_CHECK_*\` equivalents:
 | \`STRUCTURE_CHECK_ASYNC\` | \`check\` returned a thenable/Promise — it must be synchronous |
 | \`STRUCTURE_CHECK_RETURN_SHAPE\` | \`check\` returned a non-array — it must return \`Violation[]\` |
 | \`STRUCTURE_CHECK_THROWN\` | \`check\` threw during execution |
+| \`STRUCTURE_CHECK_DEFAULT_EXPORT\` | \`check\` is the default export — the runner imports the named export |
+| \`STRUCTURE_CHECK_NOT_EXPORTED\` | \`check.mjs\` exports no function named \`check\` |
+| \`STRUCTURE_CHECK_NOT_FUNCTION\` | \`check\` is exported but is not a function |
+| \`STRUCTURE_CHECK_WRONG_ARITY\` | \`check\` does not declare exactly one parameter (\`ctx\`) |
+| \`STRUCTURE_LOADER_RESOLVE_FAILED\` | \`check.mjs\` (or a module it imports) failed to load: a syntax error or an import that does not resolve |
+| \`STRUCTURE_UNDECLARED_FS_READ\` | the check read a path outside its allowed reads set (or one excluded from coverage); the fix is a relation or a component, not a code change |
+| \`STRUCTURE_NODE_CONTEXT_UNAVAILABLE\` | on a type-covered file, the check touched \`ctx.node\` or \`ctx.graph\`, which have no component behind them there |
+| \`STRUCTURE_NODE_MISSING\` | the node the run names is not in the graph |
+| \`STRUCTURE_SUPPRESS_MARKER_MALFORMED\` | a \`yg-suppress\` marker in range of a violation has no reason (reported as \`suppress-marker-invalid\`) |
+
+The AST runner (\`--files\`, \`yg drill\`) adds three of its own:
+\`AST_GRAPH_CTX_UNSUPPORTED\` (the check read \`ctx.node\`, \`ctx.graph\`,
+\`ctx.fs\` or a parse helper, which a run over files alone does not provide — a
+limit of the run, not a bug), \`AST_GRAMMAR_LOAD_FAILED\` (a grammar the run
+needed did not load) and \`AST_LOADER_RESOLVE_FAILED\` (the module did not load).
 
 A runtime failure at fill time (import error, thrown exception, broken contract)
 is an infra disposition: NO entry is written, the pair stays unverified, and the
@@ -329,7 +346,10 @@ fill / \`--node\` path raises).
 
 \`ctx.parseAst(file, language)\` returns the parsed tree synchronously. It does
 not return a Promise and must not be awaited. The runner pre-warms the AST
-cache before invoking \`check(ctx)\`.
+cache before invoking \`check(ctx)\`. The grammar is chosen by the file's
+extension (\`file.language\`); the \`language\` argument is accepted and
+ignored, so passing \`'python'\` for a \`.ts\` file still parses it as
+TypeScript.
 
 \`\`\`javascript
 // Correct:
@@ -364,6 +384,13 @@ in-process (on an auto-sized worker-thread pool during \`--approve\`, for speed)
 full Node privileges — an adversarial check could still write files or open sockets;
 the runner does not prevent it. The allow-list scopes which files count as observed
 dependencies, not what the process is capable of. Only run aspects you trust.
+
+A check in a fill (\`yg check --approve\`, \`yg adopt\`) also runs under a
+wall-clock budget, 120 seconds by default (\`YG_DET_TASK_TIMEOUT_MS\`, in
+milliseconds; \`0\` switches it off): one still running past it is stopped and
+left unverified with cause \`check-failed-to-run\`. \`yg aspect-test\` and
+\`yg drill\` apply no budget, so a check that hangs there hangs the command —
+the fill is where a slow check shows up.
 
 Paths in the allowed reads set for a node:
 
