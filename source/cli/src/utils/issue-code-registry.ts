@@ -120,6 +120,13 @@ export interface IssueCodeEntry<S extends IssueStage = IssueStage> {
  */
 export const CONFIGURE_REVIEWER_STEP = 'ask the user to approve configuring a reviewer — yg init --provider <name> [--model <m>] — or set the reviewer rules to status: draft';
 
+/**
+ * The step a report names for law on a type nobody admitted: ratifying is the
+ * user's act, so the agent asks rather than writes it, and the other way out —
+ * running the rule as advice — stays in view.
+ */
+const TYPE_LAW_STEP = 'ask the user whether they admit each rule named on the types it reaches — record an admission with yg log add --aspect --ratify, the command each finding names — or set the rule to status: advisory where it reaches the type';
+
 type Registry = { readonly [K in CheckCode]: IssueCodeEntry<CheckStage> } & {
   readonly [K in Exclude<IssueCode, CheckCode>]: IssueCodeEntry<OtherStage>;
 };
@@ -309,6 +316,7 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'log-integrity': { severity: 'error', stage: 'log', meaning: "A node's (or a node type's) recorded log history was rewritten, or entries were inserted before its last recorded one (the shape a merge leaves).", fix: 'yg log merge-resolve --node <node> (or --type <type>) after a merge; otherwise restore log.md from version control.' },
   'log-format': { severity: 'error', stage: 'log', meaning: "A node's (or a node type's) log.md does not parse as log entries.", fix: 'Fix the lines the finding names, or restore the file from version control.' },
   'log-conflict': { severity: 'error', stage: 'log', label: 'log-conflict', tier: 'T2', noun: 'node', meaning: "A node's (or a node type's) log.md still carries git conflict markers.", fix: 'yg log merge-resolve --node <node> (or --type <type>)' },
+  'type-law-unratified': { severity: 'error', stage: 'validate', decision: TYPE_LAW_STEP, meaning: "Under type_law.ratification: true, a rule stands enforced on a node type and its own log holds no ratification of the version that stands now for that type: law that reaches every file of a type is admitted by the user, and until then runs as advice. A changed rule needs a new ratification.", fix: "Ask the user. Admitted: yg log add --aspect <rule> --ratify --by '<who>' --reason '<what was admitted>'. Not admitted: status: advisory where the rule reaches the type." },
   'type-log-orphaned': { severity: 'warning', stage: 'log', meaning: 'A type log under .yggdrasil/types/ belongs to a node type yg-architecture.yaml no longer defines, so no context carries its decisions.', fix: 'Move the decisions that still hold to the type that replaced it (yg log add --type), then delete the directory — or restore the type.' },
 
   // ── fill: only a recording run reports these ────────────────────────
@@ -343,6 +351,8 @@ const ISSUE_CODE_REGISTRY: Registry = {
   'aspect-status-value-invalid': { severity: 'error', stage: 'command', meaning: 'yg log add --aspect --status names something that is not draft, advisory or enforced.', fix: 'Re-run with --status draft, advisory or enforced.' },
   'aspect-status-not-standing': { severity: 'error', stage: 'command', meaning: "yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one.", fix: "Set status: in the rule's yg-aspect.yaml first, then record it." },
   'aspect-status-evidence-missing': { severity: 'error', stage: 'command', meaning: 'yg log add --aspect --status was given no --evidence for the change.', fix: 'Re-run with --evidence "<what justified it>".' },
+  'aspect-ratify-no-type': { severity: 'error', stage: 'command', meaning: 'yg log add --aspect --ratify names a rule no node type lists or implies, so there is no type law to admit.', fix: 'Record the note without --ratify: law raised on one component is the agent\'s own and needs no ratification.' },
+  'aspect-ratify-by-missing': { severity: 'error', stage: 'command', meaning: 'yg log add --aspect --ratify was given no --by naming who admitted the rule.', fix: "Re-run with --by '<who admitted it>'." },
   'aspect-status-unchanged': { severity: 'error', stage: 'command', meaning: 'yg log add --aspect --status records the status the rule already stood at, so nothing changed.', fix: 'Record the note without --status, or change the status in the rule file first.' },
 
   // ── package: yg pack ────────────────────────────────────────────────

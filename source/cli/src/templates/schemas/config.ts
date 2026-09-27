@@ -116,6 +116,13 @@ events:                           # optional — where reviewer verification-fil
                                   #   events always stay local (keyless CI = zero churn). Must be boolean; unknown
                                   #   keys rejected. Never folded into any verdict hash — flipping it invalidates nothing.
 
+type_law:                         # optional — must law on a whole node type be admitted before it blocks?
+  ratification: true              #   ratification (default false): when true, a rule standing enforced on a node type
+                                  #   with no ratification of its current version in its own log (yg log add --aspect
+                                  #   <id> --ratify) is a blocking type-law-unratified error; false = none asked for.
+                                  #   yg init writes true; yg init --upgrade turns it on once. Committed-config only.
+                                  #   Must be boolean; unknown keys rejected.
+
 reviewer:                         # required only once a reviewer rule is actually effective —
                                   # used during yg check --approve or when auto_approve triggers a fill.
                                   # A script-only / keyless project (script rules only, or none)

@@ -649,6 +649,26 @@ much rather than treating the committed record as complete.
 
 ---
 
+## Type law {#type-law}
+
+`type_law` decides whether law that reaches a whole node type must be admitted by the user before it blocks. A rule a node type lists (or one such a rule implies) governs every file of that type, so it is shared vocabulary: the agent proposes it at `status: advisory`, and the user admits it with `yg log add --aspect <id> --ratify --by '<who>'` ([details](/cli-reference#yg-log-aspect)).
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `ratification` | boolean | `false` | `true`: a rule standing `enforced` on a node type without a ratification of its current version in its own log is a blocking `type-law-unratified` error. `false` or absent: no ratification is asked for and nothing is reported. |
+
+```yaml
+# .yggdrasil/yg-config.yaml
+type_law:
+  ratification: true
+```
+
+A new project starts with it on: `yg init` writes the block above. An existing project takes it up with `yg init --upgrade`, once: when `yg-config.yaml` says nothing about `type_law`, the upgrade writes one entry into the log of every rule that stands `enforced` on a node type at that moment, recording it as the law the graph already had (the entry says so, and names the upgrade rather than a person), and then writes `ratification: true`. Until then nothing is asked for, so upgrading never turns a build red over law nobody changed, and running the upgrade again never records a rule written since: once the key is there, the upgrade leaves it and the logs alone. If a rule's log refuses the entry, the upgrade leaves the setting off and says which log to fix. A configuration that already sets `ratification: false` is your answer, and the upgrade keeps it.
+
+The setting is read from the committed `yg-config.yaml` only: whether law must be admitted is decided for the whole team, so a local `yg-secrets.yaml` can neither turn it on nor off. `ratification` must be a boolean, and `type_law` accepts no other key.
+
+---
+
 ## Rules artifacts
 
 `rules_artifacts` names which of the three agent-rules files this repository
@@ -743,6 +763,8 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `rules_artifacts.agents_md` | boolean | no | Write and check the Yggdrasil block in AGENTS.md. Default: `true`. |
 | `rules_artifacts.claude_md` | boolean | no | Write and check the @AGENTS.md import in CLAUDE.md (refused while agents_md is off). Default: `true`. |
 | `rules_artifacts.clinerules` | boolean | no | Write and check .clinerules/yggdrasil.md. Default: `true`. |
+| `type_law` | mapping | no | Whether law that reaches a whole node type must be admitted before it blocks. Read from the committed file only. |
+| `type_law.ratification` | boolean | no | A rule enforced on a node type must carry a ratification of its current version in its own log, or type-law-unratified blocks; false or absent asks for none. Read from the committed file only. Default: `false`. |
 
 Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `quality.max_node_chars` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `quality.max_mapping_source_files` (removed in 5.0.0 with the wide-node warning); `reviewer.tiers.<tier>.config.max_tokens` (removed in 5.0.0; the reviewer no longer caps its reply); `reviewer.tiers.<tier>.config.context_length_field` (never read by any release since 5.0.0); `reviewer.tiers.<tier>.config.references` (removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them).
 Any other key is refused by name, with the key it is probably a typo of.
@@ -789,6 +811,8 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `rules_artifacts.agents_md` | boolean | no | Write and check the Yggdrasil block in AGENTS.md. Default: `true`. |
 | `rules_artifacts.claude_md` | boolean | no | Write and check the @AGENTS.md import in CLAUDE.md (refused while agents_md is off). Default: `true`. |
 | `rules_artifacts.clinerules` | boolean | no | Write and check .clinerules/yggdrasil.md. Default: `true`. |
+| `type_law` | mapping | no | Whether law that reaches a whole node type must be admitted before it blocks. Read from the committed file only. |
+| `type_law.ratification` | boolean | no | A rule enforced on a node type must carry a ratification of its current version in its own log, or type-law-unratified blocks; false or absent asks for none. Read from the committed file only. Default: `false`. |
 
 Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `quality.max_node_chars` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `quality.max_mapping_source_files` (removed in 5.0.0 with the wide-node warning); `reviewer.tiers.<tier>.config.max_tokens` (removed in 5.0.0; the reviewer no longer caps its reply); `reviewer.tiers.<tier>.config.context_length_field` (never read by any release since 5.0.0); `reviewer.tiers.<tier>.config.references` (removed in 5.0.0 with the per-tier reference size caps; the per-tier max_prompt_chars cap replaced them).
 Any other key is refused by name, with the key it is probably a typo of.

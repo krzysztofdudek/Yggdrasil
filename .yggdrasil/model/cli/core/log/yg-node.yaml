@@ -33,6 +33,16 @@ description: >-
   because a type has no verdicts and so no closure. The decisions in force for a
   type and for the types above it on its parent chain are read in one place, for
   the context an agent receives.
+  A rule's log also records that the user admitted it as law over whole node
+  types. Which types a rule reaches is read from the architecture (a type that
+  lists it, or a rule such a type lists that implies it, at the status the
+  cascade gives it there), and what the rule demands is fingerprinted as a
+  short version so an admission names exactly what was admitted; status is left
+  out of that version, because hardening an admitted rule to enforced is what
+  the admission permits. The admissions in force are read back to find every
+  rule standing enforced on a type without one for its current version, and the
+  upgrade that turns the requirement on records, once, the law a graph already
+  had as admitted, with an entry that says it was nobody's fresh decision.
   Every log append — a component's or a rule's — reads, composes and replaces
   the file under a short repository-wide log-write lock, so two concurrent
   writers take turns instead of the later one silently dropping the earlier
@@ -64,6 +74,10 @@ relations:
     type: uses
   - target: cli/core/type-effective
     type: calls
+  - target: cli/core/pair-hash
+    type: calls
+  - target: cli/core/pair-inputs
+    type: calls
 mapping:
   - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/aspect-status.ts
@@ -74,3 +88,4 @@ mapping:
   - source/cli/src/core/log/type-log.ts
   - source/cli/src/core/log/log-merge-resolve.ts
   - source/cli/src/core/log/log-gate.ts
+  - source/cli/src/core/log/type-law.ts

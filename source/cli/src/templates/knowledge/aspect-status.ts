@@ -151,13 +151,38 @@ For aspect A implies aspect B on node N:
   not be expected with draft included — draft pairs' entries are kept, so a round
   trip revives them.
 
+## Type law — admitted by the user
+
+A rule that reaches a node TYPE — the type lists it under \`node_types\` in
+\`yg-architecture.yaml\`, or a rule the type lists implies it — governs every
+file of that type, today's and every later one. That is shared vocabulary, and
+the user admits it, not the agent that wrote it. A rule attached to one node is
+the agent's own and needs no admission.
+
+- Write a type rule \`advisory\` first: it shows in \`yg check\` and blocks
+  nothing, so the work goes on while the user decides.
+- The user's admission is recorded in the rule's own log:
+  \`yg log add --aspect <id> --ratify --by '<who>' --reason '<what was admitted>'\`.
+  The command reads every type the rule reaches and the rule's current VERSION
+  (a fingerprint of what it demands: rule file and support files, companion,
+  \`when:\`, \`scope:\`, a reviewer rule's description) from the graph. Status
+  is not part of the version, so an admitted advisory rule can be made
+  \`enforced\` without asking again; any other change needs a new admission.
+- \`yg check\` reports \`type-law-unratified\` for a rule standing \`enforced\` on
+  a type with no ratification of its current version for that type — an error
+  under \`type_law.ratification: true\` in \`yg-config.yaml\` (a new project's
+  default; \`yg init --upgrade\` turns it on once after recording the law the
+  graph already had); without that setting no ratification is asked for.
+- Never record a ratification the user did not give. Without one, the rule
+  stays advisory.
+
 ## When to use which status
 
 | Status   | When |
 |----------|------|
 | draft    | Content.md / check.mjs is still being authored, or the rule is unclear. Zero cost, zero enforcement, no expected pairs — and so no rows in \`yg check --json\`'s \`pairs[]\` either; \`yg aspects --json --reach\` is where a draft rule's reach is visible. |
 | advisory | Rule is complete but you want to gather signal across the repo without blocking CI. Refused and unverified both render as warnings. |
-| enforced | Rule is vetted; violations should block. Refused and unverified both block check. |
+| enforced | Rule is vetted; violations should block. Refused and unverified both block check. On a node type, only once the user admitted it (see "Type law" above). |
 
 ## See also
 

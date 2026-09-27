@@ -655,6 +655,15 @@ async function parseConfigInner(
   // the committed value back without touching whatever was returned.
   const coverage = { ...parseCoverage(raw.coverage, filename), typeLevel: committedTypeLevel === true };
 
+  // type_law — committed-only, like progressive: whether law that reaches a
+  // whole node type must be admitted before it blocks is a team-wide decision,
+  // so a gitignored overlay can neither arm nor disarm it. Its value's type and
+  // its keys are held to the schema floor below.
+  const committedTypeLaw = baseRaw.type_law;
+  const typeLaw = committedTypeLaw !== null && typeof committedTypeLaw === 'object' && !Array.isArray(committedTypeLaw)
+    ? { ratification: (committedTypeLaw as Record<string, unknown>).ratification === true }
+    : undefined;
+
   // Read from `baseRaw`, NOT from the merged `raw`, for the same reason
   // progressive and coverage.type_level are: which agent-rules artifacts the
   // repository carries is a committed, team-wide decision. A gitignored
@@ -671,7 +680,7 @@ async function parseConfigInner(
   if (overlay) {
     // The overlay's committed-only blocks are never read (see progressive and
     // rules_artifacts above), so they are not held to the schema either.
-    const read = Object.fromEntries(Object.entries(overlay).filter(([key]) => key !== 'progressive' && key !== 'rules_artifacts'));
+    const read = Object.fromEntries(Object.entries(overlay).filter(([key]) => key !== 'progressive' && key !== 'rules_artifacts' && key !== 'type_law'));
     refuseSchemaProblems(read, 'yg-secrets.yaml');
   }
 
@@ -687,6 +696,7 @@ async function parseConfigInner(
     coverage,
     progressive,
     rulesArtifacts,
+    ...(typeLaw && { typeLaw }),
     ...(committedReviewer && { committedReviewer }),
   };
 }

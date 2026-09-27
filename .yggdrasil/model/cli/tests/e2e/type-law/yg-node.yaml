@@ -1,0 +1,26 @@
+name: E2E Tests — Law on a node type is admitted
+type: test-suite
+description: >-
+  Subprocess E2E, on a copy of a real fixture project, for law that reaches a
+  whole node type. What these pin is that an enforced rule on a type is found
+  when nobody admitted the version that stands now, and only then: an advisory
+  rule, a draft rule attached nowhere and a rule with an admission are not
+  reported, a rule implied by a rule the type lists is. An admission records who
+  admitted which version on which types, read from the graph rather than from
+  flags, and is refused when it names nobody, when no type reaches the rule, or
+  on a log that is not a rule's. Changing the rule voids the admission and the
+  finding says when the old version was admitted, while hardening an admitted
+  advisory rule to enforced needs none. The finding blocks only under the
+  committed setting that turns the requirement on, which a local overlay can
+  neither turn on nor off, and a value of the wrong type is refused. The upgrade
+  records the law the graph already had once, turns the requirement on, and
+  never admits a rule written after it; a configuration that already says off
+  is left alone, and a fresh project starts with the requirement on.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-type-law.test.ts

@@ -39,6 +39,7 @@ import { registerLogCommand } from '../../../src/cli/log.js';
 import { registerFindCommand } from '../../../src/cli/find.js';
 import { registerTypeSuggestCommand } from '../../../src/cli/type-suggest.js';
 import { registerOwnerCommand } from '../../../src/cli/owner.js';
+import { classifyTypeLaw } from '../../../src/core/check-type-law.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE = path.join(__dirname, '../../fixtures/sample-project');
@@ -115,6 +116,16 @@ async function brokenGraph(rel: string, content: string | ((was: string) => stri
   return (await validate(graph)).issues.filter((i) => i.code !== undefined).map((i) => ({ ...i, code: i.code! }));
 }
 
+/** The lifecycle fixture with type-law ratification on: its enforced rules on a type have no admission. */
+async function unratifiedTypeLaw(): Promise<CheckIssue[]> {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-next-typelaw-'));
+  dirs.push(dir);
+  copyFixtureTree(path.join(__dirname, '../../fixtures/e2e-lifecycle'), dir);
+  const config = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+  writeFileSync(config, `${readFileSync(config, 'utf-8')}\ntype_law:\n  ratification: true\n`);
+  return classifyTypeLaw(await loadGraph(dir));
+}
+
 function corruptLock(): CheckIssue {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-next-lock-'));
   dirs.push(dir);
@@ -168,6 +179,7 @@ const CASES: Record<string, { expect: Expect; issues: () => Promise<CheckIssue[]
     expect: 'decision',
     issues: () => [{ severity: 'error', code: 'config-reviewer-missing', rule: 'config-reviewer-missing', messageData: { what: 'A judgment rule has no judge.', why: "the user's decision", next: 'yg init --provider <name>' } }],
   },
+  'type-law-unratified': { expect: 'decision', issues: () => unratifiedTypeLaw() },
   unverified: { expect: 'command', issues: () => emitPairIssue(verified({ kind: 'unverified' }), [], { reviewerConfigured: true, consensusOf: () => 3 }) },
 };
 

@@ -47,6 +47,10 @@
           "description": "Present only on an entry that recorded a change of standing.",
           "$ref": "#/$defs/AspectLogJsonStatus"
         },
+        "ratified": {
+          "description": "Present only on an entry that recorded the user admitting the rule on the node types it reaches.",
+          "$ref": "#/$defs/AspectLogJsonRatification"
+        },
         "supersedes": {
           "description": "Present when the entry replaces earlier entries of the rule's log: their datetimes.",
           "type": "array",
@@ -62,6 +66,32 @@
       "required": [
         "at",
         "body"
+      ],
+      "additionalProperties": false
+    },
+    "AspectLogJsonRatification": {
+      "type": "object",
+      "properties": {
+        "types": {
+          "description": "The node types the admission covers.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version": {
+          "description": "The rule version admitted — a fingerprint of what the rule demanded then.",
+          "type": "string"
+        },
+        "by": {
+          "description": "Who admitted it, as the entry names them.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "types",
+        "version",
+        "by"
       ],
       "additionalProperties": false
     },

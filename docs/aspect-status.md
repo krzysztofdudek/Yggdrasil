@@ -162,6 +162,16 @@ ports:
         status: enforced
 ```
 
+## Law on a node type {#type-law}
+
+A rule attached to one node is the agent's own to raise. A rule that reaches a node type — listed under the type in `yg-architecture.yaml`, or implied by a rule the type lists — governs every file of that type, today's and every later one. That is shared vocabulary, and the user admits it:
+
+1. The agent writes the rule `advisory`. It shows in `yg check` and blocks nothing, so the work goes on.
+2. The user decides. If they admit it, the admission goes into the rule's own log: `yg log add --aspect <id> --ratify --by '<who>' --reason '<what was admitted>'`. The command reads every type the rule reaches and the rule's current version from the graph ([details](/cli-reference#yg-log-aspect)).
+3. Then the rule may be set `enforced`. Status is not part of the version, so this needs no second admission; changing what the rule demands does.
+
+`yg check` reports `type-law-unratified` for a rule standing `enforced` on a type without a ratification of its current version for that type. It is reported, as a blocking error, where `yg-config.yaml` sets `type_law: { ratification: true }` — the default for a new project, and what `yg init --upgrade` turns on once after recording the law an existing graph already had ([configuration](/configuration#type-law)); without that setting no ratification is asked for. Without an admission the rule simply stays advisory; nothing forces the question.
+
 ## How effective status is computed
 
 For each (node, aspect) pair, the resolver collects every channel that

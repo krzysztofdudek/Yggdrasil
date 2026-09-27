@@ -1254,8 +1254,9 @@ differ:
 |---|---|---|
 | Entry text | `--reason` / `--reason-file` | `--reason` / `--reason-file` |
 | Status change | — | `--status`, with `--evidence` and `--by` (`usage` on any other log) |
+| Type-law ratification | — | `--ratify`, with `--by` naming who admitted the rule (`usage` on any other log) |
 | How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
-| Machine output | `--json` (`yg-log/1`) | `--json` (one `yg-aspect-log/1` document; entries carry `supersedes` / `supersededBy` where they apply) |
+| Machine output | `--json` (`yg-log/1`) | `--json` (one `yg-aspect-log/1` document; entries carry `supersedes` / `supersededBy` where they apply, `status` on a status entry and `ratified` — `types`, `version`, `by` — on a ratification) |
 | Verification events | `--with-verdicts` | — |
 | After a merge | `yg log merge-resolve --node` | — (a rule's log keeps no baseline; `merge-resolve --aspect` is `usage`) |
 
@@ -1264,6 +1265,8 @@ yg log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a 
 yg log add --aspect no-raw-sql --status enforced \
   --evidence "a month advisory, no false alarms" --by "the architect" \
   --reason "Promoted once it had run clean long enough to trust."
+yg log add --aspect no-raw-sql --ratify --by "Jane Doe" \
+  --reason "Admitted in the architecture review: no service builds SQL by hand."
 yg log read --aspect no-raw-sql --top 5
 yg log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
 ```
@@ -1282,6 +1285,16 @@ because moving a rule is not a violation of anything — and the next
 full `yg check --approve` writes the bare fact into that rule's log and stops
 mentioning it (`--approve --only-deterministic` writes no committed file, so it
 leaves the warning standing). A change you recorded yourself is never written a second time.
+
+**Law on a node type is admitted by the user.** A rule attached to one component is the agent's own. A rule that reaches a node type — the type lists it under `node_types` in `yg-architecture.yaml`, or a rule the type lists implies it — governs every file of that type, today's and every later one, so it is the user who admits it. Until then it belongs at `status: advisory`: `yg check` shows it and it blocks nothing. `--ratify` records the admission: the command reads from the graph every type the rule reaches (advisory ones included) and the rule's current *version* — a short fingerprint of what the rule demands: its rule file and any files beside it, its companion, `when:` and `scope:`, and a reviewer rule's description — and writes them into one line opening the entry, with the name `--by` gives:
+
+```text
+Ratified for type service: rule version 3f2a9c0d1e2b4a5c, admitted by Jane Doe.
+```
+
+Status is not part of the version, so a rule admitted while it ran as advice can be moved to `enforced` afterwards without asking again. Any other change to the rule is a new version and needs a new admission. `--ratify` is refused without `--by` (`aspect-ratify-by-missing`) and for a rule no node type reaches (`aspect-ratify-no-type`). A ratification is a record, never a switch: it changes no status and re-opens no verdict.
+
+`yg check` reports `type-law-unratified` for each rule that stands `enforced` on a node type while its log holds no ratification, in force, of its current version for that type; when an earlier version was admitted, it says when. It is reported, and blocks, only where the committed configuration sets `type_law.ratification: true` ([configuration](/configuration#type-law)); without that setting no ratification is asked for. The step it names is the user's decision: ask whether they admit the rule, and record it with `--ratify` if they do, or leave the rule advisory if they do not.
 
 ### `yg advise`
 
@@ -2522,6 +2535,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-file-modified` | error | A file installed from a package no longer matches what the package published — edited, missing, or never installed — or the record of installed packages cannot be read. Built in: not suppressible. | yg pack update &lt;package&gt; to restore it, or adapt the rule through its yg-aspect.adapt.yaml instead of editing the copy. |
 | `rules-digest-stale` | warning | The committed agent-rules digest (the AGENTS.md block, .clinerules/yggdrasil.md, or the CLAUDE.md @AGENTS.md import) is missing, hand-edited, from an older CLI, or duplicated. Only artifacts rules_artifacts keeps on are compared. | yg init --upgrade |
 | `incident-ledger-out-of-order` | warning | The incident ledger's entry datetimes are not strictly ascending — the mark of a hand-edit or a reordering merge. | Reorder the entries so datetimes ascend; never fabricate a datetime. |
+| `type-law-unratified` | error | Under type_law.ratification: true, a rule stands enforced on a node type and its own log holds no ratification of the version that stands now for that type: law that reaches every file of a type is admitted by the user, and until then runs as advice. A changed rule needs a new ratification. | Ask the user. Admitted: yg log add --aspect &lt;rule&gt; --ratify --by '&lt;who&gt;' --reason '&lt;what was admitted&gt;'. Not admitted: status: advisory where the rule reaches the type. |
 
 ### Pairs and the lock {#codes-verify}
 
@@ -2603,6 +2617,8 @@ severity says so — see [Aspect Status](/aspect-status).
 | `aspect-status-value-invalid` | error | yg log add --aspect --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
 | `aspect-status-not-standing` | error | yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
 | `aspect-status-evidence-missing` | error | yg log add --aspect --status was given no --evidence for the change. | Re-run with --evidence "&lt;what justified it&gt;". |
+| `aspect-ratify-no-type` | error | yg log add --aspect --ratify names a rule no node type lists or implies, so there is no type law to admit. | Record the note without --ratify: law raised on one component is the agent's own and needs no ratification. |
+| `aspect-ratify-by-missing` | error | yg log add --aspect --ratify was given no --by naming who admitted the rule. | Re-run with --by '&lt;who admitted it&gt;'. |
 | `aspect-status-unchanged` | error | yg log add --aspect --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
 
 ### Packages (`yg pack`) {#codes-package}

@@ -99,7 +99,6 @@
         "src/core/log/log-gate.ts#hasFreshLogEntry",
         "src/core/marketplace-check.ts#MARKETPLACE_ERROR_CODES",
         "src/core/marketplace-check.ts#MARKETPLACE_WARNING_CODES",
-        "src/core/pair-hash.ts#codePointCanonicalJson",
         "src/core/progressive-scope.ts#buildReverseTargetIndex",
         "src/core/progressive-scope.ts#collectFlowParticipants",
         "src/core/progressive-scope.ts#extractConfigVocabulary",

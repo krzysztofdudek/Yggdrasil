@@ -55,6 +55,7 @@ const CONFIG_DOC: Doc = {
   coverage: { required: ['/'], excluded: [], type_level: false },
   progressive: { reference: 'origin/main' },
   rules_artifacts: { agents_md: true, claude_md: true, clinerules: true },
+  type_law: { ratification: true },
 };
 
 const ASPECT_DOC: Doc = {
@@ -164,6 +165,9 @@ const NOT_REFUSED: Record<string, string> = {
   'secrets rules_artifacts.clinerules': 'as above',
   'secrets progressive <unknown key>': 'as above',
   'secrets rules_artifacts <unknown key>': 'as above',
+  'secrets type_law': 'the overlay\'s type_law: is never read — the committed file alone decides whether law on a type must be admitted',
+  'secrets type_law.ratification': 'as above',
+  'secrets type_law <unknown key>': 'as above',
 };
 
 let root: string;

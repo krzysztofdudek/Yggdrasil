@@ -10,7 +10,12 @@ description: >-
   own history, then from the status the tool last saw, and otherwise the entry
   says nobody knows rather than guessing. A rule's history is read whole by
   default, because the tools that read the document expect every entry unless
-  they ask for fewer. Registers no Commander subcommand: the log command names
+  they ask for fewer. An admission of the rule as law over the node types it
+  reaches is recorded here too, on the user's word: the types and the rule's
+  version are read from the graph, never from a flag, so an entry admits exactly
+  what stands now; a rule no type reaches, or an admission naming nobody, is
+  refused with its own code. The document shows each admission as a fact
+  beside its prose. Registers no Commander subcommand: the log command names
   the rule and hands over the entry text and the moment it is written.
 relations:
   - target: cli/core/log

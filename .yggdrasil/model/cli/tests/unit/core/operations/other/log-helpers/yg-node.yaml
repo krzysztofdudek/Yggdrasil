@@ -19,7 +19,14 @@ description: "Unit tests for log helper functions — log entry format parsing,
   baseline it records in the lock's types section and that section refused when
   malformed, the check findings over it including an orphaned log, a merge of
   it reconciled, the standing of replaced entries, and a recording run dropping
-  the baseline of a type that is gone."
+  the baseline of a type that is gone. And law on a node type below the CLI:
+  which types a rule reaches and at what status (an attachment raising it, an
+  implied rule reaching the type, a draft implier implying nothing), a rule
+  version that ignores status and follows what the rule demands, the
+  ratification sentence written and read back, the finding and its severity
+  under the setting, an admission of an earlier version named and a retracted
+  one not counted, an unreadable log said, and the law a graph already had
+  recorded once, with a log that refuses the entry reported."
 aspects: []
 relations:
   [
@@ -43,3 +50,4 @@ mapping:
   - source/cli/tests/unit/core/log-write-lock.test.ts
   - source/cli/tests/unit/core/type-decision-cascade.test.ts
   - source/cli/tests/unit/core/type-log.test.ts
+  - source/cli/tests/unit/core/type-law.test.ts

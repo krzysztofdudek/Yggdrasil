@@ -9,7 +9,7 @@ description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
   and the current parsers refuse, taking the lists from the parsers themselves so
   it removes exactly what the check would name as retired and never a key that
   is merely unknown, editing each YAML document in place so other keys and
-  comments survive, and never touching a rule installed from a package. Extracted from the init command handler so the large command file
+  comments survive, and never touching a rule installed from a package. It reads whether the committed configuration already says anything about type-law ratification and, when the upgrade takes it up, writes the setting on, with a comment saying what it does, into the same document so every comment the owner kept survives. Extracted from the init command handler so the large command file
   carries only orchestration; registers no Commander subcommand. Takes the
   CLI's own version as a plain string parameter rather than importing
   cli-version.ts itself — a command-support node may not relate to another

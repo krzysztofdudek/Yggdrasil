@@ -156,6 +156,7 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`package-file-modified\` | error | A file installed from a package no longer matches what the package published — edited, missing, or never installed — or the record of installed packages cannot be read. Built in: not suppressible. | yg pack update <package> to restore it, or adapt the rule through its yg-aspect.adapt.yaml instead of editing the copy. |
 | \`rules-digest-stale\` | warning | The committed agent-rules digest (the AGENTS.md block, .clinerules/yggdrasil.md, or the CLAUDE.md @AGENTS.md import) is missing, hand-edited, from an older CLI, or duplicated. Only artifacts rules_artifacts keeps on are compared. | yg init --upgrade |
 | \`incident-ledger-out-of-order\` | warning | The incident ledger's entry datetimes are not strictly ascending — the mark of a hand-edit or a reordering merge. | Reorder the entries so datetimes ascend; never fabricate a datetime. |
+| \`type-law-unratified\` | error | Under type_law.ratification: true, a rule stands enforced on a node type and its own log holds no ratification of the version that stands now for that type: law that reaches every file of a type is admitted by the user, and until then runs as advice. A changed rule needs a new ratification. | Ask the user. Admitted: yg log add --aspect <rule> --ratify --by '<who>' --reason '<what was admitted>'. Not admitted: status: advisory where the rule reaches the type. |
 
 ### Pairs and the lock
 
@@ -237,6 +238,8 @@ export const ISSUE_CODES_TABLE = `### Loading the graph
 | \`aspect-status-value-invalid\` | error | yg log add --aspect --status names something that is not draft, advisory or enforced. | Re-run with --status draft, advisory or enforced. |
 | \`aspect-status-not-standing\` | error | yg log add --aspect --status records a status the rule's file does not carry — it records a change, it never makes one. | Set status: in the rule's yg-aspect.yaml first, then record it. |
 | \`aspect-status-evidence-missing\` | error | yg log add --aspect --status was given no --evidence for the change. | Re-run with --evidence "<what justified it>". |
+| \`aspect-ratify-no-type\` | error | yg log add --aspect --ratify names a rule no node type lists or implies, so there is no type law to admit. | Record the note without --ratify: law raised on one component is the agent's own and needs no ratification. |
+| \`aspect-ratify-by-missing\` | error | yg log add --aspect --ratify was given no --by naming who admitted the rule. | Re-run with --by '<who admitted it>'. |
 | \`aspect-status-unchanged\` | error | yg log add --aspect --status records the status the rule already stood at, so nothing changed. | Record the note without --status, or change the status in the rule file first. |
 
 ### Packages (\`yg pack\`)

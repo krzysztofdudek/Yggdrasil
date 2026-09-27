@@ -24,8 +24,9 @@ import { count, paint, writeOut, next, thenStep, failAndExit } from './output.js
  *  - `--type <type>` — a node type's decision log: explicit decisions about the
  *    whole area the type stands for, carried into the context of every node of
  *    it. Never required.
- *  - `--aspect <id>` — a rule's own history: why it exists, and every change of
- *    its status (`--status`). It replaced `yg aspects log`.
+ *  - `--aspect <id>` — a rule's own history: why it exists, every change of
+ *    its status (`--status`), and every time the user admitted it on the node
+ *    types it reaches (`--ratify`). It replaced `yg aspects log`.
  */
 
 /** The one log a command acts on. */
@@ -56,7 +57,7 @@ function onlyFor(target: LogTarget, kind: LogTarget['kind'], flags: Record<strin
   failAndExit({
     what: `${given.join(', ')} ${given.length === 1 ? 'applies' : 'apply'} only to --${kind}, not to --${target.kind}`,
     why: kind === 'aspect'
-      ? 'A change of status is something only a rule has; a node\'s or a type\'s log has no status to record.'
+      ? 'A change of status and an admission of type law are things only a rule has; a node\'s or a type\'s log has neither to record.'
       : 'Verification events are recorded per component and per file; only a node\'s log can be read beside them.',
     next: `yg log ${command} ${flagOf(target)} without ${given.join(', ')}`,
   }, 'usage');
@@ -220,7 +221,7 @@ async function reasonTextOf(opts: { reason?: string; reasonFile?: string }, targ
   return await readFile(opts.reasonFile, 'utf-8');
 }
 
-interface AddOpts { node?: string; type?: string; aspect?: string; reason?: string; reasonFile?: string; supersedes?: string[]; adds?: boolean; status?: string; evidence?: string; by?: string }
+interface AddOpts { node?: string; type?: string; aspect?: string; reason?: string; reasonFile?: string; supersedes?: string[]; adds?: boolean; status?: string; evidence?: string; by?: string; ratify?: boolean }
 
 /**
  * The decisions in force the writer of a type decision faced, one line each,
@@ -242,7 +243,7 @@ function renderInForce(typeId: string, inForce: readonly TypeDecisions[]): strin
 async function addAction(opts: AddOpts): Promise<void> {
   const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
   const target = targetOf(opts, 'add');
-  onlyFor(target, 'aspect', { '--status': opts.status, '--evidence': opts.evidence, '--by': opts.by }, 'add');
+  onlyFor(target, 'aspect', { '--status': opts.status, '--evidence': opts.evidence, '--by': opts.by, '--ratify': opts.ratify }, 'add');
   onlyFor(target, 'type', { '--adds': opts.adds }, 'add');
   if (opts.adds === true && (opts.supersedes ?? []).length > 0) {
     failAndExit({
@@ -255,7 +256,7 @@ async function addAction(opts: AddOpts): Promise<void> {
   const nowMs = entryClock();
 
   if (target.kind === 'aspect') {
-    await addAspectLogEntry(graph, target.id, reasonText, { status: opts.status, evidence: opts.evidence, by: opts.by, supersedes: opts.supersedes, nowMs });
+    await addAspectLogEntry(graph, target.id, reasonText, { status: opts.status, evidence: opts.evidence, by: opts.by, ratify: opts.ratify, supersedes: opts.supersedes, nowMs });
     return;
   }
   if (target.kind === 'type') {
@@ -502,7 +503,8 @@ export function registerLogCommand(program: Command): void {
     .option('--adds', 'with --type: the new decision adds to those in force and replaces none (required, unless --supersedes, whenever any decision is in force for the type or a type above it)')
     .option('--status <status>', "with --aspect: record that the rule's status moved to this one (draft | advisory | enforced) — the rule's own file must already carry it")
     .option('--evidence <text>', 'with --aspect --status: what justified the change of status (required with --status)')
-    .option('--by <who>', "with --aspect --status: who decided (default: 'the user')")
+    .option('--by <who>', "with --aspect --status: who decided (default: 'the user'); with --aspect --ratify: who admitted the rule (required)")
+    .option('--ratify', "with --aspect: record that the user admitted the rule, as it stands now, on every node type it reaches — what lets it stand enforced there (requires --by)")
     .action(async (opts: AddOpts) => {
       try {
         await addAction(opts);

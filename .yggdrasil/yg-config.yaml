@@ -1,4 +1,9 @@
 version: "6.0.0"
+# A rule standing enforced on a node type needs a ratification of its current
+# version in its own log (yg log add --aspect <id> --ratify); without one it
+# is a blocking type-law-unratified finding. false asks for no ratification.
+type_law:
+  ratification: true
 quality:
   max_direct_relations: 20
 parallel: 10

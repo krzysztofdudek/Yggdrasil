@@ -85,6 +85,13 @@ rules_artifacts:                  # Optional — which agent-rules files this pr
                                   #   behavior). Committed-config only; booleans only; unknown keys
                                   #   rejected. claude_md requires agents_md.
 
+type_law:                         # Optional — must law on a whole node type be admitted before it blocks?
+  ratification: true              #   true ⇒ a rule standing enforced on a node type with no ratification of its
+                                  #   current version in its own log is a blocking type-law-unratified error;
+                                  #   false or absent ⇒ none asked for. yg init writes true; yg init --upgrade
+                                  #   turns it on once, after recording the law the graph already had.
+                                  #   Committed-config only; a boolean; no other key.
+
 progressive:                      # Optional — names the branch changes are measured against.
   reference: origin/main          #   Absent ⇒ off: every run answers for the whole project, unchanged.
                                   #   Set ⇒ a plain yg check blocks only on what the current change
@@ -541,6 +548,25 @@ The key never folds into any verdict hash: recording it, or flipping it on/off,
 invalidates NOTHING. \`committed_llm\` must be a boolean, and \`events\` accepts no
 other key — an unknown sibling is a hard \`config-events-unknown-key\` error so a
 typo can't silently leave the shared record disabled.
+
+## type_law
+
+Optional. Decides whether law that reaches a whole node type must be admitted
+by the user before it blocks. Its only key is \`ratification\` (default \`false\`).
+
+| Value | Effect |
+|---|---|
+| \`ratification: true\` | A rule standing \`enforced\` on a node type without a ratification of its current version in its own log is a blocking \`type-law-unratified\` error. |
+| \`false\` or absent | No ratification is asked for; nothing is reported. |
+
+\`yg init\` writes \`true\` for a new project. \`yg init --upgrade\` takes it up
+ONCE for an existing one: when \`yg-config.yaml\` says nothing about
+\`type_law\`, it writes an entry into the log of every rule standing enforced on
+a node type, recording it as the law the graph already had (naming the upgrade,
+not a person), then writes \`ratification: true\`. Once the key is there — on or
+off — the upgrade leaves it and the logs alone, so re-running it never admits a
+rule written since. Committed-config only: a \`yg-secrets.yaml\` overlay cannot
+change it. How a ratification is recorded: \`yg knowledge read aspect-status\`.
 
 ## rules_artifacts
 
