@@ -161,6 +161,11 @@ const COMMANDS: Record<string, CommandHelp> = {
     summary: 'Read the built-in guides',
     examples: [['yg knowledge list', 'the topics'], ['yg knowledge read cli-reference', 'one topic']],
   },
+  'merge-driver': {
+    group: 'Setup',
+    summary: "Git's merge driver for log.md and the lock (git runs it)",
+    examples: [['yg merge-driver log %O %A %B %P', 'as merge.yg-log.driver runs it']],
+  },
   schemas: {
     group: 'Setup',
     summary: 'Print the graph file schemas',

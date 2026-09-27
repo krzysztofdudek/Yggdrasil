@@ -5,7 +5,11 @@ description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
   installs the universal agent rules (AGENTS.md digest + CLAUDE.md import +
   .clinerules), and maintains the repo-root .gitattributes and the
   .yggdrasil/.gitignore (both idempotent, run on fresh init and every
-  --upgrade). On every --upgrade it also removes the keys earlier releases read
+  --upgrade). The attributes route every log and committed lock file through
+  the merge drivers, which it configures in the clone's local git
+  configuration with a command that falls back to git's own conflict markers
+  when the CLI is gone, together with a post-merge hook that records merged
+  logs' baselines, installed only where no hook of another tool stands. On every --upgrade it also removes the keys earlier releases read
   and the current parsers refuse, taking the lists from the parsers themselves so
   it removes exactly what the check would name as retired and never a key that
   is merely unknown, editing each YAML document in place so other keys and

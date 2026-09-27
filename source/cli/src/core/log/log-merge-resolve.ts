@@ -12,6 +12,7 @@ import { firstParentAncestors,
   mergeInProgressHead,
   resolveCommit,
   gitDirPath,
+  pathsDifferingBetween,
 } from '../../utils/git-introspect.js';
 import { readTextFile, writeTextFile, statKind } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
@@ -111,7 +112,7 @@ async function replayInProgress(repoRoot: string): Promise<{ kind: 'rebase' | 'c
  * sits beside a different one at its datetime) — a rewritten entry, which no
  * union can carry. Null when the two logs differ before their first entry.
  */
-interface SharedHistory {
+export interface SharedHistory {
   /** The shared bytes as ours holds them: anything before the first entry, then the shared entries. */
   prefix: Buffer;
   sharedKeys: string[];
@@ -120,7 +121,7 @@ interface SharedHistory {
   clash: string | null;
 }
 
-function sharedHistoryOf(oursLog: string, theirsLog: string): SharedHistory | null {
+export function sharedHistoryOf(oursLog: string, theirsLog: string): SharedHistory | null {
   const oursBytes = Buffer.from(oursLog, 'utf-8');
   const theirsBytes = Buffer.from(theirsLog, 'utf-8');
   const ours = parseLog(oursLog);
@@ -157,7 +158,7 @@ function sharedHistoryOf(oursLog: string, theirsLog: string): SharedHistory | nu
  * {@link sharedHistoryOf}) byte-for-byte, then every entry either side holds
  * after it, oldest first (stable: on equal datetimes ours comes first).
  */
-function unionOf(shared: SharedHistory): string {
+export function unionOf(shared: SharedHistory): string {
   const added = [...shared.added].sort((a, b) => (a.datetime < b.datetime ? -1 : a.datetime > b.datetime ? 1 : 0));
   let prefix = shared.prefix;
   if (prefix.length > 0 && added.length > 0 && prefix[prefix.length - 1] !== 0x0a) prefix = Buffer.concat([prefix, Buffer.from('\n')]);
@@ -170,7 +171,7 @@ function unionOf(shared: SharedHistory): string {
  * have reordered its log by merging in date order); presence is: a log is
  * append-only, so every entry the base held must still be on each side.
  */
-function droppedSinceBase(baseLog: string, sideLog: string): string[] {
+export function droppedSinceBase(baseLog: string, sideLog: string): string[] {
   const side = new Set(parseLog(sideLog).map((e) => entryKeyOf(withFinalNewline(e))));
   return parseLog(baseLog)
     .filter((e) => !side.has(entryKeyOf(withFinalNewline(e))))
@@ -183,7 +184,7 @@ function droppedSinceBase(baseLog: string, sideLog: string): string[] {
  * it — none dropped or altered, none invented — in strict date order after the
  * last shared entry. Null when it does.
  */
-function verifyUnion(currentLog: string, shared: SharedHistory): CodedIssueMessage | null {
+export function verifyUnion(currentLog: string, shared: SharedHistory): CodedIssueMessage | null {
   const currentBytes = Buffer.from(currentLog, 'utf-8');
   const current = parseLog(currentLog).map(withFinalNewline);
   const k = shared.sharedKeys.length;
@@ -664,6 +665,72 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   if (competing !== null) return { ok: false, error: competing };
 
   return { ok: true, ...targetResult(target), ...(wroteUnion ? { wroteUnion } : {}), ...(inProgress !== null ? { inProgress } : {}), ...(recorded.entryOwed ? { entryOwed: true } : {}) };
+}
+
+/** What `yg log merge-resolve` with no log named did after a merge. */
+export interface LogMergeResolveAllResult {
+  /** Where the two sides were read from: the merge commit at HEAD, a merge
+   *  stopped on a conflict, or neither — then there is nothing to reconcile. */
+  merge: 'commit' | 'in-progress' | 'none';
+  /** Every log the merge changed that was reconciled and its baseline recorded. */
+  resolved: Array<Extract<LogMergeResolveResult, { ok: true }>>;
+  /** Every log the merge changed that could not be, each with its own refusal. */
+  failed: Array<{ logPath: string; target: string; error: CodedIssueMessage }>;
+}
+
+/** A node's log or a type's log, as a repository-relative path names it; null for any other file. */
+function logTargetOfPath(graph: Graph, relPath: string): { nodePath: string } | { typeId: string } | null {
+  const node = /^\.yggdrasil\/model\/(.+)\/log\.md$/.exec(relPath);
+  if (node !== null) return graph.nodes.has(node[1]) ? { nodePath: node[1] } : null;
+  const type = /^\.yggdrasil\/types\/([^/]+)\/log\.md$/.exec(relPath);
+  return type !== null ? { typeId: type[1] } : null;
+}
+
+/**
+ * The post-merge step: reconcile EVERY node and type log the merge changed,
+ * reading the two sides off the merge itself — no log and no refs named. A git
+ * merge driver is a function of one file and cannot write the lock, so after a
+ * merge whose drivers merged the logs (or whose lock driver dropped a baseline
+ * both sides moved), this records each merged log's baseline again, through
+ * the same verification `--node`/`--type` apply one log at a time.
+ *
+ * The sides are the merge commit's parents at HEAD, or HEAD and MERGE_HEAD
+ * while a merge is still stopped on a conflict. With neither (a fast-forward,
+ * a plain commit) there was no merge of two histories and nothing to do. The
+ * logs are the node and type logs whose content differs between the two sides
+ * — the ones a merge can have combined; a rule's history keeps no baseline. A
+ * log that fails is reported and the rest are still reconciled.
+ */
+export async function logMergeResolveAll(input: { graph: Graph; repoRoot: string }): Promise<LogMergeResolveAllResult> {
+  const { graph, repoRoot } = input;
+  let sides: [string, string];
+  let merge: LogMergeResolveAllResult['merge'];
+  const mergeHead = await mergeInProgressHead(repoRoot);
+  if (mergeHead !== null) {
+    sides = ['HEAD', mergeHead];
+    merge = 'in-progress';
+  } else if (await isMergeCommit(repoRoot, 'HEAD')) {
+    const [p1, p2] = await getMergeParents(repoRoot, 'HEAD');
+    sides = [p1, p2];
+    merge = 'commit';
+  } else {
+    return { merge: 'none', resolved: [], failed: [] };
+  }
+  const yggRel = toPosixPath(path.relative(repoRoot, graph.rootPath)) || '.yggdrasil';
+  const changed = await pathsDifferingBetween(repoRoot, sides[0], sides[1], yggRel);
+  const result: LogMergeResolveAllResult = { merge, resolved: [], failed: [] };
+  for (const relPath of changed.sort()) {
+    const target = logTargetOfPath(graph, relPath);
+    if (target === null) continue;
+    const res = await logMergeResolve({ graph, repoRoot, ...target });
+    if (res.ok) {
+      result.resolved.push(res);
+    } else {
+      const flag = 'nodePath' in target ? `--node ${target.nodePath}` : `--type ${target.typeId}`;
+      result.failed.push({ logPath: relPath, target: flag, error: res.error });
+    }
+  }
+  return result;
 }
 
 /**

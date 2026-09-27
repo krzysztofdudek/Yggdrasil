@@ -3,7 +3,11 @@ type: persistence-adapter
 description: >-
   Filesystem persistence for the content-addressed verdict lock — reads,
   validates, serializes and writes it, routing every write through the
-  atomic-write port so a crash or signal never leaves a partial lock. Besides
+  atomic-write port so a crash or signal never leaves a partial lock. It also
+  merges a committed lock file for the git merge driver, as a pure function
+  of three texts: the union of both sides' keys, a key only one side changed
+  taking that side's value, a key both sides changed differently dropping
+  out so it reads as unverified — the same bytes whichever side is ours. Besides
   the verdicts and the per-component log/closure baseline, the committed side
   now carries the port contract baselines: per port, per contract version, the
   test that was the contract and what it hashed to. Their keys are rebuilt in

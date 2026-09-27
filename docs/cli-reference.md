@@ -860,6 +860,7 @@ yg log read --type <type> [--all] [--top N] [--json]
 yg log merge-resolve --node <path>
 yg log merge-resolve --type <type>
 yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
+yg log merge-resolve
 ```
 
 Neither log is a verdict input: adding an entry to either re-opens no pair.
@@ -959,6 +960,7 @@ of a type that no longer exists.
     and unaltered, none invented, all in date order. It never rewrites that log.
     `git merge-file --union` and `merge=union` join the sides without sorting, so put
     interleaved entries in date order first.
+  - **With no log named** (`yg log merge-resolve` alone) — the step after a merge whose [merge drivers](#yg-merge-driver) merged the logs. It reads the two sides off the merge commit at `HEAD` (or `HEAD` and `MERGE_HEAD` while a merge is still stopped), and reconciles every node and type log whose content differs between them, exactly as `--node`/`--type` would one at a time, recording each baseline. A driver sees one file and cannot write the lock; this records what the lock driver dropped. With no merge at `HEAD` and none in progress (a fast-forward, a plain commit) there is nothing to reconcile and it exits 0. A log that fails is named with its own code and the rest are still reconciled (exit 1). The post-merge hook `yg init` installs runs it; a script that merges branches runs it right after its `git merge`, then commits the lock files (on an unpublished merge commit, `git commit --amend`).
 
   When the merge brought the other side's code into a `log_required` component, the
   merged source is a change no entry has commented on, so the merge owes one entry of
@@ -1966,7 +1968,7 @@ non-zero.
 
 ---
 
-## Setup (5)
+## Setup (6)
 
 | Command | Purpose |
 |---------|---------|
@@ -1975,6 +1977,7 @@ non-zero.
 | `yg pack add` / `update` / `list` / `verify` / `remove` / `new` | Install a published version of rules another repository publishes and adapt them beside the copy; `verify` checks the copy against its source; `new` scaffolds a package to publish |
 | `yg marketplace init` / `check` | Turn this repository into one that publishes rules, and check it before anyone installs from it |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
+| `yg merge-driver log\|lock %O %A %B %P` | Git's merge driver for Yggdrasil's own files — git runs it, nobody types it |
 
 ### `yg init`
 
@@ -2134,6 +2137,28 @@ never edits your configuration. See [Coverage](/configuration#coverage-config).
 line it appended to `.yggdrasil/.gitignore` or `.gitattributes` (for example
 the look-alike group (`.family-candidates.*`) ignore lines a 6.0.0 project lacks). It says "nothing
 changed" only when that is true.
+
+### `yg merge-driver` {#yg-merge-driver}
+
+```bash
+yg merge-driver log <base> <ours> <theirs> [<path>]
+yg merge-driver lock <base> <ours> <theirs> [<path>]
+```
+
+The git merge drivers for the files Yggdrasil owns. `yg init` (fresh and `--upgrade`) and `yg adopt` commit three `.gitattributes` lines — `/.yggdrasil/**/log.md merge=yg-log`, the same for a rule adaptation's `yg-aspect.adapt.log.md`, and `/.yggdrasil/yg-lock.*.json merge=yg-lock` — and configure the two drivers in the clone's local git configuration (a driver is a local command, so it is never committed). Git then runs the driver with `%O %A %B %P`; it writes the result over `<ours>` and exits 0, or writes conflict markers and exits 1 so git stops on the file.
+
+- **`log`** merges an append-only `log.md` as text: the history both sides share byte for byte, then every entry either side added, in date order — the union `yg log merge-resolve` writes, checked by the same rule. It refuses (markers, `merge-driver-refused`) when the sides share no history, a side rewrote or dropped an entry, two different entries share a timestamp, or **both sides superseded the same entry** (a conflict one side already carried alone is not this merge's and does not refuse). It never touches the lock.
+- **`lock`** merges a committed lock file per key, independent of the merge's direction: the union of both sides' keys (a verdict per rule and unit, a node's `source` and `log`, a type's `log`); a key only one side changed from the base takes that side's value (a deletion included); a key both sides changed to different values **drops out**, so the pair reads as unverified and the next `yg check --approve` fills it, and a dropped log baseline is recorded again by `yg log merge-resolve` with no log named. A side that does not parse gets git's own text merge with markers.
+
+Three ways a merge driver can lose work without a word are closed. A driver that exits 0 without writing would make a clean merge of the wrong content: this one always writes its result, and on any unexpected failure falls back to `git merge-file` with markers and exit 1. A driver configured whose program is gone leaves the file conflicted with ours alone and no markers, so staging it drops theirs: the configured command therefore checks that the CLI and node exist and otherwise runs `git merge-file -L ours -L base -L theirs %A %O %B` — markers, as with no driver:
+
+```
+if [ -f "<cli>" ] && command -v node >/dev/null 2>&1; then node "<cli>" merge-driver log %O %A %B %P; else git merge-file -L ours -L base -L theirs %A %O %B; fi
+```
+
+Git runs driver commands through its own POSIX shell on every platform (Git for Windows ships one), and `<cli>` is the absolute path, with forward slashes, of the CLI that ran `yg init`. And an attribute naming a driver a clone never configured is harmless: git merges that file with its own markers. A tool that merges for a loop (Jarl's merger, Horde's landing) passes the same drivers with `git -c merge.yg-log.driver=… -c merge.yg-lock.driver=… merge …` on every merge rather than relying on the clone's configuration. GitHub's merge button runs no driver at all: merge locally.
+
+`yg init` also installs a `post-merge` hook running `yg log merge-resolve` when the repository has none (a hook another tool wrote, or a `core.hooksPath` inside the working tree, is left alone and named). It never fails the merge; it leaves the lock files modified for the next commit.
 
 ### `yg adopt`
 
@@ -2597,6 +2622,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `log-merge-entries-unknown` | error | The merged log.md holds entries neither side added — a merge may only union the two sides. | Remove the entries the error lists. |
 | `log-merge-out-of-order` | error | The entries after the shared history are not in date order. | Sort them by datetime, oldest first, each once. |
 | `log-merge-supersedes-conflict` | error | yg log merge-resolve found that both sides of the merge superseded the same entry, so two successors would both be in force; the union was written and its baseline recorded. | Finish the merge, then add one entry that supersedes both successors and says which decision holds (yg log add ... --supersedes &lt;a&gt; --supersedes &lt;b&gt;). |
+| `merge-driver-refused` | error | Git's yg-log or yg-lock merge driver could not merge the file cleanly (a log's history was rewritten, both sides superseded the same entry, or a lock side did not parse) and wrote conflict markers, so git stopped on it. | Resolve as the message says: yg log merge-resolve for a log, one side taken whole for a lock. |
 | `log-supersedes-unknown` | error | yg log add --supersedes names a datetime that is not an entry of that log. | Find the entry with yg log read ... --all and pass its exact datetime. |
 | `type-log-choice-missing` | error | yg log add --type was given neither --supersedes nor --adds while decisions are in force for the type or a type above it (the command lists them). | Re-run with --supersedes &lt;datetime&gt; naming the entry the decision replaces, or --adds when it replaces none. |
 | `log-supersedes-superseded` | error | yg log add --supersedes names an entry a later entry already replaced. | Supersede the entry that replaced it (named in the error) instead. |

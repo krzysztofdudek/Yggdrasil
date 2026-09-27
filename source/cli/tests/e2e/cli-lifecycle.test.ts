@@ -315,10 +315,23 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
     expect(stderr).toContain("error[node-not-found]: node 'nonexistent/node' is not in the graph");
   });
 
-  it('yg log merge-resolve without --node returns exit 1', () => {
-    const { status, stderr } = run(['log', 'merge-resolve']);
+  it('yg log merge-resolve naming sides but no log returns exit 1', () => {
+    const { status, stderr } = run(['log', 'merge-resolve', '--ours', 'a', '--theirs', 'b']);
     expect(status).toBe(1);
     expect(stderr).toContain('--node');
+  });
+
+  it('yg log merge-resolve naming nothing, with no merge at HEAD, has nothing to reconcile and exits 0', () => {
+    // A copy outside any repository: the answer must not depend on whether this
+    // checkout happens to sit on a merge commit.
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-merge-resolve-none-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      const { status } = run(['log', 'merge-resolve'], dir);
+      expect(status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('yg log without subcommand shows usage and returns exit 1', () => {

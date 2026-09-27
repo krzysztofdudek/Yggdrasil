@@ -11,7 +11,7 @@ import { runFill, FillGatingError } from '../core/fill.js';
 import { logAdd } from '../core/log/log-add.js';
 import { walkRepoFiles, listGitTrackedFiles } from '../io/repo-scanner.js';
 import { detConcurrencyForThisMachine, detWorkerCeilingForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
-import { ensureGitattributes, ensureYggdrasilGitignore } from './init-scaffold.js';
+import { ensureGitattributes, ensureMergeDrivers, ensureYggdrasilGitignore } from './init-scaffold.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import type { Graph } from '../model/graph.js';
 import {
@@ -350,6 +350,7 @@ export function registerAdoptCommand(program: Command): void {
         // both are exactly what a fresh setup writes.
         await ensureYggdrasilGitignore(graph.rootPath);
         await ensureGitattributes(repoRoot);
+        await ensureMergeDrivers(repoRoot);
 
         // ── Record who accepted what ───────────────────────────────────────
         // Written BEFORE the baseline run, so the same run that records the
