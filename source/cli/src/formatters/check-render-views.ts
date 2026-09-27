@@ -716,11 +716,13 @@ function renderPartialResultBanner(result: CheckResult): string | undefined {
   if (failed.some((i) => isConfigLoadFailure(i))) parts.push('yg-config.yaml did not load, so its defaults were used');
   if (failed.some((i) => i.code === 'architecture-invalid')) parts.push('yg-architecture.yaml did not load, so no architecture rule was checked');
   const components = [...new Set(failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath !== undefined).map((i) => toPosixPath(i.nodePath!)))];
-  const otherYaml = failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath === undefined).length;
+  const flows = failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath === undefined && i.rule === 'invalid-flow-yaml').length;
+  const otherYaml = failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath === undefined && i.rule !== 'invalid-flow-yaml').length;
   if (components.length > 0) {
     const sample = components.slice(0, 3).join(', ') + (components.length > 3 ? ', …' : '');
     parts.push(`${count(components.length, 'component file')} did not parse (${sample}), so ${components.length === 1 ? 'that component was' : 'those components were'} left out`);
   }
+  if (flows > 0) parts.push(`${count(flows, 'flow file')} did not load, so ${flows === 1 ? 'that flow was' : 'those flows were'} left out`);
   if (otherYaml > 0) parts.push(`${count(otherYaml, 'rule file')} did not parse`);
   if (failed.some((i) => i.code === 'lock-invalid')) parts.push('the verdict lock did not load');
   return `partial: ${parts.join('; ')} — the findings below were computed without it and may be symptoms of it; fix it first.`;
