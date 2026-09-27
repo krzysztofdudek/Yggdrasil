@@ -8,13 +8,11 @@
  * generated from ENTRIES (a repo test regenerates it and fails on any difference), so the
  * in-app tooltip, the legend and the docs never drift apart.
  *
- * Each entry: `id` (the stable lowercase key the portal looks up, and the docs anchor),
- * `term` (the display name), `group` (the docs section), `def` (the plain definition),
- * optional `not` (words that are NOT used for this — retired synonyms or look-alikes) and
- * optional `see` (the docs page that covers it in depth).
+ * Each entry: `id` (the stable lowercase key the portal looks up, and the docs anchor), `term`
+ * (the display name), `group` (the docs section), `def` (the plain definition), optional `not`
+ * (words NOT used for this — retired synonyms or look-alikes) and optional `see` (the docs page).
  *
- * Browser globals only — the tooltip is a hover/focus popover built from page DOM; no
- * network, no Node.
+ * Browser globals only — the tooltip is a hover/focus popover built from page DOM; no network, no Node.
  */
 (function () {
   'use strict';
