@@ -177,7 +177,7 @@ The first line re-runs the script rules, whose verdicts live in a local cache a 
 
 ## Built with itself
 
-This repository is checked by Yggdrasil in its own pre-commit hook and in CI. A snapshot from 28 September 2026: its graph held 498 components and 73 rules, mapped all 1,429 files in its coverage scope, and had 8,035 pairs verified, 6,545 by script and 1,490 by a reviewer. The graph is in [`.yggdrasil/`](https://github.com/krzysztofdudek/Yggdrasil/tree/main/.yggdrasil), and `yg portal` (or `yg portal --static`, one self-contained file) shows its live state.
+This repository is checked by Yggdrasil in its own pre-commit hook and in CI. A snapshot from 28 September 2026: its graph held 498 components and 73 rules, mapped all 1,430 files in its coverage scope, and had 8,035 pairs verified, 6,545 by script and 1,490 by a reviewer. The graph is in [`.yggdrasil/`](https://github.com/krzysztofdudek/Yggdrasil/tree/main/.yggdrasil), and `yg portal` (or `yg portal --static`, one self-contained file) shows its live state.
 
 The portal shows each rule with its count of verified, refused and unverified pairs. A pair nobody has judged for the current code is counted as unverified, never as a pass.
 
