@@ -1,0 +1,2 @@
+## [2026-09-28T12:42:44.239Z]
+The README gained its own images: a diagram of the edit, check and lock loop in a light and a dark variant, opaque and laid out two by two so it reads on a phone, and screenshots of this repository's portal rulebook in both themes, taken from yg portal --static on the release branch. The README links them by absolute URL at the release tag so a frozen copy never breaks. The demo GIF and its HTML twin were removed, since no page shows them any more.
