@@ -444,7 +444,8 @@ export function registerOwnerCommand(program: Command): void {
               buildIssueMessage({
                 what: `${result.file} is excluded from graph coverage by design.`,
                 why: `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`,
-                next: `No action needed.`,
+                // A result, not a finding: nothing to do, so no next: line.
+                next: '',
               }) + '\n',
             );
           } else if (isExcludedFromGraph(result.file, exclusionSet)) {
@@ -461,7 +462,8 @@ export function registerOwnerCommand(program: Command): void {
               buildIssueMessage({
                 what: `${result.file} is excluded from graph coverage by design.`,
                 why: `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`,
-                next: `No action needed.`,
+                // A result, not a finding: nothing to do, so no next: line.
+                next: '',
               }) + '\n',
             );
           } else if (typeMatch?.bucket === 'covered') {

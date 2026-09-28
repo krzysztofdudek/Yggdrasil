@@ -122,3 +122,5 @@ The work that puts the type decisions in force and the component's own log into 
 The --json help no longer promises the same facts as the text view: the document is deliberately narrower (owner, chain, rules), as the reference says.
 ## [2026-09-27T23:05:46.823Z]
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the --json help describes the narrower document it really prints (owner, chain, rules).
+## [2026-09-28T05:57:41.908Z]
+An answer about a path excluded from coverage is a result, not a finding: there is nothing to run, and the step it printed, No action needed, named nothing. The context command now states what and why and prints no next line, as the owner and type-suggest commands do for the same path, so an agent reading the output is not handed a step that is not one.

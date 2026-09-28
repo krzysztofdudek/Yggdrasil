@@ -90,3 +90,5 @@ Add the yg owner --files/stdin batch form (447): one graph load, one owner-index
 yg owner --files classifies the whole list through one type-class cache, drops a UTF-8 byte-order mark at the start of standard input, and says why the batch answers kind type for a file whose type hit an implies cycle where --file refuses: the cycle blocks resolving the file's rules, never its owner, and the batch never resolves rules.
 ## [2026-09-28T02:30:16.513Z]
 The owner --files help described its caller as a named sibling tool. Naming another tool in this CLI's text ties it to that tool's lifetime and misleads anyone calling it from elsewhere, so the caller is now described generically.
+## [2026-09-28T05:57:41.318Z]
+An answer about a path excluded from coverage is a result, not a finding: there is nothing to run, and the step it printed, No action needed, named nothing. The command now states what and why and prints no next line, as the type-suggest command already does for the same path, so an agent reading the output is not handed a step that is not one.

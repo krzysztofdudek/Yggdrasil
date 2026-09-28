@@ -559,7 +559,8 @@ export function registerBuildCommand(program: Command): void {
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
                 why,
-                next: 'No action needed.',
+                // A result, not a finding: nothing to do, so no next: line.
+                next: '',
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
               else writeOut(`${excludedMsg}\n`);
@@ -578,7 +579,8 @@ export function registerBuildCommand(program: Command): void {
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
                 why,
-                next: 'No action needed.',
+                // A result, not a finding: nothing to do, so no next: line.
+                next: '',
               });
               if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
               else writeOut(`${excludedMsg}\n`);

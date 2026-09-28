@@ -215,6 +215,8 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       expect(status).toBe(0);
       expect(stdout + stderr).not.toMatch(/Matched type:|type:anyyaml/);
       expect(stdout).toContain('is excluded from graph coverage by design.');
+      // A result, not a finding: no next: line to follow.
+      expect(stdout).not.toContain('next:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -239,6 +241,7 @@ describe.skipIf(!distExists)('yg context --file — typed view for a type-covere
       expect(status).toBe(0);
       expect(stdout).toContain('src/leaf/a.ts is excluded from graph coverage by design.');
       expect(stdout).toContain('it matches a coverage.excluded root in yg-config.yaml');
+      expect(stdout).not.toContain('next:');
       expect(stdout).not.toContain("separate project's own boundary");
       expect(stdout).not.toContain('git internals / the graph directory itself');
       expect(stdout).not.toContain('Matched type:');

@@ -176,7 +176,8 @@ describe('owner — a file inside a nested project is never reported as owned', 
       );
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('src/vendored/dep/foreign.ts is excluded from graph coverage by design.');
-      expect(result.stdout).toContain('No action needed.');
+      // A result, not a finding: no next: line to follow.
+      expect(result.stdout).not.toContain('next:');
       expect(result.stdout).not.toContain('-> vendored\n');
       // The generic unmapped advice ("Add it to a node's mapping") must never
       // appear for an excluded path — following it verbatim would write a
@@ -227,7 +228,8 @@ describe('owner — a file inside a nested project is never reported as owned', 
       );
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('src/excl/vendor/foreign.ts is excluded from graph coverage by design.');
-      expect(result.stdout).toContain('No action needed.');
+      // A result, not a finding: no next: line to follow.
+      expect(result.stdout).not.toContain('next:');
       expect(result.stdout).not.toContain('-> excl\n');
       expect(result.stdout).not.toContain("Add '");
       // Names the actual cause (a coverage.excluded config root) instead of
