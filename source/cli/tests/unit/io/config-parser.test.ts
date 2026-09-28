@@ -454,7 +454,8 @@ reviewer:
 `, 'utf-8');
 
       const cfg = await parseConfig(configPath);
-      expect(cfg.reviewer?.tiers.cheap.model).toBe('haiku');
+      // One default: the model `yg init` writes for claude-code (sonnet), not a cheaper one.
+      expect(cfg.reviewer?.tiers.cheap.model).toBe('sonnet');
     });
 
     it('copilot-cli without a model is told to name one, e.g. auto', async () => {

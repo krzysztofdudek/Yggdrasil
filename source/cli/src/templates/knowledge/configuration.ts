@@ -141,17 +141,17 @@ One of: \`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`
 CLI providers (\`claude-code\`, \`codex\`, \`gemini-cli\`, \`copilot-cli\`) do not require an API key —
 they delegate to the installed CLI tool. They are also the only providers with a
 built-in \`config.model\` fallback, applied when a tier omits it:
-\`claude-code\` → \`haiku\`, \`codex\` → \`o4-mini\`, \`gemini-cli\` → \`gemini-2.5-flash\`.
+\`claude-code\` → \`sonnet\` (the model \`yg init\` writes), \`codex\` → \`o4-mini\`, \`gemini-cli\` → \`gemini-2.5-flash\`.
 \`copilot-cli\` has none: the Copilot plan decides which models a seat may use and
 the CLI refuses any other, so the tier names one (\`auto\` lets Copilot pick). It runs
 the real CLI (\`YG_COPILOT_BIN\`, else the first \`copilot\` on PATH outside the VS Code
 extension's stub) with an empty \`COPILOT_HOME\`, denying its shell, write, network
 and memory tools (its read-only tools stay available).
 Every other provider MUST declare \`config.model\` — a missing one is a hard
-\`config-tier-config-missing\`-class error. (Distinct from \`yg init --model\`, whose
-own default is \`sonnet\` for \`claude-code\` and required for every other provider:
-that is what init WRITES into the config, this is what the runtime reads when the
-field is absent.)
+\`config-tier-config-missing\`-class error. (\`yg init --model\` defaults to the same
+\`sonnet\` for \`claude-code\` and is required for every other provider: that is what
+init WRITES into the config, this is what the runtime reads when the field is
+absent, and for \`claude-code\` the two are one model.)
 
 ### reviewer.tiers.<name>.consensus
 

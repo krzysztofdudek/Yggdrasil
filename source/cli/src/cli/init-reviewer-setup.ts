@@ -7,6 +7,7 @@ import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
 import type { CodedIssueMessage, IssueMessage } from '../model/validation.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { PROVIDER_DEFAULT_MODELS } from '../utils/known-providers.js';
 
 // ---------------------------------------------------------------------------
 // Prompt helpers
@@ -713,7 +714,7 @@ export function resolveReviewerConfigFromFlags(opts: {
   let model = opts.model?.trim();
   if (!model) {
     if (provider === 'claude-code') {
-      model = 'sonnet';
+      model = PROVIDER_DEFAULT_MODELS['claude-code'];
     } else {
       return { ok: false, issue: {
         code: 'usage',
@@ -721,7 +722,7 @@ export function resolveReviewerConfigFromFlags(opts: {
         why: provider === 'copilot-cli'
           ? "copilot-cli has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses any other instead of substituting one."
           : CLI_PROVIDERS.includes(provider)
-            ? 'yg init writes the model into yg-config.yaml and picks one itself only for claude-code (sonnet). A tier whose config.model is left out falls back to a built-in model at run time (see the configuration reference), but init asks you to name the one you want.'
+            ? `yg init writes the model into yg-config.yaml and picks one itself only for claude-code (${PROVIDER_DEFAULT_MODELS['claude-code']}). A tier whose config.model is left out falls back to a built-in model at run time (see the configuration reference), but init asks you to name the one you want.`
             : `An API provider has no default model; the tier must name one its account can call.`,
         next: provider === 'copilot-cli'
           ? `Re-run naming a model your Copilot plan allows, e.g. yg init --provider copilot-cli --model auto (auto lets Copilot pick).`

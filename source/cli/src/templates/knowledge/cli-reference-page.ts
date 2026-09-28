@@ -2355,7 +2355,7 @@ longer requires naming a platform.
 
 **Defaults:** \`--model\` defaults to \`sonnet\` only for \`claude-code\`; every
 other provider requires \`--model\` explicitly (\`copilot-cli\` takes one the
-Copilot plan allows, e.g. \`--model auto\`). This is what \`yg init\` asks for, not what a tier needs at run time: a tier in \`yg-config.yaml\` whose \`config.model\` is left out falls back to a built-in model for \`claude-code\` (\`haiku\`), \`codex\` (\`o4-mini\`) and \`gemini-cli\` (\`gemini-2.5-flash\`), and is \`config-tier-config-missing\` for every other provider. \`--endpoint\` defaults to
+Copilot plan allows, e.g. \`--model auto\`). This is what \`yg init\` asks for, not what a tier needs at run time: a tier in \`yg-config.yaml\` whose \`config.model\` is left out falls back to a built-in model for \`claude-code\` (\`sonnet\`, the same one init writes), \`codex\` (\`o4-mini\`) and \`gemini-cli\` (\`gemini-2.5-flash\`), and is \`config-tier-config-missing\` for every other provider. \`--endpoint\` defaults to
 \`http://localhost:11434\` for \`ollama\` only; \`openai-compatible\` has no default
 and requires \`--endpoint\`. \`--model\` or \`--endpoint\` without \`--provider\` is an error, since there is no reviewer to configure. Credentials are never a flag — an API provider's
 key is read only from its own environment variable

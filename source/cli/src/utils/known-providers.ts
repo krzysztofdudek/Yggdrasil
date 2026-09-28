@@ -7,11 +7,14 @@ export const KNOWN_PROVIDERS = [
  * The model a tier's config.model falls back to when the tier omits it. Only
  * these CLI providers have one; every other provider — copilot-cli included,
  * whose seat policy decides which models it may use — must name its model. The
- * parser reads it, and the texts that name the providers with a fallback (the
- * config schema's required column, the issue-code fix) are built from it.
+ * parser reads it, `yg init` writes the same model when --model is omitted for
+ * claude-code (one default, so a tier written by init and a tier with the key
+ * left out are judged by the same model), and the texts that name the providers
+ * with a fallback (the config schema's required column, the issue-code fix) are
+ * built from it.
  */
 export const PROVIDER_DEFAULT_MODELS: Readonly<Record<string, string>> = {
-  'claude-code': 'haiku',
+  'claude-code': 'sonnet',
   'codex': 'o4-mini',
   'gemini-cli': 'gemini-2.5-flash',
 };
