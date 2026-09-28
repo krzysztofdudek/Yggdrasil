@@ -13,6 +13,7 @@ import {
   type GitignoreEntry,
 } from '../io/repo-scanner.js';
 import type { CoverageConfig } from '../model/graph.js';
+import { observationHashes, type ObservationHashes } from '../utils/observation-keys.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
@@ -93,6 +94,14 @@ export function hashString(content: string): string {
 export function hashBytes(bytes: Buffer): string {
   return createHash('sha256').update(normalizeLineEndings(bytes)).digest('hex');
 }
+
+/**
+ * The observation contract (utils/observation-keys.ts) bound to the sha256
+ * helpers above — the one digest every deterministic verdict's observations are
+ * hashed with. The structure runtime hands it to the recorder it constructs and
+ * the engine's re-observation calls it, so both sides fold byte-identical values.
+ */
+export const SHA256_OBSERVATION_HASHES: ObservationHashes = observationHashes({ text: hashString, bytes: hashBytes });
 
 /**
  * The files below a directory — absolute paths, gitignore-aware, `.git` never

@@ -1,39 +1,36 @@
 /** Collects result-bearing observations during one check.mjs run (spec §3.1).
- *  Keys/hashes come from core/pair-hash.ts — the frozen contract. */
+ *  Keys and canonical values come from utils/observation-keys.ts — the pure half
+ *  of the frozen pair-hash contract; the digest is injected by whoever constructs
+ *  the recorder (the verdict path passes io/hash.ts's SHA256_OBSERVATION_HASHES),
+ *  so this runtime never reaches into the engine that re-observes the values. */
 
-import {
-  observationKey,
-  hashConfigObservation,
-  hashReadObservation,
-  hashListObservation,
-  hashExistsObservation,
-  hashNodeSetObservation,
-  hashFileSetObservation,
-  MISSING_OBSERVATION,
-} from '../core/pair-hash.js';
+import { observationKey, MISSING_OBSERVATION, type ObservationHashes } from '../utils/observation-keys.js';
 
 export class ObservationRecorder {
   private readonly _entries = new Map<string, string>(); // key → hash (first-wins)
   private _tainted = false;
 
+  /** @param hashes the observation contract bound to the digest verdicts are hashed with. */
+  constructor(private readonly hashes: ObservationHashes) {}
+
   /** Record a file-read observation. `bytes` is the raw content read. */
   recordRead(repoRelPosixPath: string, bytes: Buffer): void {
-    this._record(observationKey('read', repoRelPosixPath), hashReadObservation(bytes));
+    this._record(observationKey('read', repoRelPosixPath), this.hashes.read(bytes));
   }
 
   /** Record a directory-listing observation. */
   recordList(repoRelPosixDir: string, entries: Array<{ name: string; kind: 'file' | 'dir' }>): void {
-    this._record(observationKey('list', repoRelPosixDir), hashListObservation(entries));
+    this._record(observationKey('list', repoRelPosixDir), this.hashes.list(entries));
   }
 
   /** Record an existence-probe observation (including negative probes where result === false). */
   recordExists(repoRelPosixPath: string, result: 'file' | 'dir' | false): void {
-    this._record(observationKey('exists', repoRelPosixPath), hashExistsObservation(result));
+    this._record(observationKey('exists', repoRelPosixPath), this.hashes.exists(result));
   }
 
   /** Record a graph-node observation by hashing its yg-node.yaml bytes. */
   recordGraphNode(nodePath: string, ygNodeYamlBytes: Buffer): void {
-    this._record(observationKey('graph', nodePath), hashReadObservation(ygNodeYamlBytes));
+    this._record(observationKey('graph', nodePath), this.hashes.read(ygNodeYamlBytes));
   }
 
   /**
@@ -76,7 +73,7 @@ export class ObservationRecorder {
    * observation (spec §3.1).
    */
   recordGraphChildren(nodePath: string, childIds: string[]): void {
-    this._record(observationKey('graph-children', nodePath), hashNodeSetObservation(childIds));
+    this._record(observationKey('graph-children', nodePath), this.hashes.nodeSet(childIds));
   }
 
   /**
@@ -85,7 +82,7 @@ export class ObservationRecorder {
    * of that type invalidates (spec §3.1).
    */
   recordGraphNodesByType(type: string, nodeIds: string[]): void {
-    this._record(observationKey('graph-bytype', type), hashNodeSetObservation(nodeIds));
+    this._record(observationKey('graph-bytype', type), this.hashes.nodeSet(nodeIds));
   }
 
   /**
@@ -96,7 +93,7 @@ export class ObservationRecorder {
    * unchanged (spec §3.1, flowParticipants minor).
    */
   recordFlowParticipants(flowName: string, participantIds: string[]): void {
-    this._record(observationKey('graph-flow', flowName), hashNodeSetObservation(participantIds));
+    this._record(observationKey('graph-flow', flowName), this.hashes.nodeSet(participantIds));
   }
 
   /**
@@ -110,7 +107,7 @@ export class ObservationRecorder {
    * when a file joins the node without becoming this pair's subject.
    */
   recordNodeFiles(nodePath: string, paths: string[]): void {
-    this._record(observationKey('node-files', nodePath), hashFileSetObservation(paths));
+    this._record(observationKey('node-files', nodePath), this.hashes.fileSet(paths));
   }
 
   /**
@@ -122,7 +119,7 @@ export class ObservationRecorder {
    * values in a check that reads both.
    */
   recordGraphFiles(nodePath: string, paths: string[]): void {
-    this._record(observationKey('graph-files', nodePath), hashFileSetObservation(paths));
+    this._record(observationKey('graph-files', nodePath), this.hashes.fileSet(paths));
   }
 
   /**
@@ -136,7 +133,7 @@ export class ObservationRecorder {
    * the key later appearing in a package is itself a change.
    */
   recordConfig(key: string, value: unknown): void {
-    this._record(observationKey('config', key), hashConfigObservation(value));
+    this._record(observationKey('config', key), this.hashes.config(value));
   }
 
   /**

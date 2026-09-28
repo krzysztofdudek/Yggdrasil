@@ -232,3 +232,5 @@ A new store keeps the refused content of each refusal a fill records: one JSON r
 A new write-only, best-effort store keeps the refused content of each refusal a fill records, one content-addressed record per verdict hash, skipping units over two mebibytes. It arrived in one batch with the git merge drivers, which do not touch the stores.
 ## [2026-09-27T22:32:21.924Z]
 The refused-content store's two-mebibyte cap is private to the store: nothing outside it reads the constant, and the repository gate refuses an export only a test reads, so the test states the cap as a number instead. The cap and what the store writes are unchanged.
+## [2026-09-28T04:31:59.138Z]
+The observation contract moved into a pure utility that takes its digest from the caller, so one place has to bind it to the sha256 helpers every verdict is hashed with. The hash module owns that digest, so it exports the bound contract once and both the structure runtime (which hands it to each observation recorder) and the engine (which re-observes) fold byte-identical values from it.

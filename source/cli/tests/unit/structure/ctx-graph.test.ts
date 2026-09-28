@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createCtxGraph, createNodelessCtxGraph, StructureNodeContextUnavailableError, UndeclaredGraphReadError } from '../../../src/structure/ctx-graph.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
-import { observationKey } from '../../../src/core/pair-hash.js';
+import { observationKey } from '../../../src/utils/observation-keys.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
+import { SHA256_OBSERVATION_HASHES } from '../../../src/io/hash.js';
 
 describe('ctx.graph', () => {
   let projectRoot: string;
@@ -52,7 +53,7 @@ describe('ctx.graph', () => {
     const g = buildTestGraphForStructure({
       nodes: [{ path: 'A', type: 'm', mapping: [] }, { path: 'C', type: 'm', mapping: [] }],
     });
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const ctxGraph = createCtxGraph({ currentNodePath: 'A', graph: g, projectRoot, touchedFiles: [], recorder });
     expect(() => ctxGraph.node('C')).toThrow(UndeclaredGraphReadError);
     const keys = recorder.snapshot().map(([k]) => k);
@@ -342,7 +343,7 @@ describe('ctx.graph', () => {
         { path: 'B', type: 'provider', mapping: ['src/b.ts'] },
       ],
     });
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const touched: string[] = [];
     // subjectFiles is A's own mapping — B's file is a NON-subject sibling, so a
     // content read of it WOULD fold a read: observation. Here we read only .path.
@@ -368,7 +369,7 @@ describe('ctx.graph', () => {
         { path: 'B', type: 'provider', mapping: ['src/b.ts'] },
       ],
     });
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const ctxGraph = createCtxGraph({
       currentNodePath: 'A', graph: g, projectRoot, touchedFiles: [],
       recorder, subjectFiles: new Set(['src/a.ts']),
@@ -392,7 +393,7 @@ describe('ctx.graph', () => {
     const g = buildTestGraphForStructure({
       nodes: [{ path: 'A', type: 'consumer', mapping: ['src/a.ts'] }],
     });
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const ctxGraph = createCtxGraph({
       currentNodePath: 'A', graph: g, projectRoot, touchedFiles: [],
       recorder, subjectFiles: new Set(['src/a.ts']),

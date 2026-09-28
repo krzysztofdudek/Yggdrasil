@@ -6,7 +6,8 @@ relations:
   [
     { target: cli/ast/runtime, type: uses },
     { target: cli/structure, type: uses },
-    { target: cli/core/pair-hash, type: uses },
+    { target: cli/utils, type: uses },
+    { target: cli/io/stores, type: uses },
     { target: cli/tests/unit/helpers, type: uses },
     { target: cli/config-reads, type: uses }
   ]

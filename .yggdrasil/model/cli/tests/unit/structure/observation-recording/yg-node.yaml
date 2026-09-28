@@ -8,6 +8,7 @@ relations:
   [
     { target: cli/core/pair-hash, type: uses },
     { target: cli/structure, type: uses },
+    { target: cli/io/stores, type: uses },
     { target: cli/tests/unit/helpers, type: uses }
   ]
 mapping:

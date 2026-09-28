@@ -5,15 +5,19 @@ description: "Unit tests for filesystem and path utility modules: atomic writes,
   validation, path helpers, mapping-path normalization and glob matching, the
   mapping index's equivalence with a linear match, and check.mjs export-shape
   validation, and the (fromType, toType) allowed-relation-types lookup with a
-  compat-identity check against its re-export from the relations pass"
+  compat-identity check against its re-export from the relations pass, and the
+  observation contract's byte-identity with its pre-move implementation over
+  this repository's own graph"
 aspects: []
 relations:
   [
     { target: cli/io/atomic-write, type: uses },
+    { target: cli/core/pair-hash, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/io/parsers/graph, type: uses },
     { target: cli/model/graph, type: uses },
     { target: cli/relations/core, type: uses },
+    { target: cli/structure, type: uses },
     { target: cli/utils, type: uses }
   ]
 mapping:
@@ -31,3 +35,4 @@ mapping:
   - source/cli/tests/unit/utils/known-keys.test.ts
   - source/cli/tests/unit/utils/repo-path-escape.test.ts
   - source/cli/tests/unit/utils/allowed-relation-types.test.ts
+  - source/cli/tests/unit/utils/observation-keys.test.ts
