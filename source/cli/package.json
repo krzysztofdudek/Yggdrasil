@@ -83,7 +83,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@chrisdudek/runes": "0.1.4",
+    "@chrisdudek/runes": "1.0.0",
     "@clack/prompts": "^1.8.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
