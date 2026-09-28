@@ -5,7 +5,8 @@
  * The root help groups the commands by what a reader is doing (daily work,
  * exploring the graph, working on rules, setting up) with one line each;
  * each command's own help opens with the same one line, lists its options in
- * one style (capitalised, no closing full stop, numeric defaults unquoted),
+ * one style (capitalised, no closing full stop, numeric defaults unquoted, a
+ * required option marked `required`),
  * shows two or three examples, and keeps the long description as an "About"
  * paragraph after them. A usage error the parser raises (an unknown option, a
  * missing argument) is reported in the same error grammar as every other
@@ -109,7 +110,7 @@ const COMMANDS: Record<string, CommandHelp> = {
   simulate: {
     group: 'Rules',
     summary: 'Replay history against a rule change',
-    examples: [['yg simulate no-todo --node orders', 'what the rule would have caught on one node']],
+    examples: [['yg simulate no-todo --node app/orders', 'what the rule would have caught on one node']],
   },
   suppressions: {
     group: 'Rules',
@@ -210,11 +211,29 @@ function rootHelp(program: Command, description: string): string {
   return lines.join('\n');
 }
 
-/** An option's description in the one style: capitalised, no closing full stop, a numeric default unquoted. */
+/**
+ * Options a command cannot run without although the parser does not enforce
+ * them: the command checks them itself, because a parent's required option is
+ * enforced before any of its subcommands is reached (`yg drill add --aspect x`
+ * would be refused its own flag). Command path -> flags.
+ */
+const REQUIRED_AT_RUN: Record<string, string[]> = {
+  drill: ['--aspect'],
+};
+
+/** The options whose help says they are required: the parser's mandatory ones and those above. */
+const requiredAtRun = new WeakSet<Option>();
+
+/**
+ * An option's description in the one style: capitalised, no closing full stop, a
+ * numeric default unquoted, and `required` first among the notes when the
+ * command refuses to run without it.
+ */
 function optionDescription(option: Option): string {
   let text = option.description.trim().replace(/\.$/, '');
   text = text.charAt(0).toUpperCase() + text.slice(1);
   const extras: string[] = [];
+  if (option.mandatory || requiredAtRun.has(option)) extras.push('required');
   if (option.argChoices !== undefined) extras.push(`choices: ${option.argChoices.join(', ')}`);
   if (option.defaultValue !== undefined && !option.negate) {
     const value = option.defaultValueDescription ?? (typeof option.defaultValue === 'string' && !/^\d+$/.test(option.defaultValue) ? JSON.stringify(option.defaultValue) : String(option.defaultValue));
@@ -274,6 +293,10 @@ export function registerHelpCommand(program: Command): void {
   const description = 'architecture rules for AI agents, checked on every change';
   for (const cmd of walk(program)) {
     routeParserErrors(cmd);
+    for (const flag of REQUIRED_AT_RUN[pathOf(cmd)] ?? []) {
+      const option = cmd.options.find((o) => o.long === flag);
+      if (option !== undefined) requiredAtRun.add(option);
+    }
     const own = cmd.parent === program ? COMMANDS[cmd.name()] : undefined;
     const long = cmd.description();
     if (own !== undefined) {

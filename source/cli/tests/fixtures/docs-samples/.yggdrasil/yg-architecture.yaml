@@ -1,0 +1,23 @@
+node_types:
+  module:
+    description: "A group of components. Parent-only, it maps no files."
+    log_required: false
+  service:
+    description: "A component of the application under src/orders/ or src/utils/."
+    log_required: false
+    when:
+      any_of:
+        - path: "src/orders/**"
+        - path: "src/utils/**"
+    aspects:
+      - async-fs
+  handler:
+    description: "A request handler under src/handlers/, covered by its type alone."
+    when:
+      path: "src/handlers/**"
+    aspects:
+      - async-fs
+  script:
+    description: "A build script under scripts/; no rule applies to it."
+    when:
+      path: "scripts/**"

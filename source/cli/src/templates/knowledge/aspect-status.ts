@@ -25,10 +25,10 @@ Deep detail: \`yg knowledge read cli-reference\` (the det gate) and
 | \`advisory\`| yes            | warning            | warning               | no                   |
 | \`enforced\`| yes            | error              | error                 | yes                  |
 
-Status colors verdicts that exist and gates the two effects above; it never
-substitutes for verification.
+Status colors verdicts that exist and gates the two effects above; it records
+no verdict of its own.
 
-- A recorded **advisory** refusal never blocks. A recorded **enforced** refusal
+- A recorded **advisory** refusal renders as a warning, not an error. A recorded **enforced** refusal
   blocks.
 - An **unverified** pair blocks by its effective status too — enforced unverified
   is an error, advisory unverified is a warning. Flipping an aspect to advisory

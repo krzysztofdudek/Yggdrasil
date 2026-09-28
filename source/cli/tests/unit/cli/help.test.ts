@@ -52,6 +52,21 @@ describe('yg --help', () => {
     expect(text).toContain('\nExamples\n  yg check ');
     expect(text).toContain('\nAbout\n  Unified graph gate — verification, coverage, completeness');
   });
+
+  it('marks an option the command cannot run without as required, whether the parser or the command enforces it', () => {
+    const p = new Command().name('yg').exitOverride();
+    const incident = p.command('incident');
+    incident.command('add').requiredOption('--reason <text>', 'what escaped').option('--aspect <id>', 'the rule it escaped').action(() => {});
+    // drill checks --aspect itself: a required option on a parent would refuse `drill add --aspect x`.
+    p.command('drill').option('--aspect <id>', 'aspect id whose case corpus to drill').action(() => {});
+    registerHelpCommand(p);
+    const add = incident.commands.find((c) => c.name() === 'add')!;
+    const drill = p.commands.find((c) => c.name() === 'drill')!;
+    expect(add.helpInformation()).toContain('What escaped (required)');
+    expect(add.helpInformation()).toContain('The rule it escaped\n');
+    expect(add.helpInformation()).not.toContain('The rule it escaped (required)');
+    expect(drill.helpInformation()).toContain('Aspect id whose case corpus to drill (required)');
+  });
 });
 
 describe('usage errors from the argument parser', () => {

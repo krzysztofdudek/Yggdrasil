@@ -224,7 +224,7 @@ re-pointed at a different model or provider without re-verifying. Run
 
 If the rule is expressible as "this identifier must / must not appear" or
 "imports from X are forbidden in Y" — use a script rule instead. It is
-deterministic, produces no false positives, and costs nothing per call.
+deterministic — the same answer on every run — and makes no reviewer call, so there is no per-call charge.
 
 ## Companion files (companion.mjs)
 
@@ -328,7 +328,7 @@ the runner retries once and then fails closed (reported as
 
 If the hook throws, returns a bad shape, returns a path that does not exist,
 returns a path outside the allowed-reads set, or produces an observation set
-that stays inconsistent across two runs, the pair fails closed: nothing is
+that stays inconsistent across two runs, the pair fails closed: no verdict is
 written, the pair stays unverified, and \`yg check --approve\` reports the
 per-pair what/why/next message with the token
 \`aspect-companion-runtime-error\`. A summary line is also emitted at the end

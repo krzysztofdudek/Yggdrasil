@@ -290,6 +290,7 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
   // ── Case b-ci: auto_approve: full + bare yg check under CI ──────────────
 
   describe('Case b-ci: auto_approve: full + bare yg check with CI set', () => {
+    // Claim (docs/cli-reference.md): "When the `CI` environment variable is set (to anything but empty, `0` or `false`), a committed `full` is held back: bare `yg check` fills nothing — no reviewer pair and no script pair — calls no reviewer, and says `auto-approve: full ignored — CI is set` on stderr; an explicit `--approve` still fills, and `deterministic` still fills the script pairs under CI."
     it('b5: under CI=true the committed auto_approve: full does not call the reviewer; the run stays read-only and says why', async () => {
       const dir = fixture('b5');
       const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'looks fine' }) });
@@ -375,6 +376,7 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
   // ── Case d: triage views with auto_approve: full — always read-only ──────
 
   describe('Case d: triage views (--summary) with auto_approve: full are always read-only', () => {
+    // Claim (docs/cli-reference.md): "And a triage view (`--top`, `--summary`, `--aspect`, `--details`) never fills, whatever the configuration."
     it('d1: --summary with auto_approve: full is read-only — no banner, no fill', async () => {
       const dir = fixture('d1');
       const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'ok' }) });
@@ -398,6 +400,7 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
       }
     });
 
+    // Claim (docs/cli-reference.md): "And a triage view (`--top`, `--summary`, `--aspect`, `--details`) never fills, whatever the configuration."
     it('d2: --top with auto_approve: full is read-only — no banner, no fill', async () => {
       const dir = fixture('d2');
       const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'ok' }) });
@@ -419,6 +422,7 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
       }
     });
 
+    // Claim (docs/cli-reference.md): "And a triage view (`--top`, `--summary`, `--aspect`, `--details`) never fills, whatever the configuration."
     it('d3: --summary with auto_approve: deterministic is read-only — no fill', () => {
       const dir = deterministicFixture('d3');
       try {

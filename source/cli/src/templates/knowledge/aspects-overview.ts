@@ -225,7 +225,7 @@ closure (see \`yg knowledge read aspect-status\`).
 | advisory | yes            | warning (refused or unverified) |
 | enforced | yes            | error — blocks \`yg check\`     |
 
-Advisory never blocks a VERDICT issue; enforced always does; only \`draft\` removes
+An advisory VERDICT issue is a warning; an enforced one is an error that blocks; only \`draft\` removes
 a pair from the expected set. Two exceptions:
 1. The prompt-size gate — an oversized assembled prompt reports
    \`prompt-too-large\` at \`error\` severity regardless of the pair's status, so it

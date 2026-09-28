@@ -280,10 +280,10 @@ key, which suits a keyless local server). \`ollama\` and the CLI providers take 
 key. If the variable is set, the key is not needed in \`yg-secrets.yaml\`.
 
 PRECEDENCE: a tier's \`config.api_key\` in \`yg-secrets.yaml\` wins over the
-environment variable. So \`yg init\` never writes a key it read from the
+environment variable. So \`yg init\` does not store a key it read from the
 environment there, and whenever it points the tier at another provider or
 endpoint (\`--provider\` or the menu) it REMOVES the key stored for that tier and
-says so — a key given for one provider is never sent to the next. It also removes
+says so — a switch made through init does not carry a key given for one provider on to the next. It also removes
 it when the variable is exported or the key prompt is answered; only a re-run for
 the same provider and endpoint with nothing else chosen keeps it (and init says
 the reviewer will send it — or, for a reviewer that sends no key, such as
@@ -389,8 +389,8 @@ under a wall-clock budget (default 120 seconds;
 set the \`YG_DET_TASK_TIMEOUT_MS\` environment variable, in milliseconds, to
 change it, or to \`0\` to switch it off). A check still running past it — an
 endless loop, runaway regex backtracking — is stopped and reported as
-\`unverified\` with cause \`check-failed-to-run\`, naming the rule and the unit; nothing is written
-for it and every other check still runs, so the gate never hangs. The
+\`unverified\` with cause \`check-failed-to-run\`, naming the rule and the unit; no verdict is written
+for it and every other check still runs, so while the budget is on one stuck check cannot hang the gate. The
 diagnostic runs (\`yg aspect-test\`, \`yg drill\`, \`yg simulate\`) have no budget.
 
 ## Debug logging
@@ -508,8 +508,8 @@ mid-run):** Under \`auto_approve: "deterministic"\` a single bare \`yg check\` i
 meant to fill, then report green, in ONE run. That convergence holds only while
 the mapped subject files stay byte-stable for the duration of the run. The
 classification is deterministic on byte-stable inputs — the pre-fill pass and
-the post-fill report read the same bytes and agree — and yg never writes your
-source. But if an EXTERNAL process rewrites a mapped file mid-run — e.g.
+the post-fill report read the same bytes and agree — and the run's own writes all land under
+\`.yggdrasil/\`, not in your source. But if an EXTERNAL process rewrites a mapped file mid-run — e.g.
 \`corepack\` / \`pnpm\` pinning \`packageManager\` in \`package.json\`, a formatter, or
 a code generator — the two passes legitimately read different bytes, so that one
 run can report the just-touched pair as \`unverified\`; a plain re-run over the

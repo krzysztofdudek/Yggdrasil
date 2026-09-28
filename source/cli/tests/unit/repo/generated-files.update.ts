@@ -16,7 +16,9 @@
 //   prose:baseline        e2e-prose-baseline.json   e2e-prose-ratchet.test.ts
 //
 // The golden output corpus (golden:update) is written by the e2e sibling,
-// tests/e2e/golden-corpus.update.ts, through the same config.
+// tests/e2e/golden-corpus.update.ts, and the CLI reference's flag tables and
+// knowledge topic (cli-reference:update) by tests/e2e/cli-reference.update.ts,
+// through the same config.
 //
 // Vitest is only the TypeScript runner here: the renderers import the CLI's
 // TypeScript sources, which plain node cannot load. Every step renders from

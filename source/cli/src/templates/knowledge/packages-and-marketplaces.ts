@@ -121,7 +121,7 @@ config:
 
 A setting a rule READS enters that rule's verdicts, so a consumer changing it
 sends exactly that rule's verdicts back for judging and leaves every other rule's
-alone. A setting nothing reads changes nothing — which is why \`marketplace check\`
+alone. A setting no rule reads re-opens no verdict — which is why \`marketplace check\`
 warns about a key you declared and never read.
 
 **3. Strip the paths.** Anything naming a directory only your repository has stops

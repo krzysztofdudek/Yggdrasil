@@ -1,0 +1,5 @@
+name: NoTodo
+description: Shipped code carries no TODO marker; unfinished work belongs in the tracker.
+reviewer:
+  type: deterministic
+status: enforced

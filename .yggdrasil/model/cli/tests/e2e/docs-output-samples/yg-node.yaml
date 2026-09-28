@@ -1,7 +1,8 @@
 name: E2E Tests — Docs Output Samples
 type: test-suite
-description: "Subprocess E2E that regenerates the terminal output samples the docs show and compares them with every page that shows them: the first yg check after yg init (README and getting started), the first rule's unverified check and the one-component summary line (getting started and the reviewers page), the cached refusal from examples/failing (reviewers and getting started), and the coverage stanza yg init --upgrade prints (getting started, platforms, configuration). A change to any of those outputs fails here until the pages are updated with it."
+description: "Subprocess E2E that regenerates the terminal output samples the docs show and compares them with every page that shows them: the first yg check after yg init (README and getting started), the first rule's unverified check and the one-component summary line (getting started and the reviewers page), the cached refusal from examples/failing (reviewers and getting started), and the coverage stanza yg init --upgrade prints (getting started, platforms, configuration). A change to any of those outputs fails here until the pages are updated with it. Beside it, a second suite holds every block a docs page marks `<!-- sample: <name> -->` to the output recorded from the CLI in the samples project (tests/support/docs-samples.ts): the aspect-test refusal on the reviewers page, and the impact cost line, the tree footer for type-covered files and the owner answers on the CLI reference; npm run docs-samples:update rewrites those blocks and the suite only reads."
 aspects: []
 relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/docs-output-samples.test.ts
+  - source/cli/tests/e2e/docs-samples.test.ts

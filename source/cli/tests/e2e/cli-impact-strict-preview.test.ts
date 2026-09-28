@@ -69,6 +69,7 @@ function gapList(out: string, heading: 'Orphans' | 'Misplaced'): string[] {
 }
 
 describe.skipIf(!distExists)('CLI E2E — impact --type previews the strict coverage gap', () => {
+  // Claim (docs/cli-reference.md): "computed by the same scan `yg check` runs. Before the flag is set the gap is labelled a preview of what setting it would report."
   it('lists, before the flag is set, the orphans and misplaced files check reports after', () => {
     const dir = project();
     try {

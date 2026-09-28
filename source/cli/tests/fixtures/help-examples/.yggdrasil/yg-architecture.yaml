@@ -1,0 +1,12 @@
+node_types:
+  module:
+    description: "Groups the components of one application. Parent-only, it maps no files."
+    log_required: false
+  service:
+    description: "One component of the application, implemented under src/."
+    log_required: false
+    when:
+      path: "src/**"
+    parents: [module]
+    aspects:
+      - no-todo

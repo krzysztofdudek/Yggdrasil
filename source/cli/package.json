@@ -36,6 +36,9 @@
     "prose:baseline": "vitest run --config vitest.update.config.ts -t '^prose:baseline$' && vitest run tests/unit/repo/e2e-prose-ratchet.test.ts",
     "codes:update": "vitest run --config vitest.update.config.ts -t '^codes:update$' && vitest run tests/unit/repo/issue-code-tables.test.ts",
     "schemas:update": "vitest run --config vitest.update.config.ts -t '^schemas:update$' && vitest run tests/unit/repo/file-schema-tables.test.ts",
+    "surface-truth": "node scripts/surface-truth.mjs",
+    "cli-reference:update": "vitest run --config vitest.update.config.ts -t '^cli-reference:update$' && vitest run tests/e2e/cli-reference-truth.test.ts tests/unit/repo/knowledge-cli-reference.test.ts",
+    "docs-samples:update": "vitest run --config vitest.update.config.ts -t '^docs-samples:update$' && vitest run tests/e2e/docs-samples.test.ts tests/unit/repo/knowledge-cli-reference.test.ts",
     "json-schemas:update": "vitest run --config vitest.update.config.ts -t '^json-schemas:update$' && vitest run tests/unit/repo/json-contract-schemas.test.ts"
   },
   "keywords": [

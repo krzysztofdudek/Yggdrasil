@@ -114,7 +114,7 @@ Wall time is set by `parallel` — how many reviewer calls run at once (engine d
 Set `consensus: 3` (or any odd integer) on a tier in `yg-config.yaml` to run multiple review passes and take the majority vote. Higher confidence, proportionally higher cost. Useful for high-stakes aspects or noisy borderline rules.
 
 - **The passes run at the same time**, so consensus multiplies cost, not wall time.
-- **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — nothing is written and it stays unverified, like any reviewer failure. A tie among the verdicts that came back is treated the same way: `consensus` is odd, so a tie can only come from passes a provider error removed, and it is never recorded as a refusal.
+- **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — no verdict is written (only the failed attempt's event line) and it stays unverified, like any reviewer failure. A tie among the verdicts that came back is treated the same way: `consensus` is odd, so a tie can only come from passes a provider error removed, and it is never recorded as a refusal.
 - **A split shows.** When the passes disagree, the fill prints the pair with its split — `fill  passed by 2 of 3 votes  <aspect> @ <unit>` — and the events file records it.
 - **Raising `consensus` re-judges nothing already recorded.** It is not part of a pair's hash, so existing verdicts stand. To re-review an aspect's pairs under the new count, move the aspect to a newly named tier.
 
@@ -442,6 +442,7 @@ yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 
 `yg aspect-test` exits 0 for clean, 1 for violations, and never writes the lock. Output:
 
+<!-- sample: aspect-test-refused -->
 ```text
 yg aspect-test: refused — 1 violation
 error[refused] async-fs
@@ -689,7 +690,7 @@ Readers combine the local sidecar with the committed stream, de-duplicated line 
 The lock keeps a refusal's hash and reason, not the code it refused, so once the code is fixed the refused version is gone. Every fill therefore also keeps, for each refusal it records, a JSON file `.yggdrasil/.refused/<hash>.json`, named for the verdict's input hash — the `hash` of its lock entry and of its line in `.yg-events.jsonl` — holding the aspect, the unit, the rule kind, the reason, the commit when there is one, and the unit's subject files as they were (`content`, or `base64` for bytes that are not UTF-8). A refusal and the next pass of the same unit make a labelled pair: what the rule rejected and what satisfied it — material for a new drill case, or for [Grain](https://github.com/krzysztofdudek/Grain) to derive a script check from a reviewer rule's own verdicts.
 
 - **Local only.** The directory is gitignored, never committed, and never read by any check, verification or render path; delete it at will.
-- **Written only where it is ignored.** A fill never edits a tracked `.gitignore`, so on a graph whose `.yggdrasil/.gitignore` lacks the `.refused/` line it writes nothing; `yg init --upgrade` adds the line.
+- **Written only where it is ignored.** The store never edits a tracked `.gitignore`, so on a graph whose `.yggdrasil/.gitignore` lacks the `.refused/` line it stores no record; `yg init --upgrade` adds the line.
 - **Bounded per refusal.** A unit whose subject files together exceed 2 MiB is not stored. A record already present is left alone — the same hash means the same inputs.
 - **Best-effort.** A failed write loses that record and never changes a fill's outcome.
 
@@ -714,7 +715,7 @@ The reviewer is a separate model judging the coding agent's work, and a recorded
 
 **Cost spikes when an aspect changes.** Editing a widely-used aspect's content invalidates every pair it produces → N LLM calls to refill. Before such an edit, run `yg impact --aspect <id>` to see the count. `--aspect` also accounts for `companion.mjs` — editing it invalidates every pair of the aspect just as a `content.md` edit does, at the same billed cost. Consider `consensus: 1` for high-fan-out aspects.
 
-**Companion assembly failure.** If the companion hook throws, returns a bad shape, or resolves a path that does not exist or falls outside the allowed-reads boundary, the pair is an infra-fail: nothing is written, the pair stays unverified, and `yg check` stays red. The error's `what` sentence names the unit being reviewed (for a `per: file` pair, that is the subject file) and the aspect; its `next` fix suggestion instead names the owning nodes, source and target, and never the subject file — a per-file subject cannot hold a relation declaration, only its owning node can. Fix the hook or the relation declarations and re-run `yg check --approve`.
+**Companion assembly failure.** If the companion hook throws, returns a bad shape, or resolves a path that does not exist or falls outside the allowed-reads boundary, the pair is an infra-fail: no verdict is written (the failure is logged as an event line), the pair stays unverified, and `yg check` stays red. The error's `what` sentence names the unit being reviewed (for a `per: file` pair, that is the subject file) and the aspect; its `next` fix suggestion instead names the owning nodes, source and target, and never the subject file — a per-file subject cannot hold a relation declaration, only its owning node can. Fix the hook or the relation declarations and re-run `yg check --approve`.
 
 ### Script rules
 

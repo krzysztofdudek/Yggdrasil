@@ -117,7 +117,7 @@ describe('the manual and the references say what the commands do', () => {
 
   it('the knowledge reference describes yg aspects --health --json instead of calling it refused', () => {
     const ref = topic('cli-reference');
-    expect(ref).not.toMatch(/refused\s+together with\s+`--json`/);
+    expect(ref).not.toMatch(/--health[^.]*refused\s+together with\s+`--json`/);
     expect(ref).toContain('`yg aspects --health --json` prints the health view as one `yg-aspects-health/1`');
   });
 

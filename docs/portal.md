@@ -24,16 +24,16 @@ yg portal
 
 This serves the portal on a local address that only your own machine can reach,
 and prints the link. It is **read-only** in the sense that matters: browsing it
-never touches your source, your graph, or the lock file. The one action that can
+leaves your source, your graph, and the lock file unchanged. The one action that can
 act on the project is a single, clearly-labelled Approve button — and even that just
 runs the same fill you would run from the command line (`yg check --approve`); you can turn it
 off entirely with `yg portal --no-write` for a shared screen or a wall display.
-The page's other controls write nothing at all: a `↻ Refresh` button that
+The page's other controls write nothing to your source, your graph or the lock file: a `↻ Refresh` button that
 re-fetches the live data for free, a `⌕` button opening a ⌘K-style command
 palette over views, components and rules, a `◐` light/dark toggle, and the
 in-page export bars described below. (Like `yg check`, the portal does quietly
-maintain its own gitignored classification cache under `.yggdrasil/` as you
-browse, when `coverage.type_level` is on — never your lock, your graph, or your
+maintain its own gitignored caches under `.yggdrasil/` as you
+browse — the parsed-source cache, and the classification cache when `coverage.type_level` is on — never your lock, your graph, or your
 source.)
 
 For anything that could act on the project — the approve action, the cost
@@ -162,8 +162,8 @@ A row of views down the side, each answering a different question:
 - **Suppressions** — every deliberate waiver, sorted riskiest first, with the
   reason and a flag on the risky ones: a wildcard that silences every rule on
   its line, an aspect id that names no known rule (likely a typo or a rename
-  that outlived the field it renamed), an aspect that is still draft (the
-  reviewer never runs there, so the waiver is a no-op), a rule that by design
+  that outlived the field it renamed), an aspect that is still draft (where
+  it stays draft no fill checks it, so the waiver has nothing to silence), a rule that by design
   can never raise a false alarm (so the waiver is not actually silencing
   anything that could have fired), or a range that runs unbounded — because a
   waived check is not a pass. A clean waiver names its real reach — a single

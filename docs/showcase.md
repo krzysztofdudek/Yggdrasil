@@ -117,8 +117,8 @@ runs across the whole graph and surfaces refusals as warnings — without
 blocking CI. Once the warnings stabilize and we have confidence the rule
 fires only on real issues, the aspect is promoted to `status: enforced`.
 Aspects still being authored (rule text incomplete, edge cases unclear)
-sit at `status: draft` — they produce no expected pairs, so the reviewer
-never runs and nothing is recorded in the lock.
+sit at `status: draft` — they produce no expected pairs, so a fill makes no
+reviewer call for them and records no verdict in the lock.
 
 ```yaml
 # Illustrative — a new aspect introduced at advisory

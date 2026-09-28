@@ -1,0 +1,5 @@
+name: Utils
+description: Reads the application's configuration.
+type: service
+mapping:
+  - src/utils/config.ts

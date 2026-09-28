@@ -112,11 +112,11 @@ The basic workflow:
 If you forget step 2, plain \`yg check\` raises a blocking \`log-entry-missing\`
 error for that node (caught read-only, regardless of whether the node has pairs).
 At \`--approve\`, if a node the run would fill a pair of owes an entry, the run
-fills NOTHING — no pair on any node, related or not, is verified — until that
-entry exists. A changed node the run fills nothing of (no pairs, or only reviewer
+records NO verdict — no pair on any node, related or not, is verified — until that
+entry exists. A changed node the run fills no pair of (no pairs, or only reviewer
 pairs this run leaves alone: \`--only-deterministic\`, or outside a measured
-change) does not stop it; the run records nothing over its code, and plain
-\`yg check\` keeps it red until its entry exists. Add the entries and re-run.
+change) does not stop it; the run records no verdict, source fingerprint or log baseline for it, and plain
+\`yg check\` keeps reporting it until its entry exists. Add the entries and re-run.
 
 An entry comments on a change to the node's OWN source, and only that: editing
 a rule, a relation, the lock or a verdict re-opens pairs but owes no entry. The source is the set of files the mapping names, so a changed mapping (a file
@@ -130,7 +130,7 @@ reaches closure. Under progressive mode a node can reach closure while some of i
 reviewer work is deliberately left unbought, so the next source change there needs
 its own entry, exactly as it would after an ordinary closure.
 
-Only a full \`yg check --approve\` records closure; \`--only-deterministic\` never writes the committed logs file. So a \`log_required\` node with nothing left to fill whose source moved past its recorded baseline, while its log has entries, shows a \`log-cycle-open\` WARNING on plain \`yg check\`: its newest entry keeps answering for every edit until a full run records the baseline. It never blocks. It is expected between \`yg log add\` and that full run on a node with no pairs pending; on a project whose only fill is the free gate it means the requirement has stopped asking for new entries, and a full run somewhere has to close it.
+Only a full \`yg check --approve\` records closure; \`--only-deterministic\` never writes the committed logs file. So a \`log_required\` node with nothing left to fill whose source moved past its recorded baseline, while its log has entries, shows a \`log-cycle-open\` WARNING on plain \`yg check\`: its newest entry keeps answering for every edit until a full run records the baseline. It is a warning and does not block. It is expected between \`yg log add\` and that full run on a node with no pairs pending; on a project whose only fill is the free gate it means the requirement has stopped asking for new entries, and a full run somewhere has to close it.
 
 The log's own integrity is checked on every \`yg check\`, as blocking errors: \`log-conflict\` (git conflict markers left in log.md — \`yg log merge-resolve\`), \`log-integrity\` (the recorded history was rewritten, or entries were inserted before the last recorded one, the shape a merge leaves — \`yg log merge-resolve\` after a merge, otherwise restore log.md from git), and \`log-format\` (log.md does not parse as entries: text before the first header, a header or datetime that does not parse, a \`## \` line inside a body, entries out of order or sharing a datetime, an unclosed code fence). Under progressive mode each of them — and \`log-entry-missing\` — on a node your change did not touch is reported as its non-blocking \`-outside\` warning.
 
@@ -230,7 +230,7 @@ Until that entry is written, \`yg advise\` lists the clash as \`log-supersedes-c
 
 ## What \`yg context\` carries
 
-\`yg context\` (text and \`--json\`, \`--node\` and \`--file\` alike) puts two logs in front of an agent, each under its own heading. First the decisions in force for the subject's type and for every type above it along its parent chain, nearest type first, each in full: a decision recorded on a type holds for the whole subtree of types below it. Then, for a subject a component owns, that component's own log — whole, except on a node whose type sets \`log_required\`, where it grows with every change and only its newest 10 entries in force are given, with a count of the rest and \`yg log read --node <path> --all\` to read them. An entry a later one replaced is history: it stays in its file and is left out of the context. A file governed by its type alone gets its type's decisions and no node log. A rule's own log never enters the context: it is for whoever changes the rule. Reading the logs changes nothing — no entry is part of any pair's hash.
+\`yg context\` (text and \`--json\`, \`--node\` and \`--file\` alike) puts two logs in front of an agent, each under its own heading. First the decisions in force for the subject's type and for every type above it along its parent chain, nearest type first, each in full: a decision recorded on a type holds for the whole subtree of types below it. Then, for a subject a component owns, that component's own log — whole, except on a node whose type sets \`log_required\`, where it grows with every change and only its newest 10 entries in force are given, with a count of the rest and \`yg log read --node <path> --all\` to read them. An entry a later one replaced is history: it stays in its file and is left out of the context. A file governed by its type alone gets its type's decisions and no node log. A rule's own log never enters the context: it is for whoever changes the rule. Reading the logs re-opens no pair: a node's log is not one of the inputs its pairs' hashes are built from.
 
 ## Recovery from typo in a fresh entry (BEFORE its baseline is recorded)
 

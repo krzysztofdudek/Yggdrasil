@@ -120,6 +120,7 @@ function run(args: string[], cwd: string): Promise<{ status: number | null; all:
 }
 
 describe.skipIf(!distExists)('yg init --provider — the previous provider\'s key stays behind', () => {
+  // Claim (docs/configuration.md): "it removes the key stored for that tier and says so: left there, a key given for one provider would be sent to the next."
   it('after switching anthropic → openai-compatible, the new endpoint receives no key at all, and init said so', async () => {
     const root = anthropicProject();
     const server = await captureServer();

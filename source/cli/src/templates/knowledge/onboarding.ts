@@ -117,8 +117,8 @@ answer is "let me just show you". Match intent, not keywords.
 17. Dead-air rule: any tutor-side work >~30s gets a heads-up in THEIR story
     terms plus one mid-way ping — or hand them a micro-decision to hold
     ("what should the lamp drop?"). Silence reads as abandonment.
-18. Red is the toy responding: staged edit → verdict → revert costs nothing,
-    changes nothing, repeatable as long as curiosity lasts. Say so. (For
+18. Red is the toy responding: staged edit → verdict → revert is free for a script rule,
+    puts the code back as it was, repeatable as long as curiosity lasts. Say so. (For
     reviewer rules, restate the per-call cost instead of "free".)
 19. If the user asks to run a command themselves: always yes, plus the named
     safety ("\`yg check --no-approve\` is forced read-only regardless of the

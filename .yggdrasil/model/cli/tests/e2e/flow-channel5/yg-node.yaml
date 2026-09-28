@@ -1,6 +1,6 @@
 name: E2E Tests — Flow Channel-5 Propagation
 type: test-suite
-description: Subprocess E2E proving flow aspects (channel 5) reach participants and descendants of participants and are enforced when yg check --approve fills the unverified pairs, and that yg flows lists the propagated aspects.
+description: "Subprocess E2E proving flow aspects (channel 5) reach participants and descendants of participants and are enforced when yg check --approve fills the unverified pairs, that yg flows lists the propagated aspects, and that yg impact --node names the same flows yg context --node lists for a participant and for a descendant of one, as the CLI reference says."
 aspects: []
 relations: []
 mapping:

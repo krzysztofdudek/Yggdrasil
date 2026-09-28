@@ -159,7 +159,7 @@ I built it while shipping things alone, fast, which is where the wall above come
 
 ## See the whole graph
 
-`yg portal` renders everything as a map in the browser: every component, every rule, and whether each one is verified against the code as it stands right now. Nothing is rounded up to green. Browsing it changes nothing; its one write is an Approve button that runs `yg check --approve`, and `yg portal --no-write` removes it. `yg portal --static` writes a single self contained file you can hand to someone who has no checkout.
+`yg portal` renders everything as a map in the browser: every component, every rule, and whether each one is verified against the code as it stands right now. Nothing is rounded up to green. Browsing it leaves your code, graph and lock unchanged; its one write to them is an Approve button that runs `yg check --approve`, and `yg portal --no-write` removes it. `yg portal --static` writes a single self contained file you can hand to someone who has no checkout.
 
 <p align="center">
   <img src="docs/public/portal-overview-dark.png" alt="The Yggdrasil portal" width="900" />

@@ -66,7 +66,11 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   published yg-*/1 schemas use (types, constants, enumerations, required and
   closed properties, items, alternatives and definitions), so a suite can check
   an emitted document against its schema without a new dependency. It imports
-  nothing at all."
+  nothing at all.
+
+  It also owns the CLI reference's view of the CLI: a reader that walks the command tree through the built binary's own --help (every command the root help groups, each command's options, subcommands and examples) and renders a command's flag table for the docs page from it; a reader of the `yg <command> --flag` lines a page quotes, which holds each one to the command tree (the command words name a command, every long flag is one that command takes, a flag the help hides on purpose is named in one list with its reason); and the renderer that turns docs/cli-reference.md into the knowledge cli-reference topic's text for a terminal reader. All three import only Node builtins and each other.
+
+  It also owns the docs' recorded terminal samples: the registry of samples (the page each is on, the command, whether the block opens with the command line, and which lines of the output the page shows) and the recorder that runs them in one committed copy of the samples fixture, so a block a page marks as a sample is always what the CLI prints now. It imports only Node builtins and its siblings."
 aspects: []
 relations: []
 mapping:
@@ -82,3 +86,7 @@ mapping:
   - source/cli/tests/support/assert-output.ts
   - source/cli/tests/support/prose-assertions.ts
   - source/cli/tests/README.md
+  - source/cli/tests/support/cli-help-tree.ts
+  - source/cli/tests/support/cli-mentions.ts
+  - source/cli/tests/support/cli-reference-knowledge.ts
+  - source/cli/tests/support/docs-samples.ts

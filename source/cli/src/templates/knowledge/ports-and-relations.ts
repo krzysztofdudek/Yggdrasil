@@ -85,7 +85,8 @@ Three design properties keep false positives out — it stays silent rather than
   relation error. And it resolves only edges it can pin to exactly one target node
   — anything dynamic, reflective, external, or not-uniquely-resolvable is silent.
   Intra-node dependencies and dependencies between a node and its own ancestor or
-  descendant are exempt (they are not cross-node edges). There is no waiver: a
+  descendant are exempt (they are not cross-node edges). So every edge it flags
+  is one it resolved from the code to exactly one mapped node. There is no waiver: a
   finding is fixed by declaring the relation or removing the dependency, and a
   finding that names a dependency the code does not have is a resolver bug to
   report, not something to suppress.

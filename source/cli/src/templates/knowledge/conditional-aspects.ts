@@ -296,10 +296,10 @@ A type's \`per: node\` rules can never run on a
 type-covered file, a rule's own \`when:\` can still fail against the facts
 above, and a rule can still be draft. \`yg check --coverage\` names all of this per
 matched type — files covered, rules actually enforced, rules that run but
-only warn (reported under their own heading, never folded in with the ones
+only warn (reported under their own heading, apart from the ones
 that block), rules attached but not (with the reason and a count), and — the
-one state that must never be found by accident — every file that matches a
-type yet has nothing at all that can run against it. \`yg context --file\` and
+one state nobody should find by accident — the files that match a
+type yet have no rule that applies to them (a count and a sample). \`yg context --file\` and
 \`yg owner --file\` on such a file answer the same way for that one file, in
 place of a not-covered error: the matched type, where its inherited chain
 stops and why, both the rules that apply (each with its real status) and the

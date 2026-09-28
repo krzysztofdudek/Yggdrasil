@@ -1,0 +1,12 @@
+name: E2E Tests — CLI Reference Truth
+type: test-suite
+description: "Subprocess E2E that holds the hand-written CLI reference to the command tree the built CLI prints through its own --help. docs/cli-reference.md must carry, for every command with an option of its own, a flag table rendered from that command's help, and no table for a command the CLI does not have. Every `yg <command> --flag` line quoted on a reference surface (the docs pages, the READMEs, the CHANGELOG's unreleased section, every knowledge topic, the operating manual, every schema reference, and the help's own option descriptions) must name a command the CLI has and a flag that command takes, a hidden flag being accepted only from the one list that names it with a reason. Every example the help prints is run in the help-examples fixture (the node, file, rule and flow the examples name) and in the few projects an example needs of its own (a directory with no graph, a proposal next to code without one, a marketplace, git's three versions of a log), and must exit 0 without a usage or command error. The developer step beside it (cli-reference.update.ts, run by npm run cli-reference:update through the update config) rewrites the flag tables from the help and then the knowledge cli-reference topic from the page; the suite only reads."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-reference-truth.test.ts
+  - source/cli/tests/e2e/cli-reference.update.ts

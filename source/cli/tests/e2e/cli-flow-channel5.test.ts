@@ -335,4 +335,23 @@ describe.skipIf(!distExists)('CLI E2E — channel 5: flow aspects reach particip
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  // Claim (docs/cli-reference.md): "Its flows are the ones `yg context --node` lists for the same node: every flow that names the node or one of its ancestors."
+  it('7: yg impact --node and yg context --node name the same flows, for a participant and for its descendant', () => {
+    const dir = descendantFixture('impact-context');
+    try {
+      for (const node of ['services/orders', 'services/orders/order-repo', 'services/payments']) {
+        const impact = run(['impact', '--node', node], dir);
+        const context = run(['context', '--node', node], dir);
+        expect(impact.status, impact.all).toBe(0);
+        expect(context.status, context.all).toBe(0);
+        const impactFlows = (/^Flows: (.*)$/m.exec(impact.stdout)?.[1] ?? '').split(', ').filter((f) => f !== '' && f !== '(none)');
+        const contextIds = [...(/^Participates in \(\d+ flows?\):\n((?: {2}\S.*\n(?: {4}.*\n)*)+)/m.exec(context.stdout)?.[1] ?? '').matchAll(/^ {2}(\S+) — /gm)].map((m) => m[1]);
+        const contextNames = contextIds.map((id) => /^name:\s*(.+)$/m.exec(readFileSync(path.join(dir, '.yggdrasil', 'flows', id, 'yg-flow.yaml'), 'utf-8'))![1].trim());
+        expect({ node, flows: impactFlows.sort() }).toEqual({ node, flows: contextNames.sort() });
+        expect(impactFlows.length, node).toBeGreaterThan(0);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
