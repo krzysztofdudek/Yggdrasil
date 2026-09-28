@@ -612,7 +612,18 @@ async function readAspectYaml(
   options: ParseAspectOptions,
 ): Promise<FieldResult<Record<string, unknown>>> {
   const content = await readFile(aspectYamlPath, 'utf-8');
-  const rawBase = parseYaml(content) as Record<string, unknown>;
+  // A syntax error is refused like any other malformed rule file: a throw here
+  // would abort the whole graph load instead of naming the one rule to fix.
+  let rawBase: Record<string, unknown>;
+  try {
+    rawBase = parseYaml(content) as Record<string, unknown>;
+  } catch (err) {
+    return fieldRefusal('yaml-invalid', {
+      what: `yg-aspect.yaml at ${aspectYamlPath} is not valid YAML: ${err instanceof Error ? err.message : String(err)}`,
+      why: `Rule '${idTrimmed}' is not loaded until the file parses: nothing it says can be read.`,
+      next: `Fix the YAML syntax in ${aspectYamlPath}.`,
+    });
+  }
 
   if (!rawBase || typeof rawBase !== 'object' || Array.isArray(rawBase)) {
     return fieldRefusal('yaml-invalid', {

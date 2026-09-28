@@ -105,6 +105,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A `yg-aspect.yaml` with a YAML syntax error no longer aborts the whole graph load with an uncaught parser exception. The rule is refused as `yaml-invalid`, naming the file and the parser's message, and the check loads and reports everything else.
 - On a case-insensitive file system (the macOS and Windows defaults) a relation no longer points at a file under a name its directory does not list. The Runes path probe found `lib/root.rs` as `lib/Root.rs`, so the Rust path `nm::Root` resolved to a file that is not there, and a Go import or Java wildcard import of `ex.com/m/Pkg` took the files of `pkg/`; the same held for every language's path probe. The CLI now depends on `@chrisdudek/runes` 0.1.4, whose resolver accepts a candidate only under the exact name its directory lists (issue 482).
 - A lock file that does not load no longer hides the relation findings: `relation-undeclared-dependency`, `type-relation-forbidden` and `relation-parse-failed` come from the live relation pass and are reported beside `lock-invalid`, as the docs always said. `relation-parse-failed` also tells a grammar that does not load (reinstall the CLI) from a parser that fails on one file (reinstalling does not help).
 - `yg check --json` keeps the structured `edges` of a relation refusal outside the change (`relation-undeclared-dependency-outside`), and the two edge shapes (node target vs file target) are documented.

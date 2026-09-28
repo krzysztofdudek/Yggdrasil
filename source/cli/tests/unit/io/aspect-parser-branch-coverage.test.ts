@@ -48,6 +48,14 @@ describe('aspect-parser — rejection paths', () => {
     expect(r.ok).toBe(false);
   });
 
+  it('refuses a yg-aspect.yaml with a YAML syntax error as yaml-invalid instead of throwing', async () => {
+    const dir = await aspectDir('name: T\nreviewer: [unclosed\n');
+    const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'sample');
+    const err = fail(r).find((e) => e.code === 'yaml-invalid') as { code: string; messageData?: { what?: string } } | undefined;
+    expect(err).toBeDefined();
+    expect(err?.messageData?.what).toContain('is not valid YAML');
+  });
+
   it('accepts a valid string-form reference (control)', async () => {
     const dir = await aspectDir('name: T\nreviewer:\n  type: llm\nreferences:\n  - docs/rule.md\n');
     const r = await parseAspect(dir, path.join(dir, 'yg-aspect.yaml'), 'sample');
