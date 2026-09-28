@@ -40,7 +40,7 @@
     "cli/commands/type-suggest": {"log":{"last_entry_datetime":"2026-09-28T04:59:59.974Z","prefix_hash":"fefb45fc795d390425773fd8358922b4283ee7c6608a824433585be63e6b3252"},"source":"7d2023acd95cb860518ee5572e727671000274c1843f30f47af69d03a56915dc"},
     "cli/commands/verdict-removed": {"log":{"last_entry_datetime":"2026-09-27T03:28:29.815Z","prefix_hash":"4bf2d46e6d83cc20bdd03fbd7f1d8917917cd6c2412d4f11ce6b5543d929b8fb"},"source":"8f4137e5bcd5b277cd89b9aa5ad197548426b5e367b05776f6e1af616a852c8a"},
     "cli/config-reads": {"source":"542d90695b8ab20131db82c21f8372395fcac8aad7fa70582b8bb2a9a163289d"},
-    "cli/config/build": {"log":{"last_entry_datetime":"2026-09-12T08:42:07.193Z","prefix_hash":"b4953e5ee6f082a3dae06a8932fb5eef679fd8341f22cbf3c2f956477a4afe3c"},"source":"024fcbaf03e108b11ce81c4a6dc2c515f722dd9a0596517585edf5d9285bf02d"},
+    "cli/config/build": {"log":{"last_entry_datetime":"2026-09-12T08:42:07.193Z","prefix_hash":"b4953e5ee6f082a3dae06a8932fb5eef679fd8341f22cbf3c2f956477a4afe3c"},"source":"426d813fb63278fca36d8d07032ab33b16264ffa9dff0975a2107818028be998"},
     "cli/config/linters": {"source":"6b3b6b49c39aaacae8b505389e0c5f807fc4fa18cc68d469252203d4a86628b5"},
     "cli/config/quality": {"source":"98feb99945c7077fd5704d987dc05bcc7e34d7fccab45f2007c8245fdd6d2ad9"},
     "cli/core/advise": {"log":{"last_entry_datetime":"2026-09-28T05:18:45.506Z","prefix_hash":"b0810a9ebda6b45ca8c66edb3985a621732b8b27a31e912cf4543796377888cc"},"source":"e2eb54b90b53631640efbaad7c067ad46d172b03d4d26c6c3190243791dc49ac"},
@@ -470,7 +470,7 @@
     "graph-rules": {"log":{"last_entry_datetime":"2026-09-23T20:09:45.974Z","prefix_hash":"a0d354290fd63f36eda6677e002124784143e3882970e160600fee563c648f4b"},"source":"359ecbfb998a9d290b3bb548aa2d50a13047d47ca1c69ae1e411ac48ca760f53"},
     "root": {"log":{"last_entry_datetime":"2026-05-15T11:05:58.272Z","prefix_hash":"3183f15df80dcc84c2e60d5b4bff7c641dd5f1b72a92a50c1ce78dff5d704db7"}},
     "root/ci": {"log":{"last_entry_datetime":"2026-09-23T20:09:49.031Z","prefix_hash":"435717e9988acfe37d8330994136843cac79d14ed912a6bd7716bc933b1a38ac"},"source":"69a6453c1a002d8a1ea5288a57dd17c1d775e25a763e620b18d84c78c74d2fdc"},
-    "root/project-config": {"source":"f0c0ea116c1f2b7733cb7d02c5fe6502582819c269c726ec9a1b59a08315b81f"},
+    "root/project-config": {"source":"f1cdad0ed412d29a12882f3a800cfdf9cc5d43c0c2d1796e6ccd8829bfbad50f"},
     "scripts": {"source":"7881b1f19e1c4846e04abad13c6d3c81c7c909a2ea101aa063bb2ce2e2049c71"},
     "tools": {"source":"f802cdf6a80311c31c8303f74d88afd512443c47f380c0cdeab03564d4bb0249"}
   }
