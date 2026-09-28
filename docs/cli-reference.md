@@ -44,7 +44,7 @@ Flags of `yg context`, generated from its `--help` (`npm run cli-reference:updat
 |------|-------------|
 | `--node <node-path>` | Node path relative to .yggdrasil/model/ |
 | `--file <file-path>` | Source file path — resolves owner node automatically |
-| `--json` | Machine-readable output: one yg-context/1 document on stdout instead of the text package. Same facts, same exit codes |
+| `--json` | Machine-readable output: one yg-context/1 document on stdout instead of the text package: the core facts (owner, chain, rules), narrower than the text view; same exit codes |
 
 <!-- /flags -->
 
@@ -2032,7 +2032,7 @@ Flags of `yg drill`, generated from its `--help` (`npm run cli-reference:update`
 |------|-------------|
 | `--aspect <id>` | Aspect id whose case corpus to drill (required) |
 | `--dir <path>` | External holdout corpus directory (data only — case files, never imported) |
-| `--case <glob>` | Run only case labels matching this glob (repo-relative POSIX) |
+| `--case <glob>` | Run only cases whose label matches this glob (the corpus-relative POSIX path, extension stripped, e.g. violates-*/**) |
 | `--corpus <label>` | Label recorded for this run (default: "dev", or the --dir basename) |
 | `--nodeless` | Drill as a type-covered file: assemble every reviewer-rule case without a node — the prompt shape a file with no owning component receives from the real reviewer |
 | `--json` | Machine-readable output: one yg-drill/1 document on stdout (counts, per-case results, the corpus) instead of the case lines. Same exit codes |

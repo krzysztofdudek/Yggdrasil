@@ -129,3 +129,5 @@ The unsupported-rule message said the rule 'has reviewer' of some kind, which re
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --check-determinism on a reviewer rule is refused before any billed reviewer call, and an unknown --node answers with the shared node-not-found error.
 ## [2026-09-27T23:15:53.264Z]
 A script rule's violations are printed as one finding block: a heading naming the rule, the violations under at:, then why: and fix:. A flat at: list with no heading and no why or fix was a finding laid out outside the CLI's one output grammar.
+## [2026-09-28T00:50:09.105Z]
+The --aspect option no longer spells (required) in its own description: the help now marks every required option itself, and the hand-written marker printed twice once both existed.

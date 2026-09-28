@@ -18,3 +18,5 @@ A help flag after a mistyped command printed the root help and exited 0, so an a
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: help examples that failed when run are corrected, type-suggest is described as reporting a fitting type, and a mistyped command followed by --help is a usage error instead of the root help with exit 0.
 ## [2026-09-27T23:25:09.175Z]
 The help did not say which options a command refuses to run without, so a reader learned it only from the refusal; an option the parser requires, and one the command checks itself because a required option on a parent would refuse its subcommands, now carry a required note. Two of the examples the help printed were refused when run as printed (an incident subcommand that does not exist, and a simulate call without its target), so the examples now name the real subcommand and target, and a test runs every example.
+## [2026-09-28T00:50:15.468Z]
+The yg simulate example names the node the example fixture actually has (app/orders), so the help example runs as written, and says it replays over one node, which is what --node scopes it to.

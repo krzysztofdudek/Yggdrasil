@@ -54,10 +54,10 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
     .description(
       "Take a file as it stood at a commit into a rule's case corpus, run the rule over it, and report whether the rule catches it",
     )
-    .requiredOption('--aspect <id>', 'aspect id whose case corpus the case joins (required)')
+    .requiredOption('--aspect <id>', 'aspect id whose case corpus the case joins')
     .requiredOption(
       '--violates <path@commit>',
-      'file at a commit the rule MUST refuse (the code that got past it) (required)',
+      'file at a commit the rule MUST refuse (the code that got past it)',
     )
     .option(
       '--satisfies <path@commit>',

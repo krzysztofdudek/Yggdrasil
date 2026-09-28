@@ -48,3 +48,5 @@ The debug line for a case a script rule could not evaluate called the rule a det
 --case matches the corpus-relative case label with its extension stripped, not a repository-relative path; the help said the latter and a repository path matched nothing. drill add marks its required flags in --help.
 ## [2026-09-27T23:05:47.368Z]
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --case is described as the corpus-relative case label it really matches, and drill add marks its required flags.
+## [2026-09-28T00:50:12.151Z]
+yg drill add no longer spells (required) in its --aspect and --violates descriptions: the help now marks every required option itself, and the hand-written marker printed twice. The --case description keeps the corpus-relative label wording, which the generated flag table in the CLI reference now carries.

@@ -238,7 +238,7 @@ export function registerAspectTestCommand(program: Command): void {
       'For reviewer rules, --dry-run prints the assembled prompts without making any reviewer call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
-    .requiredOption('--aspect <id>', 'aspect id to run (required)')
+    .requiredOption('--aspect <id>', 'aspect id to run')
     .option('--node <path>', 'graph node to check (uses the node mapping and graph-aware ctx)')
     .option('--file <path>', 'a type-covered source file, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
     .option('--files <paths...>', 'ad-hoc source files to check (script rules only; NO graph attachment — see --file for a graph-attached, type-covered file)')
