@@ -2897,7 +2897,7 @@ severity says so — see [Aspect Status](/aspect-status).
 | `package-implies-outside-package` | error | A rule of a package implies a rule that package does not carry. | As the package author, imply only the package's own rules. |
 | `aspect-adapt-invalid` | error | An installed rule's adaptation file (yg-aspect.adapt.yaml) is not valid YAML. | Fix the YAML syntax in the adaptation file. |
 | `aspect-adapt-not-mapping` | error | An adaptation file is not a mapping. | Write the adaptation as a YAML mapping, e.g. status: advisory. |
-| `aspect-adapt-key-not-adaptable` | error | An adaptation sets a key a package rule does not let a consumer change (name, description, implies, errs, when). | Remove the key; the adaptable keys are scope, reviewer, review_by, references, status, config, companion. |
+| `aspect-adapt-key-not-adaptable` | error | An adaptation sets a key a package rule does not let a consumer change (name, description, implies, errs, when). | Remove the key; the adaptable keys are scope, reviewer, review_by, references, status, config, companion, stores_content. |
 | `aspect-adapt-key-unknown` | error | An adaptation sets a key that is no key of an adaptation. | Remove or rename the key; the finding lists the adaptable keys. |
 | `aspect-adapt-config-not-mapping` | error | An adaptation's config: is not a mapping. | Write config: as a mapping of setting to value. |
 | `aspect-adapt-config-key-unknown` | error | An adaptation sets a config key the package does not declare for the rule. | Remove the key; the package's yg-package.yaml lists the settings it reads. |

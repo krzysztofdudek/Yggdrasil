@@ -168,6 +168,7 @@ export function createVerdictWriter(params: {
       kind: pair.kind,
       reason: entry.reason ?? '',
       subjectFiles: pair.subjectFiles.map((f) => toPosixPath(f)),
+      withholdContent: graph.aspects.find((a) => a.id === pair.aspectId)?.storesContent === false,
     }, await refusedStoreEnabled);
   };
 

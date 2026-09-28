@@ -12,4 +12,5 @@ mapping:
   - source/cli/tests/unit/io/aspect-parser-aggregate.test.ts
   - source/cli/tests/unit/io/aspect-parser-branch-coverage.test.ts
   - source/cli/tests/unit/io/aspect-parser-errs.test.ts
+  - source/cli/tests/unit/io/aspect-parser-stores-content.test.ts
   - source/cli/tests/unit/io/aspect-parser-review-by.test.ts

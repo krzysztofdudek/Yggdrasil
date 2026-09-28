@@ -27,7 +27,7 @@ afterEach(async () => {
   for (const r of roots.splice(0)) await rm(r, { recursive: true, force: true });
 });
 
-async function setupProject(opts: { ignored: boolean; source: string }): Promise<{ projectRoot: string; yggRoot: string }> {
+async function setupProject(opts: { ignored: boolean; source: string; failRuleExtra?: string }): Promise<{ projectRoot: string; yggRoot: string }> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-refused-store-'));
   roots.push(root);
   const yggRoot = path.join(root, '.yggdrasil');
@@ -45,7 +45,7 @@ async function setupProject(opts: { ignored: boolean; source: string }): Promise
   for (const [id, rule] of [['det-pass', DET_PASS], ['det-fail', DET_FAIL]] as const) {
     const aspDir = path.join(yggRoot, 'aspects', id);
     await mkdir(aspDir, { recursive: true });
-    await writeFile(path.join(aspDir, 'yg-aspect.yaml'), `name: ${id}\ndescription: ${id} rule\nreviewer:\n  type: deterministic\nstatus: enforced\n`);
+    await writeFile(path.join(aspDir, 'yg-aspect.yaml'), `name: ${id}\ndescription: ${id} rule\nreviewer:\n  type: deterministic\nstatus: enforced\n${id === 'det-fail' ? (opts.failRuleExtra ?? '') : ''}`);
     await writeFile(path.join(aspDir, 'check.mjs'), rule);
   }
   return { projectRoot: root, yggRoot };
@@ -89,6 +89,20 @@ describe('refused-content store, through a fill', () => {
     await fill(projectRoot);
     expect(readLock(yggRoot).verdicts['det-fail']['node:svc'].verdict).toBe('approved');
     expect(records(yggRoot).map((r) => r.hash)).toEqual([refusedHash]);
+  });
+
+  it('keeps only the hash and the reason for a rule marked stores_content: false — no copy of the refused file', async () => {
+    const secret = 'export const key = "sk-live-TODO-0123456789";\n';
+    const { projectRoot, yggRoot } = await setupProject({ ignored: true, source: secret, failRuleExtra: 'stores_content: false\n' });
+    await fill(projectRoot);
+    const refused = readLock(yggRoot).verdicts['det-fail']['node:svc'];
+    expect(refused.verdict).toBe('refused');
+    const [rec] = records(yggRoot);
+    expect(rec).toMatchObject({ v: 1, hash: refused.hash, aspectId: 'det-fail', reason: refused.reason, contentWithheld: true });
+    expect(rec.files).toEqual([]);
+    const raw = readFileSync(path.join(yggRoot, REFUSED_DIRNAME, `${refused.hash}.json`), 'utf-8');
+    expect(raw).not.toContain('sk-live');
+    expect(raw).not.toContain(Buffer.from(secret).toString('base64'));
   });
 
   it('writes nothing where the store is not gitignored — a fill never edits a tracked .gitignore', async () => {

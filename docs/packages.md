@@ -659,6 +659,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `status` | `draft` \| `advisory` \| `enforced` | no | How much the rule's refusals count. Default: `enforced`. |
 | `config` | mapping of &lt;key&gt; to string, number or boolean | no | Override the defaults of the settings the package declares for this rule. |
 | `companion` | string | no | Point the rule at a companion module written in this repository. |
+| `stores_content` | boolean | no | false keeps this rule's refusals out of your local refused-content store except for the verdict hash and the reason — for a package rule that detects secrets. Default: `true`. |
 
 `name` is refused: the name identifies the rule the package published.
 `description` is refused: the description is what the reviewer is told the rule means — changing it changes the rule, not its fit.

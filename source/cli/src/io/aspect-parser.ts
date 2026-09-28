@@ -449,6 +449,8 @@ export async function parseAspect(
       ...(status !== undefined && { status }),
       ...(reviewBy !== undefined && { reviewBy }),
       ...(errs !== undefined && { errs }),
+      // Type-checked by the schema floor above (a non-boolean is refused there).
+      ...(raw.stores_content === false && { storesContent: false as const }),
       ...(scope !== undefined && { scope }),
       ...((hasCompanionMjs || companionPath !== undefined) && { hasCompanion: true }),
       ...(supportFiles.length > 0 && { supportFiles }),
