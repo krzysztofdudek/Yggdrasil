@@ -53,8 +53,8 @@ export const NODE_PORT: ObjectType = {
     aspects: { type: ATTACHMENTS, description: 'Rules a node relating through this port must satisfy (channel 6).' },
   },
   retired: {
-    version: "removed in 6.0.0: contract versions are Horde's job now",
-    test: "removed in 6.0.0: contract tests are Horde's job now",
+    version: "removed in 6.0.0: Yggdrasil no longer records contract versions",
+    test: "removed in 6.0.0: Yggdrasil no longer runs contract tests",
   },
 };
 

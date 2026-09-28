@@ -88,11 +88,11 @@ function count(n: number, singular: string, plural = `${singular}s`): string {
 /** What the proposal says about its own origin, or a plain statement that it says nothing. */
 function describeOrigin(provenance: ProposalProvenance | undefined): string {
   if (provenance === undefined) return 'hand-written — the proposal records no origin of its own';
-  // A newer Grain's proposal: its fields may mean something else, so only the version is named.
+  // A proposal in a newer schema: its fields may mean something else, so only the version is named.
   if (!provenance.mined && provenance.schema !== undefined && provenance.schema.startsWith('grain-proposal/')) {
-    return `from a Grain newer than this CLI reads (${provenance.schema}; this CLI reads ${GRAIN_PROPOSAL_SCHEMA}) — its provenance fields are not shown`;
+    return `in a proposal schema newer than this CLI reads (${provenance.schema}; this CLI reads ${GRAIN_PROPOSAL_SCHEMA}) — its provenance fields are not shown`;
   }
-  const parts: string[] = [provenance.mined ? 'mined from this repository by Grain' : 'generated'];
+  const parts: string[] = [provenance.mined ? 'mined from this repository' : 'generated'];
   if (provenance.schema !== undefined) parts.push(`(${provenance.schema})`);
   if (provenance.asOf !== undefined) parts.push(`taken at ${provenance.asOf.slice(0, 12)}`);
   if (provenance.files !== undefined) parts.push(`over ${count(provenance.files, 'file')}`);
@@ -157,7 +157,7 @@ function graphRows(graph: Graph, provenance: ProposalProvenance | undefined, vio
 function acceptanceEntry(graph: Graph, provenance: ProposalProvenance | undefined): string {
   const rules = countRulesByStatus(graph);
   const origin = provenance?.mined === true
-    ? 'It was mined from this repository\'s own code and history by Grain'
+    ? 'It was mined from this repository\'s own code and history'
     : 'It was written outside this repository and brought in whole';
   const taken = provenance?.asOf !== undefined ? `, from the state of the code at ${provenance.asOf}` : '';
   return [
@@ -191,7 +191,7 @@ export function registerAdoptCommand(program: Command): void {
           fail({
             what: `'${proposalDir}' does not hold a proposed graph.`,
             why: `A proposal is a directory containing a ${GRAPH_DIR}/ tree with a yg-config.yaml and a yg-architecture.yaml in it — the staging directory a generator writes, or that inner directory on its own. Nothing of that shape is at this path, and guessing further would risk accepting something that is not a graph at all.`,
-            next: `Pass the directory a generator wrote (Grain writes ${GRAPH_DIR}-proposal/ at the repository root by default), or the ${GRAPH_DIR}/ directory inside it.`,
+            next: `Pass the directory a generator wrote (usually ${GRAPH_DIR}-proposal/ at the repository root), or the ${GRAPH_DIR}/ directory inside it.`,
           }, 'command-error');
           await exitAfterFlush(1);
           return;

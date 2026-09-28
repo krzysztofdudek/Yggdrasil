@@ -143,7 +143,7 @@
       id: 'family',
       term: 'family',
       group: 'The family',
-      def: 'The Yggdrasil tool family: Yggdrasil, Grain and Horde at the core, with the add-ons Ratatoskr, Urd, Researcher and Jarl. A group of look-alike files is not a family.',
+      def: 'The Yggdrasil tool family: the tools released beside Yggdrasil that build on its graph, each doing one job; Family contracts lists them and the documents they exchange. A group of look-alike files is not a family.',
       see: '/family-contracts',
     },
     {

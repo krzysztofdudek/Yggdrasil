@@ -106,7 +106,7 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       expect(stdout).toContain('1 component');
       expect(stdout).toContain('2 rules (1 enforced, 1 advisory, 0 draft)');
       expect(stdout).toContain('grain-proposal/1');
-      expect(stdout).toContain('mined from this repository by Grain');
+      expect(stdout).toContain('mined from this repository');
       // From the per-rule provenance the fixture ships — and it is the truth:
       // the enforced rule really does refuse src/beta.ts as it stands.
       expect(stdout).toContain('1 site the new rules refuse in the code that is already here');
@@ -153,7 +153,7 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
     }
   });
 
-  it('2d: a proposal from a newer Grain is adopted, and its version is named rather than its fields read', () => {
+  it('2d: a proposal in a newer schema is adopted, and its version is named rather than its fields read', () => {
     const repo = makeRepo('newer');
     try {
       stageProposal(repo);
@@ -162,8 +162,8 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       writeFileSync(meta, JSON.stringify({ ...doc, schema: 'grain-proposal/2' }), 'utf-8');
       const { stdout, status } = run(['adopt', '.yggdrasil-proposal', '--dry-run'], repo);
       expect(status, stdout).toBe(0);
-      expect(stdout).toContain('from a Grain newer than this CLI reads (grain-proposal/2; this CLI reads grain-proposal/1)');
-      expect(stdout).not.toContain('mined from this repository by Grain');
+      expect(stdout).toContain('in a proposal schema newer than this CLI reads (grain-proposal/2; this CLI reads grain-proposal/1)');
+      expect(stdout).not.toContain('mined from this repository');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

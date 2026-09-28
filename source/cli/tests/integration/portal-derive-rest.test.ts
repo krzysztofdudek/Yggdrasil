@@ -53,7 +53,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // ahead of cli/core/check (24, which declared the same edge when it began
     // accepting a change scope). It briefly moved again, 25 to 26, when a port's
     // contract baseline gained a writer — but the port contract check that edge
-    // pointed at is gone in 6.0.0 (contract versions are Horde's job now, not a
+    // pointed at is gone in 6.0.0 (contract versions left the graph, not a
     // graph-level check), and its removal took cli/core/fill's edge with it,
     // back down to 25. cli/core/check lost the matching edge for the same
     // reason and settled back at 24, not 25.

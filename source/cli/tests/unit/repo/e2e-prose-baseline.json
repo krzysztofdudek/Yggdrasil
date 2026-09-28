@@ -1,7 +1,7 @@
 {
   "description": "Per end-to-end test file: how many assertions on a literal of five or more words it may hold (tests/unit/repo/e2e-prose-ratchet.test.ts). The counts only go down: convert an assertion to a code or JSON field and run npm run prose:baseline. A file not listed may hold none.",
   "files": {
-    "cli-adopt.test.ts": 10,
+    "cli-adopt.test.ts": 8,
     "cli-advise-hot-spot.test.ts": 11,
     "cli-advise-import.test.ts": 10,
     "cli-advise-type-covered-churn.test.ts": 6,

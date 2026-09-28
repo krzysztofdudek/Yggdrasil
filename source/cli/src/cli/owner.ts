@@ -372,7 +372,7 @@ export function registerOwnerCommand(program: Command): void {
       '--files <list>',
       'Batch form: a comma-separated list of file paths, or "-" to read them one per line from standard input. ' +
         'Resolves the whole list against one loaded graph and prints a yg-owner-batch/1 document under --json ' +
-        "(plain text otherwise) — for a caller like Horde's territory resolver that needs many files at once, " +
+        "(plain text otherwise) — for a caller that needs many files at once, " +
         'never --file in a loop.',
     )
     .option('--json', 'Print the answer as a yg-owner/1 JSON document (yg-owner-batch/1 with --files)')
