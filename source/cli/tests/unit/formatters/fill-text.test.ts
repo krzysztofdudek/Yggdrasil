@@ -138,6 +138,24 @@ describe('renderFillEvent', () => {
     expect(dry).not.toContain('run yg check --approve to fill');
   });
 
+  // Issue 530: a preview with nothing to fill named a fill anyway.
+  it('dry run with nothing to fill names no fill step', () => {
+    for (const reviewerConfigured of [true, false, undefined]) {
+      const dry = renderFillEvent({ type: 'dry-run', nodes: [], files: [], reviewerCallBudget: 0, reviewerConfigured });
+      expect(dry).toBe('note: This run has nothing to fill. Nothing was written.\n');
+      expect(dry).not.toContain('fix:');
+    }
+  });
+
+  // Issue 530: the preview counts calls; it says so rather than leave the amount to be guessed.
+  it('dry run with reviewer calls says it gives no cost in money', () => {
+    const dry = renderFillEvent({ type: 'dry-run', nodes: [{ nodePath: 'app', pairs: [{ lane: 'llm', aspectId: 'b', unit: 'node:app', reviewerCalls: 1 }] }], files: [], reviewerCallBudget: 1 });
+    expect(dry).toContain('No cost in money is estimated');
+    const free = renderFillEvent({ type: 'dry-run', nodes: [{ nodePath: 'app', pairs: [{ lane: 'det', aspectId: 'a', unit: 'node:app' }] }], files: [], reviewerCallBudget: 0 });
+    expect(free).not.toContain('No cost in money');
+    expect(free).toContain('  fix:  yg check --approve --only-deterministic fills them\n');
+  });
+
   it('a preview with nothing to price still says it is a preview, over the zero budget', () => {
     expect(renderFillEvent({ type: 'dispatch', counts: { fillPairs: 0, nodeCount: 0, fileCount: 0, detPairs: 0, reviewerCallBudget: 0, skippedLlmPairs: 0, skippedOutsideLlmPairs: 0, preview: true } }))
       .toBe('fill  dry run — a cost preview; nothing is filled or written\nfill  0 pairs · 0 script (free) · 0 reviewer calls\n');

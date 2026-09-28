@@ -94,6 +94,9 @@ function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
   let out = billed.slice(0, DRY_RUN_CAP).map(billedLine).join('');
   if (billed.length > DRY_RUN_CAP) out += `  … +${billed.length - DRY_RUN_CAP} more  (yg check --details)\n`;
   if (free > 0) out += `  ${count(free, 'script pair')} — free, not listed\n`;
+  // A run with nothing to fill names no fill: there is no step to take, and a
+  // command offered anyway reads as work left undone.
+  if (billed.length === 0 && free === 0 && e.reviewerCallBudget === 0) return `${out}note: This run has nothing to fill. Nothing was written.\n`;
   // What to run to fill: the free lane when no reviewer can judge the rest
   // (the full run would stop before recording anything), else the whole run,
   // which is paid when it calls the reviewer — the price stated, never asked
@@ -103,9 +106,13 @@ function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
     : e.reviewerCallBudget > 0
       ? `yg check --approve  (paid, up to ${count(e.reviewerCallBudget, 'reviewer call')})`
       : 'yg check --approve --only-deterministic fills them';
+  // The preview prices in calls. The CLI carries no price list for any model,
+  // so it says it cannot give an amount rather than guess one; the real fill
+  // reports what the provider counted, and the price where the provider states it.
   out += e.reviewerCallBudget > 0
     ? `note: ${count(e.reviewerCallBudget, 'reviewer call')} is an upper bound — a unit a script rule refuses has its reviewer ` +
-      `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.\n`
+      `pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. ` +
+      `No cost in money is estimated: the CLI knows no price for any reviewer model; a paid fill reports the tokens the provider counted and, where the provider states it, the cost. Nothing was written.\n`
     : 'note: Nothing was written.\n';
   out += `  fix:  ${fillWith}\n`;
   return out;
