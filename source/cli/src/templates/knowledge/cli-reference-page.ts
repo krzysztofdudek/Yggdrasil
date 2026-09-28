@@ -2427,7 +2427,7 @@ if [ -f "<cli>" ] && command -v node >/dev/null 2>&1; then node "<cli>" merge-dr
 
 Git runs driver commands through its own POSIX shell on every platform (Git for Windows ships one), and \`<cli>\` is the absolute path, with forward slashes, of the CLI that ran \`yg init\`. And an attribute naming a driver a clone never configured is harmless: git merges that file with its own markers. A tool that merges branches on your behalf passes the same drivers with \`git -c merge.yg-log.driver=… -c merge.yg-lock.driver=… merge …\` on every merge rather than relying on the clone's configuration. GitHub's merge button runs no driver at all: merge locally.
 
-\`yg init\` also installs a \`post-merge\` hook running \`yg log merge-resolve\` when the repository has none (a hook another tool wrote, or a hooks directory set by \`core.hooksPath\` — usually a committed \`.githooks/\` — is left alone: \`yg init --upgrade\` says so in a \`note:\` whose \`fix:\` names the hook to add by hand, and until it exists run \`yg log merge-resolve\` after each merge). It never fails the merge; it leaves the lock files modified for the next commit.
+\`yg init\` also installs a \`post-merge\` hook running \`yg log merge-resolve\` when the repository has none (a hook another tool wrote, or a hooks directory set by \`core.hooksPath\` — usually a committed \`.githooks/\` — is left alone: \`yg init\`, \`yg init --upgrade\` and \`yg adopt\` say so in a \`note:\` whose \`fix:\` names the hook to add by hand, and until it exists run \`yg log merge-resolve\` after each merge). It never fails the merge; it leaves the lock files modified for the next commit.
 
 ### \`yg adopt\`
 

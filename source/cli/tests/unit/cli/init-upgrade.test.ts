@@ -142,6 +142,18 @@ describe('registerInitCommand action — non-interactive dispatch', () => {
     expect(stdout).toContain('yg log merge-resolve');
   });
 
+  // Issue 531: a fresh init with core.hooksPath installed no hook and said nothing.
+  it('a fresh keyless init with core.hooksPath names the missing post-merge hook as a note', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-fresh-hookspath-'));
+    dirsToCleanup.push(projectRoot);
+    runGitFixture(projectRoot, ['init', '-q']);
+    runGitFixture(projectRoot, ['config', 'core.hooksPath', '.githooks']);
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--no-reviewer']);
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('note: No post-merge hook installed');
+    expect(stdout.indexOf('note: No post-merge hook installed')).toBeLessThan(stdout.indexOf('next: yg check'));
+  });
+
   it('--upgrade with truly nothing to do still says nothing changed', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-noop-'));
     dirsToCleanup.push(projectRoot);
