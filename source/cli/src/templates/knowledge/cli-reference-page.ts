@@ -835,11 +835,11 @@ fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
   readable-names @ app/svc-01 — 1 reviewer call
   readable-names @ app/svc-02 — 1 reviewer call
   …
-note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. No cost in money is estimated: the CLI knows no price for any reviewer model; a paid fill reports the tokens the provider counted and, where the provider states it, the cost. Nothing was written.
   fix:  yg check --approve  (paid, up to 24 reviewer calls)
 \`\`\`
 
-When a fill would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any \`check.mjs\`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced script refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real \`--approve\` bills at most that many calls. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.
+When a fill would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any \`check.mjs\`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced script refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real \`--approve\` bills at most that many calls. The preview prices in calls, never in money: the CLI carries no price for any reviewer model, so it gives no amount; the closing line of a paid fill reports the tokens the provider counted and, where the provider states it (\`claude-code\` does), the cost at list price. A preview with nothing to fill says \`note: This run has nothing to fill. Nothing was written.\` and names no fill. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.
 
 Once past the structural gate, the preview exits 0 even when enforced pairs are unverified — unverified
 pairs do not fail it. The only thing that aborts a preview is a broken configuration
@@ -2427,7 +2427,7 @@ if [ -f "<cli>" ] && command -v node >/dev/null 2>&1; then node "<cli>" merge-dr
 
 Git runs driver commands through its own POSIX shell on every platform (Git for Windows ships one), and \`<cli>\` is the absolute path, with forward slashes, of the CLI that ran \`yg init\`. And an attribute naming a driver a clone never configured is harmless: git merges that file with its own markers. A tool that merges branches on your behalf passes the same drivers with \`git -c merge.yg-log.driver=… -c merge.yg-lock.driver=… merge …\` on every merge rather than relying on the clone's configuration. GitHub's merge button runs no driver at all: merge locally.
 
-\`yg init\` also installs a \`post-merge\` hook running \`yg log merge-resolve\` when the repository has none (a hook another tool wrote, or a \`core.hooksPath\` inside the working tree, is left alone and named). It never fails the merge; it leaves the lock files modified for the next commit.
+\`yg init\` also installs a \`post-merge\` hook running \`yg log merge-resolve\` when the repository has none (a hook another tool wrote, or a hooks directory set by \`core.hooksPath\` — usually a committed \`.githooks/\` — is left alone: \`yg init --upgrade\` says so in a \`note:\` whose \`fix:\` names the hook to add by hand, and until it exists run \`yg log merge-resolve\` after each merge). It never fails the merge; it leaves the lock files modified for the next commit.
 
 ### \`yg adopt\`
 
