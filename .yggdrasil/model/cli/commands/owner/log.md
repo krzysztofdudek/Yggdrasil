@@ -88,3 +88,5 @@ A command error's code is a contract — yg-error/1 consumers and sibling tools 
 Add the yg owner --files/stdin batch form (447): one graph load, one owner-index build and one FileContentCache shared across a whole file list, with a unit field (node path or type:<id>@<top-level dir>) for Horde territory grouping and a batch-only invalid kind so one bad path never aborts the rest of the list.
 ## [2026-09-27T20:25:13.706Z]
 yg owner --files classifies the whole list through one type-class cache, drops a UTF-8 byte-order mark at the start of standard input, and says why the batch answers kind type for a file whose type hit an implies cycle where --file refuses: the cycle blocks resolving the file's rules, never its owner, and the batch never resolves rules.
+## [2026-09-28T02:30:16.513Z]
+The owner --files help described its caller as a named sibling tool. Naming another tool in this CLI's text ties it to that tool's lifetime and misleads anyone calling it from elsewhere, so the caller is now described generically.

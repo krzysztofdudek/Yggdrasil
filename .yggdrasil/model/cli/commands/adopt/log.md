@@ -42,3 +42,5 @@ The words of a failed undo move into the transaction module, beside the failure 
 Accepting a proposed graph is a setup like init, so it configures the same merge drivers and post-merge hook in the clone; otherwise a repository adopted from a proposal would merge its logs and lock by hand while one set up with init would not.
 ## [2026-09-27T22:24:57.896Z]
 Adopting a proposed graph now configures the same git merge drivers and post-merge hook that init configures, so an adopted repository merges its logs and lock the same way as one set up with init. This arrived in one batch with the coverage, verdict-vocabulary and structure-wording work, which does not touch adoption.
+## [2026-09-28T02:30:15.823Z]
+adopt reported an imported proposal as mined by a named sibling tool. A message that names another tool ages with that tool and is wrong for any other producer, so the report now says the proposal was mined from this repository and points at the usual proposal directory without naming who wrote it.

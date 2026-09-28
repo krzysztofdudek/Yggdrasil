@@ -90,3 +90,5 @@ The node, architecture and flow parsers take their accepted and retired keys fro
 A flow that declares both nodes and participants is refused: taking one list silently dropped the other, so a participant there escaped the flow's rules and flow-node-broken. event_name is kept only on the event relation types, where the schema says it means anything.
 ## [2026-09-27T23:06:16.924Z]
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: a flow declaring both nodes and participants is refused instead of silently dropping one list, and event_name is kept only on event relations.
+## [2026-09-28T02:30:17.253Z]
+The refusal of a port's retired version: and test: fields named the sibling tools that used to own contract versions and contract tests. The refusal now says what is true of this tool itself: it no longer records contract versions or runs contract tests, so the field should be deleted. A guard test keeps family tool names out of CLI string literals.
