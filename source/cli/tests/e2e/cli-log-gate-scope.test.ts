@@ -129,7 +129,7 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
     }
   }, 120_000);
 
-  // Claim (docs/cli-reference.md): "A changed component the run fills nothing of does not stop it, and stays a `log-entry-missing` error on the plain read."
+  // Claim (docs/cli-reference.md): "A changed component the run fills no pair of does not stop it; the plain read still reports it as `log-entry-missing`."
   it('a change to the component’s own source owes an entry, and the fill stops before recording anything', () => {
     const dir = baseline('source-edit');
     try {
@@ -144,7 +144,7 @@ describe.skipIf(!distExists)('CLI E2E — a log entry is owed for a change to th
     }
   }, 120_000);
 
-  // Claim (docs/cli-reference.md): "A changed component the run fills nothing of does not stop it, and stays a `log-entry-missing` error on the plain read."
+  // Claim (docs/cli-reference.md): "A changed component the run fills no pair of does not stop it; the plain read still reports it as `log-entry-missing`."
   it('a changed component the fill fills nothing of stays red but does not stop the fill', () => {
     const dir = baseline('unrelated');
     try {

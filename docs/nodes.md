@@ -89,7 +89,7 @@ mapping:
   - src/legacy/auth/
 ```
 
-A node with no aspects produces no rule verdicts and records nothing in the lock. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
+A node with no aspects produces no rule verdicts; the lock keeps only the source fingerprint and log baseline a full fill records for any component. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
 
 The node's type still has to be one that classifies files — a type with a `when` predicate. A purely organizational type (no `when`) cannot map files at all; `yg check` rejects a mapping on such a type.
 

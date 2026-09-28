@@ -25,7 +25,7 @@ export const DOCS_CLAIMS: DocsClaim[] = [
   {
     id: 'log-gate-scope',
     page: 'docs/cli-reference.md',
-    quote: 'A changed component the run fills nothing of does not stop it, and stays a `log-entry-missing` error on the plain read.',
+    quote: 'A changed component the run fills no pair of does not stop it; the plain read still reports it as `log-entry-missing`.',
     tests: [
       { file: 'e2e/cli-log-gate-scope.test.ts', title: 'a changed component the fill fills nothing of stays red but does not stop the fill' },
       { file: 'e2e/cli-log-gate-scope.test.ts', title: 'a change to the component’s own source owes an entry, and the fill stops before recording anything' },
@@ -79,7 +79,7 @@ export const DOCS_CLAIMS: DocsClaim[] = [
   {
     id: 'drill-add-measures-or-refuses',
     page: 'docs/cli-reference.md',
-    quote: 'Nothing is written when the file is one the drill never runs as a case',
+    quote: 'No case is added when the file is one the drill does not run as a case',
     tests: [
       { file: 'e2e/cli-drill-add.test.ts', title: '9: a file the drill never runs as a case is refused up front, and nothing is written' },
       { file: 'e2e/cli-drill-add.test.ts', title: '1: a rule that catches the escape reports it, names the case for its origin, and logs it' },
@@ -90,6 +90,22 @@ export const DOCS_CLAIMS: DocsClaim[] = [
     page: 'docs/configuration.md',
     quote: 'it removes the key stored for that tier and says so: left there, a key given for one provider would be sent to the next.',
     tests: [{ file: 'e2e/cli-init-provider-switch-key.test.ts', title: 'after switching anthropic → openai-compatible, the new endpoint receives no key at all, and init said so' }],
+  },
+  {
+    id: 'ci-holds-back-full-auto-approve',
+    page: 'docs/cli-reference.md',
+    quote: 'When the `CI` environment variable is set (to anything but empty, `0` or `false`), a committed `full` is held back: bare `yg check` fills nothing — no reviewer pair and no script pair — calls no reviewer, and says `auto-approve: full ignored — CI is set` on stderr; an explicit `--approve` still fills, and `deterministic` still fills the script pairs under CI.',
+    tests: [{ file: 'e2e/cli-auto-approve.test.ts', title: 'b5: under CI=true the committed auto_approve: full does not call the reviewer; the run stays read-only and says why' }],
+  },
+  {
+    id: 'triage-view-never-fills',
+    page: 'docs/cli-reference.md',
+    quote: 'And a triage view (`--top`, `--summary`, `--aspect`, `--details`) never fills, whatever the configuration.',
+    tests: [
+      { file: 'e2e/cli-auto-approve.test.ts', title: 'd1: --summary with auto_approve: full is read-only — no banner, no fill' },
+      { file: 'e2e/cli-auto-approve.test.ts', title: 'd2: --top with auto_approve: full is read-only — no banner, no fill' },
+      { file: 'e2e/cli-auto-approve.test.ts', title: 'd3: --summary with auto_approve: deterministic is read-only — no fill' },
+    ],
   },
 ];
 

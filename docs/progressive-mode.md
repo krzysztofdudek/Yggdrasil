@@ -207,8 +207,8 @@ recorded result yet is yours as soon as your change touches anything its compone
 is allowed to read — with the reach worked out from the component, so this one
 applies to the rules that can read across their subjects: script rules,
 and reviewer rules that ship a companion. A plain reviewer rule reads
-nothing but its own subject files and its own rule text, and both are already
-accounted for exactly by the rules above, so it is reached through those rather than
+only its own subject files, its own rule text and the files its rule lists under `references:`, and each is already
+accounted for exactly (a changed reference file makes every use of the rules listing it yours), so it is reached through those rather than
 through an estimate that would burn most of the graph for no added truth. A rule
 on a type-covered file (one enforced by its type alone, with no component of its own) has no component
 reach to work from and is likewise left to those rules. A fresh clone therefore
@@ -230,7 +230,7 @@ So before any finding is set aside as not yours, the run checks the content of
 the files it is about against the content the reference branch holds. If they
 disagree, that finding is yours, whatever git said about it — and that holds
 whichever way the finding names its subject: a rule check, a component, a file,
-or a dependency between two files. This costs nothing you will notice: it looks
+or a dependency between two files. Its cost is small: it looks
 only at findings that are both failing and about to be set aside, and it reads
 the reference branch's file list once for the whole run.
 
@@ -399,8 +399,8 @@ progressive mode narrows.)
 
 ### The free fill never ends a written-reason cycle
 
-`yg check --approve --only-deterministic` writes nothing but its own local,
-gitignored cache — that is what makes it free and keyless. It therefore never
+`yg check --approve --only-deterministic` writes its verdicts only to the local,
+gitignored cache and calls no reviewer — that is what makes it free and keyless. It therefore never
 records the point at which a component came up clean, and a component's
 written-reason cycle only ends at that point.
 

@@ -83,7 +83,7 @@ name, the `--approve` flag runs a [fill](/glossary#fill): it asks for the missin
 verdicts. It is not a human approval.)
 `yg check` names the missing reviewer as the first thing to fix — blocking when
 the rule is enforced, a warning when every reviewer rule is advisory (advisory
-never blocks). Configuring a reviewer is your call, since it sends code to that
+rules alone do not make it block). Configuring a reviewer is your call, since it sends code to that
 provider; an agent proposes it rather than doing it unasked, or parks the rule
 at `status: draft`.
 

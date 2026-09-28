@@ -17,9 +17,9 @@ while the inputs that produced it hash to the stored value. Any input change mak
 **unverified**; a status flip never does. A verdict is **passed** or **refused**; a pair's state is **verified / unverified /
 refused**.
 
-\`yg check\` writes nothing by default — it recomputes each pair's hash and
+\`yg check\` records no verdict and writes no lock file by default — it recomputes each pair's hash and
 reports, calling no reviewer, running no script rule and making no LLM calls (it does recompute
-relation conformance live; see below). Exception: if \`auto_approve\` is set in
+relation conformance live, see below, and refreshes local gitignored caches under \`.yggdrasil/\`). Exception: if \`auto_approve\` is set in
 \`yg-config.yaml\`, bare \`yg check\` auto-fills — \`deterministic\` mode behaves like
 \`--approve --only-deterministic\` (free, keyless, local fills only), \`full\` mode
 like \`--approve\` (may call the reviewer). Explicit CLI flags (\`--approve\`,
@@ -140,7 +140,7 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 - \`filledAt\` and \`filledSha\` record WHEN \`--approve\` wrote the verdict (ISO
   timestamp) and the commit it ran at. Both are written on reviewer
   entries only — a reviewer verdict (or an earlier release's external judge's) — because filling a
-  script pair costs nothing and there is nothing to attribute;
+  script pair calls no reviewer and there is no decision-maker to attribute;
   \`filledSha\` is independently optional on top of that, absent when no commit
   resolved (no repository, no first commit yet, git missing from \`PATH\`).
   Like \`reason\` and \`judge\`, neither is a hash ingredient — they record
@@ -390,7 +390,7 @@ This differs from aspect verdicts in two ways:
   disposition (provider unreachable, no reviewer configured, reference-load
   failure, unparseable response; for script pairs a \`check.mjs\` import
   failure or thrown error; companion-assembly failure — hook throws, bad return
-  shape, path outside allowed-reads, or missing path) writes nothing — the pair
+  shape, path outside allowed-reads, or missing path) records no verdict — the pair
   stays unverified. There is no "infra" verdict state. One of them stops the whole run first: with no \`reviewer:\` section and an ENFORCED reviewer rule in effect, a full \`yg check --approve\` aborts before anything runs (\`config-reviewer-missing\`, the structural gate — \`ABORTED  nothing ran\`), so not even the free script pairs are filled. \`--only-deterministic\`, \`--dry-run\` and a project whose reviewer rules are all advisory go ahead, each leaving its reviewer pairs unverified as having no reviewer.
 
 ## Garbage-collection
@@ -411,7 +411,7 @@ separately), a file whose subject was unreadable this run, and a file the
 type-level classifier could not decide a type for this run (reported
 ambiguous). Every entry in that set keeps its stored result untouched.
 \`--approve\` and \`--dry-run\` (a preview, computed over a disposable copy — it
-writes nothing) both print a summary whenever something is actually pruned:
+records no verdict and writes no lock file) both print a summary whenever something is actually pruned:
 \`fill  pruned 3 verdicts no longer expected (1 reviewer · 2 script)\`, then one
 \`  <aspect> @ <unit> — <reason>\` line per entry; nothing prints when nothing
 was pruned.
@@ -419,8 +419,8 @@ was pruned.
 ## Merge conflict in a committed lock file
 
 Only the COMMITTED files can conflict (\`yg-lock.nondeterministic.json\`,
-\`yg-lock.logs.json\`); the gitignored script-verdict cache is never committed, so it
-never conflicts. \`verdicts\` entries are self-validating, so resolution is trivial
+\`yg-lock.logs.json\`); the script-verdict cache is gitignored and stays out of commits, so it
+does not conflict. \`verdicts\` entries are self-validating, so resolution is trivial
 and safe by construction:
 
 1. Take ONE side wholesale of the conflicted file:

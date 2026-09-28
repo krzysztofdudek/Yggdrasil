@@ -76,8 +76,8 @@ Two design properties make it false-positive-free:
   relation error. And it resolves only edges it can pin to exactly one target node
   — anything dynamic, reflective, external, or not-uniquely-resolvable is silent.
   Intra-node dependencies and dependencies between a node and its own ancestor or
-  descendant are exempt (they are not cross-node edges). The result is zero false
-  positives by design — there is no waiver because none is needed.
+  descendant are exempt (they are not cross-node edges). So every edge it flags
+  is one it resolved from the code to exactly one mapped node — which is why there is no waiver.
 
 Two ways to clear a refusal:
 
