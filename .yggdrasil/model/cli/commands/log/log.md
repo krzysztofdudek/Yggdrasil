@@ -78,3 +78,7 @@ merge-resolve now takes the fill's approval lock for a node's baseline, and the 
 The log read and merge-resolve usage fixes (a wrong --top reported as a usage error, merge-resolve under the log-write and approval locks) arrived beside the previous batch's type-log commands; both sides are kept as written.
 ## [2026-09-27T22:25:00.362Z]
 Merge-resolve with no log named reconciles every node and type log the merge at hand changed, read off the merge itself, so a post-merge hook or a tool that merges branches runs one command, and the type flag names the types lock where a type's decision-log baseline lives. It arrived in one batch with the coverage and verdict-vocabulary work, which does not change the log command.
+## [2026-09-28T04:42:02.916Z]
+When some logs a merge changed could not be reconciled, each failed log was printed to stdout as a bare path-and-message line, laid out by hand outside the output grammar, before the summary error. Each failed log now gets its own diagnosis in the error grammar (what, why and next, with its code) on stderr, followed by the summary error that exits 1, so an agent reading the output gets a structured reason and step for every log, not only the first.
+## [2026-09-28T04:46:56.029Z]
+yg log read --type with only superseded decisions named the command that shows them inside a sentence. It now says there are no decisions in force and names that command on a next: line through the output layer, as every other step the log command suggests is written, so an agent reads the step where the output grammar puts it.

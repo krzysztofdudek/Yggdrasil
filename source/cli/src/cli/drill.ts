@@ -22,7 +22,7 @@ import {
   type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { aspectNotFound, fail, paint, writeErr, writeOut, failAndExit } from './output.js';
+import { aspectNotFound, paint, writeErr, writeOut, failAndExit } from './output.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { formatDrillJson, DRILL_JSON_SCHEMA, type DrillJsonDocument } from '../formatters/drill-json.js';
@@ -143,11 +143,7 @@ export function registerDrillCommand(program: Command): void {
       } catch (e: unknown) {
         debugWrite(`[drill] run failed: ${e instanceof Error ? e.message : String(e)}`);
         // A deterministic runner error already carries a fully-formed what/why/next.
-        if (e instanceof AstRunnerError) {
-          fail(e.messageData, 'command-error');
-          await exitAfterFlush(1);
-          return;
-        }
+        if (e instanceof AstRunnerError) failAndExit(e.messageData, 'command-error');
         abortOnUnexpectedError(e, 'running drill');
       }
     });

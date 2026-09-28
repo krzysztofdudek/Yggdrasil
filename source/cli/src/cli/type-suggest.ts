@@ -18,12 +18,14 @@ import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { warn, paint, writeOut } from './output.js';
+import { exitAfterFlush } from './exit-after-flush.js';
 
 /**
  * Core logic for `yg type-suggest --file <path>`.
- * Exported for testability.
+ * Exported for testability. Resolves to the exit code: 1 when the file needs a
+ * decision (no type's `when` matches it, or several do), 0 otherwise.
  */
-export async function typeSuggestCommand(file: string, projectRoot: string): Promise<void> {
+export async function typeSuggestCommand(file: string, projectRoot: string): Promise<0 | 1> {
   const graph = await loadGraphOrAbort(projectRoot, { tolerateInvalidConfig: true });
   const repoRoot = projectRootFromGraph(graph.rootPath);
   const repoRelPath = toPosixPath(resolveFileArg(repoRoot, file.trim()));
@@ -49,10 +51,11 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
       `\n${buildIssueMessage({
         what: `This path is inside .yggdrasil/ — auto-exempt from classification.`,
         why: 'The graph\'s own directory is never classified. Type matching does not apply here.',
-        next: 'No action needed.',
+        // A result, not a finding: nothing to do, so no next: line.
+        next: '',
       })}\n\n`,
     );
-    return;
+    return 0;
   }
 
   // A path the one supreme exclusion filter cuts — a separate project's own
@@ -78,10 +81,10 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
       buildIssueMessage({
         what: `${repoRelPath} is excluded from graph coverage by design.`,
         why: `This path is never matched against any architecture type because ${cause}.`,
-        next: `No action needed.`,
+        next: '',
       }) + '\n',
     );
-    return;
+    return 0;
   }
 
   const gitignoreStack = await loadRootGitignoreStack(repoRoot);
@@ -107,9 +110,13 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
       writeOut(`No type's path predicate matches this file path.\n`);
     }
     writeOut(
-      `\nnext: create the file, then run yg type-suggest --file ${repoRelPath} again for the full check\n\n`,
+      `\n${buildIssueMessage({
+        what: `${repoRelPath} does not exist yet, so only the path predicates were evaluated.`,
+        why: "A type's content predicates read the file's text; until the file exists, a path match is not yet a type match.",
+        next: `create the file, then run yg type-suggest --file ${repoRelPath} again for the full check`,
+      })}\n\n`,
     );
-    return;
+    return 0;
   }
 
   const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
@@ -128,12 +135,17 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     }
     printUnreadableTypes(result.unreadable);
     writeOut(
-      `\nnext: one of three —\n` +
-        `  1. move the file under a path an existing type's when matches\n` +
-        `  2. change the file so it satisfies a type's content predicate\n` +
-        `  3. add a type that fits it to .yggdrasil/yg-architecture.yaml (an architecture change — ask the user to approve it first)\n\n`,
+      `\n${buildIssueMessage({
+        what: `${repoRelPath} is of no type.`,
+        why: "A file no type's when matches gets none of the rules a type carries, and has no place in the architecture.",
+        next:
+          'one of three —\n' +
+          "1. move the file under a path an existing type's when matches\n" +
+          "2. change the file so it satisfies a type's content predicate\n" +
+          '3. add a type that fits it to .yggdrasil/yg-architecture.yaml (an architecture change — ask the user to approve it first)',
+      })}\n\n`,
     );
-    return;
+    return 1;
   }
 
   if (result.matches.length === 1) {
@@ -143,7 +155,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     if (traced) writeOut(traced + '\n');
     printUnreadableTypes(result.unreadable);
     writeOut('\n');
-    return;
+    return 0;
   }
 
   writeOut(`\nMultiple types match:\n`);
@@ -158,6 +170,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
       next: "compare each type's description and aspects in .yggdrasil/yg-architecture.yaml, and narrow one when",
     })}\n\n`,
   );
+  return 1;
 }
 
 /**
@@ -180,7 +193,8 @@ export function registerTypeSuggestCommand(program: Command): void {
     .requiredOption('--file <path>', 'File path (relative to repo or absolute)')
     .action(async (options: { file: string }) => {
       try {
-        await typeSuggestCommand(options.file, process.cwd());
+        const code = await typeSuggestCommand(options.file, process.cwd());
+        if (code !== 0) await exitAfterFlush(code);
       } catch (error) {
         debugWrite(`[type-suggest] error: ${(error as Error).message}`);
         abortOnUnexpectedError(error, 'running type-suggest');

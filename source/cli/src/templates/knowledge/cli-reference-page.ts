@@ -1837,6 +1837,10 @@ content). If multiple types match, the architecture has overlapping \`when\` rul
 need disambiguating. If no type matches, shows the closest types by satisfied-fraction
 to help you choose where to move or refactor the file.
 
+The exit code is 1 when the file needs a decision — no type's \`when\` matches it, or
+several do — and 0 otherwise (one type matches, the path is exempt or excluded, or the
+file does not exist yet and only its path was checked).
+
 If a type's \`when\` includes a \`content:\` predicate and the file is over the 5MB
 content-scan limit, that type's rule could not actually be checked at all — it is
 listed separately as "Could not be evaluated" rather than folded into an ordinary

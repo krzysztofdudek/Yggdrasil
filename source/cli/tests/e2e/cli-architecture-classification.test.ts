@@ -707,14 +707,14 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     }
   });
 
-  it('E2: a file matching NO type reports "No type\'s `when` matches" plus a closest-types ranking (exit 0)', () => {
+  it('E2: a file matching NO type reports "No type\'s `when` matches" plus a closest-types ranking (exit 1: the file needs a decision)', () => {
     const dir = archGraph('ts-nomatch', TWO_TYPE_ARCH, ({ projectRoot }) => {
       // Under neither src/cli nor src/services — matches nothing.
       writeSource(projectRoot, 'src/misc.ts', 'export const m = 1;\n');
     });
     try {
       const { status, stdout } = run(['type-suggest', '--file', 'src/misc.ts'], dir);
-      expect(status).toBe(0);
+      expect(status).toBe(1);
       expect(stdout).toContain("No type's `when` matches this file.");
       expect(stdout).toContain('Closest types (top 3, ranked by satisfied-fraction):');
       // Both fully-failing predicates score 0.00.
@@ -726,7 +726,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     }
   });
 
-  it('E3: a PARTIALLY-satisfied all_of (path ok, content fails) ranks the closest type with a fractional score (exit 0)', () => {
+  it('E3: a PARTIALLY-satisfied all_of (path ok, content fails) ranks the closest type with a fractional score (exit 1: the file needs a decision)', () => {
     const dir = archGraph('ts-partial', TWO_TYPE_ARCH, ({ projectRoot }) => {
       // Under src/cli (path atom ✓) but no registerCommand (content atom ✗) →
       // all_of average = 0.50.
@@ -734,7 +734,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     });
     try {
       const { status, stdout } = run(['type-suggest', '--file', 'src/cli/plain.ts'], dir);
-      expect(status).toBe(0);
+      expect(status).toBe(1);
       expect(stdout).toContain("No type's `when` matches this file.");
       expect(stdout).toContain('command — predicate evaluates to false (score: 0.50)');
       // The trace pinpoints which atom passed and which failed.
@@ -745,7 +745,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     }
   });
 
-  it('E4: a file matching MULTIPLE types reports "Multiple types match" and the overlap NEXT hint (exit 0)', () => {
+  it('E4: a file matching MULTIPLE types reports "Multiple types match" and the overlap NEXT hint (exit 1: the file needs a decision)', () => {
     const architecture = [
       'node_types:',
       '  alpha:',
@@ -765,7 +765,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     });
     try {
       const { status, stdout } = run(['type-suggest', '--file', 'src/cmd.ts'], dir);
-      expect(status).toBe(0);
+      expect(status).toBe(1);
       expect(stdout).toContain('Multiple types match:');
       expect(stdout).toContain('alpha — full when satisfied');
       expect(stdout).toContain('beta — full when satisfied');
@@ -927,7 +927,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     try {
       // Warm the cache with this declaration order (alpha, bravo, charlie, delta).
       const warm = run(['type-suggest', '--file', 'src/misc/plain.ts'], dir);
-      expect(warm.status).toBe(0);
+      expect(warm.status).toBe(1); // no type matches: the file needs a decision
       expect(warm.stdout).toContain('alpha');
       expect(warm.stdout).toContain('bravo');
       expect(warm.stdout).toContain('charlie');

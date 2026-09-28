@@ -9,17 +9,35 @@ import { ensureMergeDrivers } from '../../../src/cli/init-scaffold.js';
 import { serializeLock } from '../../../src/io/lock-store.js';
 import { runGitFixture, gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
-/** Run `yg merge-driver` through its registered command, as git does, and return the exit code it sets. */
+/** A process.exit the test intercepted, carrying the code the driver exited with. */
+class ExitSignal extends Error {
+  constructor(readonly code: number) {
+    super(`exit ${code}`);
+  }
+}
+
+/**
+ * Run `yg merge-driver` through its registered command, as git does, and return the exit
+ * code it ends with: the one it sets, or the one it exits with (a refusal raises its
+ * diagnostic through failAndExit).
+ */
 function runMergeDriver(kind: string, base: string, ours: string, theirs: string, shown: string): number | undefined {
   const program = new Command();
   program.exitOverride();
   registerMergeDriverCommand(program);
   const saved = process.exitCode;
   process.exitCode = undefined;
+  const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    throw new ExitSignal(code ?? 0);
+  }) as never);
   try {
     program.parse(['merge-driver', kind, base, ours, theirs, shown], { from: 'user' });
     return typeof process.exitCode === 'number' ? process.exitCode : undefined;
+  } catch (e) {
+    if (e instanceof ExitSignal) return e.code;
+    throw e;
   } finally {
+    exit.mockRestore();
     process.exitCode = saved;
   }
 }
@@ -85,10 +103,7 @@ describe('yg merge-driver', () => {
     expect(readFileSync(a, 'utf-8')).toContain('theirs');
     writeFileSync(a, 'ours\n', 'utf-8');
     // An unreadable side is unexpected: the run tries git's own text merge, then aborts with exit 1 and says why.
-    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`exit ${code}`);
-    }) as never);
-    expect(() => runMergeDriver('log', path.join(dir, 'missing'), a, b, 'f')).toThrow('exit 1');
+    expect(runMergeDriver('log', path.join(dir, 'missing'), a, b, 'f')).toBe(1);
     expect(stderrText).toContain('merge-driver log on f');
   });
 });

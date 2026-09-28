@@ -40,7 +40,7 @@ async function setupProject(): Promise<string> {
   return root;
 }
 
-async function captureOutput(fn: () => Promise<void>): Promise<string> {
+async function captureOutput(fn: () => Promise<unknown>): Promise<string> {
   const chunks: string[] = [];
   vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => {
     chunks.push(String(s));
@@ -86,7 +86,7 @@ describe('typeSuggestCommand', () => {
     );
     expect(output).toContain('This path is inside .yggdrasil/ — auto-exempt from classification.');
     expect(output).toMatch(/ {2}why: {2}.*never classified/);
-    expect(output).toContain('next: No action needed.');
+    expect(output).not.toContain('next:');
   });
 
   it('handles non-existent files with path-only evaluation', async () => {

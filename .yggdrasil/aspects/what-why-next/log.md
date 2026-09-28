@@ -4,3 +4,7 @@ Changed by the owner's mandate that the repository's own rules enforce the CLI's
 Ratified for types formatter, template: rule version 8fe4689e114cb7d0, admitted by the graph as it stood when it took up type-law ratification (yg init --upgrade).
 
 This rule already stood enforced on these types before this graph asked for type law to be admitted. The upgrade records it as the law the graph had, so it keeps blocking; nobody re-decided it now. A later change to the rule needs a ratification of its own.
+## [2026-09-28T04:42:23.939Z]
+Ratified for types formatter, template: rule version 86817135d1f6f7cf, admitted by Krzysztof.
+
+Krzysztof admitted this version, asked whether he consents to the new text, with the words: "Popraw wszystko odpowiednio." (2026-09-28). The text now names the directory command modules actually live in (source/cli/src/cli/, not cli/commands/ and cli/cli/), the output-layer helper by its real name (thenStep, not then), and the missing-graph message as the loader actually renders it. The requirement itself is unchanged.

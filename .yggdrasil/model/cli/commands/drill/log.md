@@ -50,3 +50,5 @@ The debug line for a case a script rule could not evaluate called the rule a det
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: --case is described as the corpus-relative case label it really matches, and drill add marks its required flags.
 ## [2026-09-28T00:50:12.151Z]
 yg drill add no longer spells (required) in its --aspect and --violates descriptions: the help now marks every required option itself, and the hand-written marker printed twice. The --case description keeps the corpus-relative label wording, which the generated flag table in the CLI reference now carries.
+## [2026-09-28T04:42:01.516Z]
+A deterministic runner error in yg drill was reported with the non-exiting error writer followed by a separate drain-and-exit. The command contract has an error the command expects raised with the one helper that reports it in the error grammar and exits 1, as every other refusal in this command already is; the runner error now goes the same way. Nothing had been written to stdout at that point, so there is nothing to drain; the output and the exit code are unchanged.

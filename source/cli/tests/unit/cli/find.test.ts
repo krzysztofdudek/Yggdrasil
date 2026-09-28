@@ -110,10 +110,12 @@ describe('findCommand', () => {
     expect(out.join('')).toMatch(/Empty graph|No matches/);
   });
 
-  it('returns exit 1 on empty query', async () => {
+  it('exits 1 on empty query', async () => {
     const root = await setupGraph();
-    const exit = await findCommand('', root);
-    expect(exit).toBe(1);
+    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit ${code}`);
+    }) as never);
+    await expect(findCommand('', root)).rejects.toThrow('exit 1');
   });
 
   it('renders status line for aspect-kind results (default enforced)', async () => {

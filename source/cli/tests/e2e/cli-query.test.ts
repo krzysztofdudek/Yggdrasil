@@ -272,9 +272,9 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
 
   // --- type-suggest ---
 
-  it('yg type-suggest --file shows matching architecture types', () => {
+  it('yg type-suggest --file shows matching architecture types (two match here: exit 1, the overlap needs a decision)', () => {
     const { stdout, status } = run(['type-suggest', '--file', 'src/orders/order.service.ts']);
-    expect(status).toBe(0);
+    expect(status).toBe(1);
     expect(stdout).toMatch(/service|repository/);
   });
 

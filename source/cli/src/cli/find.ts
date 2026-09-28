@@ -8,7 +8,7 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
-import { fail, writeOut, warn } from './output.js';
+import { failAndExit, writeOut, warn } from './output.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 
 const TOP_N = 5;
@@ -51,12 +51,11 @@ function resultId(doc: IndexedDocument): string {
 
 export async function findCommand(query: string, projectRoot: string, opts: { json?: boolean } = {}): Promise<number> {
   if (!query || query.trim() === '') {
-    fail({
-          what: 'Query is required',
-          why: 'yg find needs at least one keyword to search.',
-          next: 'Usage: yg find "<query keywords>"',
-        }, 'usage');
-    return 1;
+    failAndExit({
+      what: 'Query is required',
+      why: 'yg find needs at least one keyword to search.',
+      next: 'Usage: yg find "<query keywords>"',
+    }, 'usage');
   }
 
   // Unexpected errors are NOT caught here: they propagate to the single funnel in

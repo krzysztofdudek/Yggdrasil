@@ -13,7 +13,7 @@ import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { Graph } from '../model/graph.js';
-import { count, paint, writeOut, next, thenStep, failAndExit } from './output.js';
+import { count, paint, writeOut, next, thenStep, fail, failAndExit } from './output.js';
 
 /**
  * `yg log` — the append-only logs this tool keeps, written, read and reconciled
@@ -332,7 +332,7 @@ async function readTypeAction(graph: Graph, typeId: string, opts: ReadOpts): Pro
     return;
   }
   if (entries.length === 0) {
-    writeOut(result.entries.length === 0 ? 'No log entries.\n' : 'No decisions in force (yg log read --type ' + typeId + ' --all shows the replaced ones).\n');
+    writeOut(result.entries.length === 0 ? 'No log entries.\n' : `No decisions in force.\n${next(`yg log read --type ${typeId} --all  (shows the replaced ones)`)}\n`);
     return;
   }
   for (const entry of entries) {
@@ -509,7 +509,8 @@ async function mergeResolveAllAction(graph: Graph): Promise<void> {
   }
   const owed = result.resolved.filter((r) => r.entryOwed === true);
   if (result.failed.length > 0) {
-    for (const f of result.failed) writeOut(`${f.logPath}: ${f.error.what}\n`);
+    // Each log's own diagnosis first, in the error grammar; then the summary, which exits.
+    for (const f of result.failed) fail(f.error, undefined, { document: false });
     failAndExit({
       code: result.failed[0].error.code,
       what: `${count(result.failed.length, 'log')} the merge changed could not be reconciled (${result.failed.map((f) => f.logPath).join(', ')})`,
