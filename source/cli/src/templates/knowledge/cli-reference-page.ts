@@ -1660,7 +1660,7 @@ Flags of \`yg owner\`, generated from its \`--help\` (\`npm run cli-reference:up
 | Flag | Description |
 |------|-------------|
 | \`--file <path>\` | File path (relative to repository root) |
-| \`--files <list>\` | Batch form: a comma-separated list of file paths, or "-" to read them one per line from standard input. Resolves the whole list against one loaded graph and prints a yg-owner-batch/1 document under --json (plain text otherwise) — for a caller like Horde's territory resolver that needs many files at once, never --file in a loop |
+| \`--files <list>\` | Batch form: a comma-separated list of file paths, or "-" to read them one per line from standard input. Resolves the whole list against one loaded graph and prints a yg-owner-batch/1 document under --json (plain text otherwise) — for a caller that needs many files at once, never --file in a loop |
 | \`--json\` | Print the answer as a yg-owner/1 JSON document (yg-owner-batch/1 with --files) |
 
 \`--json\` prints the \`yg-owner/1\` document instead of the sentence: \`file\`, \`kind\`
@@ -1684,8 +1684,8 @@ next: yg context --file src/handlers/capturePayment.ts
 #### \`yg owner --files\` (batch)
 
 Resolves a whole list of files against ONE loaded graph, instead of a graph load and
-node-index build per file — the form a bulk caller (Horde's territory resolver, which
-groups a mission's files by owner before planning work onto them) uses instead of running
+node-index build per file — the form a bulk caller (one that
+groups many files by owner before planning work onto them) uses instead of running
 \`yg owner --file\` in a loop.
 
 \`\`\`bash
@@ -1788,7 +1788,7 @@ The waiver inventory as one \`yg-suppressions/1\` document: every marker with it
 kind, its resolved range, and its reason, every warning with a stable code, and
 the totals — so a tool can compare two branches' waivers without reading the
 report.
-It is a registered cross-repository contract (Family contracts (https://krzysztofdudek.github.io/Yggdrasil/family-contracts)): Horde's \`land\` reads it to refuse a branch that adds a waiver its base tree never had. New fields may appear within \`yg-suppressions/1\`; only a change to an existing field's shape takes a new schema number.
+It is a registered cross-repository contract (Family contracts (https://krzysztofdudek.github.io/Yggdrasil/family-contracts)): a tool that lands branches reads it to refuse a branch that adds a waiver its base tree never had. New fields may appear within \`yg-suppressions/1\`; only a change to an existing field's shape takes a new schema number.
 
 Each entry in \`markers\` carries the aspect id (or \`*\` for a wildcard), the file
 and line, its \`kind\` — \`single\`, \`disable\`, \`enable\`, or the sanctioned
@@ -2420,7 +2420,7 @@ Three ways a merge driver can lose work without a word are closed. A driver that
 if [ -f "<cli>" ] && command -v node >/dev/null 2>&1; then node "<cli>" merge-driver log %O %A %B %P; s=$?; if [ $s -ne 0 ] && ! grep -q '^<<<<<<< ' %A; then git merge-file -L ours -L base -L theirs %A %O %B; exit 1; fi; exit $s; else git merge-file -L ours -L base -L theirs %A %O %B; fi
 \`\`\`
 
-Git runs driver commands through its own POSIX shell on every platform (Git for Windows ships one), and \`<cli>\` is the absolute path, with forward slashes, of the CLI that ran \`yg init\`. And an attribute naming a driver a clone never configured is harmless: git merges that file with its own markers. A tool that merges for a loop (Jarl's merger, Horde's landing) passes the same drivers with \`git -c merge.yg-log.driver=… -c merge.yg-lock.driver=… merge …\` on every merge rather than relying on the clone's configuration. GitHub's merge button runs no driver at all: merge locally.
+Git runs driver commands through its own POSIX shell on every platform (Git for Windows ships one), and \`<cli>\` is the absolute path, with forward slashes, of the CLI that ran \`yg init\`. And an attribute naming a driver a clone never configured is harmless: git merges that file with its own markers. A tool that merges branches on your behalf passes the same drivers with \`git -c merge.yg-log.driver=… -c merge.yg-lock.driver=… merge …\` on every merge rather than relying on the clone's configuration. GitHub's merge button runs no driver at all: merge locally.
 
 \`yg init\` also installs a \`post-merge\` hook running \`yg log merge-resolve\` when the repository has none (a hook another tool wrote, or a \`core.hooksPath\` inside the working tree, is left alone and named). It never fails the merge; it leaves the lock files modified for the next commit.
 
@@ -2442,8 +2442,8 @@ Flags of \`yg adopt\`, generated from its \`--help\` (\`npm run cli-reference:up
 | \`--replace\` | Accept over a graph this repository already has. The existing one is moved aside, never deleted |
 | \`--dry-run\` | Report everything the acceptance would do and change nothing |
 
-\`<proposal-dir>\` is the staging directory a generator wrote (Grain writes
-\`.yggdrasil-proposal/\` at the repository root by default) or the \`.yggdrasil/\`
+\`<proposal-dir>\` is the staging directory a generator wrote (usually
+\`.yggdrasil-proposal/\` at the repository root) or the \`.yggdrasil/\`
 directory inside it. Nothing else is accepted: the command never searches
 upward for a graph, so it can never propose to adopt your own graph over itself.
 
@@ -2466,7 +2466,7 @@ In one step it:
 4. **Records the acceptance** as a log entry on the graph's top component, so
    the graph itself carries what was accepted: how many components and rules,
    how many rules arrived at each status, whether the graph was mined from this
-   repository by Grain or written elsewhere, and, when the proposal names it, the
+   repository or written elsewhere, and, when the proposal names it, the
    commit the proposal was taken at. The entry is written before the baseline, so
    the baseline run records it as the log's starting point.
 5. **Baselines every rule that runs locally,** free and without a key, so your
@@ -2478,7 +2478,7 @@ Then it prints what you just accepted:
 yg adopt: accepted  .yggdrasil-proposal → .yggdrasil/
 
   Graph           14 components · 18 rules (0 enforced, 9 advisory, 9 draft) · 0 flows
-  Origin          mined from this repository by Grain (grain-proposal/1) taken at 0aa7c34e04a0 over 131 files
+  Origin          mined from this repository (grain-proposal/1) taken at 0aa7c34e04a0 over 131 files
   Already broken  44 sites the new rules refuse in the code that is already here
                   src-main-java/candidate-auto-imp-jakarta-persistence-entity  6
                   src-main-java/candidate-auto-filenameshape  5

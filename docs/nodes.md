@@ -216,7 +216,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `max_direct_relations.limit` | integer ≥ 1 | yes | This node's own relation ceiling, above or below the global quality.max_direct_relations. A malformed value is ignored: an override missing either field, or with a limit below 1, leaves the global ceiling in force. |
 | `max_direct_relations.reason` | string | yes | Why this node gets its own ceiling. A malformed value is ignored: an override missing either field, or with a limit below 1, leaves the global ceiling in force. |
 
-Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `sizeExempt` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `relations[].failure` (removed in 4.0.0); `ports.<port>.version` (removed in 6.0.0: contract versions are Horde's job now); `ports.<port>.test` (removed in 6.0.0: contract tests are Horde's job now).
+Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `sizeExempt` (removed in 5.0.0 with the per-node character budget; the per-tier max_prompt_chars cap replaced it); `relations[].failure` (removed in 4.0.0); `ports.<port>.version` (removed in 6.0.0: Yggdrasil no longer records contract versions); `ports.<port>.test` (removed in 6.0.0: Yggdrasil no longer runs contract tests).
 Any other key is refused by name, with the key it is probably a typo of.
 
 <!-- file-schema:node:end -->

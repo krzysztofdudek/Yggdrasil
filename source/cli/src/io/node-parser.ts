@@ -366,18 +366,18 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
     // `version` and `test` carried a port's contract version and the test that
     // was its contract. Removed in 6.0.0 — the check that held a test's content
     // to a recorded baseline is gone, and contract versions and mirrored
-    // contract tests are Horde's job now. Presence alone is refused, for either
+    // contract tests moved out of the graph. Presence alone is refused, for either
     // key at any value, exactly like any other retired key: a field silently
     // dropped would let an author believe a contract is still being checked
     // when it no longer is.
     if (obj.version !== undefined) {
       throw new Error(
-        `yg-node.yaml at ${filePath}: ports.${name}.version was removed in 6.0.0 — delete this field from the YAML. Contract versions are Horde's job now.`,
+        `yg-node.yaml at ${filePath}: ports.${name}.version was removed in 6.0.0 — delete this field from the YAML. Yggdrasil no longer records contract versions.`,
       );
     }
     if (obj.test !== undefined) {
       throw new Error(
-        `yg-node.yaml at ${filePath}: ports.${name}.test was removed in 6.0.0 — delete this field from the YAML. Contract tests are Horde's job now.`,
+        `yg-node.yaml at ${filePath}: ports.${name}.test was removed in 6.0.0 — delete this field from the YAML. Yggdrasil no longer runs contract tests.`,
       );
     }
 
