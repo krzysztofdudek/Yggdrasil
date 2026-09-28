@@ -79,6 +79,8 @@ import type { PackageUpdateSignal } from './advise-package-nominations.js';
 export type { PackageUpdateSignal } from './advise-package-nominations.js';
 import { architectureCutNominations } from './advise-architecture-cut.js';
 import { declaredRelationUnusedNominations } from './advise-relation-nominations.js';
+import type { RelationBacking } from './advise-relation-nominations.js';
+export type { RelationBacking } from './advise-relation-nominations.js';
 import { supersedeClashNominations, typeDecisionBudgetNominations } from './advise-log-nominations.js';
 import type { SupersedeClashSignal, TypeDecisionLoadSignal } from './advise-log-nominations.js';
 import { familyNominations } from './advise-family-nominations.js';
@@ -180,13 +182,14 @@ export interface NominationSources {
    */
   architectureCutCycles?: ArchitectureCutCycle[];
   /**
-   * The declared structural relations no code edge backs, as (source, target)
-   * pairs, from the relation pass `yg advise` runs at the CLI boundary
-   * (`computeDependencyBoundary`'s `declaredOnly`). Absent → the pass failed or
-   * was not run → the relation-declared-unused class is silent, never a claim
-   * that every relation is backed.
+   * The declared structural relations no code edge backs, and the components
+   * some code imports from, both from the relation pass `yg advise` runs at the
+   * CLI boundary (`computeDependencyBoundary`'s `declaredOnly` and detected
+   * edges). Absent → the pass failed or was not run → the
+   * relation-declared-unused class is silent, never a claim that every relation
+   * is backed.
    */
-  declaredOnlyRelations?: Array<{ source: string; target: string }>;
+  relationBacking?: RelationBacking;
   /**
    * The type-level classification lattice (coverage.type_level), classified once
    * for this `yg advise` invocation — the SAME object `gatherCurrentUnits` feeds
@@ -1009,9 +1012,9 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   nominations.push(...architectureCutNominations(sources.architectureCutCycles ?? []));
 
   // --- T2: relation-declared-unused (below architecture-cut) — one item per
-  //     component whose declared structural relations no import backs; absent
-  //     (relation pass failed) ⇒ silent ---
-  nominations.push(...declaredRelationUnusedNominations(sources.declaredOnlyRelations ?? []));
+  //     component whose declared structural relations no import backs while
+  //     other code imports the target; absent (relation pass failed) ⇒ silent ---
+  nominations.push(...declaredRelationUnusedNominations(sources.relationBacking ?? { declaredOnly: [], importTargets: [], directoriesByNode: new Map() }));
 
   // --- Imported: proposals another tool measured, below everything the graph
   //     derives itself. Absent ⇒ silent. ---

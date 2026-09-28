@@ -187,4 +187,36 @@ describe('portal — FULL live boundary (real fixtures, no mocking)', () => {
     expect(boundary!.declaredOnly).toEqual([]);
     expect(boundary!.forbiddenType).toEqual([]);
   });
+
+  // A relation to a component sanctions an import from any of its descendants (the
+  // relation verifier walks the imported owner's parent chain), so such an import
+  // backs it: the relation is not declared-only.
+  it('declared-only: an import of a file a descendant of the target owns backs the relation', async () => {
+    writeFileSync(
+      path.join(root, '.yggdrasil', 'yg-architecture.yaml'),
+      [
+        'node_types:',
+        '  svc:',
+        "    description: 'service'",
+        '    log_required: false',
+        '    relations:',
+        '      calls: [svc]',
+        '      default: allow',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeNodeRaw(root, 'a', 'name: A\ntype: svc\nrelations:\n  - target: b\n    type: calls\nmapping:\n  - src/a/a.ts\n');
+    writeNodeRaw(root, 'b', 'name: B\ntype: svc\nmapping:\n  - src/b/b.ts\n');
+    writeNodeRaw(root, 'b/inner', 'name: Inner\ntype: svc\nmapping:\n  - src/b/inner/x.ts\n');
+    w(root, 'src/a/a.ts', "import { x } from '../b/inner/x.js';\nexport const a = () => x;\n");
+    w(root, 'src/b/b.ts', 'export const b = 2;\n');
+    w(root, 'src/b/inner/x.ts', 'export const x = 3;\n');
+
+    const graph = await loadGraph(root);
+    const boundary = await computePortalBoundary(graph, root);
+    expect(boundary).not.toBeNull();
+    expect(boundary!.phantom).toEqual([]);
+    expect(boundary!.declaredOnly).toEqual([]);
+  });
 });
