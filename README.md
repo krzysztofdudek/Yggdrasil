@@ -146,7 +146,7 @@ Would you rather be taught? Tell your agent **"onboard me into Yggdrasil"**. In 
 
 Four things live in `.yggdrasil/`, committed with your code. The agent maintains them; you decide what matters.
 
-**The graph.** Your components and the files each one owns, the types they belong to, and which component may depend on which. The graph works out which rules reach which file, so you attach a rule once and never paste it onto files. A rule attached to a whole type reaches every component of that type, so it can stand `enforced` there only after you admit it (`yg log add --aspect <id> --ratify`); until then it stays `advisory`, and with the `type_law` setting `yg init` writes, `yg check` blocks on one enforced without your admission.
+**The graph.** Your components and the files each one owns, the types they belong to, and which component may depend on which. The graph works out which rules reach which file, so you attach a rule once and never paste it onto files. A rule attached to a whole type reaches every component of that type, so it can stand `enforced` there only after you admit it (`yg log add --aspect <id> --ratify --by <you> --reason <why>`). Until then keep it `advisory`: with the `type_law` setting `yg init` writes, `yg check` blocks on one standing enforced without your admission.
 
 **The rules.** Besides the built-in dependency check, a rule is one of three kinds.
 
