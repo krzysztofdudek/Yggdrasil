@@ -1,226 +1,227 @@
-<p align="center">
-  <img src="docs/public/demo.gif" alt="Yggdrasil review loop" width="900" />
-</p>
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/krzysztofdudek/Yggdrasil/v6.1.0/docs/public/logo.svg" alt="" width="120" />
 
 # Yggdrasil
 
 **Say it once.**
 
-Write a rule and it holds in every session after that, without you repeating yourself. Before the agent edits a file it gets only the rules that touch that file, not all two hundred. After the edit they are checked, and a violation comes back as an error the agent has to fix before it moves on. The same checks re-run in CI for free, with no API key.
+Architecture rules for coding agents: scoped to each file, checked, replayed free in CI.
 
-[![CI](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml/badge.svg)](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@chrisdudek/yg.svg)](https://www.npmjs.com/package/@chrisdudek/yg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![codecov](https://codecov.io/gh/krzysztofdudek/Yggdrasil/graph/badge.svg)](https://codecov.io/gh/krzysztofdudek/Yggdrasil)
-[![GitHub Discussions](https://img.shields.io/badge/Discussions-Join-181717?logo=github&logoColor=white)](https://github.com/krzysztofdudek/Yggdrasil/discussions)
+[![npm version](https://img.shields.io/npm/v/@chrisdudek/yg.svg)](https://www.npmjs.com/package/@chrisdudek/yg) [![CI](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml/badge.svg)](https://github.com/krzysztofdudek/Yggdrasil/actions/workflows/ci.yml)
 
----
+[See it work](#see-it-work) · [Start](#start-in-your-repo) · [How it works](#how-it-works) · [Costs and limits](#costs-and-limits) · [Docs](https://krzysztofdudek.github.io/Yggdrasil/)
 
-## You probably don't feel this problem, and that is the interesting part
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/krzysztofdudek/Yggdrasil/v6.1.0/docs/public/readme/loop-dark.svg" />
+  <img src="https://raw.githubusercontent.com/krzysztofdudek/Yggdrasil/v6.1.0/docs/public/readme/loop-light.svg" alt="Before an edit, the agent runs yg context and gets the rules on that file, and only those. It writes the change. yg check --approve runs script rules and dependency checks for free and sends reviewer rules to a model. A refusal goes back to the agent; every verdict, pass or refusal, is recorded in the lock with a hash of what it judged. The gate in pre-commit and CI re-runs script rules and dependency checks for free and matches every recorded verdict to the code as it is now, with no model and no key." width="560" />
+</picture>
 
-If you have ever been the only thing standing between an agent and production, solo, after hours, shipping something fast to find out whether it was worth building, then you know the wall. Code arrives faster than you can keep quality up with it. From there it goes one of two ways. You slow to a crawl because you now have to watch everything yourself, or you lose the thread and end up with bugs you can no longer trace back to a decision.
+</div>
 
-If you work somewhere that pays for quality, you have probably never hit that wall. Review, QA and the rhythm of a sprint sit between you and it. Those same things mean you have never seen your own unconstrained speed either.
+Your agent writes code faster than you can read it. The rules you care about sit in a prompt file that nothing checks, and the only check between its code and `main` is you. Yggdrasil keeps those rules in a `.yggdrasil/` directory next to the code they govern.
 
-Nobody measures this in either direction. The best-known study measured experienced developers **19% slower** on real tasks with AI assistance, while they believed they had been 20% faster ([METR, 2025](https://arxiv.org/abs/2507.09089)). Its 2026 follow-up moved the measured effect toward zero, with confidence intervals crossing it. The part that held is the perception gap: nobody's feeling about their own speed survived contact with a measurement. Neither the people who feel fast nor the people who feel careful have an instrument.
+It works with Claude Code, Cursor, Copilot, Codex, Cline and any other agent that reads `AGENTS.md`. Its dependency checks read TypeScript and JavaScript, Python, Go, Java, Kotlin, C#, PHP, Ruby, Rust, C and C++.
 
-Scaffolding is not there to stop you falling. It is there so that the brake does not have to be a person.
+**Only what applies.** `yg init` installs agent instructions that tell the agent to run `yg context --file` before it edits a file. It gets the rules in force on that file, not the whole rulebook. That step is an instruction the agent follows, not something Yggdrasil can force.
 
-## Five minutes to your first enforced rule
+**Checked where it cannot be skipped.** The same instructions tell the agent to run `yg check --approve` after a change and to fix a refusal before it moves on. The part nobody can talk past is `yg check` wired into your pre-commit hook and CI: it fails the commit or the build.
 
-Requires Node.js 22+. You can start without an API key: `yg init` offers **"None for now"** as a real answer, and script rules, dependency control and the CI gate all work from there with no key and no model calls. A reviewer rule — prose that a model reads — is the one thing that needs a reviewer; the free gate keeps running script rules while it waits for one.
+**Judged once, replayed in CI.** Every verdict is recorded with a hash of everything it judged. CI checks that every recorded verdict still matches the code, with no model and no key. Code that changed since its verdict fails the check until it is judged again.
+
+## See it work
+
+One minute, no key, nothing installed in your own repository. A few words first, because the reports use them: a rule is an *aspect*, a component is a *node*, and a *pair* is one rule on one component (or on one file). The *graph* is the map of components and rules in `.yggdrasil/`, a *verdict* is the recorded pass or refusal of one pair, and the *lock* is the file that holds the verdicts.
+
+```bash
+git clone --depth 1 https://github.com/krzysztofdudek/Yggdrasil
+cd Yggdrasil/examples
+```
+
+### A boundary, checked live and free
+
+`layered-architecture` is a backend in three layers: web calls domain, domain calls data. Make the web layer reach straight into the data layer: in `src/web/rideHandler.ts`, add this line under the existing import.
+
+```ts
+import { findRide } from '../data/rideRepository.js';
+```
+
+```bash
+cd layered-architecture
+npx @chrisdudek/yg@6.1.0 check
+```
+
+```text
+yg check: FAIL  1 error   3 nodes · 3/3 files covered · 5 excluded
+
+error[relation-undeclared-dependency] Node 'web' has undeclared dependencies on other nodes
+  at:   web
+          src/web/rideHandler.ts:5 → data
+  why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
+  fix:  No relation can be declared for this dependency: remove it, or ask the user to approve an architecture change:
+        data: no relation type is allowed from handler to repository that sanctions an import (only uses, calls, extends and implements do), so none can be declared. Remove the dependency, or ask the user to approve an architecture change — a different node type, or a new allowed relation in .yggdrasil/yg-architecture.yaml.
+
+next: edit src/web/rideHandler.ts:5
+```
+
+No model was asked. Every `yg check` compares the dependencies in your code with the ones your graph declares and your architecture allows.
+
+### A judgment, made once and replayed free
+
+`failing` has a rule no script can check, written in plain Markdown ([the whole rule](https://github.com/krzysztofdudek/Yggdrasil/blob/v6.1.0/examples/failing/.yggdrasil/aspects/requires-audit/content.md)):
+
+```markdown
+# Requires Audit
+
+Every function that mutates state (creates, updates, or deletes data) must emit
+an audit event before returning.
+```
+
+The payment service logs with `console.log` instead. A model reviewed it once, when the example was made, and refused. Run the check:
+
+```bash
+cd ../failing
+npx @chrisdudek/yg@6.1.0 check
+```
+
+```text
+yg check: FAIL  1 error   2 nodes · 3/3 files covered · 4 excluded
+
+error[refused] requires-audit — refused on payments
+  at:   payments  Both mutation functions in src/payments.ts violate the requirement: charge (line 5) and refund (line 11) mutate state but use only generic console.log() calls instead of calling emitAudit(). The aspect requires structured audit events with operation, timestamp, and entityId fields. No suppression markers found.
+  why:  Every mutation must emit an audit event
+  fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:
+```
+
+(Trimmed; the full report lists the four exits: fix the code, sharpen the rule, ask for a documented exception, or make the rule advisory while you decide.)
+
+You just read a model's verdict without calling a model. It is stored in the lock with a hash of everything it judged, and that hash still matches the code on disk. Now change `src/payments.ts` in any way, a fix or a single character, and check again:
+
+```text
+yg check: FAIL  1 error   2 nodes · 3/3 files covered · 4 excluded
+
+error[unverified] 1 pair whose inputs changed since the verdict
+  at:   requires-audit @ payments
+  why:  A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
+  fix:  yg check --approve  (1 reviewer pair · 1 call · paid)
+```
+
+The old verdict no longer counts, and the report says how many paid calls a fresh one takes before anything is spent. This is the check CI runs.
+
+## Start in your repo
+
+Requires Node.js 22 or newer.
 
 ```bash
 npm install -g @chrisdudek/yg
 cd your-project
 yg init
-yg check
 ```
 
-That first check is green, and honest about why. (The report speaks the graph's words: in the graph a rule is an *aspect* and a component is a *node*. See the [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary).)
+`yg init` writes `.yggdrasil/` and one set of agent-rules files for every agent (a block in `AGENTS.md`, an import line in `CLAUDE.md`, `.clinerules/yggdrasil.md`), then walks you through one choice: which reviewer judges the rules that need judgment. Claude Code, Codex, Gemini CLI and Copilot CLI need no API key. Anthropic, OpenAI and Google take one. Ollama runs on your machine, and any OpenAI-compatible endpoint works too. **None for now** is a real answer.
+
+The first `yg check` is green: every file shows up in one `uncovered` warning, a to-do rather than a failure. Start with a rule that needs no reviewer at all. Tell your agent:
+
+> "The API layer must never import the database module. Enforce it."
+
+It proposes two component types with no allowed dependency between them (a change to `yg-architecture.yaml`, which the agent asks you to confirm) and maps one component to each. The next `yg check`, if the code already does it:
 
 ```text
-yg check: PASS  1 warning   0 nodes · 0/50 files covered · 4 excluded
+yg check: FAIL  1 error   2 nodes · 2/2 files covered · 4 excluded
 
-warning[uncovered] 50 files belong to no node — not under coverage.required, so they never block
-  at:   package.json
-        src/f1.ts
-        src/f10.ts
-        src/f11.ts
-        src/f12.ts
-        src/f13.ts
-        src/f14.ts
-        src/f15.ts
-        src/f16.ts
-        src/f17.ts
-        src/f18.ts
-        src/f19.ts
-        … +38 more  (yg check --details)
-  why:  Not under a coverage.required root — shown, but it never blocks. Your architecture has no type for this file yet.
-  fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
-
-note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
-
-next: yg type-suggest --file src/f1.ts
+error[relation-undeclared-dependency] Node 'api' has undeclared dependencies on other nodes
+  at:   api
+          src/api/orders.ts:1 → db
 ```
 
-Nothing is enforced yet, because you have not said what matters yet. Nothing is pretending otherwise. That list is your to-do, not a finding.
+(Trimmed.) That check is free, runs on every `yg check`, and needs no key. Then try a rule that needs judgment:
 
-So say one thing to your agent:
+> "Every function that changes a payment must emit an audit event. Make it a rule and attach it to the payments module."
 
-> "Every service that handles payments must emit audit events. Create a rule for it and apply it to the payments module."
+That one needs a reviewer. If you chose none, `yg check` blocks on it as unverified and names the fix: configure a reviewer, or park the rule as a draft. Once both rules have verdicts, they hold in every session, and nobody has to restate them.
 
-It writes the rule and maps the module. `yg check` now fails, because that rule has never been checked against your code. `yg check --approve` runs that check and records the verdict. From that point the rule holds, and any change that breaks it comes back to the agent as an error before it reaches you.
+Would you rather be taught? Tell your agent **"onboard me into Yggdrasil"**. In a repository that has run `yg init`, it knows the tutor playbook and teaches you on your own code, in your own language.
 
-That rule is a reviewer rule, so checking it takes a reviewer. If you answered "None for now", `yg check` says so and names the fix: `yg init --provider <name>` — an agent CLI you already run, such as Claude Code, needs no API key — or `status: draft` on the rule until you pick one.
+## How it works
 
-That is the whole loop, and it is the shortest honest path to seeing it.
+Four things live in `.yggdrasil/`, committed with your code. The agent maintains them; you decide what matters.
 
-Prefer to be taught instead? Tell your agent **"onboard me into Yggdrasil"**. In an adopted repo the agent knows the tutor playbook and will teach you on your own code, in your own language.
+**The graph.** Your components and the files each one owns, the types they belong to, and which component may depend on which. The graph works out which rules reach which file, so you attach a rule once and never paste it onto files. A rule attached to a whole type reaches every component of that type, so it can stand `enforced` there only after you admit it (`yg log add --aspect <id> --ratify --by <you> --reason <why>`). Until then keep it `advisory`: with the `type_law` setting `yg init` writes, `yg check` blocks on one standing enforced without your admission.
 
-## What it does
+**The rules.** Besides the built-in dependency check, a rule is one of three kinds.
 
-The rule: every charge records an audit event. The agent writes a refund that skips it.
+| Kind | What it is | Who decides |
+|---|---|---|
+| **Script rule** | A `check.mjs` next to the rule | Your machine. Deterministic, local, free, no key. |
+| **Reviewer rule** | Plain Markdown, like the one above | A separate model you configure, for what a script cannot decide. |
+| **Bundle** | A named group of other rules | Nothing of its own. It attaches its members in one step. |
 
-```ts
-async function refund(req) {
-  await payments.refund(req.body.chargeId)
-  return { ok: true }
-}
-```
+For a reviewer rule, the model sees the rule's text, the rule's description, the path and files of one component (or one file, for a rule scoped per file), any reference and companion files the rule pulls in, and the `yg-suppress` ranges in those files. A prompt over the reviewer's size limit (50,000 characters unless you set another) is a blocking error, never a cut-down review.
 
-`yg check --approve` refuses it: **refund changes a charge with no audit event.** The agent adds the call, re-runs, passes. (A bare `yg check` calls no model unless the project set `auto_approve: full`; on this change it fails because the new code has no verdict yet, and names `--approve` as the next step.)
+Lean on script rules: there is no talking past one. A reviewer is a model, and [its verdicts are not deterministic](https://krzysztofdudek.github.io/Yggdrasil/reviewers): the same code against the same rule can pass on one run and be refused on another, most often when the rule is borderline. Start a new reviewer rule as `advisory` (its refusals are reported and do not block) and enforce it once it has earned your trust.
 
-```ts
-async function refund(req) {
-  await payments.refund(req.body.chargeId)
-  await audit('refund', req.body.chargeId) // added
-  return { ok: true }
-}
-```
+**The lock.** Each verdict is stored with a hash of everything that produced it: the rule, the code, the files the check read. A plain `yg check` recomputes the hashes and, by default, calls no model. If an input changed, the verdict stops counting and the check says so. The lock freezes a pass as firmly as a refusal: re-running the reviewer on unchanged inputs changes neither.
 
-You reviewed nothing. That is the loop: the agent writes, the check runs, the agent fixes its own work before you look at it.
+**The logs.** Why the code is the way it is: each component keeps a log (`yg log add`), each type a log of the decisions that hold for all its components (`yg log add --type`), and each rule a log of its own history. `yg context` hands the agent the logs that apply beside the rules. Entries are only ever appended, and `yg init` configures git merge drivers for the logs and the lock, so two branches that each added entries or verdicts merge without a hand-resolved conflict; a verdict the two branches recorded differently is dropped and judged again.
 
-You attach a rule once and the tool works out everywhere it lands. You never paste it onto each file, and you never hand the agent the whole rulebook.
-
-## Three kinds of rule
-
-**Script rules** ship a `check.mjs` that runs locally, every time, at zero cost. Deterministic, and there is no talking past it. This is the layer to lean on, and it is exactly the kind of rule an agent quietly drops when it is only a line in a rules file.
-
-**Reviewer rules** are plain Markdown, read by a separate model (the reviewer), for the calls a script genuinely cannot make.
-
-```markdown
-# Audit every payment mutation
-
-Any function that creates, updates, or refunds a charge must
-call `auditLog.emit()` before it returns. A mutation with no
-audit event is a refusal.
-```
-
-Reviewer rules are the higher variance layer, so keep those components small and run new rules as advisory before you enforce them. The third kind, a **bundle**, holds no check of its own: it only pulls in other rules, so you can attach a group of them at once. A rule is exactly one kind.
-
-The rest of the vocabulary, components, flows, ports, statuses and the predicate language, is in the [docs](https://krzysztofdudek.github.io/Yggdrasil/), and every word is defined once in the [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary). You do not need any of it to get the first finding.
-
-## Turning it on in a codebase that is not clean
-
-The obvious objection: you switch a rule on, it is broken in two hundred places by the evening, and from then on every unrelated change is red. The tool is now in your way.
-
-Name a branch to measure against and that stops. A plain `yg check` fails only on what your change actually touched. Everything it inherited stays on the report and stays counted, as a warning that does not fail the build.
-
-```yaml
-# .yggdrasil/yg-config.yaml
-progressive:
-  reference: origin/main
-```
-
-Nothing is hidden and no rule is switched off. `yg check --full` answers for the whole project whenever you want the plain picture, and a fill (`yg check --approve`) pays to review the rules your change reached instead of the whole backlog. Leave the key out and nothing changes at all.
-
-[Progressive mode](https://krzysztofdudek.github.io/Yggdrasil/progressive-mode) has the rest.
-
-## The part that is genuinely not available elsewhere
-
-Every verdict, from a script or from a model, is recorded against a content hash of everything that produced it. CI does not re-run your model review. It recomputes the hashes and re-proves the existing verdicts, for free, with no API key.
-
-In practice you pay a reviewer once per piece of code instead of once per pull request. Every metered AI review product bills you again for code that did not change, and none of them can stop without breaking their own pricing.
-
-If the code changes, the hash changes, the verdict is void and the check goes red. A green build cannot quietly mean "we skipped that one".
-
-## Why it is built the way it is
-
-Everything in this tool is here because at some point I needed it and did not have it. Nothing was added because it sounded good on a feature list. If a mechanism looks oddly specific, that is usually why, and the commit history says when.
-
-I built it while shipping things alone, fast, which is where the wall above comes from. That is one person's experience, not a study. Take it as such.
-
-## Two limits, before you install
-
-**It enforces structure, not runtime behaviour.** It can require that you call the audit utility. It cannot prove the audit fired in production.
-
-**A green check is only as good as the rule behind it.** A shallow rule passes shallow code. The enforcement is real. Deciding what is worth enforcing stays yours.
-
-## See the whole graph
-
-`yg portal` renders everything as a map in the browser: every component, every rule, and whether each one is verified against the code as it stands right now. Nothing is rounded up to green. Browsing it leaves your code, graph and lock unchanged; its one write to them is an Approve button that runs `yg check --approve`, and `yg portal --no-write` removes it. `yg portal --static` writes a single self contained file you can hand to someone who has no checkout.
-
-<p align="center">
-  <img src="docs/public/portal-overview-dark.png" alt="The Yggdrasil portal" width="900" />
-</p>
-
-## In CI
+**In CI.**
 
 ```yaml
 - run: npx @chrisdudek/yg@6.1.0 check --approve --only-deterministic
 - run: npx @chrisdudek/yg@6.1.0 check --no-approve
 ```
 
-Pin the version, and raise the pin in a commit of its own. A bare `npx @chrisdudek/yg` runs whatever release is newest on the day the job runs, so a new release, a major one included, would change your gate without a commit, and a CI on one version and developers on another re-open each other's verdicts.
+The first line re-runs the script rules, whose verdicts live in a local cache a fresh checkout does not have, and then reports on the whole tree, so it already fails the job on any blocking finding. It is free, but it runs the branch's own rule scripts, so on pull requests from forks run only the second line; there it reports every script pair as unverified, because that cache is local, so a repository with enforced script rules gets a red fork gate ([details](https://krzysztofdudek.github.io/Yggdrasil/the-lock#what-yg-check-proves-and-against-whom)). The second is the gate: it checks every recorded verdict against the code and fails on anything that changed without being judged again. No keys, no model calls, and `--no-approve` keeps it that way whatever the committed configuration says. Pin the version and raise the pin in a commit of its own. Caching and the rest: [CI integration](https://krzysztofdudek.github.io/Yggdrasil/getting-started#_5-ci-integration).
 
-The first line rebuilds the free local cache that a fresh checkout never has, and reports on the tree after it — so it already fails the job on any blocking finding (an unverified reviewer pair, an unmapped file, a refusal) before the second line runs. The second is the read-only gate, and the step to keep if you want the job to fail in one place (mark the first `continue-on-error: true`): it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
+[How it works](https://krzysztofdudek.github.io/Yggdrasil/how-it-works) · [Rules](https://krzysztofdudek.github.io/Yggdrasil/aspects) · [The lock](https://krzysztofdudek.github.io/Yggdrasil/the-lock) · [Glossary](https://krzysztofdudek.github.io/Yggdrasil/glossary)
 
-On a large repository, keep the local cache between runs so the first line only fills what changed:
+## Built with itself
 
-```yaml
-- uses: actions/cache@v4
-  with:
-    path: |
-      .yggdrasil/.yg-lock.deterministic.json
-      .yggdrasil/.ast-cache
-    key: yg-${{ runner.os }}-${{ github.sha }}
-    restore-keys: yg-${{ runner.os }}-
-```
+This repository is checked by Yggdrasil in its own pre-commit hook and in CI. A snapshot from 28 September 2026: its graph held 498 components and 73 rules, mapped all 1,429 files in its coverage scope, and had 8,035 pairs verified, 6,545 by script and 1,490 by a reviewer. The graph is in [`.yggdrasil/`](https://github.com/krzysztofdudek/Yggdrasil/tree/main/.yggdrasil), and `yg portal` (or `yg portal --static`, one self-contained file) shows its live state.
 
-Every entry in the cache is keyed by a hash of what it judged, so an entry whose inputs changed reads as unverified and is filled again: a restored cache saves work and cannot turn a changed file green. It is as trusted as the run that wrote it, so restore only caches your own branches produced (GitHub Actions already keeps a fork's pull request from writing a cache the base branch reads).
+The portal shows each rule with its count of verified, refused and unverified pairs. A pair nobody has judged for the current code is counted as unverified, never as a pass.
 
-If you measure changes against a branch, add `--full` to the leg that runs on the branch you merge into. A plain run there passes by construction, so it is the `--full` leg that actually answers for it.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/krzysztofdudek/Yggdrasil/v6.1.0/docs/public/readme/portal-rulebook-dark.png" />
+  <img src="https://raw.githubusercontent.com/krzysztofdudek/Yggdrasil/v6.1.0/docs/public/readme/portal-rulebook-light.png" alt="The Yggdrasil portal's rulebook for this repository: 73 rules, each with its kind, status, scope and a verified, refused and unverified tally." width="100%" />
+</picture>
 
-## Works with
+<sub>The portal's rulebook for this repository. In the portal's words, aspects are rules and nodes are components.</sub>
 
-Any agent that reads `AGENTS.md` — Cursor, Copilot, Codex, OpenCode, Amp, Zed and others — plus Claude Code, through a one-line `@AGENTS.md` import in `CLAUDE.md`, and Cline, through `.clinerules/yggdrasil.md`. `yg init` writes one universal rule set and both of those, so there is no platform to pick.
+## Costs and limits
 
-Reviewer providers: Anthropic, OpenAI, Google, OpenAI compatible, Ollama locally, or delegation to an installed agent CLI with no API key at all.
+### What you pay
 
-## FAQ
+- **A new repository starts with zero reviewer pairs.** Nothing is paid until you write a reviewer rule.
+- **Free:** script rules, dependency checks, a plain `yg check` and the CI gate. Local, no key, no network.
+- **Reviewer rules:** one model call per pair when it is first judged, and again only after its inputs change, multiplied by the consensus count if you ask for a vote. You pay your provider per token; an agent CLI reviewer spends your subscription's usage; Ollama runs locally. `yg check --approve --dry-run` says how many paid calls a fill will make before it makes them.
+- **Time:** one reviewer call takes roughly 10 to 40 seconds. A first fill of a few hundred pairs takes hours at one call at a time; `yg init` sets four at a time for an agent CLI reviewer.
+- **Adoption:** on an existing codebase, the first work is usually learning that the code does not match the architecture you thought you had. [Phase 0](https://krzysztofdudek.github.io/Yggdrasil/showcase#the-phase-0-reality) is the honest account. [Progressive mode](https://krzysztofdudek.github.io/Yggdrasil/progressive-mode) makes a plain `yg check` fail only on what your change touched, and keeps everything inherited on the report as a warning.
 
-**How is this different from a rules file?**
-A rules file is flat text dumped into every prompt, with no scoping and no verification. Here the agent gets only the rules that touch the file it is editing, and the output is checked against them.
+### What it will not do
 
-**How is this different from a pre-commit or agent hook?**
-A hook is a real gate and you should use one. Point it at `yg check` and you have wired this in. What a bare hook has no notion of is which rule applies to which file, rules that need judgment rather than a script, and a lock that lets CI re-prove a model verdict for free.
+- **It checks structure, not runtime behaviour.** It can require that a function calls the audit utility. It cannot prove the audit fired in production.
+- **The dependency check sees static code dependencies only.** Calls over HTTP, dependency injection, reflection and events are invisible to it, and it skips anything it cannot pin to exactly one component. You can declare those relations yourself; nothing checks them against the code.
+- **A green check is only as good as the rule behind it.** A shallow rule passes shallow code. Deciding what is worth enforcing stays with you.
+- **A reviewer pass is frozen like a refusal.** A pass a weaker model gave stays a pass until the code or the rule changes.
+- **Changing the reviewer's model re-judges nothing.** Verdicts are tied to the reviewer tier's name, not to the model behind it. To move to another model on purpose, follow the [model-swap protocol](https://krzysztofdudek.github.io/Yggdrasil/model-swap-protocol).
+- **Green means unchanged, not incorruptible.** A green `yg check` proves every recorded verdict still matches the code and rules on disk. It does not prove a reviewer produced them: the lock is a committed file, so the gate is as trustworthy as whoever can push to the branch. [What `yg check` proves, and against whom](https://krzysztofdudek.github.io/Yggdrasil/the-lock#what-yg-check-proves-and-against-whom).
 
-**How is this different from an AI review bot?**
-Review bots hunt for bugs against their own idea of good code, and they re-run and re-bill on every pull request. This checks your specific rules, the ones only your team knows, and records a durable proof of each verdict.
+## Questions
 
-**What if I want to stop?**
-Delete `.yggdrasil/`. There are no runtime dependencies and no build hooks. Outside that directory, `yg init` wrote the agent-rules files (the summary block in `AGENTS.md`, the import line in `CLAUDE.md`, `.clinerules/yggdrasil.md`) and five lines in the repo-root `.gitattributes`; delete those too if you want no trace left. The full list is in the "No lock-in" note of [How it works](https://krzysztofdudek.github.io/Yggdrasil/how-it-works).
+**How is this different from a rules file?** A rules file is flat text in every prompt, with no scope and no check. Here the agent gets only the rules on the file it is editing, and its output is checked against them.
 
-## Examples and docs
+**And from a pre-commit hook?** Use one, and point it at `yg check`. What a bare hook lacks is a notion of which rule applies to which file, rules that need judgment, and a lock that lets CI replay a model's verdict for free.
 
-[`examples/`](examples/) has seven runnable projects, five of them keyless. This repository uses Yggdrasil on itself, so [`.yggdrasil/`](.yggdrasil/) is a live graph you can read. Full docs at [krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/).
+**And from dependency-cruiser or ArchUnit?** For import rules in one language they are mature, and if that is all you need, use them. Yggdrasil's dependency check is one part of it: one graph across eleven languages, carrying script rules, reviewer rules and the lock as well.
 
-## Requirements
+**And from an AI review bot?** A review bot looks for bugs against its own idea of good code and runs again on every pull request. This checks your rules, the ones only your team knows, and pays for a verdict once per version of the code it judged.
 
-Yggdrasil itself needs only Node.js 22+ — see [Five minutes to your first enforced rule](#five-minutes-to-your-first-enforced-rule) above. It has no dependency on the rest of the family.
+**What if I want to stop?** Delete `.yggdrasil/`. Nothing in your build or runtime depends on it. `yg init` also wrote a summary block in `AGENTS.md`, an import line in `CLAUDE.md`, `.clinerules/yggdrasil.md` and eight lines in `.gitattributes`, and in each clone two merge drivers in `.git/config` and a `post-merge` hook; delete those too to leave no trace. Your reviewer rules are plain Markdown and go wherever you go; script rules are written against Yggdrasil's `check(ctx)` contract and need porting.
 
-Yggdrasil depends on no other family tool; the edges run the other way. **Horde requires it** — 6.1.0 or newer; an older Yggdrasil is refused, not read around — and requires Grain too, because its architect always measures. **Grain uses it optionally** — Grain runs standalone, and when Yggdrasil is present it accepts a proposed graph from Grain with one command. **Jarl uses it optionally**, only where the repository has a graph: what the client ratified is written into Yggdrasil's logs (a ruling about a whole type of code into that type's decision log with `yg log add --type`, a rule's ratification into the rule's own log with `yg log add --aspect --ratify`), and Jarl's merger merges Yggdrasil's files with Yggdrasil's own merge drivers. The recommended install is the whole family together, but nothing forces it: Yggdrasil, Grain and Jarl each run without the others.
+## License
+
+MIT. Yggdrasil depends on no other tool in its family: Horde requires it, Grain and Jarl use it when it is there. It installs one library of the family's shared code, `@chrisdudek/runes`, at an exact version, and needs Node.js 22 or newer.
 
 ## The Yggdrasil family
 
@@ -250,19 +251,3 @@ Four add-ons attach to the agent rather than to the graph; each works alone, dep
 | **[Urd](https://github.com/krzysztofdudek/UrdSkill)** | intent → code | When the spec is ambiguous, it consults the source of truth and asks, it doesn't guess. | The stop a worker hits before it guesses. |
 | **[Researcher](https://github.com/krzysztofdudek/ResearcherSkill)** | code → measured result | Point it at a metric and it runs experiments, hypotheses kept and discarded. | Runs the retrospective's measurement. |
 | **[Skald](https://github.com/krzysztofdudek/SkaldSkill)** | running product → film | A film of your software shows the real running product, never a rebuilt one, and every number and claim on screen traces back to the product's own logs. | None. Horde does not call it. |
-
-## License
-
-MIT
-
----
-
-<div align="center">
-  <img src="docs/public/logo.svg" alt="Yggdrasil" width="150" />
-  <br/><br/>
-  <a href="https://github.com/krzysztofdudek/Yggdrasil/discussions">
-    <img src="https://img.shields.io/badge/Discussions-Join-181717?logo=github&logoColor=white" alt="GitHub Discussions" />
-  </a>
-  <br/>
-  <sub>Questions? Open a discussion on GitHub.</sub>
-</div>

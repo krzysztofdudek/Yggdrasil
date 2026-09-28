@@ -40,7 +40,7 @@ function textBlockContaining(page: string, marker: string): string {
 }
 
 describe.skipIf(!distExists)('docs output samples match the CLI', () => {
-  it('the first check after yg init (README, getting-started)', () => {
+  it('the first check after yg init (getting-started)', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-sample-first-'));
     try {
       mkdirSync(path.join(dir, 'src'));
@@ -52,7 +52,6 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       const live = yg(['check'], dir).stdout.trimEnd();
       const marker = 'yg check: PASS  1 warning   0 nodes · 0/50 files covered · 4 excluded';
       expect(live).toContain(marker);
-      expect(textBlockContaining(doc('README.md'), marker)).toBe(live);
       expect(textBlockContaining(doc('docs/getting-started.md'), marker)).toBe(live);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -98,11 +97,15 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
     }
   });
 
-  it('a cached refusal (reviewers, getting-started) matches examples/failing', () => {
+  it('a cached refusal (README, reviewers, getting-started) matches examples/failing', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-sample-refusal-'));
     try {
       cpSync(path.join(REPO_ROOT, 'examples', 'failing'), dir, { recursive: true });
       const live = yg(['check'], dir).stdout;
+      // The README shows the report replayed from the committed lock, trimmed after the fix: heading (it says so).
+      const shownRefusal = textBlockContaining(doc('README.md'), 'error[refused] requires-audit — refused on payments');
+      expect(shownRefusal).toContain('  fix:  Four exits');
+      expect(live.startsWith(shownRefusal), live).toBe(true);
       // The block's fix: (heading line plus its four numbered exits) and the report's next: line.
       const fixAt = live.indexOf('  fix:  Four exits');
       expect(fixAt, live).toBeGreaterThan(-1);
@@ -147,6 +150,67 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
         const shown = text.slice(at).split('\n').slice(1, 5).map((l) => l.trim());
         expect(shown, page).toEqual(entries);
       }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a changed file voids the recorded verdict (README) in examples/failing', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-sample-voided-'));
+    try {
+      cpSync(path.join(REPO_ROOT, 'examples', 'failing'), dir, { recursive: true });
+      const file = path.join(dir, 'src', 'payments.ts');
+      writeFileSync(file, readFileSync(file, 'utf-8') + '\n');
+      const live = yg(['check'], dir).stdout.trimEnd();
+      expect(textBlockContaining(doc('README.md'), 'error[unverified] 1 pair whose inputs changed since the verdict')).toBe(live);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a live boundary refusal (README) in examples/layered-architecture', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-sample-boundary-'));
+    try {
+      cpSync(path.join(REPO_ROOT, 'examples', 'layered-architecture'), dir, { recursive: true });
+      // The README's one-line edit: the web layer imports the data layer, under the existing import.
+      const file = path.join(dir, 'src', 'web', 'rideHandler.ts');
+      const lines = readFileSync(file, 'utf-8').split('\n');
+      const at = lines.findIndex((l) => l.startsWith('import '));
+      expect(at, 'rideHandler.ts has an import to add under').toBeGreaterThan(-1);
+      lines.splice(at + 1, 0, "import { findRide } from '../data/rideRepository.js';");
+      writeFileSync(file, lines.join('\n'));
+      const live = yg(['check'], dir).stdout.trimEnd();
+      // The README shows the whole report, fix: and next: included.
+      const shown = textBlockContaining(doc('README.md'), "error[relation-undeclared-dependency] Node 'web'");
+      expect(shown).toContain('src/web/rideHandler.ts:5 → data');
+      expect(shown).toBe(live);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it('the first free rule in a fresh repo (README quickstart): the API may not import the database', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-sample-quickstart-'));
+    try {
+      mkdirSync(path.join(dir, 'src', 'api'), { recursive: true });
+      mkdirSync(path.join(dir, 'src', 'db'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'db', 'client.ts'), 'export function query(sql: string) { return sql; }\n');
+      writeFileSync(path.join(dir, 'src', 'api', 'orders.ts'), "import { query } from '../db/client';\n\nexport function listOrders() {\n  return query('select * from orders');\n}\n");
+      git(['init', '-q'], dir);
+      expect(yg(['init', '--no-reviewer'], dir).status).toBe(0);
+      const ygg = path.join(dir, '.yggdrasil');
+      // What the agent writes for "the API layer must never import the database module":
+      // two component types with no allowed relation between them, and one component each.
+      writeFileSync(path.join(ygg, 'yg-architecture.yaml'), 'node_types:\n  api:\n    description: "HTTP handlers"\n    when:\n      path: "src/api/**"\n    relations:\n      default: deny\n  db:\n    description: "Database access"\n    when:\n      path: "src/db/**"\n    relations:\n      default: deny\n');
+      mkdirSync(path.join(ygg, 'model', 'api'), { recursive: true });
+      mkdirSync(path.join(ygg, 'model', 'db'), { recursive: true });
+      writeFileSync(path.join(ygg, 'model', 'api', 'yg-node.yaml'), 'name: API\ntype: api\ndescription: HTTP handlers\nmapping:\n  - src/api/\n');
+      writeFileSync(path.join(ygg, 'model', 'db', 'yg-node.yaml'), 'name: Database\ntype: db\ndescription: Database access\nmapping:\n  - src/db/\n');
+      git(['add', '-A'], dir);
+      const live = yg(['check'], dir).stdout.trimEnd();
+      // The README trims the report after the at: block (it says so), so it must be a prefix of the live run.
+      const shown = textBlockContaining(doc('README.md'), "error[relation-undeclared-dependency] Node 'api'");
+      expect(shown).toContain('src/api/orders.ts:1 → db');
+      expect(live.startsWith(shown), live).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
