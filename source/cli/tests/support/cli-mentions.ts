@@ -13,8 +13,9 @@
 //   - `yg log add|read --aspect` names two commands; the flag must be on both;
 //   - `yg log --aspect` names the family: a command with subcommands and no
 //     options of its own accepts a flag one of its subcommands takes;
-//   - a line that documents a removal or a refusal ("removed", "is refused",
-//     "no longer", …) names a flag the command does not take on purpose.
+//   - a sentence that documents a removal or a refusal ("removed", "is
+//     refused", "no longer", …) names a flag the command does not take on
+//     purpose (for a fenced block, the line).
 //
 // Imports only Node builtins and its sibling, never anything under src/**.
 // =============================================================================
@@ -30,9 +31,26 @@ export interface BadMention {
 }
 
 /**
+ * The sentence of a prose line an inline code span stands in: from the end of
+ * the sentence before it to the end of its own, read with every code span
+ * masked so a full stop inside code does not end a sentence.
+ */
+function sentenceAround(raw: string, start: number, end: number): string {
+  const masked = raw.replace(/(`+)([^`]+?)\1(?!`)/g, (m) => '`'.repeat(m.length));
+  const before = masked.slice(0, start);
+  let from = 0;
+  for (const m of before.matchAll(/[.!?]\s+/g)) from = m.index! + m[0].length;
+  const after = /[.!?](?:\s|$)/.exec(masked.slice(end));
+  return raw.slice(from, after === null ? raw.length : end + after.index + 1);
+}
+
+/**
  * The code a text quotes, with the line each piece is on: the lines of every
  * fenced block (a shell comment cut off), and the inline code spans of every
- * other line.
+ * other line. `text` is what a removal marker is looked for in: the whole
+ * line of a fenced block, and the sentence an inline span stands in — so a
+ * paragraph that mentions one removed flag does not exempt every other
+ * command it quotes.
  */
 export function codeRegions(text: string): Array<{ line: number; code: string; text: string }> {
   const out: Array<{ line: number; code: string; text: string }> = [];
@@ -48,7 +66,7 @@ export function codeRegions(text: string): Array<{ line: number; code: string; t
       fence = opener[1];
       return;
     }
-    for (const m of raw.matchAll(/(`+)([^`]+?)\1(?!`)/g)) out.push({ line: i + 1, code: m[2], text: raw });
+    for (const m of raw.matchAll(/(`+)([^`]+?)\1(?!`)/g)) out.push({ line: i + 1, code: m[2], text: sentenceAround(raw, m.index!, m.index! + m[0].length) });
   });
   return out;
 }

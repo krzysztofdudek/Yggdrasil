@@ -163,6 +163,8 @@ describe.skipIf(!distExists)('CLI E2E — the CLI reference matches the CLI', ()
     expect(checkCode('yg log --aspect <id>', tree)).toEqual([]);
     expect(checkCode('yg check --json | jq .totals --raw-output', tree)).toEqual([]);
     expect(badMentions('x.md', 'The flag `yg impact --simulate` was removed.', tree)).toEqual([]);
+    // The removal marker exempts its own sentence, not every command the paragraph quotes.
+    expect(badMentions('x.md', 'The flag `yg impact --simulate` was removed. Run `yg check --aprove` next.', tree).map((b) => b.problem)).toEqual(['yg check has no --aprove']);
   });
 
   it('every hidden flag a page may name is one its command accepts', () => {
