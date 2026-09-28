@@ -8,7 +8,7 @@ import type { ReviewedAbsolute } from './absolute-wording.js';
 
 export const REVIEWED_ABSOLUTES: ReviewedAbsolute[] = [
   // README.md
-  { phrase: 'install it day zero for a soft, draft-only law that never blocks', why: 'A claim about Grain, not the yg CLI; Grain\'s own README (\'What it costs you\': \'It never blocks: no gate, no failing build, no policy file\') holds the same promise.' },
+  { phrase: 'It measures and never blocks.', why: 'A claim about Grain in the family section every family README shares, not about the yg CLI; Grain\'s own README (\'What it costs you\': \'It never blocks: no gate, no failing build, no policy file\') holds the same promise.' },
   // docs/aspect-status.md
   { phrase: 'it never changes a verdict\'s input hash', why: 'core/pair-hash.ts excludes status from every hash ingredient (header \'status — rendering only\'), held by tests/e2e/cli-aspect-status-extended.test.ts \'E7: a bare enforced->advisory status flip does NOT invalidate the verdict\'.' },
   { phrase: 'through `implies`, propagates nothing at all', why: 'core/graph/aspects.ts skips implies propagation when the implier\'s status is draft (statuses.get(id) !== \'draft\'; implierStatus === \'draft\' continue), held by tests/integration/aspect-status-implies.test.ts \'A at draft: implies do not propagate\'.' },
