@@ -158,7 +158,7 @@ A rule can also **name** its companion instead of shipping one beside itself, wi
 companion: tools/pair-scenario-with-spec.mjs
 ```
 
-The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
+The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. So is every module it imports by a literal relative specifier, followed from module to module: editing a helper the companion imports re-opens the rule's pairs just as editing the companion does. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
 
 ## Organizing rules in directories
 
