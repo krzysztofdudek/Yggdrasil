@@ -9,7 +9,7 @@ description: "Filesystem scaffolding for yg init — creates the .yggdrasil/
   the merge drivers, which it configures in the clone's local git
   configuration with a command that falls back to git's own conflict markers
   when the CLI is gone, together with a post-merge hook that records merged
-  logs' baselines, installed only where no hook of another tool stands. On every --upgrade it also removes the keys earlier releases read
+  logs' baselines, installed only where no hook of another tool stands and git runs hooks from the clone's own git directory; where it installs none, or a setting cannot be written, it returns a what/why/next note with the work left to do by hand instead of counting it as configured. On every --upgrade it also removes the keys earlier releases read
   and the current parsers refuse, taking the lists from the parsers themselves so
   it removes exactly what the check would name as retired and never a key that
   is merely unknown, editing each YAML document in place so other keys and
@@ -33,6 +33,8 @@ relations:
   - target: cli/io/parsers/config
     type: calls
   - target: cli/model/graph
+    type: uses
+  - target: cli/model/validation
     type: uses
 mapping:
   - source/cli/src/cli/init-scaffold.ts

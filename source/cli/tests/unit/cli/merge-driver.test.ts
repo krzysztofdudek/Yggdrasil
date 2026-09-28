@@ -194,8 +194,30 @@ describe('the merge driver configuration yg init writes', () => {
       expect((await pinnedTo(repo, () => ensureMergeDrivers(repo, cli))).configured).toEqual([]);
       writeFileSync(path.join(repo, '.git', 'hooks', 'post-merge'), '#!/bin/sh\necho mine\n', 'utf-8');
       const foreign = await pinnedTo(repo, () => ensureMergeDrivers(repo, cli));
-      expect(foreign.notes.join('\n')).toContain('is not Yggdrasil');
+      expect(foreign.notes.map((n) => n.what).join('\n')).toContain('is not Yggdrasil');
       expect(readFileSync(path.join(repo, '.git', 'hooks', 'post-merge'), 'utf-8')).toContain('echo mine');
+    } finally {
+      rmSync(repo, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  // Issue 531: a hooks directory set by core.hooksPath gets no hook, and the
+  // work left to do is a note of its own, never counted as configured.
+  it('writes no hook into a core.hooksPath directory and says what to add by hand', async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'yg-merge-hookspath-'));
+    try {
+      runGitFixture(repo, ['init', '-q']);
+      runGitFixture(repo, ['config', 'core.hooksPath', '.githooks']);
+      mkdirSync(path.join(repo, '.githooks'));
+      const cli = path.join(repo, 'bin.js');
+      writeFileSync(cli, '', 'utf-8');
+      const result = await pinnedTo(repo, () => ensureMergeDrivers(repo, cli));
+      expect(result.configured).not.toContain('hooks/post-merge');
+      expect(existsSync(path.join(repo, '.githooks', 'post-merge'))).toBe(false);
+      expect(result.notes).toHaveLength(1);
+      expect(result.notes[0].what).toContain('No post-merge hook installed');
+      expect(result.notes[0].what).toContain('core.hooksPath');
+      expect(result.notes[0].next).toContain('yg log merge-resolve');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }

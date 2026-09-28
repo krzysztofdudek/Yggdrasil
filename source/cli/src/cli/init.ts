@@ -253,6 +253,9 @@ function renderArtifactSummary(
     lines.push(`Still on disk from an earlier install, now maintained by nobody: ${report.leftover.join(', ')} — delete by hand if you no longer want it.`);
   }
   lines.push('All changes are plain files — review them with git diff before committing.');
+  // What the run did NOT do, with the work left to do by hand: a note of its
+  // own, never listed as something added.
+  for (const h of report.housekeeping ?? []) for (const n of h.notes ?? []) lines.push(block(n, 'note'));
   return lines.join('\n');
 }
 
@@ -481,6 +484,8 @@ export async function freshInitKeyless(
 export interface HousekeepingTopUp {
   file: string;
   added: string[];
+  /** What the run left undone there, each with the work to do by hand — never among `added`. */
+  notes?: IssueMessage[];
 }
 
 export interface VersionUpgradeResult {
@@ -813,7 +818,7 @@ export async function runVersionUpgrade(
     housekeeping: [
       { file: '.yggdrasil/.gitignore', added: gitignoreAdded },
       { file: '.gitattributes', added: gitattributesAdded },
-      { file: 'the local git configuration', added: [...mergeDrivers.configured, ...mergeDrivers.notes] },
+      { file: 'the local git configuration', added: mergeDrivers.configured, notes: mergeDrivers.notes },
     ],
     withheld,
     coverageBlocked: await predictCoverageBlockers(projectRoot, managedRootFiles(report)),

@@ -7,6 +7,7 @@ import { parseDocument, isMap, isScalar, isSeq, type Document } from 'yaml';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules } from '../templates/platform.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import type { RetiredKeys } from '../utils/known-keys.js';
@@ -194,12 +195,15 @@ function gitLine(cwd: string, args: string[]): string | null {
  * names the CLI the commands run; absent, the one running now.
  *
  * A hook some other tool wrote is never replaced; a hooks directory outside the
- * git directory (`core.hooksPath` into the working tree) is left alone too,
- * since a file written there would be the repository's, not this clone's. In
- * both cases the line to add by hand is named in the returned notes.
+ * git directory (`core.hooksPath`, usually a committed directory of the working
+ * tree) is left alone too, since a file written there would be the
+ * repository's — committed, and naming this machine's path to the CLI — not
+ * this clone's. In both cases, and when a setting could not be written, the
+ * returned notes say what was not done and the work left to do by hand: they
+ * are never among the things configured.
  */
-export async function ensureMergeDrivers(projectRoot: string, cliPath?: string): Promise<{ configured: string[]; notes: string[] }> {
-  const out = { configured: [] as string[], notes: [] as string[] };
+export async function ensureMergeDrivers(projectRoot: string, cliPath?: string): Promise<{ configured: string[]; notes: IssueMessage[] }> {
+  const out = { configured: [] as string[], notes: [] as IssueMessage[] };
   const cli = runningCliPath(cliPath);
   if (cli === null || gitLine(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') return out;
   const drivers: Array<[string, 'log' | 'lock', string]> = [
@@ -210,7 +214,11 @@ export async function ensureMergeDrivers(projectRoot: string, cliPath?: string):
     for (const [key, value] of [[`merge.${name}.name`, label], [`merge.${name}.driver`, mergeDriverCommand(cli, kind)]] as const) {
       if (gitLine(projectRoot, ['config', '--local', '--get', key]) === value) continue;
       if (gitLine(projectRoot, ['config', '--local', key, value]) === null) {
-        out.notes.push(`could not set ${key} in the local git config`);
+        out.notes.push({
+          what: `Could not set ${key} in the local git configuration.`,
+          why: 'Without the driver, git merges that file as text: two branches that both changed it stop with conflict markers.',
+          next: 'Run yg init --upgrade again; if it still fails, check that .git/config is writable.',
+        });
         continue;
       }
       out.configured.push(key);
@@ -223,11 +231,20 @@ export async function ensureMergeDrivers(projectRoot: string, cliPath?: string):
   const existing = await readFile(hookPath, 'utf-8').catch(() => null);
   const ours = existing !== null && existing.includes(POST_MERGE_MARKER);
   if (existing !== null && !ours) {
-    out.notes.push(`${toPosixPath(hookPath)} exists and is not Yggdrasil's — add \`yg log merge-resolve\` to it to record merged logs' baselines after every merge`);
+    out.notes.push({
+      what: `No post-merge hook installed: ${toPosixPath(hookPath)} exists and is not Yggdrasil's, so it was left as it is.`,
+      why: "The hook records the baseline of every log.md a merge changed; without it, run yg log merge-resolve after each merge yourself.",
+      next: `Add a line running yg log merge-resolve to ${toPosixPath(hookPath)}.`,
+    });
     return out;
   }
   if (!toPosixPath(hookPath).startsWith(`${toPosixPath(commonDir)}/`)) {
-    out.notes.push(`the hooks directory is inside the working tree (core.hooksPath) — add a post-merge hook running \`yg log merge-resolve\` there if the repository wants one`);
+    const hooksDir = toPosixPath(path.dirname(hookPath));
+    out.notes.push({
+      what: `No post-merge hook installed: git runs hooks from ${hooksDir} (core.hooksPath), outside this clone's git directory.`,
+      why: "A hook written there would be the repository's or another tool's, not this clone's, and would carry this machine's path to the CLI; without one, the baseline of a log.md a merge changed is not recorded until yg log merge-resolve runs.",
+      next: `Add a post-merge hook to ${hooksDir} that runs yg log merge-resolve, or run yg log merge-resolve after each merge.`,
+    });
     return out;
   }
   if (existing === hook) return out;
