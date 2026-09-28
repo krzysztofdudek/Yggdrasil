@@ -1,6 +1,6 @@
 name: Tools
 type: repo-config
-description: "Developer tools for asset generation: demo GIF renderer and related utilities"
+description: "Repository tooling that is not part of the shipped CLI; empty but for its README since the demo GIF renderer was removed"
 aspects: []
 relations: []
 mapping:
