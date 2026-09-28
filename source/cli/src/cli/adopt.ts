@@ -5,6 +5,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
+import { block } from '../formatters/output-grammar.js';
 import { loadGraph } from '../core/graph-loader.js';
 import { validate } from '../core/validator.js';
 import { runFill, FillGatingError } from '../core/fill.js';
@@ -329,7 +330,7 @@ export function registerAdoptCommand(program: Command): void {
         // both are exactly what a fresh setup writes.
         await ensureYggdrasilGitignore(graph.rootPath);
         await ensureGitattributes(repoRoot);
-        await ensureMergeDrivers(repoRoot);
+        const drivers = await ensureMergeDrivers(repoRoot);
 
         // ── Record who accepted what ───────────────────────────────────────
         // Written BEFORE the baseline run, so the same run that records the
@@ -408,6 +409,9 @@ export function registerAdoptCommand(program: Command): void {
         if (transaction.movedAsideTo !== undefined) {
           summary.push(row('Previous graph', `kept at ${path.basename(transaction.movedAsideTo)}/ — delete it once you are satisfied`));
         }
+        // What the merge-driver setup left to do by hand (a post-merge hook it
+        // could not install): a note of its own, before the next step.
+        if (drivers.notes.length > 0) summary.push('', ...drivers.notes.map((n) => block(n, 'note')));
         summary.push('', 'next: yg check', '');
         writeOut(summary.join('\n'));
         await exitAfterFlush(0);

@@ -253,6 +253,9 @@ function renderArtifactSummary(
     lines.push(`Still on disk from an earlier install, now maintained by nobody: ${report.leftover.join(', ')} — delete by hand if you no longer want it.`);
   }
   lines.push('All changes are plain files — review them with git diff before committing.');
+  // What the run did NOT do, with the work left to do by hand: a note of its
+  // own, never listed as something added.
+  for (const h of report.housekeeping ?? []) for (const n of h.notes ?? []) lines.push(block(n, 'note'));
   return lines.join('\n');
 }
 
@@ -296,12 +299,12 @@ async function freshInit(
   }
 
   await ensureGitattributes(projectRoot);
-  await ensureMergeDrivers(projectRoot);
+  const drivers = await ensureMergeDrivers(projectRoot);
 
   p.outro(paint.green(
     reviewerConfig
-      ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${GET_STARTED}`
-      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${GET_STARTED}\n${ADD_REVIEWER_LATER}`,
+      ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${mergeDriverNotes(drivers.notes)}${GET_STARTED}`
+      : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing.\n${mergeDriverNotes(drivers.notes)}${GET_STARTED}\n${ADD_REVIEWER_LATER}`,
   ));
 }
 
@@ -419,12 +422,13 @@ export async function freshInitNonInteractive(
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), opts.rulesArtifacts);
   await persistReviewerConfig(yggRoot, resolved);
   await ensureGitattributes(projectRoot);
-  await ensureMergeDrivers(projectRoot);
+  const drivers = await ensureMergeDrivers(projectRoot);
 
   writeOut(paint.green(
     `Yggdrasil initialized (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n` +
     `${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     'All changes are plain files — review them with git diff before committing.\n' +
+    mergeDriverNotes(drivers.notes) +
     `${GET_STARTED}\n`,
   ));
 }
@@ -464,13 +468,24 @@ export async function freshInitKeyless(
 ): Promise<void> {
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
   await ensureGitattributes(projectRoot);
-  await ensureMergeDrivers(projectRoot);
+  const drivers = await ensureMergeDrivers(projectRoot);
   writeOut(paint.green(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
     `  ${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     '  All changes are plain files — review them with git diff before committing.\n' +
+    mergeDriverNotes(drivers.notes) +
     `${GET_STARTED}\n${ADD_REVIEWER_LATER}\n`,
   ));
+}
+
+/**
+ * What setting up the merge drivers left undone (a post-merge hook it could not
+ * install, a setting it could not write), one `note:` block each with the work
+ * to do by hand, ready to sit before a fresh init's closing step. Empty when
+ * nothing was left undone.
+ */
+function mergeDriverNotes(notes: IssueMessage[]): string {
+  return notes.map((n) => `${block(n, 'note')}\n`).join('');
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +496,8 @@ export async function freshInitKeyless(
 export interface HousekeepingTopUp {
   file: string;
   added: string[];
+  /** What the run left undone there, each with the work to do by hand — never among `added`. */
+  notes?: IssueMessage[];
 }
 
 export interface VersionUpgradeResult {
@@ -813,7 +830,7 @@ export async function runVersionUpgrade(
     housekeeping: [
       { file: '.yggdrasil/.gitignore', added: gitignoreAdded },
       { file: '.gitattributes', added: gitattributesAdded },
-      { file: 'the local git configuration', added: [...mergeDrivers.configured, ...mergeDrivers.notes] },
+      { file: 'the local git configuration', added: mergeDrivers.configured, notes: mergeDrivers.notes },
     ],
     withheld,
     coverageBlocked: await predictCoverageBlockers(projectRoot, managedRootFiles(report)),

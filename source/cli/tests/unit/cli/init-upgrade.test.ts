@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Command } from 'commander';
 import { runVersionUpgrade, ensureGitattributes, ensureYggdrasilGitignore, registerInitCommand } from '../../../src/cli/init.js';
+import { runGitFixture } from '../../support/git-fixture.js';
 
 const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
@@ -123,6 +124,34 @@ describe('registerInitCommand action — non-interactive dispatch', () => {
     expect(await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8')).toContain('clinerules: false');
     expect(stdout).not.toContain('nothing changed');
     expect(stdout).toContain('Recorded in .yggdrasil/yg-config.yaml: rules_artifacts');
+  });
+
+  // Issue 531: the hook yg init could not install was listed under "Added to
+  // the local git configuration", as if it had been added.
+  it('--upgrade with core.hooksPath names the missing post-merge hook as a note, not as added', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-hookspath-'));
+    dirsToCleanup.push(projectRoot);
+    runGitFixture(projectRoot, ['init', '-q']);
+    runGitFixture(projectRoot, ['config', 'core.hooksPath', '.githooks']);
+    await scaffoldExistingYgg(projectRoot, '5.1.0');
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade']);
+    expect(exitCode).toBeUndefined();
+    const added = stdout.split('\n').filter((l) => l.startsWith('Added to the local git configuration'));
+    expect(added.join('\n')).not.toContain('hook');
+    expect(stdout).toContain('note: No post-merge hook installed');
+    expect(stdout).toContain('yg log merge-resolve');
+  });
+
+  // Issue 531: a fresh init with core.hooksPath installed no hook and said nothing.
+  it('a fresh keyless init with core.hooksPath names the missing post-merge hook as a note', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-fresh-hookspath-'));
+    dirsToCleanup.push(projectRoot);
+    runGitFixture(projectRoot, ['init', '-q']);
+    runGitFixture(projectRoot, ['config', 'core.hooksPath', '.githooks']);
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--no-reviewer']);
+    expect(exitCode).toBeUndefined();
+    expect(stdout).toContain('note: No post-merge hook installed');
+    expect(stdout.indexOf('note: No post-merge hook installed')).toBeLessThan(stdout.indexOf('next: yg check'));
   });
 
   it('--upgrade with truly nothing to do still says nothing changed', async () => {

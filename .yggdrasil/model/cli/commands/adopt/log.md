@@ -44,3 +44,5 @@ Accepting a proposed graph is a setup like init, so it configures the same merge
 Adopting a proposed graph now configures the same git merge drivers and post-merge hook that init configures, so an adopted repository merges its logs and lock the same way as one set up with init. This arrived in one batch with the coverage, verdict-vocabulary and structure-wording work, which does not touch adoption.
 ## [2026-09-28T02:30:15.823Z]
 adopt reported an imported proposal as mined by a named sibling tool. A message that names another tool ages with that tool and is wrong for any other producer, so the report now says the proposal was mined from this repository and points at the usual proposal directory without naming who wrote it.
+## [2026-09-28T19:04:59.661Z]
+Accepting a proposal sets up the merge drivers like init does; what that setup could not do (a post-merge hook it may not write into a committed hooks directory, a setting it could not store) was dropped without a word. The acceptance summary now prints each as a note with why and fix before its next step.

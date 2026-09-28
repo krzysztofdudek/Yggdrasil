@@ -16,6 +16,6 @@ fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
   readable-names @ app/svc-11 — 1 reviewer call
   readable-names @ app/svc-12 — 1 reviewer call
   … +12 more  (yg check --details)
-note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written.
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. No cost in money is estimated: the CLI knows no price for any reviewer model; a paid fill reports the tokens the provider counted and, where the provider states it, the cost. Nothing was written.
   fix:  yg check --approve  (paid, up to 24 reviewer calls)
 --- stderr
