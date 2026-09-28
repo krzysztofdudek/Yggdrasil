@@ -210,12 +210,15 @@ describe.skipIf(!distExists)('CLI E2E — yg advise unguarded hot spot', () => {
     try {
       gitInit(dir);
       // Commit A: the graph + hot's real (non-excluded) file, safe's file, and an
-      // excluded generated file under hot's own mapping. hot's REAL churn is 1.
+      // excluded generated file under hot's own mapping. Commit B edits the kept
+      // file once, so hot's REAL churn is 2 — the floor a component needs to be hot.
       w(dir, 'src/bare/kept.ts', 'export const kept = 1;\n');
       w(dir, 'src/bare/generated/g1.ts', 'export const g1 = 1;\n');
       w(dir, 'src/guarded/b.ts', 'export const b = 1;\n');
       commitAll(dir, 'init');
-      // Commits B–G: six more commits touching ONLY the excluded generated file.
+      w(dir, 'src/bare/kept.ts', 'export const kept = 2;\n');
+      commitAll(dir, 'kept');
+      // Commits C–H: six more commits touching ONLY the excluded generated file.
       for (let i = 2; i <= 7; i++) {
         w(dir, 'src/bare/generated/g1.ts', `export const g1 = ${i};\n`);
         commitAll(dir, `gen ${i}`);
@@ -224,11 +227,11 @@ describe.skipIf(!distExists)('CLI E2E — yg advise unguarded hot spot', () => {
       const { status, stdout } = run(['advise'], dir);
       expect(status).toBe(0);
 
-      // Only the ONE commit touching the non-excluded file counts — the six
+      // Only the TWO commits touching the non-excluded file count — the six
       // excluded-file-only commits are never attributed to 'hot'.
       expect(stdout).toContain(HOT_WHAT('hot'));
-      expect(stdout).toContain("1 of the last 200 commits touched this node's files");
-      expect(stdout).not.toContain('7 of the last 200 commits');
+      expect(stdout).toContain("2 of the last 200 commits touched this node's files");
+      expect(stdout).not.toContain('8 of the last 200 commits');
       // Evidence names only the file this node actually enforces.
       expect(stdout).toContain('Evidence: src/bare/kept.ts (last 200 commits, from git history).');
       expect(stdout).not.toContain('generated/g1.ts');

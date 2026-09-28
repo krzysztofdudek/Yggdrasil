@@ -593,13 +593,35 @@ function decorativeRuleNominations(
   return out;
 }
 
+/**
+ * The minimum churn a component (unguarded hot spot) or a type-covered file
+ * (type-covered churn) needs before it is nominated, counted over the commit
+ * window the churn source reads. A file's FIRST appearance in that window
+ * already counts as a touch, so churn exactly 1 may be nothing but the creating
+ * commit — not churn, merely existing. One floor for both classes: a brand-new
+ * component is no hotter than a brand-new type-covered file.
+ * Requiring more than that one touch (churn >= 2) is the minimal floor for
+ * THAT shape; a higher floor would need its own justification this constant
+ * does not have.
+ *
+ * NOT the converse: below this floor is not proof of no edits, only no proof
+ * of one inside the window. A creating commit scrolled out of the window, a
+ * rename (git's name-only log lists only the destination path on the rename
+ * commit), or a merge that introduced the file with no listed files of its
+ * own (`parseNameOnlyLog`'s doc, in `cli/advise.ts`) can each hide real edits
+ * behind a churn of 1 or 0 — why docs/cli-reference.md and CHANGELOG.md state
+ * this as "at least two of the last N commits," never "has ever been edited."
+ */
+const MIN_CHURN = 2;
+
 // ---------------------------------------------------------------------------
 // T1 — unguarded hot spot (a node that changes often but has no rule guarding it)
 // ---------------------------------------------------------------------------
 
 /**
- * Nominate a node as an "unguarded hot spot" when its mapped source changed in the
- * window (churn > 0) yet it has ZERO effective non-draft aspects — the code most in
+ * Nominate a node as an "unguarded hot spot" when its mapped source changed in at
+ * least MIN_CHURN commits of the window (so a component whose only touch is the
+ * commit that created it is not yet hot) yet it has ZERO effective non-draft aspects — the code most in
  * motion has the least protection. The zero-aspect test reuses the single canonical
  * effective-aspect query (hasNonDraftEffectiveAspects), so the full 7-channel
  * cascade, every `when` predicate, and draft semantics are honoured exactly as the
@@ -620,7 +642,7 @@ function hotSpotNominations(
 ): Nomination[] {
   const out: Nomination[] = [];
   for (const [nodeId, { churn, files }] of churnByNode) {
-    if (churn <= 0) continue;
+    if (churn < MIN_CHURN) continue;
     const node = graph.nodes.get(nodeId);
     if (node === undefined) continue; // ownerOf resolved a live node; defensive only
     if (hasNonDraftEffectiveAspects(node, graph)) continue; // a live rule covers it ⇒ not a hot spot
@@ -663,28 +685,10 @@ function hotSpotNominations(
 // the type tier alone carries its enforcement)
 // ---------------------------------------------------------------------------
 
-/**
- * The minimum churn a type-covered file needs before it is nominated, counted
- * over the window `NominationSources.typeCoveredChurnByFile` reads. A file's
- * FIRST appearance in that window already counts as a touch, so churn exactly
- * 1 may be nothing but the creating commit — not churn, merely existing.
- * Requiring more than that one touch (churn >= 2) is the minimal floor for
- * THAT shape; a higher floor would need its own justification this constant
- * does not have.
- *
- * NOT the converse: below this floor is not proof of no edits, only no proof
- * of one inside the window. A creating commit scrolled out of the window, a
- * rename (git's name-only log lists only the destination path on the rename
- * commit), or a merge that introduced the file with no listed files of its
- * own (`parseNameOnlyLog`'s doc, in `cli/advise.ts`) can each hide real edits
- * behind a churn of 1 or 0 — why docs/cli-reference.md and CHANGELOG.md state
- * this as "at least two of the last N commits," never "has ever been edited."
- */
-const MIN_TYPE_COVERED_CHURN = 2;
 
 /**
  * True iff `file` clears BOTH gates a nominee needs: edited beyond its
- * creating commit (`churn >= MIN_TYPE_COVERED_CHURN`) AND its matched type
+ * creating commit (`churn >= MIN_CHURN`) AND its matched type
  * genuinely enforces something on it (`typeEnforcedFiles` — the same fact
  * `yg owner --file` answers). Shared by the main loop and `clusterPartnersOf`,
  * so a cluster PARTNER is held to the same bar as a nominee — a file that
@@ -696,7 +700,7 @@ function qualifiesForTypeCoveredChurn(
   file: string,
   typeEnforcedFiles: ReadonlySet<string>,
 ): entry is { churn: number; typeId: string } {
-  return entry !== undefined && entry.churn >= MIN_TYPE_COVERED_CHURN && typeEnforcedFiles.has(file);
+  return entry !== undefined && entry.churn >= MIN_CHURN && typeEnforcedFiles.has(file);
 }
 
 /**
@@ -737,7 +741,7 @@ function clusterPartnersOf(
 
 /**
  * Nominate graduating a type-covered file to its own node when it has been
- * EDITED beyond its own creating commit (churn >= MIN_TYPE_COVERED_CHURN) AND
+ * EDITED beyond its own creating commit (churn >= MIN_CHURN) AND
  * its matched type genuinely enforces something on it — a type-covered file
  * has NO owning node by construction, so no node-level rule can ever attach to
  * it; the type tier alone carries whatever enforcement it gets, and this class

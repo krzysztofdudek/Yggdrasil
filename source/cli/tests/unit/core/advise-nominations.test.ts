@@ -471,6 +471,18 @@ describe('buildNominations — T1 unguarded hot spot (churn × zero-aspect, belo
     expect(noms.find((n) => n.id === 'unguarded-hot-spot:users/user-repo')).toBeUndefined();
   });
 
+  it('does NOT nominate a zero-aspect node touched by one commit only (it may be its creating commit); two touches do', async () => {
+    const graph = await loadGraph(projectRoot);
+    const at = (churn: number) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        churnByNode: new Map([['checkout/controller', CH(churn, ['src/checkout/controller.ts'])]]),
+        churnWindow: 200,
+      }).find((n) => n.id === 'unguarded-hot-spot:checkout/controller');
+    expect(at(1)).toBeUndefined();
+    expect(at(2)?.why).toContain('2 of the last 200 commits touched this node');
+  });
+
   it('DOES nominate a node whose ONLY aspect is draft (draft enforces nothing) when it churns', async () => {
     // Flip the fixture's requires-logging (auth/auth-api's only aspect) to draft.
     appendFileSync(

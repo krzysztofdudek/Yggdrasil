@@ -108,3 +108,5 @@ The decision budget is not reported for a type while a type above it is past a l
 The tunnel count agrees with its noun instead of printing "1 dependencies jump".
 ## [2026-09-27T23:05:57.196Z]
 Taken into the release line with the other surface-drift fixes for the graph model, relations, rules and agent surfaces: the tunnel count agrees with its noun.
+## [2026-09-28T04:35:36.253Z]
+The unguarded hot spot fired at one commit in the window, and the commit that created a file counts as a touch, so every new component read as hot the moment it appeared. The type-covered churn class already required two touches for exactly that reason; the owner chose one floor of two for both classes, so a component is nominated only once it has been edited after it appeared, and both classes share one constant rather than two numbers that could drift.
