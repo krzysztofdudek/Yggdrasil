@@ -266,7 +266,11 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
     // (not gated by `coverage.type_level`), so it is held to the same flag-off
     // byte-identity contract as every other command — this exact string must
     // never drift without a matching entry in CHANGELOG.md.
-    expect(stdout).toContain(`… +${MARKERS - 10} more  (yg advise --all)`);
+    // Besides the markers, the fixture declares relations no import backs in two
+    // components (relation-declared-unused), which rank below them and are hidden too.
+    const relationItems = 2;
+    expect(stdout).toContain(`· ${MARKERS + relationItems} nominations`);
+    expect(stdout).toContain(`… +${MARKERS + relationItems - 10} more  (yg advise --all)`);
   });
 
   it('--all removes the cap and shows every nomination', () => {

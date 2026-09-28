@@ -1374,3 +1374,37 @@ describe('buildNominations — final sort: classRank tie broken by evidenceTs, t
     ]);
   });
 });
+
+// ── relation-declared-unused (a declared structural relation no import backs) ──
+
+describe('buildNominations — relation-declared-unused', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-relunused-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('names every unbacked target of a component in one item, bound to that target set', async () => {
+    const graph = await loadGraph(projectRoot);
+    const at = (pairs: Array<{ source: string; target: string }>) =>
+      buildNominations(graph, { todayUtc: TODAY, declaredOnlyRelations: pairs }).filter((n) => n.id.startsWith('relation-declared-unused:'));
+    const noms = at([
+      { source: 'orders/order-service', target: 'users/user-repo' },
+      { source: 'orders/order-service', target: 'auth/auth-api' },
+      { source: 'checkout/controller', target: 'orders/order-service' },
+    ]);
+    expect(noms.map((n) => n.id)).toEqual(['relation-declared-unused:checkout/controller', 'relation-declared-unused:orders/order-service']);
+    const orders = noms.find((n) => n.id === 'relation-declared-unused:orders/order-service')!;
+    expect(orders.what).toBe("Node 'orders/order-service' declares 2 relations no code backs: 'auth/auth-api', 'users/user-repo'.");
+    expect(orders.next).toContain('ask the user to approve it first');
+    expect(orders.evidenceHash).toMatch(HEX64);
+    const narrower = at([{ source: 'orders/order-service', target: 'users/user-repo' }])[0];
+    expect(narrower.evidenceHash).not.toBe(orders.evidenceHash);
+  });
+
+  it('is silent when the relation pass supplied nothing', async () => {
+    const graph = await loadGraph(projectRoot);
+    expect(buildNominations(graph, { todayUtc: TODAY }).find((n) => n.id.startsWith('relation-declared-unused:'))).toBeUndefined();
+  });
+});

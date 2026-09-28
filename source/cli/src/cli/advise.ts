@@ -541,11 +541,14 @@ interface RelationBoundaryResult {
   tunnelCount: number;
   /** Same-type import edges among type-covered files, or undefined — see gatherRelationBoundary's own doc. */
   typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+  /** Declared structural relations no code edge backs, from the same pass; undefined when the pass failed. */
+  declaredOnly: Array<{ source: string; target: string }> | undefined;
 }
 
 /**
- * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
- * from ONE shared relation pass — `computeDependencyBoundary` already exists to
+ * The C7 tunnel count, the type-covered-churn cluster's same-type edges and the
+ * declared relations no code backs (relation-declared-unused), from ONE shared
+ * relation pass — `computeDependencyBoundary` already exists to
  * fold the live type-relation gate's edge translation into the SAME pass a
  * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
  * invariant intact even when the type-level tier is on"). Before this, `yg
@@ -586,7 +589,7 @@ async function gatherRelationBoundary(
     boundary = null;
   }
   if (boundary === null) {
-    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined };
+    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined, declaredOnly: undefined };
   }
 
   let tunnelCount = 0;
@@ -610,7 +613,7 @@ async function gatherRelationBoundary(
       }
     }
   }
-  return { tunnelCount, typeCoveredEdges };
+  return { tunnelCount, typeCoveredEdges, declaredOnly: boundary.declaredOnly };
 }
 
 /**
@@ -691,7 +694,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const typeCoveredChurnByFile = gatherTypeCoveredChurn(touchesByCommit, typeCoverage);
   // ONE relation pass serves BOTH the C7 tunnel count and the type-covered-churn
   // cluster edges — see gatherRelationBoundary's own doc.
-  const { tunnelCount, typeCoveredEdges } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
+  const { tunnelCount, typeCoveredEdges, declaredOnly } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
   const skippedCandidates: SkippedCandidatesFile[] = [];
   const familyCandidates = readFamilyCandidatesSource(graph, skippedCandidates);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
@@ -735,6 +738,11 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   }
   if (typeCoveredEdges !== undefined) {
     sources.typeCoveredEdges = typeCoveredEdges;
+  }
+  // The same pass's declared-but-unbacked relations; a failed pass leaves the
+  // relation-declared-unused class silent rather than claiming every relation is backed.
+  if (declaredOnly !== undefined) {
+    sources.declaredOnlyRelations = declaredOnly;
   }
   // T2 class A: a FRESH family-candidates payload (present-or-omit + freshness
   // gate) enables the family-without-law class; absent/stale ⇒ left unset ⇒ omitted.

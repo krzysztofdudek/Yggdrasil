@@ -78,6 +78,7 @@ import { packageUpdateNominations } from './advise-package-nominations.js';
 import type { PackageUpdateSignal } from './advise-package-nominations.js';
 export type { PackageUpdateSignal } from './advise-package-nominations.js';
 import { architectureCutNominations } from './advise-architecture-cut.js';
+import { declaredRelationUnusedNominations } from './advise-relation-nominations.js';
 import { supersedeClashNominations, typeDecisionBudgetNominations } from './advise-log-nominations.js';
 import type { SupersedeClashSignal, TypeDecisionLoadSignal } from './advise-log-nominations.js';
 import { familyNominations } from './advise-family-nominations.js';
@@ -178,6 +179,14 @@ export interface NominationSources {
    * reproducible across machines). Absent / empty → no architecture-cut items.
    */
   architectureCutCycles?: ArchitectureCutCycle[];
+  /**
+   * The declared structural relations no code edge backs, as (source, target)
+   * pairs, from the relation pass `yg advise` runs at the CLI boundary
+   * (`computeDependencyBoundary`'s `declaredOnly`). Absent → the pass failed or
+   * was not run → the relation-declared-unused class is silent, never a claim
+   * that every relation is backed.
+   */
+  declaredOnlyRelations?: Array<{ source: string; target: string }>;
   /**
    * The type-level classification lattice (coverage.type_level), classified once
    * for this `yg advise` invocation — the SAME object `gatherCurrentUnits` feeds
@@ -998,6 +1007,11 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   // --- T2: architecture-cut (below family) — one item per non-trivial quotient
   //     cycle (declared-only, reproducible); absent / acyclic ⇒ nothing ---
   nominations.push(...architectureCutNominations(sources.architectureCutCycles ?? []));
+
+  // --- T2: relation-declared-unused (below architecture-cut) — one item per
+  //     component whose declared structural relations no import backs; absent
+  //     (relation pass failed) ⇒ silent ---
+  nominations.push(...declaredRelationUnusedNominations(sources.declaredOnlyRelations ?? []));
 
   // --- Imported: proposals another tool measured, below everything the graph
   //     derives itself. Absent ⇒ silent. ---
