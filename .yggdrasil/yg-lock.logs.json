@@ -438,7 +438,7 @@
     "cli/tests/unit/model": {"log":{"last_entry_datetime":"2026-05-13T05:28:56.818Z","prefix_hash":"c2a6ac25c6d5403942603a4b996afa7920a6901c35ab0b365ff47592fb09ab66"},"source":"63cb2bf11a20fa0aefb0f38a3bb8cb45633fd68fd1263e49d126ea0ae8a949c0"},
     "cli/tests/unit/prompt-headroom": {"source":"2d4fde74379ae64419ad84e417b746baf6fcce5f2ffebe400a01960d00e5a583"},
     "cli/tests/unit/relations": {"source":"5d9ad63cf4eb68a344a33f7d23b32dfd42efcb986d6ba599751c347efb0cb621"},
-    "cli/tests/unit/repo": {"log":{"last_entry_datetime":"2026-09-27T21:23:18.996Z","prefix_hash":"4ffb9bb568e61c4078ffcbeca00845465c70746c8205f8a254f6df2cf31be45e"},"source":"f68a6ee32f0c6a76f363e8511e4c7f23649ceafa14fb1a43f5154c9d8c7af555"},
+    "cli/tests/unit/repo": {"log":{"last_entry_datetime":"2026-09-28T02:12:47.849Z","prefix_hash":"c2a64d01cf912b61353d1ad276987c3cee284bee9ce9d42f135f3e384b83595e"},"source":"f68a6ee32f0c6a76f363e8511e4c7f23649ceafa14fb1a43f5154c9d8c7af555"},
     "cli/tests/unit/repo/file-formats": {"source":"fcb371953a9cf9fce5175fd18995ea31a5baa74176004f8a70545f71d4f58889"},
     "cli/tests/unit/rules-artifact-names-attach": {"source":"7121c213d3c215b3e80fea1594af10403333dfc92460ac91afaf618327b3e3ac"},
     "cli/tests/unit/runcheck-parity-attach": {"source":"72bda4e224fa7b1bbadac7c2ed7a5d6a279d30e4032c53cd4d43ae4b317f6f3d"},
