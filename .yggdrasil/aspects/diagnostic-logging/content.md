@@ -12,4 +12,4 @@ Every catch block that handles an error without re-throwing must call `debugWrit
 
 ## Depends on
 
-The `debugWrite` function from `utils/debug-log.ts` (Plan 5). If not yet implemented, this aspect documents the requirement — code compliance will be verified once the module exists.
+The `debugWrite` function from `utils/debug-log.ts`.
