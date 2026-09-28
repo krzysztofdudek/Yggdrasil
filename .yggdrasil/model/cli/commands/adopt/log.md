@@ -46,3 +46,5 @@ Adopting a proposed graph now configures the same git merge drivers and post-mer
 adopt reported an imported proposal as mined by a named sibling tool. A message that names another tool ages with that tool and is wrong for any other producer, so the report now says the proposal was mined from this repository and points at the usual proposal directory without naming who wrote it.
 ## [2026-09-28T19:04:59.661Z]
 Accepting a proposal sets up the merge drivers like init does; what that setup could not do (a post-merge hook it may not write into a committed hooks directory, a setting it could not store) was dropped without a word. The acceptance summary now prints each as a note with why and fix before its next step.
+## [2026-09-28T19:07:19.432Z]
+Taken into the release line with the upgrade-rehearsal fixes: accepting a proposal reports the merge-driver work it left undone as a note, like yg init, so a repository with committed hooks learns it has no post-merge hook.
