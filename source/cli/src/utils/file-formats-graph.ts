@@ -198,6 +198,7 @@ const ASPECT_FIELDS = {
   scope: { type: ASPECT_SCOPE, description: 'Review granularity (not allowed on a bundle).', default: 'per: node' },
   companion: { type: { kind: 'string', nonEmpty: true }, description: 'A repository-relative companion module to use instead of a companion.mjs beside the rule.' },
   config: { type: { kind: 'map', key: 'key', of: { kind: 'scalar' } }, description: 'Values a package rule\'s check reads through ctx.config; only the keys its package declares.' },
+  stores_content: { type: { kind: 'boolean' }, description: 'false keeps this rule\'s refusals out of the local refused-content store except for the verdict hash and the reason: no subject file is copied. Set it on a rule that detects secrets, so a refusal does not leave a second copy of the secret on disk.', default: 'true' },
 } satisfies Record<string, Field>;
 
 /** The top level of a yg-aspect.yaml. */
@@ -216,6 +217,7 @@ export const ASPECT_ROOT: ObjectType = {
     scope: ASPECT_FIELDS.scope,
     companion: ASPECT_FIELDS.companion,
     config: ASPECT_FIELDS.config,
+    stores_content: ASPECT_FIELDS.stores_content,
   },
   retired: {
     id: "never read: a rule's id is its directory path under aspects/",
@@ -264,6 +266,7 @@ export const ASPECT_ADAPT_ROOT: ObjectType = {
     status: ASPECT_FIELDS.status,
     config: { ...ASPECT_FIELDS.config, description: 'Override the defaults of the settings the package declares for this rule.' },
     companion: { ...ASPECT_FIELDS.companion, description: 'Point the rule at a companion module written in this repository.' },
+    stores_content: { ...ASPECT_FIELDS.stores_content, description: 'false keeps this rule\'s refusals out of your local refused-content store except for the verdict hash and the reason — for a package rule that detects secrets.' },
   },
   refused: {
     name: 'the name identifies the rule the package published',

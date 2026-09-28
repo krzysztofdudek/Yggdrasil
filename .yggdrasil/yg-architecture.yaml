@@ -58,8 +58,8 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, relations-adapter, llm-shared, llm-subprocess-base, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-engine-api, portal-server]
-      uses: [types, test-suite, portal-contract]
+      calls: [engine, parser-adapter, persistence-adapter, relations-adapter, llm-shared, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-server]
+      uses: [types, test-suite]
       default: deny
 
   command-support:
@@ -130,7 +130,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, persistence-adapter, llm-shared, structure-adapter, utility]
+      calls: [engine, llm-shared, structure-adapter, utility]
       uses: [types]
       default: deny
 
@@ -149,7 +149,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, utility]
+      calls: [engine, persistence-adapter, utility]
       uses: [types]
       default: deny
 
@@ -225,7 +225,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [utility, llm-shared, ast-adapter, engine]
+      calls: [utility, ast-adapter]
       uses: [types]
       default: deny
 
@@ -244,7 +244,7 @@ node_types:
       - source-hygiene
     parents: [module]
     relations:
-      calls: [utility, ast-adapter, engine, persistence-adapter, structure-adapter]
+      calls: [utility, ast-adapter, persistence-adapter]
       uses: [types]
       default: deny
 
@@ -264,7 +264,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, ast-adapter, structure-adapter, persistence-adapter, llm-shared, utility, relations-adapter]
+      calls: [ast-adapter, persistence-adapter, utility]
       uses: [types]
       default: deny
 
@@ -606,7 +606,6 @@ node_types:
       - source-hygiene
     parents: [module]
     relations:
-      uses: [types]
       default: deny
 
   portal-pipeline:
@@ -664,7 +663,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, command-support, persistence-adapter, relations-adapter, ast-adapter, formatter, utility]
+      calls: [engine, command-support, persistence-adapter, relations-adapter, formatter, utility]
       uses: [types, portal-contract]
       default: deny
 
@@ -688,12 +687,12 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [portal-pipeline, portal-engine-api]
-      uses: [types, portal-contract]
+      calls: [portal-pipeline]
+      uses: [portal-contract]
       default: deny
 
   portal-frontend-core:
-    description: "Portal frontend (browser) core — the shell.html, the CSS, and the non-view browser JS that parses the inlined PortalData and renders the page. Vanilla, framework-free, offline. Recursive+strict over the frontend asset root, EXCLUDING the vendored layout library (vendor/**, classified as portal-frontend-vendor) and the per-surface view modules (js/views/**, reserved for portal-frontend-view in a later phase). Default aspects forbid Node imports, network/CDN references, and secret strings, and keep each file focused. No relations: a browser file has no graph-level dependency on another node's code."
+    description: "Portal frontend (browser) core — the shell.html, the CSS, and the non-view browser JS that parses the inlined PortalData and renders the page. Vanilla, framework-free, offline. Recursive+strict over the frontend asset root, EXCLUDING the vendored layout library (vendor/**, classified as portal-frontend-vendor) and the per-surface view modules (js/views/**, reserved for portal-frontend-view in a later phase). Default aspects forbid Node imports, network/CDN references, and secret strings, and keep each file focused. No relations: a browser file imports no other node's code. The views depend on it at run time through the window.YgPortal global, which no import shows; the portal-frontend flow declares that dependency."
     enforce: strict
     when:
       all_of:
@@ -718,7 +717,7 @@ node_types:
       default: deny
 
   portal-frontend-view:
-    description: "Portal frontend (browser) per-surface VIEW modules — one focused file per §3a surface under source/cli/src/templates/portal/js/views/. Each consumes the inlined PortalData and renders one surface (Overview, Coverage & Audit, the Node Attestation panel, the Structure tree, Relations & Boundaries) per its design mockup and the honest-state palette. The same envelope as the frontend core (no Node imports, no network/CDN references, no secret strings, focused file size) PLUS the honesty moat: every view must reference the shared honest-state model (never invent an ad-hoc green) and must never collapse distinct verdict states into one green. Recursive+strict over js/views/** so any view file is force-classified into this type. No relations: a browser file has no graph-level dependency on another node's code."
+    description: "Portal frontend (browser) per-surface VIEW modules — one focused file per §3a surface under source/cli/src/templates/portal/js/views/. Each consumes the inlined PortalData and renders one surface (Overview, Coverage & Audit, the Node Attestation panel, the Structure tree, Relations & Boundaries) per its design mockup and the honest-state palette. The same envelope as the frontend core (no Node imports, no network/CDN references, no secret strings, focused file size) PLUS the honesty moat: every view must reference the shared honest-state model (never invent an ad-hoc green) and must never collapse distinct verdict states into one green. Recursive+strict over js/views/** so any view file is force-classified into this type. No relations: a browser file imports no other node's code. A view depends at run time on the frontend core (the window.YgPortal global) and on the PortalData shape portal/contract.ts declares, neither of which is an import; the portal-frontend flow declares both."
     enforce: strict
     when:
       path: "source/cli/src/templates/portal/js/views/**/*.js"

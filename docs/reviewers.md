@@ -691,6 +691,7 @@ The lock keeps a refusal's hash and reason, not the code it refused, so once the
 
 - **Local only.** The directory is gitignored, never committed, and never read by any check, verification or render path; delete it at will.
 - **Written only where it is ignored.** The store never edits a tracked `.gitignore`, so on a graph whose `.yggdrasil/.gitignore` lacks the `.refused/` line it stores no record; `yg init --upgrade` adds the line.
+- **No copy of a secret.** A rule marked `stores_content: false` in its `yg-aspect.yaml` (or a package rule's `yg-aspect.adapt.yaml`) keeps its refusals here as the hash and the reason only: the record has an empty `files` list and `contentWithheld: true`, and no subject file is read or copied. Set it on a rule that detects secrets — its refused files hold the secret it caught, and the store would otherwise keep a second copy of it on disk. The key is not a verdict input: setting it re-opens nothing.
 - **Bounded per refusal.** A unit whose subject files together exceed 2 MiB is not stored. A record already present is left alone — the same hash means the same inputs.
 - **Best-effort.** A failed write loses that record and never changes a fill's outcome.
 

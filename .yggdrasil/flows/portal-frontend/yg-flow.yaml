@@ -1,0 +1,6 @@
+name: Portal frontend
+description: "Render the portal page in the browser — each view module under templates/portal/js/views/ reads the helpers the frontend core publishes on the window.YgPortal global and walks the PortalData JSON whose shape portal/contract.ts declares. None of it is an import: the browser files are plain scripts sharing a global, and the JSON reaches them inlined in the page, so the relation extractor sees no edge and the frontend types declare no relations. This flow is that dependency, declared, so that yg impact on the frontend core or on the contract names the flow and yg impact --flow portal-frontend names the views that break with them."
+nodes:
+  - cli/portal/frontend/views
+  - cli/portal/frontend/core
+  - cli/portal/contract

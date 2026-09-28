@@ -455,6 +455,14 @@ export interface AspectDef {
    */
   errs?: ErrsDirection;
   /**
+   * `stores_content: false` in yg-aspect.yaml (or its adaptation): a refusal by
+   * this rule is recorded in the local refused-content store with its hash and
+   * reason only, never the subject files — for a rule that detects secrets, whose
+   * refused files hold the secret. Absent → the store keeps the files. NEVER a
+   * verdict-hash ingredient.
+   */
+  storesContent?: false;
+  /**
    * True when the aspect has a companion resolver: a companion.mjs beside its rule
    * sources, or a `companion:` key naming one elsewhere in the repository.
    * Valid only when reviewer.type === 'llm'.

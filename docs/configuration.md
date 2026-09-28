@@ -186,7 +186,7 @@ reviewer:
 | `provider` | yes | One of the supported providers (see below) |
 | `consensus` | yes | Positive odd integer. `1` = single call. `3` = majority vote. |
 | `max_prompt_chars` | no | Positive integer. Caps the assembled-prompt length for reviewer pairs on this tier (see [Prompt-size gate](#prompt-size-gate)). Absent defaults to 50000. `yg init` writes `50000`. |
-| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible` / `copilot-cli`; optional for the other CLI providers | Provider-specific model identifier. Two different defaults exist. `yg init` always writes a model into the file: `sonnet` for `claude-code` when `--model` is omitted, and whatever `--model` names for every other provider (init requires it). Only when a tier in the file has no `config.model` does the run-time fallback apply: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. `copilot-cli` has no default and must name one (`auto` lets Copilot pick). |
+| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible` / `copilot-cli`; optional for the other CLI providers | Provider-specific model identifier. `yg init` always writes a model into the file: `sonnet` for `claude-code` when `--model` is omitted, and whatever `--model` names for every other provider (init requires it). When a tier in the file has no `config.model`, the run-time fallback applies: `claude-code` → `sonnet` (the same model init writes), `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. `copilot-cli` has no default and must name one (`auto` lets Copilot pick). |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
 | `config.timeout` | no | Per-call timeout in seconds, honored by every provider. Defaults to `300` for the CLI providers and `ollama`, and to `60` for the hosted APIs (`anthropic`, `openai`, `google`, `openai-compatible`). A call that runs past it is reported as timed out, naming this setting, and is not retried (the request may already be billed). A hosted-API request that got no answer at all — connection refused, unknown host — is retried once, and a 429 once after two seconds. |
@@ -733,7 +733,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | yes | Which reviewer the tier calls. |
 | `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | yes | 1 for a single call, or an odd number for a majority vote. |
 | `reviewer.tiers.<tier>.config` | mapping | yes | The provider settings. |
-| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier; when it is absent, claude-code uses haiku, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
+| `reviewer.tiers.<tier>.config.model` | string | yes, except for claude-code, codex and gemini-cli | The provider's model identifier; when it is absent, claude-code uses sonnet, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
 | `reviewer.tiers.<tier>.config.endpoint` | string | yes, for openai-compatible | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
 | `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
 | `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |
@@ -781,7 +781,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `reviewer.tiers.<tier>.provider` | `ollama` \| `openai` \| `anthropic` \| `google` \| `openai-compatible` \| `claude-code` \| `codex` \| `gemini-cli` \| `copilot-cli` | no | Which reviewer the tier calls. |
 | `reviewer.tiers.<tier>.consensus` | integer ≥ 1 | no | 1 for a single call, or an odd number for a majority vote. |
 | `reviewer.tiers.<tier>.config` | mapping | no | The provider settings. |
-| `reviewer.tiers.<tier>.config.model` | string | no | The provider's model identifier; when it is absent, claude-code uses haiku, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
+| `reviewer.tiers.<tier>.config.model` | string | no | The provider's model identifier; when it is absent, claude-code uses sonnet, codex uses o4-mini, gemini-cli uses gemini-2.5-flash. |
 | `reviewer.tiers.<tier>.config.endpoint` | string | no | The API endpoint URL (ollama defaults to `http://localhost:11434`). |
 | `reviewer.tiers.<tier>.config.temperature` | number ≥ 0 | no | Sampling temperature; the CLI providers ignore it. Default: `0`. |
 | `reviewer.tiers.<tier>.config.timeout` | number | no | Per-call timeout in seconds, a positive number. Default: `300 for the CLI providers and ollama, 60 for the hosted APIs`. |

@@ -230,3 +230,49 @@ describe('a helper the rule imports from elsewhere in the repository', () => {
     expect(JSON.stringify(parsed)).toContain('aspect-source-symlink');
   });
 });
+
+// A reviewer rule can name its companion outside its own directory
+// (`companion: tools/mine.mjs`, usually from an adaptation). That module runs in
+// place of companion.mjs, and its own bytes were already the rule's companion
+// artifact — but a module IT imported was never followed, so an edit there
+// changed which files the reviewer saw while the verdicts stayed on record.
+describe('the modules an external companion imports', () => {
+  function repo(companion: string, files: Record<string, string>): { root: string; dir: string } {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-support-companion-'));
+    dirs.push(root);
+    const dir = path.join(root, '.yggdrasil', 'aspects', 'a');
+    for (const [rel, body] of Object.entries({
+      '.yggdrasil/aspects/a/yg-aspect.yaml': `name: A\ncompanion: ${companion}\n`,
+      '.yggdrasil/aspects/a/content.md': 'Every handler logs.\n',
+      ...files,
+    })) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), body, 'utf-8');
+    }
+    return { root, dir };
+  }
+
+  async function loadIn(r: { root: string; dir: string }): Promise<AspectDef> {
+    const parsed = await parseAspect(r.dir, path.join(r.dir, 'yg-aspect.yaml'), 'a', { projectRoot: r.root });
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.errors));
+    return parsed.aspect;
+  }
+
+  const companionFiles = (v: number) => ({
+    'tools/mine.mjs': "import { pick } from './lib/pick.mjs';\nexport function resolve(ctx) { return pick(ctx); }\n",
+    'tools/lib/pick.mjs': "export { pick } from './deeper.mjs';\n",
+    'tools/lib/deeper.mjs': `export const pick = () => [${v}];\n`,
+  });
+
+  it('folds them in, followed module to module, so an edit to one re-opens the rule', async () => {
+    const before = await loadIn(repo('tools/mine.mjs', companionFiles(1)));
+    const after = await loadIn(repo('tools/mine.mjs', companionFiles(2)));
+    expect(before.supportFiles?.map(([p]) => p)).toEqual(['../../../tools/lib/deeper.mjs', '../../../tools/lib/pick.mjs']);
+    expect(ruleHashFor(before, 'content.md')).not.toBe(ruleHashFor(after, 'content.md'));
+  });
+
+  it('adds nothing for a companion that imports nothing, so such a rule hashes as before', async () => {
+    const aspect = await loadIn(repo('tools/mine.mjs', { 'tools/mine.mjs': 'export function resolve() { return []; }\n' }));
+    expect(aspect.supportFiles).toBeUndefined();
+  });
+});

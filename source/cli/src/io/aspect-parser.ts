@@ -366,7 +366,18 @@ export async function parseAspect(
   if (!kindResult.ok) return refused(kindResult.errors);
   const { reviewer, hasCompanionMjs } = kindResult.value;
 
-  const sourcesResult = await readRuleSources(aspectDir, idTrimmed, options);
+  // companion: is resolved before the rule's sources: a companion named outside
+  // the rule directory runs in place of companion.mjs, so the modules it imports
+  // are verdict inputs exactly like a companion.mjs helper's.
+  let companion: { path: string; source: string } | undefined;
+  if (raw.companion !== undefined) {
+    const companionResult = await parseCompanion(raw.companion, idTrimmed, aspectDir, options, adapt.present ? adaptFilePath : undefined);
+    if (!companionResult.ok) return refused(companionResult.errors);
+    companion = companionResult.value;
+  }
+  const companionPath = companion?.path;
+
+  const sourcesResult = await readRuleSources(aspectDir, idTrimmed, options, companionPath);
   if (!sourcesResult.ok) return refused(sourcesResult.errors);
   const { artifacts, supportFiles } = sourcesResult.value;
 
@@ -403,14 +414,6 @@ export async function parseAspect(
     scope = scopeResult.value;
   }
 
-  let companion: { path: string; source: string } | undefined;
-  if (raw.companion !== undefined) {
-    const companionResult = await parseCompanion(raw.companion, idTrimmed, aspectDir, options, adapt.present ? adaptFilePath : undefined);
-    if (!companionResult.ok) return refused(companionResult.errors);
-    companion = companionResult.value;
-  }
-  const companionPath = companion?.path;
-
   const configResult = resolveRuleConfig(raw, idTrimmed, options, adapt.present ? adaptFilePath : aspectYamlPath);
   if (!configResult.ok) return refused(configResult.errors);
   const config = configResult.value;
@@ -446,6 +449,8 @@ export async function parseAspect(
       ...(status !== undefined && { status }),
       ...(reviewBy !== undefined && { reviewBy }),
       ...(errs !== undefined && { errs }),
+      // Type-checked by the schema floor above (a non-boolean is refused there).
+      ...(raw.stores_content === false && { storesContent: false as const }),
       ...(scope !== undefined && { scope }),
       ...((hasCompanionMjs || companionPath !== undefined) && { hasCompanion: true }),
       ...(supportFiles.length > 0 && { supportFiles }),
@@ -648,15 +653,22 @@ async function readRuleSources(
   aspectDir: string,
   idTrimmed: string,
   options: ParseAspectOptions,
+  companionPath: string | undefined,
 ): Promise<FieldResult<{ artifacts: AspectDef['artifacts']; supportFiles: NonNullable<AspectDef['supportFiles']> }>> {
   const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME]);
   // Everything else the rule's code can reach — a helper module, a shipped table
   // — is a verdict input too. See readSupportFileHashes for what is left out.
   const projectRootForRule = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+  // A companion named by `companion:` (repo-relative) is traced like companion.mjs:
+  // an edit to a module it imports re-opens the verdicts it helped produce.
+  const entryPoints = companionPath === undefined
+    ? []
+    : [toPosixPath(path.relative(aspectDir, path.resolve(projectRootForRule, companionPath)))];
   const support = await readSupportFileHashes(
     aspectDir,
     ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME, 'log.md', 'provenance.json', 'content.md', 'check.mjs', 'companion.mjs'],
     projectRootForRule,
+    entryPoints,
   );
   // A symbolic link the rule's code names — under drills/, in a nested rule's
   // directory, through a linked dot-named directory — is refused like a linked

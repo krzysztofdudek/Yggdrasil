@@ -20,8 +20,11 @@ description: "Subprocess E2E over the public CLI: yg check maintains the local,
   its churn count, and its matched type; two such same-type files importing each
   other upgrade the evidence to a cluster; a file under a coverage.excluded root is
   never attributed churn or nominated; and with the type tier off, output is
-  byte-identical whether or not a matching type is even declared. Spawns the
-  built bin.js; no source imports."
+  byte-identical whether or not a matching type is even declared. Also covers the
+  yg advise relation-declared-unused nomination: a component declaring a relation
+  no import backs gets one item naming that target and not the backed one, and the
+  item disappears once the stale relation is removed. Spawns the built bin.js; no
+  source imports."
 aspects: []
 relations:
   - target: cli/tests/support
@@ -32,3 +35,4 @@ mapping:
   - source/cli/tests/e2e/cli-advise-deviation-line.test.ts
   - source/cli/tests/e2e/cli-advise-hot-spot.test.ts
   - source/cli/tests/e2e/cli-advise-type-covered-churn.test.ts
+  - source/cli/tests/e2e/cli-advise-relation-declared-unused.test.ts

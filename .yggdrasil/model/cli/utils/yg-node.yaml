@@ -45,6 +45,11 @@ description: Shared helper functions — debug logging, git introspection, path
   parser, so a misspelled key is refused the same way, with the same
   did-you-mean, in every file rather than rejected in one place and silently
   ignored in another.
+  It also owns the pure half of the observation contract — the observation keys,
+  the missing sentinel, the code-point canonical JSON, and the canonical text each
+  observation value is the digest of, with the digest injected by the caller — so
+  the structure runtime that records a check's reads and the engine that
+  re-observes them fold byte-identical values while neither imports the other.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses }, { target: cli/model/file-when, type: uses }, { target: cli/model/validation, type: uses }, { target: cli/model/when, type: uses } ]
@@ -75,3 +80,4 @@ mapping:
   - source/cli/src/utils/graph-file-names.ts
   - source/cli/src/utils/count.ts
   - source/cli/src/utils/known-keys.ts
+  - source/cli/src/utils/observation-keys.ts

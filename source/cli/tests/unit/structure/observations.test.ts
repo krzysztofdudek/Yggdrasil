@@ -19,10 +19,11 @@ import {
   MISSING_OBSERVATION,
 } from '../../../src/core/pair-hash.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
+import { SHA256_OBSERVATION_HASHES } from '../../../src/io/hash.js';
 
 describe('ObservationRecorder — unit', () => {
   it('tainted=false in clean run with no conflicts', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordRead('src/a.ts', Buffer.from('hello'));
     rec.recordExists('src/b.ts', 'file');
     rec.recordList('src/', [{ name: 'a.ts', kind: 'file' }]);
@@ -30,7 +31,7 @@ describe('ObservationRecorder — unit', () => {
   });
 
   it('dedup — same key same hash → one entry', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordRead('src/a.ts', Buffer.from('hello'));
     rec.recordRead('src/a.ts', Buffer.from('hello'));
     const snap = rec.snapshot();
@@ -39,7 +40,7 @@ describe('ObservationRecorder — unit', () => {
   });
 
   it('sorted output — keys come back in code-point order', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordExists('z.ts', 'file');
     rec.recordExists('a.ts', false);
     rec.recordRead('m.ts', Buffer.from('x'));
@@ -49,7 +50,7 @@ describe('ObservationRecorder — unit', () => {
   });
 
   it('taint: same key different hash → tainted=true, first hash wins', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const buf1 = Buffer.from('first');
     const buf2 = Buffer.from('second');
     rec.recordRead('src/a.ts', buf1);
@@ -62,14 +63,14 @@ describe('ObservationRecorder — unit', () => {
   });
 
   it('no taint for distinct keys with distinct hashes', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordRead('src/a.ts', Buffer.from('aaa'));
     rec.recordRead('src/b.ts', Buffer.from('bbb'));
     expect(rec.tainted).toBe(false);
   });
 
   it('recordGraphNodeAbsent folds the MISSING_OBSERVATION token under graph: key', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordGraphNodeAbsent('does/not/exist');
     const snap = rec.snapshot();
     const entry = snap.find(([k]) => k === observationKey('graph', 'does/not/exist'));
@@ -77,9 +78,9 @@ describe('ObservationRecorder — unit', () => {
   });
 
   it('recordGraphChildren folds the set membership (order-independent)', () => {
-    const rec1 = new ObservationRecorder();
+    const rec1 = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec1.recordGraphChildren('parent', ['parent/a', 'parent/b']);
-    const rec2 = new ObservationRecorder();
+    const rec2 = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec2.recordGraphChildren('parent', ['parent/b', 'parent/a']); // reordered
     const k = observationKey('graph-children', 'parent');
     const h1 = rec1.snapshot().find(([key]) => key === k)![1];
@@ -87,27 +88,27 @@ describe('ObservationRecorder — unit', () => {
     expect(h1).toBe(h2); // order does not matter
     expect(h1).toBe(hashNodeSetObservation(['parent/a', 'parent/b']));
     // Adding a child changes the hash.
-    const rec3 = new ObservationRecorder();
+    const rec3 = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec3.recordGraphChildren('parent', ['parent/a', 'parent/b', 'parent/c']);
     expect(rec3.snapshot().find(([key]) => key === k)![1]).not.toBe(h1);
   });
 
   it('recordGraphNodesByType folds by-type set membership', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordGraphNodesByType('command', ['x', 'y']);
     const k = observationKey('graph-bytype', 'command');
     expect(rec.snapshot().find(([key]) => key === k)![1]).toBe(hashNodeSetObservation(['x', 'y']));
   });
 
   it('recordFlowParticipants folds the flow participant set', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordFlowParticipants('checkout', ['a', 'b']);
     const k = observationKey('graph-flow', 'checkout');
     expect(rec.snapshot().find(([key]) => key === k)![1]).toBe(hashNodeSetObservation(['a', 'b']));
   });
 
   it('recordReadAbsent / recordListAbsent fold MISSING_OBSERVATION', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordReadAbsent('src/gone.ts');
     rec.recordListAbsent('src/gonedir');
     const snap = rec.snapshot();
@@ -386,7 +387,7 @@ describe('runStructureAspect — observation recording', () => {
   it('tainted=true when same key observed with different hashes (simulated via recorder)', () => {
     // We can only simulate a mid-run content change by directly calling the recorder,
     // since check.mjs cannot perform writes. This validates the first-hash-wins contract.
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const buf1 = Buffer.from('version A');
     const buf2 = Buffer.from('version B');
     rec.recordRead('src/shared.ts', buf1);
@@ -749,13 +750,13 @@ describe('runStructureAspect — observation recording', () => {
 
 describe('ObservationRecorder — settings a rule read', () => {
   it('records under the config: prefix', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordConfig('threshold', 40);
     expect(rec.snapshot()).toEqual([[observationKey('config', 'threshold'), hashConfigObservation(40)]]);
   });
 
   it('the same setting read twice with the same value is one observation, and clean', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordConfig('threshold', 40);
     rec.recordConfig('threshold', 40);
     expect(rec.snapshot()).toHaveLength(1);
@@ -764,7 +765,7 @@ describe('ObservationRecorder — settings a rule read', () => {
 
   it('the same setting seen with two values taints the run, and the FIRST value stands', () => {
     // Same contract as a file that changed mid-run: a torn read is never cached.
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordConfig('threshold', 40);
     rec.recordConfig('threshold', 3);
     expect(rec.tainted).toBe(true);
@@ -774,13 +775,13 @@ describe('ObservationRecorder — settings a rule read', () => {
   it('a setting the rule never reads is not recorded at all', () => {
     // The property the whole design rests on: changing a setting nothing consults
     // invalidates nothing.
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordConfig('threshold', 40);
     expect(rec.snapshot().map(([k]) => k)).not.toContain('config:label');
   });
 
   it('a setting the package never declared records as MISSING, not as absent', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordConfig('typo', undefined);
     expect(rec.snapshot()).toEqual([['config:typo', MISSING_OBSERVATION]]);
   });
@@ -792,7 +793,7 @@ describe('ObservationRecorder — settings a rule read', () => {
 
 describe('ObservationRecorder — file lists a rule read', () => {
   it('records ctx.node.files under node-files: and a ctx.graph node\'s files under graph-files:', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordNodeFiles('svc', ['src/svc/b.ts', 'src/svc/a.ts']);
     rec.recordGraphFiles('lib', ['src/lib/x.ts']);
     expect(rec.snapshot()).toEqual([
@@ -804,7 +805,7 @@ describe('ObservationRecorder — file lists a rule read', () => {
   it('the same node under both kinds with two different lists is two observations, not a torn run', () => {
     // ctx.node.files drops descendant-owned and binary files; a node reached
     // through ctx.graph keeps them — one key would see two values and taint.
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordNodeFiles('svc', ['src/svc/a.ts']);
     rec.recordGraphFiles('svc', ['src/svc/a.ts', 'src/svc/logo.png']);
     expect(rec.snapshot()).toHaveLength(2);
@@ -812,7 +813,7 @@ describe('ObservationRecorder — file lists a rule read', () => {
   });
 
   it('reading the same list twice is one observation', () => {
-    const rec = new ObservationRecorder();
+    const rec = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     rec.recordNodeFiles('svc', ['src/svc/a.ts']);
     rec.recordNodeFiles('svc', ['src/svc/a.ts']);
     expect(rec.snapshot()).toHaveLength(1);

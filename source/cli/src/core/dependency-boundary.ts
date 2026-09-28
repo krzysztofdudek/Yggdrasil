@@ -20,7 +20,9 @@ import type { StructEdge } from './graph-metrics.js';
  *   - declared-only — a DECLARED structural relation whose target is never detected as a
  *                     code dependency (DI / HTTP / reflection / events are legitimately
  *                     declared without static backing). Join: declared structural edges
- *                     MINUS the pass's full detected-edge set.
+ *                     MINUS the pass's full detected-edge set, where an edge into a
+ *                     descendant of the target backs the relation (a relation to a
+ *                     component sanctions imports from everything nested under it).
  *   - forbidden-type — a DETECTED code dependency whose target node TYPE is not allowed
  *                     by the architecture matrix for the source node's type under ANY
  *                     structural relation type. Join: detected edges × the matrix.
@@ -165,7 +167,10 @@ export async function computeDependencyBoundary(
       if (!STRUCTURAL_RELATIONS.includes(rel.type as (typeof STRUCTURAL_RELATIONS)[number])) continue;
       if (isLineage(nodeId, rel.target)) continue;
       if (!graph.nodes.has(rel.target)) continue; // a broken target is a different validator's job
-      if (!detectedTargets.has(rel.target)) {
+      // A relation to a component sanctions an import from any of its descendants
+      // too (the relation verifier walks the imported owner's parent chain), so an
+      // import of a file a descendant of the target owns backs the relation.
+      if (![...detectedTargets].some((d) => d === rel.target || d.startsWith(`${rel.target}/`))) {
         declaredOnly.push({ source: nodeId, target: rel.target });
       }
     }

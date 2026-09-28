@@ -232,3 +232,9 @@ A new store keeps the refused content of each refusal a fill records: one JSON r
 A new write-only, best-effort store keeps the refused content of each refusal a fill records, one content-addressed record per verdict hash, skipping units over two mebibytes. It arrived in one batch with the git merge drivers, which do not touch the stores.
 ## [2026-09-27T22:32:21.924Z]
 The refused-content store's two-mebibyte cap is private to the store: nothing outside it reads the constant, and the repository gate refuses an export only a test reads, so the test states the cap as a number instead. The cap and what the store writes are unchanged.
+## [2026-09-28T04:31:59.138Z]
+The observation contract moved into a pure utility that takes its digest from the caller, so one place has to bind it to the sha256 helpers every verdict is hashed with. The hash module owns that digest, so it exports the bound contract once and both the structure runtime (which hands it to each observation recorder) and the engine (which re-observes) fold byte-identical values from it.
+## [2026-09-28T04:40:32.741Z]
+The support-file walk takes extra starting points: a companion named outside the rule directory is code the rule runs, so its relative imports are followed and hashed like those of check.mjs and companion.mjs. Its own bytes are not added here, since they are already the rule companion artifact; a companion importing nothing adds nothing, so such rules hash exactly as before.
+## [2026-09-28T04:45:05.407Z]
+The refused-content store records a refusal of a rule marked stores_content: false with the hash and the reason only, an empty files list and contentWithheld: true, and never reads the subject files: that rule detects secrets and its refused files hold the secret it caught.

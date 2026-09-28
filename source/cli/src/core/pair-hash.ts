@@ -19,7 +19,8 @@
 
 import type { ScopeDef } from '../model/graph.js';
 import type { Verdict } from '../model/lock.js';
-import { hashString, hashBytes } from '../io/hash.js';
+import { hashString, SHA256_OBSERVATION_HASHES } from '../io/hash.js';
+import { codePointCanonicalJson, observationKey, MISSING_OBSERVATION } from '../utils/observation-keys.js';
 
 // ============================================================
 // Public input types
@@ -67,39 +68,10 @@ export interface DetHashInput extends CommonHashInput {
 // codePointCanonicalJson — the single serialization primitive
 // ============================================================
 
-/**
- * Serialize any JSON-representable value to a canonical JSON string where
- * object keys are sorted in Unicode code-point order (never localeCompare —
- * localeCompare is environment-sensitive and therefore banned from any path
- * that contributes to a stored hash).
- *
- * Rules:
- *   - null and primitives: standard JSON.stringify
- *   - arrays: elements in their existing order (callers sort before passing)
- *   - objects: keys sorted by code-point, undefined values omitted
- *
- * Notes for callers:
- *   (a) Key ordering is UTF-16 code-unit order (standard JS string comparison).
- *       Astral-plane keys (code points > U+FFFF) are out of scope — all real
- *       keys in this codebase are ASCII.
- *   (b) Callers must pass finite numbers only — NaN and Infinity stringify to
- *       null in JSON.stringify and will silently produce the wrong hash.
- *   (c) undefined values are dropped from objects; array elements must never
- *       be undefined (JSON.stringify converts them to null, breaking the hash).
- */
-export function codePointCanonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return `[${value.map(codePointCanonicalJson).join(',')}]`;
-  }
-  const obj = value as Record<string, unknown>;
-  // Code-point sort: String.prototype.localeCompare is NEVER used here.
-  // The standard < / > comparator on strings is code-point order for BMP chars.
-  const entries = Object.entries(obj)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${codePointCanonicalJson(v)}`).join(',')}}`;
-}
+// Defined in utils/observation-keys.ts (the pure half of this contract, shared
+// with the structure runtime that records observations) and re-exported here so
+// the verdict hash and every caller keep one serialization.
+export { codePointCanonicalJson };
 
 // ============================================================
 // POSIX path normalization
@@ -250,164 +222,42 @@ export function computeDetInputHash(input: DetHashInput): string {
 // Observation helpers
 // ============================================================
 
-/**
- * Encode an observation key for a deterministic check's ctx read boundary.
- *
- * Format: '<kind>:<target>' where target is the repo-relative POSIX path (for
- * read/list/exists), the model-relative node path (for graph and graph-children),
- * or the node type (for graph-bytype).
- *
- *   read / list / exists — file/dir content + existence probes
- *   graph                — a single node's yg-node.yaml bytes (or absent)
- *   graph-children       — the SET of child node ids of <target> (membership fold)
- *   graph-bytype         — the SET of node ids of type <target> (membership fold)
- *   graph-flow           — the SET of declared participant ids of flow <target>
- *   config               — the VALUE of the configuration key <target> the rule read
- *   node-files           — the SET of paths `ctx.node.files` of node <target> was built from
- *   graph-files          — the SET of paths `.files` of node <target>, reached through
- *                          ctx.graph, was built from
- *
- * `config` was added when a rule gained settings a repository can adapt. It does
- * NOT invalidate a single stored verdict: no entry written before it exists can
- * carry a key with this prefix, so every such entry's `touched` set — and
- * therefore its hash — is byte-for-byte what it was. The only pairs it can move
- * are ones recorded after a rule started reading configuration at all.
- *
- * `node-files` and `graph-files` were added because a check can decide from a
- * node's file NAMES alone — walking a file list and reading only each `.path` —
- * and then no content observation and no subject hash carries the list itself: a
- * file joining the node without becoming this pair's subject left the verdict
- * standing. They are two kinds, not one, because the two lists differ for the
- * same node (`ctx.node.files` drops files a descendant node owns and binary
- * files; a node reached through ctx.graph drops neither), so one key per node
- * would record two values in a check that reads both. Like `config`, they move
- * no stored verdict: an entry written before them carries neither prefix.
- *
- * `grammar` (target: a registry language id) was added so a verdict that read a
- * syntax tree is keyed on the grammar and runtime that built it: the value is
- * ast/parser.ts grammarDigest (grammar wasm + web-tree-sitter wasm). Recorded when
- * a check is handed a tree (a file's `.ast`, ctx.parseAst, the nodeless subject)
- * or when its suppression scan reads one, so a grammar upgrade re-opens those
- * verdicts and no others.
- *
- * Key encoding is part of the frozen contract — changing it changes all
- * deterministic hashes that include observations.
- */
-export function observationKey(
-  kind:
-    | 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow' | 'config'
-    | 'node-files' | 'graph-files' | 'grammar',
-  target: string,
-): string {
-  return `${kind}:${target}`;
-}
+// The observation keys and the canonical text each value hashes are built by
+// utils/observation-keys.ts, a pure module the structure runtime (which records
+// observations) and this engine (which re-observes them) both call; the digest is
+// io/hash.ts's sha256, injected there once as SHA256_OBSERVATION_HASHES. These
+// exports keep the engine's names for them. The kinds, keys and value contracts
+// are documented on ObservationKind and ObservationHashes.
+export { observationKey, MISSING_OBSERVATION };
 
-/**
- * Sentinel hash for a re-observation whose target vanished (a deleted file, dir,
- * or absent graph node). It is NOT a valid 64-hex sha256, so it can never equal a
- * stored content hash — a now-missing target therefore always reads as a CHANGED
- * value (⇒ unverified) and never collides with a genuinely-empty stored
- * observation. The recorder uses it to fold a NEGATIVE graph-node probe
- * (ctx.graph.node() returning undefined) and the verifier uses it for every
- * vanished re-observation, so the two sides stay byte-identical for an
- * absent-then-still-absent target (spec §3.1: missing during re-observation =
- * changed value, never a throw). Part of the FROZEN CONTRACT.
- */
-export const MISSING_OBSERVATION = 'missing';
-
-/**
- * Hash a node-id-SET observation (ctx.graph.children / ctx.graph.nodesByType).
- *
- * The result depends only on WHICH node ids were returned, not their order or any
- * per-node content (each returned node additionally folds its own graph: read
- * observation). Sorting makes the fold deterministic, so ADDING or REMOVING a
- * node from the set changes the hash while a content-only edit to an unchanged
- * member does not (that rides the member's graph: observation instead).
- *
- * Contract: sha256 over the sorted node ids joined by newline. An empty set folds
- * to sha256('') — distinct from MISSING_OBSERVATION, so "no children" is a real,
- * stable observed value that a later first child invalidates.
- */
+/** A node-id-SET observation (ctx.graph.children / nodesByType / a flow's participants). */
 export function hashNodeSetObservation(nodeIds: string[]): string {
-  const lines = [...nodeIds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('\n');
-  return hashString(lines);
+  return SHA256_OBSERVATION_HASHES.nodeSet(nodeIds);
 }
 
-/**
- * Hash a file-list observation (`node-files:` / `graph-files:`): the SET of
- * repo-relative POSIX paths a node's file list was built from.
- *
- * Only membership folds — which paths, never their order, their content, or how
- * often a path was listed (two overlapping mapping entries can list a file twice).
- * Adding a file to the node, removing one, or renaming one changes the hash; an
- * edit to a listed file does not (a check that reads a file's content records
- * that read separately).
- *
- * Contract: sha256 over the deduplicated, code-point-sorted paths joined by
- * newline. An empty list folds to sha256('') — distinct from MISSING_OBSERVATION,
- * so "the node listed no files" is a real observed value a later first file
- * invalidates. Golden-pinned in pair-hash.test.ts.
- */
+/** A file-list observation (`node-files:` / `graph-files:`). Golden-pinned in pair-hash.test.ts. */
 export function hashFileSetObservation(paths: string[]): string {
-  const lines = [...new Set(paths)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('\n');
-  return hashString(lines);
+  return SHA256_OBSERVATION_HASHES.fileSet(paths);
 }
 
-/**
- * Hash a configuration-value observation: sha256 of the value's canonical JSON.
- *
- * Canonical JSON rather than String(value) so `1` and `"1"` are different
- * observations — a threshold retyped from a number to a string is a real change
- * to what the rule was given, and folding them together would let it pass as the
- * same verdict.
- *
- * Only a key the rule actually READ is recorded, which is the property that makes
- * this cheap and honest at once: adapting a key no rule reads invalidates nothing,
- * and adapting one a rule does read sends exactly that rule's verdicts back to
- * unverified rather than the whole repository's.
- */
+/** A configuration-value observation: canonical JSON, MISSING_OBSERVATION for an undeclared key. */
 export function hashConfigObservation(value: unknown): string {
-  // A key the rule asked for that nothing declares folds the same MISSING token a
-  // vanished file does — so the key later appearing (or disappearing) in a package
-  // is a change, and the value can never be confused with a real one.
-  if (value === undefined) return MISSING_OBSERVATION;
-  return hashString(codePointCanonicalJson(value));
+  return SHA256_OBSERVATION_HASHES.config(value);
 }
 
-/**
- * Hash a file-read observation: sha256 of the raw bytes the check read.
- * Used by the runner to record 'read:<path>' entries in touched[].
- */
+/** A file-read observation: sha256 of the raw bytes the check read. */
 export function hashReadObservation(bytes: Buffer): string {
-  return hashBytes(bytes);
+  return SHA256_OBSERVATION_HASHES.read(bytes);
 }
 
-/**
- * Hash a directory-listing observation.
- *
- * Contract: sha256 over the sorted 'name:kind' lines (newline-joined), so
- * the order in which entries are returned by readdir does not affect the hash.
- * Both the name set AND the kind annotations fold — renaming a file or changing
- * a dir-to-file swap both invalidate the verdict.
- *
- * This value is golden-pinned in pair-hash-golden.json.
- */
+/** A directory-listing observation. Golden-pinned in pair-hash-golden.json. */
 export function hashListObservation(entries: Array<{ name: string; kind: 'file' | 'dir' }>): string {
-  const lines = [...entries]
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .map((e) => `${e.name}:${e.kind}`)
-    .join('\n');
-  return hashString(lines);
+  return SHA256_OBSERVATION_HASHES.list(entries);
 }
 
-/**
- * Hash an existence-probe observation.
- *
- * Encodes the result as a string token so the three outcomes ('file', 'dir', false)
- * produce distinct hashes — a file renamed to a directory invalidates the verdict.
- */
+/** An existence-probe observation ('file', 'dir' and false fold distinct values). */
 export function hashExistsObservation(result: 'file' | 'dir' | false): string {
-  return hashString(result === false ? 'false' : result);
+  return SHA256_OBSERVATION_HASHES.exists(result);
 }
 
 // ============================================================

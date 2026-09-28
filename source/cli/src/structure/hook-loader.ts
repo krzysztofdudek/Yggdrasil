@@ -11,7 +11,7 @@ import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, lazyAstFile, P
 import { loadGrammarsFor } from '../ast/parser.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
-import { enumerateNodeMappedFilesCached } from '../io/hash.js';
+import { enumerateNodeMappedFilesCached, SHA256_OBSERVATION_HASHES } from '../io/hash.js';
 import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED, describeExclusionCause } from '../io/repo-scanner.js';
 import type { Graph, GraphNode as ModelNode, CoverageConfig } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
@@ -385,7 +385,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
 
   // Construct one ObservationRecorder per run — threaded into all ctx factories.
-  const recorder = new ObservationRecorder();
+  const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
 
   // Build the own files first (needed to compute subjectFiles set before creating ctxFs).
   // We must know which paths are subject files so we can skip recording read: observations
@@ -579,7 +579,7 @@ async function buildNodelessUnitCtx(params: {
   // choke point every ctx.fs/ctx.parseAst call goes through regardless of
   // whether the unit has an owning component.
   const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
-  const recorder = new ObservationRecorder();
+  const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
   // The subject is the file itself, so its own content is a subject input and
   // is not double-recorded — mirrors the whole-node per:file case exactly.
   const subjectFiles = new Set<string>([unit.file]);

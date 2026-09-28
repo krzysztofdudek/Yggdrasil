@@ -16,6 +16,7 @@ import {
   type ArchitectureCutCycle,
   type FamilyCandidatesData,
   type PackageUpdateSignal,
+  type RelationBacking,
 } from '../core/advise-nominations.js';
 import { newerThanInstalled } from '../core/advise-package-nominations.js';
 import { followsNewest, parsePackagesLock } from '../io/package-manifest-parser.js';
@@ -541,11 +542,14 @@ interface RelationBoundaryResult {
   tunnelCount: number;
   /** Same-type import edges among type-covered files, or undefined — see gatherRelationBoundary's own doc. */
   typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+  /** Declared structural relations no code edge backs and the components code imports from, from the same pass; undefined when the pass failed. */
+  relationBacking: RelationBacking | undefined;
 }
 
 /**
- * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
- * from ONE shared relation pass — `computeDependencyBoundary` already exists to
+ * The C7 tunnel count, the type-covered-churn cluster's same-type edges and the
+ * declared relations no code backs (relation-declared-unused), from ONE shared
+ * relation pass — `computeDependencyBoundary` already exists to
  * fold the live type-relation gate's edge translation into the SAME pass a
  * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
  * invariant intact even when the type-level tier is on"). Before this, `yg
@@ -586,7 +590,7 @@ async function gatherRelationBoundary(
     boundary = null;
   }
   if (boundary === null) {
-    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined };
+    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined, relationBacking: undefined };
   }
 
   let tunnelCount = 0;
@@ -610,7 +614,45 @@ async function gatherRelationBoundary(
       }
     }
   }
-  return { tunnelCount, typeCoveredEdges };
+  const importTargets = [...new Set((boundary.detectedEdgesByNode ?? []).flatMap((d) => d.targets))];
+  const directoriesByNode = await gatherDirectoriesByNode(graph, projectRoot, boundary.declaredOnly);
+  const relationBacking = directoriesByNode === undefined
+    ? undefined
+    : { declaredOnly: boundary.declaredOnly, importTargets, directoriesByNode };
+  return { tunnelCount, typeCoveredEdges, relationBacking };
+}
+
+/**
+ * The directories holding each file the components named in `declaredOnly` own —
+ * relation-declared-unused leaves out a relation between two components of one
+ * directory (see that class's doc). Nothing is walked when no relation is
+ * unbacked. undefined when the walk or the owner resolution fails, which silences
+ * the class rather than naming relations it could not weigh.
+ */
+async function gatherDirectoriesByNode(
+  graph: Graph,
+  projectRoot: string,
+  declaredOnly: ReadonlyArray<{ source: string; target: string }>,
+): Promise<Map<string, string[]> | undefined> {
+  const out = new Map<string, string[]>();
+  if (declaredOnly.length === 0) return out;
+  const wanted = new Set(declaredOnly.flatMap(({ source, target }) => [source, target]));
+  try {
+    const ownerOf = await ownerOfForGraph(graph);
+    const dirs = new Map<string, Set<string>>();
+    for (const file of await walkRepoFiles(projectRoot)) {
+      const owner = ownerOf(file);
+      if (owner === undefined || !wanted.has(owner)) continue;
+      const set = dirs.get(owner) ?? new Set<string>();
+      set.add(path.posix.dirname(file));
+      dirs.set(owner, set);
+    }
+    for (const [node, set] of dirs) out.set(node, [...set]);
+    return out;
+  } catch (error) {
+    debugWrite(`[advise] relation-declared-unused silent (directory walk failed): ${(error as Error).message}`);
+    return undefined;
+  }
 }
 
 /**
@@ -691,7 +733,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const typeCoveredChurnByFile = gatherTypeCoveredChurn(touchesByCommit, typeCoverage);
   // ONE relation pass serves BOTH the C7 tunnel count and the type-covered-churn
   // cluster edges — see gatherRelationBoundary's own doc.
-  const { tunnelCount, typeCoveredEdges } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
+  const { tunnelCount, typeCoveredEdges, relationBacking } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
   const skippedCandidates: SkippedCandidatesFile[] = [];
   const familyCandidates = readFamilyCandidatesSource(graph, skippedCandidates);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
@@ -735,6 +777,11 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   }
   if (typeCoveredEdges !== undefined) {
     sources.typeCoveredEdges = typeCoveredEdges;
+  }
+  // The same pass's declared-but-unbacked relations; a failed pass leaves the
+  // relation-declared-unused class silent rather than claiming every relation is backed.
+  if (relationBacking !== undefined) {
+    sources.relationBacking = relationBacking;
   }
   // T2 class A: a FRESH family-candidates payload (present-or-omit + freshness
   // gate) enables the family-without-law class; absent/stale ⇒ left unset ⇒ omitted.

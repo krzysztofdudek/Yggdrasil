@@ -3,7 +3,9 @@ type: structure-adapter
 description: "Structure-aspect runtime — context layer (types, ctx factories for
   fs, graph, parsers, the allowed-reads collector) and execution layer
   (orchestrates check.mjs loading, ctx construction, and result collection
-  including result-bearing observations). It also holds the parsing side of
+  including result-bearing observations, whose keys and canonical values it builds
+  through utils and whose digest the recorder is handed, never reaching the
+  engine). It also holds the parsing side of
   yg-suppress: the honoring path's resolved ranges, and the comment-aware scan
   of one file's markers the engine's suppression inventory asks for, so both
   read markers the same way."
@@ -29,8 +31,6 @@ relations:
   - target: cli/ast/runtime
     type: calls
   - target: cli/language-registry
-    type: calls
-  - target: cli/core/pair-hash
     type: calls
   - target: cli/io/stores
     type: calls

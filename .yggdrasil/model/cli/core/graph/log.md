@@ -167,3 +167,5 @@ Every edge between two distinct unrelated nodes spans at least two hierarchy hop
 The graph metrics name the sibling span and a predicate for a sibling edge, so the tunnel ranking shared by the structure view, the portal and advise stops presenting dependencies between siblings as tunnels. It arrived in one batch with the git merge drivers, which do not change the graph metrics.
 ## [2026-09-27T22:32:21.323Z]
 The sibling-span constant is private to the metrics core: only the sibling-edge predicate reads it, and the repository gate refuses an export no other file reads. Nothing the metrics compute changes.
+## [2026-09-28T05:11:51.935Z]
+A relation to a component sanctions an import from anything nested under it: the relation verifier walks the imported file owner's parent chain. The declared-only join compared only the exact target, so a relation backed by an import of a file a descendant of the target owns was reported as having no code behind it, in the portal boundary view and in the advice feed. The join now counts an edge into the target or any of its descendants as backing, the same reading the verifier applies.

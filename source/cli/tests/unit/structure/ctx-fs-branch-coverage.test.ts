@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createCtxFs, UndeclaredFsReadError } from '../../../src/structure/ctx-fs.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
+import { SHA256_OBSERVATION_HASHES } from '../../../src/io/hash.js';
 
 /**
  * Branch-coverage tests for the ctx.fs sandbox: the empty-path allow guard, and the
@@ -31,21 +32,21 @@ describe('ctx.fs — allow guard and over-record paths', () => {
   });
 
   it('records a positive existence probe when a recorder is provided', () => {
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const fs = createCtxFs({ allowedSet, projectRoot: root, touchedFiles: [], recorder });
     expect(fs.exists('src/foo.ts')).toBe('file');
     expect(recorder.snapshot().some(([k]) => k.includes('foo.ts'))).toBe(true);
   });
 
   it('folds an ABSENT read observation and re-throws when an allowed file is missing', () => {
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const fs = createCtxFs({ allowedSet, projectRoot: root, touchedFiles: [], recorder });
     expect(() => fs.read('src/gone.ts')).toThrow();
     expect(recorder.snapshot().some(([k]) => k.includes('gone.ts'))).toBe(true);
   });
 
   it('folds an ABSENT list observation and re-throws when an allowed dir is missing', () => {
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const fs = createCtxFs({ allowedSet, projectRoot: root, touchedFiles: [], recorder });
     expect(() => fs.list('src/emptydir')).toThrow();
     expect(recorder.snapshot().some(([k]) => k.includes('emptydir'))).toBe(true);

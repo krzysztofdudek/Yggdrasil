@@ -158,7 +158,7 @@ A rule can also **name** its companion instead of shipping one beside itself, wi
 companion: tools/pair-scenario-with-spec.mjs
 ```
 
-The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
+The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. So is every module it imports by a literal relative specifier, followed from module to module: editing a helper the companion imports re-opens the rule's pairs just as editing the companion does. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
 
 ## Organizing rules in directories
 
@@ -199,6 +199,7 @@ Generated from the schema the parser enforces — the same table `yg schemas rea
 | `scope.files` | file predicate | no | Which of the unit's files the rule looks at (path and content atoms). |
 | `companion` | string | no | A repository-relative companion module to use instead of a companion.mjs beside the rule. |
 | `config` | mapping of &lt;key&gt; to string, number or boolean | no | Values a package rule's check reads through ctx.config; only the keys its package declares. |
+| `stores_content` | boolean | no | false keeps this rule's refusals out of the local refused-content store except for the verdict hash and the reason: no subject file is copied. Set it on a rule that detects secrets, so a refusal does not leave a second copy of the secret on disk. Default: `true`. |
 
 Retired keys, refused by name with what became of each (`yg init --upgrade` removes them): `id` (never read: a rule's id is its directory path under aspects/); `language` (removed in 5.0.0: a script rule reads each file's language from its extension); `stability` (removed in 4.0.0); `anchors` (removed in 4.0.0).
 Any other key is refused by name, with the key it is probably a typo of.

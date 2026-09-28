@@ -157,6 +157,10 @@ export const CLASS_RANK = {
   //     stream (λ) and the joint cap; family ranks above architecture-cut. ---
   familyWithoutLaw: 100,
   architectureCut: 110,
+  // A declared relation no import backs: a whole-codebase observation like the
+  // two above, read from the relation pass, and the weakest of them — often the
+  // relation is true and the extractor simply cannot see it.
+  relationDeclaredUnused: 120,
   // --- Imported: a proposal another tool measured. Ranked BELOW everything this
   //     graph derives itself, deliberately — an outside proposal is a suggestion
   //     to weigh, never something that should push the graph's own findings down

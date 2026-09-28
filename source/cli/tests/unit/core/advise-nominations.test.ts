@@ -471,6 +471,18 @@ describe('buildNominations — T1 unguarded hot spot (churn × zero-aspect, belo
     expect(noms.find((n) => n.id === 'unguarded-hot-spot:users/user-repo')).toBeUndefined();
   });
 
+  it('does NOT nominate a zero-aspect node touched by one commit only (it may be its creating commit); two touches do', async () => {
+    const graph = await loadGraph(projectRoot);
+    const at = (churn: number) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        churnByNode: new Map([['checkout/controller', CH(churn, ['src/checkout/controller.ts'])]]),
+        churnWindow: 200,
+      }).find((n) => n.id === 'unguarded-hot-spot:checkout/controller');
+    expect(at(1)).toBeUndefined();
+    expect(at(2)?.why).toContain('2 of the last 200 commits touched this node');
+  });
+
   it('DOES nominate a node whose ONLY aspect is draft (draft enforces nothing) when it churns', async () => {
     // Flip the fixture's requires-logging (auth/auth-api's only aspect) to draft.
     appendFileSync(
@@ -1360,5 +1372,78 @@ describe('buildNominations — final sort: classRank tie broken by evidenceTs, t
       'overdue-review-by:requires-foo',
       'overdue-review-by:requires-logging',
     ]);
+  });
+});
+
+// ── relation-declared-unused (a declared structural relation no import backs) ──
+
+describe('buildNominations — relation-declared-unused', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-relunused-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('names every unbacked target of a component in one item, bound to that target set', async () => {
+    const graph = await loadGraph(projectRoot);
+    const importTargets = ['users/user-repo', 'auth/auth-api', 'orders/order-service'];
+    const at = (pairs: Array<{ source: string; target: string }>) =>
+      buildNominations(graph, { todayUtc: TODAY, relationBacking: { declaredOnly: pairs, importTargets, directoriesByNode: new Map() } })
+        .filter((n) => n.id.startsWith('relation-declared-unused:'));
+    const noms = at([
+      { source: 'orders/order-service', target: 'users/user-repo' },
+      { source: 'orders/order-service', target: 'auth/auth-api' },
+      { source: 'checkout/controller', target: 'orders/order-service' },
+    ]);
+    expect(noms.map((n) => n.id)).toEqual(['relation-declared-unused:checkout/controller', 'relation-declared-unused:orders/order-service']);
+    const orders = noms.find((n) => n.id === 'relation-declared-unused:orders/order-service')!;
+    expect(orders.what).toBe("Node 'orders/order-service' declares 2 relations no code backs: 'auth/auth-api', 'users/user-repo'.");
+    expect(orders.next).toContain('ask the user to approve it first');
+    expect(orders.evidenceHash).toMatch(HEX64);
+    const narrower = at([{ source: 'orders/order-service', target: 'users/user-repo' }])[0];
+    expect(narrower.evidenceHash).not.toBe(orders.evidenceHash);
+  });
+
+  // A relation to a component no code imports from anywhere (a fixture tree read
+  // by path, a test suite a rule reads, a binary a test runs) is one the extractor
+  // could never back, so its missing import says nothing: not named.
+  it('leaves out a relation whose target no code imports, counting an import of a descendant', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      relationBacking: {
+        declaredOnly: [
+          { source: 'orders/order-service', target: 'users/user-repo' },
+          { source: 'orders/order-service', target: 'auth' },
+          { source: 'checkout/controller', target: 'orders/order-service' },
+        ],
+        importTargets: ['auth/auth-api'],
+        directoriesByNode: new Map(),
+      },
+    }).filter((n) => n.id.startsWith('relation-declared-unused:'));
+    expect(noms.map((n) => n.what)).toEqual(["Node 'orders/order-service' declares 1 relation no code backs: 'auth'."]);
+  });
+
+  // Java, Kotlin and Go code references a neighbour in its own directory (its
+  // package) with no import, so the extractor cannot see that dependency.
+  it('leaves out a relation between two components that own files in one directory', async () => {
+    const graph = await loadGraph(projectRoot);
+    const at = (dirs: Array<[string, string[]]>) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        relationBacking: {
+          declaredOnly: [{ source: 'orders/order-service', target: 'users/user-repo' }],
+          importTargets: ['users/user-repo'],
+          directoriesByNode: new Map(dirs),
+        },
+      }).filter((n) => n.id.startsWith('relation-declared-unused:'));
+    expect(at([['orders/order-service', ['src/app']], ['users/user-repo', ['src/app', 'src/users']]])).toEqual([]);
+    expect(at([['orders/order-service', ['src/orders']], ['users/user-repo', ['src/users']]])).toHaveLength(1);
+  });
+
+  it('is silent when the relation pass supplied nothing', async () => {
+    const graph = await loadGraph(projectRoot);
+    expect(buildNominations(graph, { todayUtc: TODAY }).find((n) => n.id.startsWith('relation-declared-unused:'))).toBeUndefined();
   });
 });

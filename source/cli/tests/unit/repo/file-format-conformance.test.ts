@@ -71,6 +71,7 @@ const ASPECT_DOC: Doc = {
   scope: { per: 'file', files: FILE_WHEN },
   companion: 'comp.mjs',
   config: {},
+  stores_content: false,
 };
 
 /** Full valid documents per format; a field's mutation uses the first one that has the field. */
@@ -113,6 +114,7 @@ const BASES: Record<string, Doc[]> = {
       references: [{ path: 'ref.md', description: 'r' }],
       companion: 'comp.mjs',
       config: {},
+      stores_content: false,
     },
   ],
   flow: [

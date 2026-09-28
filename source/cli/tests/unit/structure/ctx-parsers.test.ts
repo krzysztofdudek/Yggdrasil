@@ -5,7 +5,8 @@ import path from 'node:path';
 import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst } from '../../../src/structure/ctx-parsers.js';
 import { UndeclaredFsReadError } from '../../../src/structure/ctx-fs.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
-import { observationKey, MISSING_OBSERVATION } from '../../../src/core/pair-hash.js';
+import { observationKey, MISSING_OBSERVATION } from '../../../src/utils/observation-keys.js';
+import { SHA256_OBSERVATION_HASHES } from '../../../src/io/hash.js';
 
 describe('ctx parsers', () => {
   let root: string;
@@ -90,7 +91,7 @@ describe('ctx parsers', () => {
 
   it('records a read: observation for a string-path parse when a recorder is supplied', () => {
     writeFileSync(path.join(root, 'cfg.json'), '{"k":2}');
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const p = createCtxParsers({ allowedSet, projectRoot: root, touchedFiles: touched, astCache: new Map(), recorder });
     expect(p.parseJson('cfg.json')).toEqual({ k: 2 });
     const snap = recorder.snapshot();
@@ -100,7 +101,7 @@ describe('ctx parsers', () => {
 
   it('does NOT record an observation when the string path is already a subject file', () => {
     writeFileSync(path.join(root, 'cfg.json'), '{"k":2}');
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const p = createCtxParsers({
       allowedSet,
       projectRoot: root,
@@ -117,7 +118,7 @@ describe('ctx parsers', () => {
     // 'ghost.json' passes the allow-check but is never written to disk — the read
     // itself throws (ENOENT), and with a recorder present that throw must still
     // fold an absent observation before rethrowing (over-record, spec §3.1).
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const p = createCtxParsers({
       allowedSet: new Set(['ghost.json']),
       projectRoot: root,
@@ -132,7 +133,7 @@ describe('ctx parsers', () => {
   });
 
   it('does NOT record a MISSING observation on a throwing read when the path is a subject file', () => {
-    const recorder = new ObservationRecorder();
+    const recorder = new ObservationRecorder(SHA256_OBSERVATION_HASHES);
     const p = createCtxParsers({
       allowedSet: new Set(['ghost.json']),
       projectRoot: root,

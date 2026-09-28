@@ -206,8 +206,11 @@ export interface SupportFiles {
  *    the repository it sits — a helper kept under `drills/`, in a nested rule's
  *    directory, or beside the rule (`../shared/x.mjs`, keyed by that path) is part
  *    of every rule that imports it — followed from module to module. Starting
- *    points: `check.mjs`, `companion.mjs` and every code file the first two ways
- *    found. A specifier built at run time is not seen, and a file outside the
+ *    points: `check.mjs`, `companion.mjs`, every code file the first two ways
+ *    found, and every `entryPoints` module — the companion a `companion:` key
+ *    names outside the rule directory, which runs in place of `companion.mjs`
+ *    (its own bytes are already the rule's companion artifact, so only what it
+ *    imports is folded here). A specifier built at run time is not seen, and a file outside the
  *    repository (or, with no `projectRoot`, outside the rule directory) is not
  *    followed: nothing in the repository pins it.
  *
@@ -222,6 +225,7 @@ export async function readSupportFileHashes(
   dirPath: string,
   exclude: readonly string[],
   projectRoot?: string,
+  entryPoints: readonly string[] = [],
 ): Promise<SupportFiles> {
   const hashed = new Map<string, string>();
   const linked = new Set<string>();
@@ -261,7 +265,7 @@ export async function readSupportFileHashes(
 
   // Follow what the rule's code imports. A file the rule's own hash already
   // covers (a top-level `exclude` entry) is followed but never folded twice.
-  const queue: string[] = [...RULE_CODE_FILES, ...[...hashed.keys()].filter((rel) => CODE_FILE.test(rel))];
+  const queue: string[] = [...RULE_CODE_FILES, ...entryPoints, ...[...hashed.keys()].filter((rel) => CODE_FILE.test(rel))];
   const traced = new Set<string>();
   const listings: DirListings = new Map();
   for (let rel = queue.pop(); rel !== undefined; rel = queue.pop()) {

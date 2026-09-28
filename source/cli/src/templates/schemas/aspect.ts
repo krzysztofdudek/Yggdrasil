@@ -119,6 +119,16 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # \`yg suppressions\` warns when a waiver targets an errs: under check,
                                    # since such a check has no false positives to waive.
 
+# stores_content: false            # optional — boolean, default true. Every refusal a fill records is
+                                   # also kept in the local, gitignored refused-content store
+                                   # (.yggdrasil/.refused/<hash>.json) with the unit's subject files as
+                                   # they were refused. false keeps only the verdict hash and the reason
+                                   # for this rule's refusals and copies no file. Set it on a rule that
+                                   # detects secrets: its refused files hold the secret it caught, and
+                                   # the store would be a second copy of it on disk. Valid on any rule
+                                   # kind and in a package rule's yg-aspect.adapt.yaml. NEVER folded into
+                                   # any verdict hash — setting it re-verifies nothing.
+
 # implies:                         # optional — other aspects included automatically when this
 #                                  # aspect is effective on a node. Two forms:
 #   - simple-aspect-id             # bare string — implied unconditionally (when outer aspect passes)

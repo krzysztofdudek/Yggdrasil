@@ -15,6 +15,10 @@
  * `.gitignore` during a fill: where the store's directory is not ignored (a graph
  * whose `.yggdrasil/.gitignore` predates the store, until `yg init --upgrade` adds
  * the line) it writes nothing.
+ *
+ * A rule marked `stores_content: false` (one that detects secrets) keeps its
+ * refusals here as the hash and the reason only: its refused files hold the very
+ * secret it caught, and a copy in this directory would be a second one on disk.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -52,8 +56,10 @@ export interface RefusedRecord {
   kind: 'llm' | 'deterministic';
   /** The reason the lock records for the refusal. */
   reason: string;
-  /** The subject files as they were when refused, sorted by path. A file whose bytes are not valid UTF-8 carries `base64` instead of `content`. */
+  /** The subject files as they were when refused, sorted by path. A file whose bytes are not valid UTF-8 carries `base64` instead of `content`. Empty when `contentWithheld`. */
   files: Array<{ path: string; content?: string; base64?: string }>;
+  /** Present (true) when the rule is marked `stores_content: false`: no subject file was copied. */
+  contentWithheld?: true;
 }
 
 /** What the fill knows about a refusal when it records one. */
@@ -67,6 +73,8 @@ export interface RefusedInput {
   reason: string;
   /** Repo-relative subject file paths. */
   subjectFiles: readonly string[];
+  /** The rule is marked `stores_content: false`: record the hash and the reason, never the files. */
+  withholdContent?: boolean;
 }
 
 function fileEntry(rel: string, bytes: Buffer): RefusedRecord['files'][number] {
@@ -89,7 +97,7 @@ export function storeRefusedContent(yggRootPath: string, projectRoot: string, in
     if (existsSync(target)) return false;
     const files: RefusedRecord['files'] = [];
     let total = 0;
-    for (const rel of [...input.subjectFiles].map(toPosixPath).sort()) {
+    for (const rel of input.withholdContent === true ? [] : [...input.subjectFiles].map(toPosixPath).sort()) {
       let bytes: Buffer;
       try {
         bytes = readFileSync(path.resolve(projectRoot, rel));
@@ -113,6 +121,7 @@ export function storeRefusedContent(yggRootPath: string, projectRoot: string, in
       kind: input.kind,
       reason: input.reason,
       files,
+      ...(input.withholdContent === true ? { contentWithheld: true as const } : {}),
     };
     atomicWriteFileSync(target, `${JSON.stringify(record)}\n`);
     return true;
