@@ -1,6 +1,6 @@
 name: Quality Config
 type: repo-config
-description: "Code quality tooling configuration: Prettier rules and ignore files, npm publish config, and the package-level quality scripts (the install-drift check, the dead-export gate and its allowlist of test seams)"
+description: "Code quality tooling configuration: Prettier rules and ignore files, npm publish config, and the package-level quality scripts (the install-drift check, the dead-export gate and its allowlist of test seams, and the cross-surface truth gate: npm run surface-truth builds the CLI and runs, as one step, every check that holds the docs, the knowledge topics, the agent manual, the schema references and --help to what the CLI does, grouped by the surface-truth audit's recommendations S1 to S9, the claim register's tests included; the family release loop runs it before the tag)"
 aspects: []
 relations: []
 mapping:
