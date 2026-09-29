@@ -1,0 +1,2 @@
+## [2026-09-29T06:04:32.274Z]
+The Runes pin guard and the pack smoke keep accepting the GitHub archive of a Runes commit, but only as the release-branch stand-in for a Runes version not yet on npm, not as a state the project is in: each family release may pin a Runes version before it is published, and the guard must still let local and CI installs work then while refusing to publish. Their comments now describe the registry as the normal source and the archive as that temporary case.
