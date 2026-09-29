@@ -8,13 +8,13 @@
 // - the package installed in node_modules is that version, and so is the version the code
 //   actually imports (the `version` export of @chrisdudek/runes/relations);
 // - the lock fetches it from one of two places only: the npm registry tarball of that version,
-//   or, until Runes is first published to npm, the GitHub archive of the tagged Runes commit
-//   (https://codeload.github.com/krzysztofdudek/Runes/tar.gz/<commit>), always with an
-//   integrity hash, so the bytes are pinned either way.
+//   or, while a release branch pins a Runes version not yet on npm, the GitHub archive of the
+//   tagged Runes commit (https://codeload.github.com/krzysztofdudek/Runes/tar.gz/<commit>),
+//   always with an integrity hash, so the bytes are pinned either way.
 //
 // With --publish the GitHub archive is refused: a published @chrisdudek/yg resolves its
-// dependencies from the registry, so publishing before Runes is on npm would ship a package no
-// one can install. `npm publish` runs this through prepublishOnly.
+// dependencies from the registry, so publishing before the pinned Runes version is on npm would
+// ship a package no one can install. `npm publish` runs this through prepublishOnly.
 //
 // Switching to the registry once Runes X.Y.Z is on npm changes no code and not package.json:
 //   npm install @chrisdudek/runes@X.Y.Z --save-exact   (in source/cli; rewrites the lock entry)

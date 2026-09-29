@@ -63,7 +63,7 @@ describe('runesPinProblems', () => {
     }
   }
 
-  it('passes the GitHub archive of a commit before Runes is on npm, and the registry tarball after', () => {
+  it('passes the registry tarball, and the GitHub archive of a commit for a version not yet on npm', () => {
     fixture({});
     expect(runesPinProblems(dir, { runtimeVersion: '1.2.3' })).toEqual([]);
     fixture({ resolved: REGISTRY('1.2.3') });
