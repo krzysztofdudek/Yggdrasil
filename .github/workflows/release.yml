@@ -96,9 +96,12 @@ jobs:
           node-version-file: .nvmrc
           registry-url: 'https://registry.npmjs.org'
       # OIDC trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.x.
+      # Pinned, never @latest: npm 12 blocks dependency install scripts by
+      # default, so tree-sitter-cli never fetches its binary and the grammar
+      # build fails (the 6.1.0 publish broke exactly this way). Same pin as Runes.
       - name: Use OIDC-capable npm
         if: steps.npm-check.outputs.published == 'false'
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.6.2
       - run: npm ci
         if: steps.npm-check.outputs.published == 'false'
         working-directory: source/cli
