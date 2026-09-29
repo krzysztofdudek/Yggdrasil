@@ -13,7 +13,7 @@ import { PROVIDER_DEFAULT_MODELS } from '../utils/known-providers.js';
 // Prompt helpers
 // ---------------------------------------------------------------------------
 
-export function assertNotCancelled<T>(value: T | symbol): asserts value is T {
+export function assertNotCancelled<T>(value: T): asserts value is Exclude<T, symbol> {
   if (p.isCancel(value)) {
     p.cancel('Operation cancelled.');
     process.exit(0);
