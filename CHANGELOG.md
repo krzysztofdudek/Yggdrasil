@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The loop diagram in the README: the "refused: back to the agent" label ran into the "After the edit" box. It now sits in the gap beside the dashed arrow it names.
+
 ## [6.1.0] - 2026-09-29
 
 This release breaks things for adopters, for scripts and CI that read the CLI, for agent instructions, for package authors and for the family tools. Read **Breaking** first, then follow **Upgrading from 6.0.0** in order.
