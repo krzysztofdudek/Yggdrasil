@@ -127,7 +127,7 @@ function runningCliPath(given?: string): string | null {
   } catch {
     debugWrite(`[init] merge drivers: could not resolve ${argv1}, using it as given`);
   }
-  return resolved.replace(/\\/g, '/').replace(/(["$`])/g, '\\$1');
+  return resolved.replace(/\\/g, '/').replace(/(["$`\\])/g, '\\$1');
 }
 
 /**
