@@ -49,7 +49,6 @@ export const REVIEWED_ABSOLUTES: ReviewedAbsolute[] = [
   { phrase: 'upgrading never turns a build red over law nobody changed', why: 'cli/init.ts takeUpTypeLaw writes ratification: true only when every enforced type rule was recorded (failed.length > 0 returns armed: false) and returns early once the type_law key exists; core/check-type-law.ts reports nothing unless ratification is true.' },
   // docs/family-contracts.md
   { phrase: '`yg pack list` asks the source for tags and never reads it', why: 'cli/pack.ts runList reads only the local record and asks each source for tags via FetchSession.versionsOf (ls-remote); readMarketplaceEntry, the only reader of yg-marketplace.yaml in pack, is called from add/update, not list.' },
-  { phrase: 'Horde never reads `next.target`, and reads `next.remaining` only off', why: 'A claim about Horde, not the yg CLI: Horde\'s skills/horde/scripts/node.mjs reads next.remaining only in userOnlyRefusal/reviewerGap over READ_ONLY_CHECK (\'check --no-approve\') output and never reads next.target; Grain has no reader of either.' },
   // docs/feature-field.md
   { phrase: 'it never blocks a check, never fails a build', why: 'core/feature-index-write.ts: the index is never an issue, exit code or hash input, and a write failure is swallowed to the debug log.' },
   // docs/glossary.md

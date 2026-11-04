@@ -85,10 +85,10 @@ const MIN_CONSTANTS = 12;
  *
  * Only `yg-<name>/<n>`-shaped ids need to be here: the extraction below matches
  * that shape alone, so `grain-advice/1`, `grain-proposal/1`, `grain-export/1`,
- * `horde-law/1`, `horde-retro/1`, `horde-plan/1`, `horde-drill-case/1` and the
- * schema-less `yg-events` line never reach it. Half (b) of this guard — the seam
- * test in Grain, the only CI with all three checkouts — is what holds those to
- * the page.
+ * `jarl-record/1`, `jarl-profile/1` and the schema-less `yg-events` line never
+ * reach it. Half (b) of this guard, the seam test in Grain, the only CI with
+ * both checkouts, is what holds Grain's ids to the page; Jarl guards its two in
+ * its own suite.
  */
 const NON_FORMATTER_IDS: ReadonlyArray<{ id: string; producer: string }> = [
   // The package mechanism's three documents live in src/io/, not src/formatters/:
